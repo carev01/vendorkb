@@ -65,6 +65,20 @@ def _filters(vendor: list[str] | None, product: list[str] | None) -> tuple[str, 
     return "".join(f" AND {c}" for c in clauses), params
 
 
+async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) -> list[tuple]:
+    """Vector query with HNSW iterative scan, so a WHERE filter cannot starve the result."""
+    cur = await conn.execute("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+    row = await cur.fetchone()
+    ver = tuple(int(x) for x in (row[0] if row else "0").split(".")[:2])
+    async with conn.transaction():
+        if ver >= (0, 8):
+            await conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+        else:
+            await conn.execute("SET LOCAL hnsw.ef_search = 1000")
+        cur = await conn.execute(sql, params)
+        return await cur.fetchall()
+
+
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                       reranker: Reranker, vendor: list[str] | None = None,
                       product: list[str] | None = None, k: int = 10,
@@ -74,14 +88,16 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
     where, fparams = _filters(vendor, product)
     fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) "
                "WHERE c.tsv @@ websearch_to_tsquery('english', %s)" + where +
-               " ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', %s)) DESC"
-               " LIMIT %s")
-    vec_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) "
-               f"WHERE true{where} ORDER BY c.embedding <=> %s LIMIT %s")
+               " ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', %s)) DESC,"
+               " c.chunk_id LIMIT %s")
+    # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
+    # there forces an exact scan); the outer sort makes the order of equal distances stable.
+    vec_sql = (f"SELECT * FROM (SELECT {_COLS}, c.embedding <=> %s AS dist "
+               f"FROM chunks c JOIN documents d USING (doc_id) WHERE true{where} "
+               "ORDER BY c.embedding <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
     cur = await conn.execute(fts_sql, [query, *fparams, query, FTS_LIMIT])
     fts_rows = await cur.fetchall()
-    cur = await conn.execute(vec_sql, [*fparams, Vector(qvec), VEC_LIMIT])
-    vec_rows = await cur.fetchall()
+    vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
 
     rows = {r[0]: r for r in [*fts_rows, *vec_rows]}
     order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]])
@@ -90,7 +106,7 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
 
     if use_rerank and candidates:
         ranked = await reranker.rerank(query, [rows[c][2] for c in candidates], k)
-        if ranked is not None:
+        if ranked:  # None (outage) and [] for non-empty candidates are both failures
             hits = [_hit(rows[candidates[i]], rrf_pos[candidates[i]], score)
                     for i, score in ranked[:k]]
             return SearchResult(hits=hits, rerank_ok=True)

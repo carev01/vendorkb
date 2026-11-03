@@ -67,14 +67,80 @@ async def test_search_merges_fts_and_vector_and_reranks(vkb_dsn):
         fts_only = await _chunk(conn, ids["V1"], 0, "zebra stripes unique keyword", 5)
         vec_only = await _chunk(conn, ids["V1"], 1, "completely other words", 0)
         await _chunk(conn, ids["V1"], 2, "filler content", 7)
+        for n in range(60):
+            v = _vec(0)
+            v[1] = 0.1  # nearer the query than the keyword chunk, farther than vec_only
+            await conn.execute(
+                "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+                " embedding) VALUES (%s,%s,%s,%s,%s,1,%s)",
+                (str(uuid.uuid4()), ids["V2"], ["D"], n, f"distractor {n}", Vector(v)))
         rr = FakeReranker(lambda t: 0.9 if "other" in t else 0.5)
         res = await search_docs(conn, "zebra", embedder=FakeEmbedder(_vec(0)), reranker=rr, k=5)
         got = [h.chunk_id for h in res.hits]
         assert fts_only in got and vec_only in got
         assert got[0] == vec_only and got[1] == fts_only
+        cur = await conn.execute(
+            "SELECT chunk_id::text FROM chunks ORDER BY embedding <=> %s, chunk_id LIMIT 50",
+            (Vector(_vec(0)),))
+        assert fts_only not in [r[0] for r in await cur.fetchall()]
         assert res.rerank_ok is True
         assert res.hits[0].rerank_score == 0.9 and res.hits[0].rrf_rank >= 1
         assert res.hits[0].vendor == "V1" and res.hits[0].url == "http://u/V1"
+    finally:
+        await conn.close()
+
+
+async def test_filtered_vector_search_is_not_starved_by_hnsw(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        ids = await _seed(conn)
+        for n in range(2000):
+            v = _vec(0)
+            v[10 + n % 700] = 0.1
+            cid = str(uuid.uuid4())
+            await conn.execute(
+                "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+                " embedding) VALUES (%s,%s,%s,%s,%s,1,%s)",
+                (cid, ids["V1"], ["A"], n, f"aaa {n}", Vector(v)))
+        b = []
+        for n in range(5):
+            v = [0.0] * 768
+            v[0] = -1.0
+            v[3 + n] = 1.0
+            cid = str(uuid.uuid4())
+            await conn.execute(
+                "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+                " embedding) VALUES (%s,%s,%s,%s,%s,1,%s)",
+                (cid, ids["V2"], ["B"], n, f"bbb {n}", Vector(v)))
+            b.append(cid)
+        await conn.execute("ANALYZE")
+        await conn.execute("SET enable_seqscan = off")
+        await conn.execute("SET enable_sort = off")
+        await conn.execute("SET enable_hashjoin = off")
+        await conn.execute("SET enable_mergejoin = off")
+        rr = FakeReranker(lambda t: 0.5)
+        res = await search_docs(conn, "qqqabsent", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                vendor=["V2"], k=10)
+        assert sorted(h.chunk_id for h in res.hits) == sorted(b)
+    finally:
+        await conn.close()
+
+
+async def test_empty_rerank_reply_falls_back(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        ids = await _seed(conn)
+        await _chunk(conn, ids["V1"], 0, "alpha text", 0)
+
+        class Empty(FakeReranker):
+            async def rerank(self, query, documents, top_k):
+                return []
+
+        res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                reranker=Empty(lambda t: 0), k=3)
+        assert res.rerank_ok is False and len(res.hits) == 1
     finally:
         await conn.close()
 
