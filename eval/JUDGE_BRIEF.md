@@ -7,7 +7,7 @@ the same rules.
 
 ## What you get
 
-You are given one batch file (`batches/batch-NNN.jsonl`). Each line is one task:
+You are given one batch file (`batches/batch-NNN.jsonl`, 2 tasks). Each line is one task:
 
 ```json
 {"key": "...", "type": "single_vendor|multi_article|cross_vendor|unanswerable",
@@ -16,7 +16,7 @@ You are given one batch file (`batches/batch-NNN.jsonl`). Each line is one task:
    "A": {"errored": false, "text": "... [1] ... [2]",
          "sources": [{"n": 1, "paraphrase": "..." or null,
                       "paraphrase_note": "system paraphrase (not evidence)" or null,
-                      "unresolvable": false,
+                      "unresolvable": false, "documents_omitted": 0,
                       "documents": [{"title": "...", "text": "...",
                                      "same_text_as_source": null, "truncated": false}]}]},
    "B": {...}}}
@@ -31,11 +31,14 @@ You are given one batch file (`batches/batch-NNN.jsonl`). Each line is one task:
 - `same_text_as_source: m` means this document's text is identical to one already shown
   under source `m` of the same answer; read it there.
 - `truncated: true` means the harness cut that document's text to keep the context within
-  its size cap; `text` ends at the cut. Judge only on the text shown.
+  its size cap; `text` ends at the cut. Every citation of an answer gets a fair share of
+  that cap, so each citation keeps some text. Judge only on the text shown.
+- `documents_omitted: k` means k more documents behind that citation were not shown (a
+  per-citation limit, or the size cap). Judge only on the text shown.
 - `unresolvable: true` means no source text could be found for that citation. A citation
   with no source text supports nothing.
-- `errored: true` means that system failed to produce an answer. Do not judge it (see
-  "Errored answers").
+- `errored: true` (with `text: null` and no sources) means that system failed to produce an
+  answer. Do not judge it (see "Errored answers").
 
 ## The source-text rule
 
@@ -59,7 +62,12 @@ Treat them exactly like this:
    label as a claim and do not mark anything unsupported because of a label.
 2. **An item flagged "needs validation" is a declared hedge.** It is neither counted as an
    unsupported claim nor credited as presenting a gold fact: leave it out of `claims`, and
-   it cannot make a gold fact present.
+   it cannot make a gold fact present. The flag takes either of two forms:
+   - an inline note after the item, such as *"(needs validation: the cited source does not
+     mention …)"* or *"(needs validation: the cited source does not name this item)"*;
+   - a bare **" †"** after the item, explained by a group note such as *"Items marked †
+     come from documentation that does not mention X specifically; validate them for your
+     case."* Every item marked † is a hedge. The group note itself is not a claim.
 3. **In the enumeration line "Checked … / Documented for …", each "documented for X" is a
    claim** that needs support from the citations: record each one as a claim. "Checked"
    describes the process and is not judged: leave it out of `claims`.
@@ -72,9 +80,13 @@ Treat them exactly like this:
 - Extra items that are correct and supported by their citations never count against an
   answer.
 - Cross-vendor gold names each vendor: "documented: ..." or "no evidence in the corpus".
-  A "no evidence in the corpus" fact is present only if the answer says or clearly
-  indicates that nothing on the topic was found for that vendor; an answer silent on
-  that vendor does not present it. Conversely, an answer that claims the vendor documents
+  A "no evidence in the corpus" fact for vendor X is **present** when:
+  - X is listed in the enumeration line's "Checked" part but not in its "Documented for"
+    part; or
+  - the answer states explicitly in prose that nothing on the topic was found for X
+    (this applies to either answer, with or without an enumeration line).
+
+  It is **absent** when the answer is silent about X. An answer that claims X documents
   the topic makes a claim that needs support like any other.
 - Unanswerable questions have no gold facts (`gold: []`).
 
@@ -100,9 +112,10 @@ true (its uncited claims are already unsupported, under `claims`).
 
 ## Errored answers
 
-An answer with `errored: true` is not sent to you for judging and is scored as not perfect
-without a verdict. Write `{"errored": true}` for that label (or leave the label out). If
-both answers errored, the task is not in your batch.
+An errored answer appears in your batch with `errored: true`, `text: null` and no sources.
+Do not judge it: it is scored as not perfect without a verdict. Write `{"errored": true}`
+for that label (or leave the label out), and judge the other answer normally. If both
+answers errored, the task is not in your batch.
 
 ## Your answer format
 
