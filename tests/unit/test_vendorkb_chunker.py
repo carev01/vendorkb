@@ -98,3 +98,9 @@ def test_horizontal_rule_is_not_a_heading():
     chunks = chunk_markdown("T", md)
     assert all(c.section_path == ("T",) for c in chunks)
     assert "---" in "".join(c.text for c in chunks)
+
+
+def test_title_only_chunk_prefix_does_not_repeat_title():
+    chunks = chunk_markdown("T", para(400) + "\n")
+    assert chunks[0].text.startswith("T\n\n")
+    assert not chunks[0].text.startswith("T\nT\n")

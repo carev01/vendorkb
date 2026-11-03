@@ -39,8 +39,8 @@ class _Section:
 
 
 def _prefix(title: str, path: tuple[str, ...]) -> str:
-    trail = " > ".join(path[1:]) or title
-    return f"{title}\n{trail}\n\n"
+    trail = " > ".join(path[1:])
+    return f"{title}\n{trail}\n\n" if trail else f"{title}\n\n"
 
 
 def _same_title(a: str, b: str) -> bool:
