@@ -54,15 +54,24 @@ def _hit(row: tuple, rrf_rank: int = 0, rerank_score: float | None = None) -> Hi
 
 
 def _filters(vendor: list[str] | None, product: list[str] | None) -> tuple[str, list]:
-    clauses: list[str] = []
-    params: list = []
+    """Scope filter. Vendor and product are ORed, as answer-api scopes (a document matches
+    when its vendor is named OR its product is named); a single filter applies alone."""
+    if vendor and product:
+        return (" AND (d.vendor = ANY(%s) OR d.product = ANY(%s))",
+                [list(vendor), list(product)])
     if vendor:
-        clauses.append("d.vendor = ANY(%s)")
-        params.append(list(vendor))
+        return " AND d.vendor = ANY(%s)", [list(vendor)]
     if product:
-        clauses.append("d.product = ANY(%s)")
-        params.append(list(product))
-    return "".join(f" AND {c}" for c in clauses), params
+        return " AND d.product = ANY(%s)", [list(product)]
+    return "", []
+
+
+# websearch_to_tsquery ANDs every term, so a natural-language question matches almost
+# nothing. Its terms are ORed instead (ts_rank_cd still ranks chunks matching more terms
+# higher). A stopword-only question gives an empty tsquery: NULLIF turns it into NULL,
+# which matches no chunk instead of raising.
+_TSQUERY = ("NULLIF(replace(websearch_to_tsquery('english', %s)::text, ' & ', ' | '), '')"
+            "::tsquery")
 
 
 async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) -> list[tuple]:
@@ -80,22 +89,22 @@ async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) ->
 
 
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
-                      reranker: Reranker, vendor: list[str] | None = None,
+                      reranker: Reranker | None, vendor: list[str] | None = None,
                       product: list[str] | None = None, k: int = 10,
                       use_rerank: bool = True) -> SearchResult:
     # An embedder failure propagates: the caller records it.
     qvec = (await embedder.embed([query]))[0]
     where, fparams = _filters(vendor, product)
-    fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) "
-               "WHERE c.tsv @@ websearch_to_tsquery('english', %s)" + where +
-               " ORDER BY ts_rank_cd(c.tsv, websearch_to_tsquery('english', %s)) DESC,"
-               " c.chunk_id LIMIT %s")
+    fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id), "
+               f"(SELECT {_TSQUERY} AS tsq) q "
+               "WHERE c.tsv @@ q.tsq" + where +
+               " ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id LIMIT %s")
     # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
     # there forces an exact scan); the outer sort makes the order of equal distances stable.
     vec_sql = (f"SELECT * FROM (SELECT {_COLS}, c.embedding <=> %s AS dist "
                f"FROM chunks c JOIN documents d USING (doc_id) WHERE true{where} "
                "ORDER BY c.embedding <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
-    cur = await conn.execute(fts_sql, [query, *fparams, query, FTS_LIMIT])
+    cur = await conn.execute(fts_sql, [query, *fparams, FTS_LIMIT])
     fts_rows = await cur.fetchall()
     vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
 
@@ -104,7 +113,7 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
     rrf_pos = {cid: n for n, cid in enumerate(order, start=1)}
     candidates = order[:RERANK_CANDIDATES]
 
-    if use_rerank and candidates:
+    if use_rerank and reranker is not None and candidates:
         ranked = await reranker.rerank(query, [rows[c][2] for c in candidates], k)
         if ranked:  # None (outage) and [] for non-empty candidates are both failures
             hits = [_hit(rows[candidates[i]], rrf_pos[candidates[i]], score)

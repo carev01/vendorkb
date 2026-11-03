@@ -157,8 +157,8 @@ async def test_vendor_filter_restricts_hits(vkb_dsn):
                                 vendor=["V2"])
         assert [h.vendor for h in res.hits] == ["V2"]
         res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
-                                vendor=["V1"], product=["P2"])
-        assert res.hits == []
+                                product=["P2"])
+        assert [h.vendor for h in res.hits] == ["V2"]
         res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                 vendor=[])
         assert len(res.hits) == 2
@@ -233,5 +233,67 @@ async def test_scope_index_from_db_fills_source_products(vkb_dsn):
         assert idx.source_products == {"S": ["P1", "P2"]}
         assert idx.source_vendors == {}  # "S" is shared by V1 and V2, so not unique
         assert "VBR" in idx.aliases
+    finally:
+        await conn.close()
+
+
+async def test_vendor_and_product_filters_are_ored(vkb_dsn):
+    """answer-api scopes with OR: vendor named OR product named (I1)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        ids = await _seed(conn)
+        await _chunk(conn, ids["V1"], 0, "alpha text", 0)
+        await _chunk(conn, ids["V2"], 0, "alpha text", 0)
+        rr = FakeReranker(lambda t: 0.5)
+        res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                vendor=["V1"], product=["P2"])
+        assert sorted(h.vendor for h in res.hits) == ["V1", "V2"]
+        res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                vendor=["V1"], product=["P1"])
+        assert [h.vendor for h in res.hits] == ["V1"]
+        res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                vendor=["V9"], product=["P9"])
+        assert res.hits == []
+    finally:
+        await conn.close()
+
+
+async def test_fts_matches_a_question_sharing_only_some_terms(vkb_dsn):
+    """A natural question ANDs to nothing; FTS must OR its terms (C1)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        ids = await _seed(conn)
+        kw = await _chunk(conn, ids["V1"], 0,
+                          "Exchange mailbox retention is configured per database.", 5)
+        for n in range(60):
+            v = _vec(0)
+            v[1] = 0.1
+            await conn.execute(
+                "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+                " embedding) VALUES (%s,%s,%s,%s,%s,1,%s)",
+                (str(uuid.uuid4()), ids["V2"], ["D"], n, f"distractor {n}", Vector(v)))
+        q = "How long can my backup job keep Exchange mailboxes under retention?"
+        res = await search_docs(conn, q, embedder=FakeEmbedder(_vec(0)), reranker=None,
+                                use_rerank=False, k=40)
+        assert kw in [h.chunk_id for h in res.hits]
+        assert res.hits[0].chunk_id == kw  # FTS rank 1 ties vector rank 1, FTS listed first
+    finally:
+        await conn.close()
+
+
+async def test_stopword_only_query_matches_nothing_by_fts(vkb_dsn):
+    """An empty tsquery must not error and must match no chunk (C1 guard)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        ids = await _seed(conn)
+        await _chunk(conn, ids["V1"], 0, "the and of", 3)
+        res = await search_docs(conn, "the of and", embedder=FakeEmbedder(_vec(0)),
+                                reranker=None, use_rerank=False, k=5)
+        # no error; at most the vector side's one hit (HNSW may skip it after the
+        # previous test's deletes, so the count is not asserted exactly)
+        assert len(res.hits) <= 1
     finally:
         await conn.close()

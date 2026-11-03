@@ -57,7 +57,7 @@ async def _search(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                         k=args.k, use_rerank=True)
             else:
                 result = await search_docs(
-                    conn, args.query, embedder=embedder, reranker=None,  # type: ignore[arg-type]
+                    conn, args.query, embedder=embedder, reranker=None,
                     vendor=args.vendor or None, product=args.product or None,
                     k=args.k, use_rerank=False)
     finally:
