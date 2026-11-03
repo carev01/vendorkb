@@ -148,3 +148,24 @@ def test_prompt_contains_no_urls():
     p = build_prompt("What is X?", [_hit(1), _hit(2)])
     assert "http" not in p and "[1]" in p and "[2]" in p and "Title 2" in p
     assert "http" not in ans.SYSTEM_RULES and REFUSAL in ans.SYSTEM_RULES
+
+
+def test_unknown_marker_removal_keeps_indentation():
+    raw = "Steps:\n  - first [9]\n    - nested [1]\n  - done [8]."
+    text, _, unknown = resolve_markers(raw, [_hit(1)])
+    assert unknown == 2
+    assert text == "Steps:\n  - first\n    - nested [1]\n  - done."
+
+
+@pytest.mark.asyncio
+async def test_empty_choices_is_retried_then_an_error(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    client = FakeClient([])
+
+    async def create(**kw):
+        client.calls.append(kw)
+        return types.SimpleNamespace(choices=[], usage=None)
+
+    client.chat.completions.create = create
+    r = await _run(client)
+    assert r["answer"] is None and r["error"] == "empty reply" and len(client.calls) == 2

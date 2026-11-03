@@ -23,7 +23,7 @@ SYSTEM_RULES = (
     f"nothing else: {REFUSAL}"
 )
 
-_GROUP = re.compile(r"\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
+_GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
 
 
 def build_prompt(question: str, hits: list[Hit]) -> str:
@@ -42,7 +42,7 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
 
     def repl(m: re.Match[str]) -> str:
         nonlocal unknown
-        nums = [int(x) for x in re.split(r"\s*,\s*", m.group(1))]
+        nums = [int(x) for x in re.split(r"\s*,\s*", m.group(2))]
         keep = []
         for n in nums:
             if 1 <= n <= valid:
@@ -51,12 +51,10 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
                     order.append(n)
             else:
                 unknown += 1
-        return f"[{', '.join(str(n) for n in keep)}]" if keep else ""
+        # A fully removed marker takes ONE preceding space with it; nothing else is touched.
+        return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]" if keep else ""
 
     text = _GROUP.sub(repl, raw)
-    if unknown:
-        text = re.sub(r"[ \t]{2,}", " ", text)
-        text = re.sub(r"[ \t]+([.,;:!?])", r"\1", text).strip()
     citations = []
     for n in order:
         h = hits[n - 1]
@@ -96,7 +94,8 @@ async def _call_model(client: AsyncOpenAI, settings, user: str) -> tuple[str | N
             cost = getattr(u, "cost", None)
             if cost is not None:
                 totals["cost"] = (totals["cost"] or 0) + cost
-        content = resp.choices[0].message.content
+        choices = getattr(resp, "choices", None)
+        content = choices[0].message.content if choices else None
         if content is None or content.strip() == "":
             error = "empty reply"
             log.warning("vendorkb answer model returned an empty reply (attempt %d)", attempt)
