@@ -59,7 +59,10 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
     for n in order:
         h = hits[n - 1]
         citations.append({"marker": n, "chunk_id": h.chunk_id, "doc_id": h.doc_id,
-                          "url": h.url, "title": h.title, "section_path": h.section_path})
+                          "url": h.url, "title": h.title, "section_path": h.section_path,
+                          # the evidence as the model saw it: judging never depends on a
+                          # later DB state (a re-ingest may replace the chunk)
+                          "text": h.text})
     return text, citations, unknown
 
 

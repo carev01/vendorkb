@@ -197,3 +197,45 @@ async def test_message_none_is_retried_then_an_error(monkeypatch):
     client.chat.completions.create = create
     r = await _run(client)
     assert r["answer"] is None and r["error"] == "empty reply" and len(client.calls) == 2
+
+
+INDEX_VP = ScopeIndex(vendors=["Veeam"], products=["Backup Exchange"], aliases={})
+
+
+@pytest.mark.asyncio
+async def test_scope_detected_with_hits_searches_once_with_both_filters(monkeypatch):
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await ans.answer(None, "Does Veeam Backup Exchange work?", settings=_settings(),
+                         embedder=None, reranker=None, scope_index=INDEX_VP,
+                         client=FakeClient(["Yes [1]."]))
+    assert len(calls) == 1
+    assert calls[0]["vendor"] == ["Veeam"] and calls[0]["product"] == ["Backup Exchange"]
+    assert r["scope"]["relaxed"] is False and r["answer"] == "Yes [1]."
+
+
+@pytest.mark.asyncio
+async def test_both_filters_empty_relaxes_to_unfiltered(monkeypatch):
+    calls = _patch_search(monkeypatch, [SearchResult([], True), SearchResult([_hit(1)], True)])
+    r = await ans.answer(None, "Does Veeam Backup Exchange work?", settings=_settings(),
+                         embedder=None, reranker=None, scope_index=INDEX_VP,
+                         client=FakeClient(["Yes [1]."]))
+    assert len(calls) == 2
+    assert not calls[1].get("vendor") and not calls[1].get("product")
+    assert r["scope"]["relaxed"] is True and r["retrieved"] == 1
+
+
+@pytest.mark.asyncio
+async def test_no_scope_empty_does_not_relax(monkeypatch):
+    calls = _patch_search(monkeypatch, [SearchResult([], True)])
+    client = FakeClient([])
+    r = await ans.answer(None, "How do backups work?", settings=_settings(), embedder=None,
+                         reranker=None, scope_index=INDEX, client=client)
+    assert len(calls) == 1 and not calls[0].get("vendor")
+    assert r["scope"] == {"vendors": [], "products": [], "relaxed": False}
+    assert r["answer"] == REFUSAL and client.calls == []
+
+
+def test_citations_carry_the_cited_chunk_text():
+    hits = [_hit(1), _hit(2)]
+    _text, cites, _unknown = resolve_markers("A [2].", hits)
+    assert cites[0]["text"] == hits[1].text
