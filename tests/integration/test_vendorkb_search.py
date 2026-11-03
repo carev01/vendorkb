@@ -231,6 +231,7 @@ async def test_scope_index_from_db_fills_source_products(vkb_dsn):
         assert idx.vendors == ["V1", "V2"]
         assert idx.products == ["P1", "P2"]
         assert idx.source_products == {"S": ["P1", "P2"]}
+        assert idx.source_vendors == {}  # "S" is shared by V1 and V2, so not unique
         assert "VBR" in idx.aliases
     finally:
         await conn.close()

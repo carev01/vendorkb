@@ -13,13 +13,19 @@ PRODUCTS = ["Veeam Backup & Replication", "Veeam Backup for Microsoft 365", "AWS
 SOURCE_PRODUCTS = {
     "Veeam Agent for Linux": ["Veeam Backup & Replication"],
     "Veeam Agent for Mac": ["Veeam Backup & Replication"],
+    "User Guide": ["AWS Backup"],
+}
+SOURCE_VENDORS = {
+    "Veeam Agent for Linux": "Veeam",
+    "Veeam Agent for Mac": "Veeam",
+    "User Guide": "AWS",
 }
 
 
-def _index(tmp_path, source_products=None):
+def _index(tmp_path, source_products=None, source_vendors=None):
     p = tmp_path / "aliases.json"
     p.write_text(json.dumps(ALIASES))
-    return load_scope_index(VENDORS, PRODUCTS, p, source_products)
+    return load_scope_index(VENDORS, PRODUCTS, p, source_products, source_vendors)
 
 
 def test_alias_vbr_maps_to_product(tmp_path):
@@ -35,15 +41,32 @@ def test_alias_to_vendor(tmp_path):
 
 
 def test_multi_target_alias_veeam_agent_returns_all_targets(tmp_path):
-    idx = _index(tmp_path, SOURCE_PRODUCTS)
-    v, p = detect_scope("How do I install Veeam Agent?", idx)
+    sp = {"Veeam Agent for Linux": ["Veeam Backup & Replication"],
+          "Veeam Agent for Mac": ["AWS Backup"]}
+    v, p = detect_scope("How do I install Veeam Agent?", _index(tmp_path, sp))
+    assert p == ["Veeam Backup & Replication", "AWS Backup"]
+    assert v == []
+
+
+def test_multi_target_alias_single_product_after_dedupe(tmp_path):
+    v, p = detect_scope("How do I install Veeam Agent?", _index(tmp_path, SOURCE_PRODUCTS))
     assert p == ["Veeam Backup & Replication"]
 
 
 def test_directly_named_source_maps_to_products(tmp_path):
-    v, p = detect_scope("Back up with Veeam Agent for Linux", _index(tmp_path, SOURCE_PRODUCTS))
+    idx = _index(tmp_path, SOURCE_PRODUCTS, SOURCE_VENDORS)
+    v, p = detect_scope("Back up with Veeam Agent for Linux", idx)
     assert p == ["Veeam Backup & Replication"]
-    assert v == ["Veeam"] or v == []
+    assert v == []
+
+
+def test_generic_source_name_is_not_a_surface(tmp_path):
+    idx = _index(tmp_path, SOURCE_PRODUCTS, SOURCE_VENDORS)
+    v, p = detect_scope("Where is the User Guide for AWS Backup?", idx)
+    assert p == ["AWS Backup"]
+    assert v == []
+    # nothing but the generic name: still unscoped
+    assert detect_scope("Open the User Guide", idx) == ([], [])
 
 
 def test_unknown_alias_target_ignored(tmp_path):
@@ -73,7 +96,7 @@ def test_single_vendor_across_regions_stays_scoped(tmp_path):
     v, p = detect_scope("How do I copy AWS Backup recovery points across regions?",
                         _index(tmp_path))
     assert p == ["AWS Backup"]
-    assert v == ["AWS"] or v == []
+    assert v == []
 
 
 def test_dedupe_preserves_first_match_order(tmp_path):

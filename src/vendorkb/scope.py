@@ -27,6 +27,7 @@ class ScopeIndex:
     products: list[str]
     aliases: dict[str, list[str]]
     source_products: dict[str, list[str]] = field(default_factory=dict)
+    source_vendors: dict[str, str] = field(default_factory=dict)
 
 
 def _read_aliases(path: Path | None) -> dict[str, list[str]]:
@@ -35,9 +36,10 @@ def _read_aliases(path: Path | None) -> dict[str, list[str]]:
 
 
 def load_scope_index(vendors: list[str], products: list[str], aliases_path: Path | None = None,
-                     source_products: dict[str, list[str]] | None = None) -> ScopeIndex:
+                     source_products: dict[str, list[str]] | None = None,
+                     source_vendors: dict[str, str] | None = None) -> ScopeIndex:
     return ScopeIndex(list(vendors), list(products), _read_aliases(aliases_path),
-                      dict(source_products or {}))
+                      dict(source_products or {}), dict(source_vendors or {}))
 
 
 async def scope_index_from_db(conn, aliases_path: Path | None = None) -> ScopeIndex:
@@ -51,7 +53,15 @@ async def scope_index_from_db(conn, aliases_path: Path | None = None) -> ScopeIn
     source_products: dict[str, list[str]] = {}
     for source, product in sorted(await cur.fetchall()):
         source_products.setdefault(source, []).append(product)
-    return load_scope_index(vendors, products, aliases_path, source_products)
+    cur = await conn.execute(
+        "SELECT DISTINCT source, vendor FROM documents"
+        " WHERE source IS NOT NULL AND vendor IS NOT NULL")
+    by_source: dict[str, set[str]] = {}
+    for source, vendor in await cur.fetchall():
+        by_source.setdefault(source, set()).add(vendor)
+    # a source shared by several vendors is not unique, hence never a direct surface
+    source_vendors = {s: next(iter(v)) for s, v in by_source.items() if len(v) == 1}
+    return load_scope_index(vendors, products, aliases_path, source_products, source_vendors)
 
 
 def _resolve(name: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
@@ -74,8 +84,12 @@ def detect_scope(question: str, index: ScopeIndex) -> tuple[list[str], list[str]
         return [], []
     # surface text -> list of target names (direct names target themselves)
     surfaces: dict[str, list[str]] = {}
-    for name in [*index.vendors, *index.products, *index.source_products]:
+    for name in [*index.vendors, *index.products]:
         surfaces.setdefault(name, [name])
+    for source, vendor in index.source_vendors.items():
+        # distinctive sources only: unique to one vendor and naming it ("Veeam Agent for Linux")
+        if source in index.source_products and vendor.lower() in source.lower():
+            surfaces.setdefault(source, [source])
     for alias, targets in index.aliases.items():
         surfaces[alias] = targets
     taken: list[tuple[int, int]] = []
