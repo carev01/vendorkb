@@ -219,3 +219,18 @@ async def test_read_section_expand_modes(vkb_dsn):
         assert await read_section(conn, str(uuid.uuid4())) == []
     finally:
         await conn.close()
+
+
+async def test_scope_index_from_db_fills_source_products(vkb_dsn):
+    from vendorkb.scope import scope_index_from_db
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn)
+        await _seed(conn)
+        idx = await scope_index_from_db(conn)
+        assert idx.vendors == ["V1", "V2"]
+        assert idx.products == ["P1", "P2"]
+        assert idx.source_products == {"S": ["P1", "P2"]}
+        assert "VBR" in idx.aliases
+    finally:
+        await conn.close()
