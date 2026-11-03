@@ -7,7 +7,9 @@ list. Validate it with:
     uv run --extra dev python -m scripts.headtohead.questions --check eval/headtohead/questions.yaml
 
 The check needs `eval/headtohead/corpus.json` and `eval/headtohead/ingest_report.json`
-(exit 2 if either is missing). Every problem is printed, prefixed by the question id.
+(exit 2 if either is missing or unreadable, or if the questions file is not a YAML list).
+Every problem is printed, prefixed by the question id. Article ids may be written as
+strings or integers; both are compared as strings.
 
 ## Fields
 
@@ -15,9 +17,10 @@ Each question has:
 - `id` (unique) and `type`: `single_vendor`, `multi_article`, `cross_vendor` or `unanswerable`;
 - `question`: the question text;
 - `gold_facts`: short, individually checkable statements;
-- `gold_sources`: article ids, with `section` where known;
-- `vendors`: the vendor(s) involved;
-- `written_from`: the article id(s) it was written from;
+- `gold_sources`: article ids, with `section` where known (non-empty unless unanswerable);
+- `vendors`: the vendor(s) involved, each one of the corpus vendors (the `vendor` values in
+  `corpus.json`: Veeam, Microsoft, AWS, Cohesity);
+- `written_from`: the article id(s) it was written from (non-empty unless unanswerable);
 - `decides`: true exactly when `origin` is `new`;
 - `origin`: `new`, `golden_questions` or `router_golden_tier1`;
 - `search_check`: unanswerable questions only, a non-empty record of the search used to
@@ -106,7 +109,7 @@ run.
   gold_sources:
     - {article_id: "12345"}
     - {article_id: "23456", section: "Limits"}
-  vendors: [Commvault]
+  vendors: [Veeam]
   written_from: ["12345", "23456"]
   decides: true
   origin: new
@@ -116,12 +119,12 @@ run.
   question: Which of the big backup vendors can restore a VM straight into Azure?
   gold_facts:
     - "Veeam: documented: ..."
-    - "Rubrik: documented: ..."
-    - "Commvault: no evidence in the corpus"
+    - "Microsoft: documented: ..."
+    - "AWS: no evidence in the corpus"
     - "Cohesity: documented: ..."
   gold_sources:
     - {article_id: "34567"}
-  vendors: [Veeam, Rubrik, Commvault, Cohesity]
+  vendors: [Veeam, Microsoft, AWS, Cohesity]
   written_from: ["34567"]
   decides: true
   origin: new
