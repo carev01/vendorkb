@@ -1,16 +1,6 @@
 import uuid
 from datetime import UTC, datetime
-
-import pytest_asyncio
-from testcontainers.postgres import PostgresContainer
-
 from vendorkb.db import connect, init_schema
-
-
-@pytest_asyncio.fixture(scope="module", loop_scope="module")
-async def vkb_dsn():
-    with PostgresContainer("pgvector/pgvector:pg16") as pg:
-        yield pg.get_connection_url().replace("+psycopg2", "")
 
 
 async def test_init_schema_is_idempotent_and_creates_tables(vkb_dsn):
