@@ -1,0 +1,17 @@
+# Local-only pgvector database for the vendorkb head-to-head. Bound to loopback.
+# Set VENDORKB_DB_PASSWORD in the environment; the compose file refuses to start without it.
+services:
+  vendorkb-db:
+    image: pgvector/pgvector:pg16
+    container_name: vendorkb-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${VENDORKB_DB_PASSWORD:?set VENDORKB_DB_PASSWORD}
+      POSTGRES_DB: vendorkb
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - vendorkb-pgdata:/var/lib/postgresql/data
+
+volumes:
+  vendorkb-pgdata:
