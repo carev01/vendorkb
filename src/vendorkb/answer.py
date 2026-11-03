@@ -95,7 +95,8 @@ async def _call_model(client: AsyncOpenAI, settings, user: str) -> tuple[str | N
             if cost is not None:
                 totals["cost"] = (totals["cost"] or 0) + cost
         choices = getattr(resp, "choices", None)
-        content = choices[0].message.content if choices else None
+        message = choices[0].message if choices else None
+        content = getattr(message, "content", None)
         if content is None or content.strip() == "":
             error = "empty reply"
             log.warning("vendorkb answer model returned an empty reply (attempt %d)", attempt)
@@ -131,6 +132,11 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         out["answer"] = content.strip()
         return out
     text, citations, unknown = resolve_markers(content, result.hits)
+    text = text.strip()
+    if text == "":
+        out["unknown_markers"] = unknown
+        out["error"] = "empty reply"
+        return out
     out.update(answer=text, citations=citations, unknown_markers=unknown,
                uncited=not citations)
     return out

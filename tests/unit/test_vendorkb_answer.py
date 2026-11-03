@@ -169,3 +169,31 @@ async def test_empty_choices_is_retried_then_an_error(monkeypatch):
     client.chat.completions.create = create
     r = await _run(client)
     assert r["answer"] is None and r["error"] == "empty reply" and len(client.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_marker_only_reply_is_an_error_not_an_answer(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1), _hit(2)], True)])
+    r = await _run(FakeClient(["  [9]  "]))
+    assert r["answer"] is None and r["error"] == "empty reply" and r["unknown_markers"] == 1
+
+
+@pytest.mark.asyncio
+async def test_answer_is_stripped_after_marker_removal(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FakeClient(["[9] Text [1]\n"]))
+    assert r["answer"] == "Text [1]"
+
+
+@pytest.mark.asyncio
+async def test_message_none_is_retried_then_an_error(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    client = FakeClient([])
+
+    async def create(**kw):
+        client.calls.append(kw)
+        return types.SimpleNamespace(choices=[types.SimpleNamespace(message=None)], usage=None)
+
+    client.chat.completions.create = create
+    r = await _run(client)
+    assert r["answer"] is None and r["error"] == "empty reply" and len(client.calls) == 2
