@@ -51,7 +51,9 @@ world but not in the cited text is not supported.
 A claim is supported by *its* citations: the `[n]` marker(s) attached to it, or to the
 sentence, list item or table row it belongs to. A factual claim with no citation attached
 is not supported. Text that makes no factual claim (framing such as "Here is what the
-documentation says:") is not a claim.
+documentation says:") is not a claim. One exception: the enumeration line
+"Checked … / Documented for …" never carries markers of its own (see "Fixed system
+lines", rule 3).
 
 ## Fixed system lines
 
@@ -62,15 +64,19 @@ Treat them exactly like this:
    label as a claim and do not mark anything unsupported because of a label.
 2. **An item flagged "needs validation" is a declared hedge.** It is neither counted as an
    unsupported claim nor credited as presenting a gold fact: leave it out of `claims`, and
-   it cannot make a gold fact present. The flag takes either of two forms:
+   it cannot make a gold fact present. A citation attached only to hedged items is not
+   judged for `citations_ok` (see "Citations"). The flag takes either of two forms:
    - an inline note after the item, such as *"(needs validation: the cited source does not
      mention …)"* or *"(needs validation: the cited source does not name this item)"*;
    - a bare **" †"** after the item, explained by a group note such as *"Items marked †
      come from documentation that does not mention X specifically; validate them for your
      case."* Every item marked † is a hedge. The group note itself is not a claim.
 3. **In the enumeration line "Checked … / Documented for …", each "documented for X" is a
-   claim** that needs support from the citations: record each one as a claim. "Checked"
-   describes the process and is not judged: leave it out of `claims`.
+   claim** that needs support: record each one as a claim. The line has no `[n]` markers
+   of its own, so its citations are the whole answer's: "documented for X" is supported
+   when the source text of **any** citation in that answer shows that X documents the
+   topic, and unsupported otherwise. "Checked" describes the process and is not judged:
+   leave it out of `claims`.
 
 ## Gold facts
 
@@ -110,6 +116,12 @@ to. A citation whose source text does not support the statement it is attached t
 `unresolvable` citation, makes it false. An answer with no citations has `citations_ok`
 true (its uncited claims are already unsupported, under `claims`).
 
+A citation attached **only** to hedged items (flagged "needs validation" or marked †, see
+"Fixed system lines", rule 2) is not judged: the hedge already declares that its source
+may not support the item, so it neither makes `citations_ok` false nor counts in its
+favour. The same citation number attached to an unhedged statement elsewhere is judged
+there as usual.
+
 ## Errored answers
 
 An errored answer appears in your batch with `errored: true`, `text: null` and no sources.
@@ -143,7 +155,7 @@ object per line, one line per task**, nothing else in the file:
 ## How your verdict is used
 
 An answer is **perfect** when every gold fact is present, no claim is unsupported, every
-citation supports what it is attached to, and it did not abstain; for an unanswerable
+judged citation supports what it is attached to, and it did not abstain; for an unanswerable
 question, when it abstained with no claim offered as an answer. Every question is judged
 in two independent passes and a third when they disagree. Be strict and consistent: the
 same rules apply to both answers.
