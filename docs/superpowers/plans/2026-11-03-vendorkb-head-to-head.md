@@ -51,14 +51,14 @@
 
 **Files:**
 - Modify: `pyproject.toml`: add `"psycopg[binary]>=3.2"`, `"pgvector>=0.3"` and `"pyyaml>=6"` to dependencies, and `"src/vendorkb"` to the hatch packages.
-- Create: `deploy/vendorkb/docker-compose.yml` (service `vendorkb-db`, image `pgvector/pgvector:pg16`, port `127.0.0.1:55432:5432`, named volume, `POSTGRES_PASSWORD` from env `VENDORKB_DB_PASSWORD`).
+- Create: `deploy/vendorkb/docker-compose.yml` (service `vendorkb-db`, image `pgvector/pgvector:pg16`, port `127.0.0.1:55442:5432`, named volume, `POSTGRES_PASSWORD` from env `VENDORKB_DB_PASSWORD`).
 - Create: `src/vendorkb/__init__.py`, `src/vendorkb/config.py`, `src/vendorkb/schema.sql`, `src/vendorkb/db.py`
 - Test: `tests/unit/test_vendorkb_config.py`, `tests/integration/test_vendorkb_db.py`, `tests/unit/test_vendorkb_isolation.py`
 
 **Interfaces:**
 - Produces:
   - `VendorkbSettings` (pydantic-settings, reads `.env`, `extra="ignore"`). Fields:
-    `vendorkb_dsn` (default `postgresql://postgres:@127.0.0.1:55432/vendorkb`),
+    `vendorkb_dsn` (default `postgresql://postgres:@127.0.0.1:55442/vendorkb`),
     `embed_base_url`, `embed_model`, `embed_dim=768`, `embed_max_batch=32`,
     `rerank_base_url`, `rerank_model`, `rerank_api_key`, `judge_base_url`, `judge_model`,
     `judge_api_key`, `answer_reasoning_effort="low"`, `docext_base_url`,

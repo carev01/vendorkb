@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${VENDORKB_DB_PASSWORD:?set VENDORKB_DB_PASSWORD}
       POSTGRES_DB: vendorkb
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:55442:5432"
     volumes:
       - vendorkb-pgdata:/var/lib/postgresql/data
 

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS documents (
 
 CREATE TABLE IF NOT EXISTS chunks (
     chunk_id uuid PRIMARY KEY,
-    doc_id uuid REFERENCES documents ON DELETE CASCADE,
+    doc_id uuid NOT NULL REFERENCES documents ON DELETE CASCADE,
     section_path text[] NOT NULL,
     ordinal int NOT NULL,
     text text NOT NULL,

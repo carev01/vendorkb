@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class VendorkbSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    vendorkb_dsn: str = "postgresql://postgres:@127.0.0.1:55432/vendorkb"
+    vendorkb_dsn: str = "postgresql://postgres:@127.0.0.1:55442/vendorkb"
     embed_base_url: str = "http://srv-llm.home.lan:8082/v1"
     embed_model: str = "jinaai/jina-embeddings-v5-text-nano-retrieval"
     embed_dim: int = 768
