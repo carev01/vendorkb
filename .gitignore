@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# Raw eval run output (answers, judge tasks with full source text): large, kept out of git.
+eval/runs/

@@ -1,3 +1,9 @@
+> Moved from graph-rag, where this set decided the 2026-11-04 head-to-head (report in
+> `docs/superpowers/head-to-head-report-2026-11-04.md`). The validator, runner and judge
+> harness (`scripts/headtohead/`) stay in graph-rag because they depend on the graph stack,
+> as do `corpus.json`, `ingest_report.json` and the raw run outputs. Paths below are the
+> original graph-rag ones.
+
 # Head-to-head eval set: format and writing rules
 
 `eval/headtohead/questions.yaml` holds about 136 questions: 100 new questions, which

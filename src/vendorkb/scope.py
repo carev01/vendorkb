@@ -1,6 +1,6 @@
 """Question scope detection: which vendors/products does a question name.
 
-Reads ``answer_api/scope_aliases.json`` as plain data; never imports answer_api.
+Reads ``scope_aliases.json`` (bundled with the package; seeded from graph-rag's answer_api) as plain data.
 """
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_ALIASES_PATH = Path(__file__).resolve().parents[1] / "answer_api" / "scope_aliases.json"
+DEFAULT_ALIASES_PATH = Path(__file__).resolve().parent / "scope_aliases.json"
 
-# Copied from answer_api.scope (not imported: vendorkb is standalone).
+# Copied from graph-rag's answer_api.scope.
 _CROSS_VENDOR = re.compile(
     r"\bvendors\b"
     r"|\b(which|what|any|other|different|competing) vendor\b(?!-)"

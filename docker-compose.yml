@@ -1,4 +1,4 @@
-# Local-only pgvector database for the vendorkb head-to-head. Bound to loopback.
+# Local-only pgvector database for vendorkb development. Bound to loopback.
 # Set VENDORKB_DB_PASSWORD in the environment; the compose file refuses to start without it.
 services:
   vendorkb-db:

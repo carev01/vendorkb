@@ -1,0 +1,26 @@
+{
+ "VBR": "Veeam Backup & Replication",
+ "VB365": "Veeam Backup for Microsoft 365",
+ "VSPC": "Veeam Service Provider Console",
+ "Kasten": "Veeam Kasten for Kubernetes",
+ "Kasten K10": "Veeam Kasten for Kubernetes",
+ "Veeam Agent for Windows": "Veeam Agent for Microsoft Windows",
+ "Azure": "Microsoft",
+ "Amazon": "AWS",
+ "Veeam Agent": [
+  "Veeam Agent for Microsoft Windows",
+  "Veeam Agent for Linux",
+  "Veeam Agent for Mac",
+  "Veeam Agent for IBM AIX",
+  "Veeam Agent for Oracle Solaris",
+  "Veeam Agent Configurator Reference"
+ ],
+ "Veeam Agents": [
+  "Veeam Agent for Microsoft Windows",
+  "Veeam Agent for Linux",
+  "Veeam Agent for Mac",
+  "Veeam Agent for IBM AIX",
+  "Veeam Agent for Oracle Solaris",
+  "Veeam Agent Configurator Reference"
+ ]
+}
