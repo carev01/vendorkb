@@ -1,0 +1,2600 @@
+- id: sv-a-01
+  type: single_vendor
+  question: Which tools can I use to keep an eye on AWS Backup jobs and API activity, and what do I use
+    if the jobs dashboard isn't offered in my Region?
+  gold_facts:
+  - The AWS Backup jobs dashboard is available only in Regions where AWS Backup Audit Manager is supported;
+    other Regions use the CloudWatch dashboard.
+  - Amazon CloudWatch is used to track metrics, create alarms and view dashboards for AWS Backup.
+  - Amazon EventBridge is used to view and monitor AWS Backup events.
+  - AWS CloudTrail logs AWS Backup API calls, including time, source IP, users and accounts.
+  - Amazon SNS can be used to subscribe to backup, restore and copy event notifications.
+  gold_sources:
+  - article_id: 2dcd7752-4401-48f3-895b-7330e497523e
+    section: Monitoring AWS Backup
+  vendors:
+  - AWS
+  written_from:
+  - 2dcd7752-4401-48f3-895b-7330e497523e
+  decides: true
+  origin: new
+- id: sv-a-02
+  type: single_vendor
+  question: My on-prem VMware backups to AWS Backup keep failing with "Abort signal detected". What bandwidth
+    and backup gateway limits should I check, and how do I fix it?
+  gold_facts:
+  - AWS Backup needs at least 100 Mbps of bandwidth to AWS for on-premises VMware VM backups; below that
+    the gateway cannot complete any backup or restore job.
+  - A single backup gateway processes at most 4 backup/restore jobs at a time; additional jobs queue.
+  - Queued jobs that have not started when the backup start window passes fail with 'abort signal detected'.
+  - Remedies include increasing bandwidth (or the gateway bandwidth rate limit), adding backup gateways,
+    and increasing the backup plan's complete-within window.
+  gold_sources:
+  - article_id: 44f38ffb-4c27-4383-b8b0-030a1476ea08
+    section: VMware backup job failure
+  vendors:
+  - AWS
+  written_from:
+  - 44f38ffb-4c27-4383-b8b0-030a1476ea08
+  decides: true
+  origin: new
+- id: sv-a-03
+  type: single_vendor
+  question: If I configure an AWS Backup plan rule to move backups to cold storage, what constraints apply
+    to the retention and transition settings?
+  gold_facts:
+  - Backups transitioned to cold storage must stay there for a minimum of 90 days.
+  - Total retention (DeleteAfterDays) must be at least 90 days more than the transition-to-cold setting.
+  - The transition-to-cold setting cannot be changed after a backup has transitioned to cold storage.
+  - AWS Backup recommends keeping backups in warm storage for at least 8 days (incremental backups need
+    a warm full backup; transitioning too soon creates another warm full backup).
+  gold_sources:
+  - article_id: 554ebdbf-e818-43e8-9d1d-55fbd28a983b
+    section: Lifecycle and storage tiers
+  vendors:
+  - AWS
+  written_from:
+  - 554ebdbf-e818-43e8-9d1d-55fbd28a983b
+  decides: true
+  origin: new
+- id: sv-a-04
+  type: single_vendor
+  question: For accessing AWS Backup, what does AWS recommend doing with the root account, and when would
+    an IAM role be used instead of an IAM user?
+  gold_facts:
+  - AWS recommends using the root user only to create an administrator IAM user with full permissions.
+  - An IAM role is not associated with a specific person and provides temporary credentials.
+  - IAM roles are used for federated user access, cross-account administration, granting an AWS service
+    access, and applications running on EC2 instances.
+  - For EC2 applications, an IAM role via an instance profile is preferable to storing access keys on
+    the instance.
+  gold_sources:
+  - article_id: 95d1c25a-eea5-4bf3-88c4-b1203e84b5ab
+    section: Authentication
+  vendors:
+  - AWS
+  written_from:
+  - 95d1c25a-eea5-4bf3-88c4-b1203e84b5ab
+  decides: true
+  origin: new
+- id: sv-a-05
+  type: single_vendor
+  question: What time range does the AWS Backup jobs dashboard show, is today's job activity included,
+    and which jobs does it count as problematic?
+  gold_facts:
+  - The jobs dashboard shows the latest 14 days by default and can be switched to 7 days.
+  - It shows data up to the most recent 0:00 UTC; the current day's data is not included.
+  - The dashboard updates daily at approximately 1:30-2:30 UTC.
+  - A problematic job is one with status Failed, Expired, or Completed with issues.
+  - The top problematic accounts view is visible only to accounts with Organizations access (management
+    or delegated administrator accounts).
+  gold_sources:
+  - article_id: a2fd9f51-c998-4b55-91c0-877a9f18a0ab
+    section: Backup dashboards overview
+  vendors:
+  - AWS
+  written_from:
+  - a2fd9f51-c998-4b55-91c0-877a9f18a0ab
+  decides: true
+  origin: new
+- id: sv-a-06
+  type: single_vendor
+  question: With Azure Backup, can I restore an Azure Database for PostgreSQL Flexible Server backup over
+    the original database, and how do I get the restored data into a server?
+  gold_facts:
+  - Original Location Recovery (OLR) is not supported for PaaS databases; Alternate-Location Recovery
+    (ALR) is used instead.
+  - A PostgreSQL Flexible Server recovery point can be restored as files only, to a storage account container.
+  - The Backup vault's system-assigned managed identity needs access on the target storage account.
+  - After the restore to storage, the pg_restore utility is used to restore the database into a Flexible
+    Server.
+  - The number of parallel pg_restore jobs (-j) can be equal to or less than the target server's vCPUs.
+  gold_sources:
+  - article_id: 2191df9b-c982-4637-9913-a7facd3cffbe
+    section: Prepare the restore request for PostgreSQL - Flexible Server
+  vendors:
+  - Microsoft
+  written_from:
+  - 2191df9b-c982-4637-9913-a7facd3cffbe
+  decides: true
+  origin: new
+- id: sv-a-07
+  type: single_vendor
+  question: In Azure Backup, what is a Backup vault used for, which workloads does it store, and what
+    Azure model is it built on?
+  gold_facts:
+  - A Backup vault is created under Azure Backup's Data Protection Platform.
+  - It holds backup data for newer workloads such as Azure Database for PostgreSQL servers and Azure Disks.
+  - Backup vaults are based on the Azure Resource Manager model.
+  gold_sources:
+  - article_id: 71201eb7-a865-433b-b2b7-a88b3b737cb8
+    section: Azure Backup's Data Protection Platform
+  vendors:
+  - Microsoft
+  written_from:
+  - 71201eb7-a865-433b-b2b7-a88b3b737cb8
+  decides: true
+  origin: new
+- id: sv-a-08
+  type: single_vendor
+  question: How long can Azure Backup keep backups of Azure Database for MySQL Flexible Server compared
+    with the built-in backups, and can I set up new protection for it right now?
+  gold_facts:
+  - Built-in Azure Database for MySQL Flexible Server backups are limited to 35 days of retention.
+  - Azure Backup long-term retention keeps backups for up to 10 years.
+  - The Azure Backup preview for MySQL Flexible Server is currently paused; new backups should not be
+    configured.
+  - Existing backup data remains safe and available for restore.
+  - For backup, the vault MSI needs the MySQL Flexible Server Long-Term Retention Backup role and Reader
+    on the server's resource group; restore needs Storage Blob Data Contributor on the target storage
+    account.
+  gold_sources:
+  - article_id: 930631b4-92b3-4698-8d67-7197265ec8a3
+  vendors:
+  - Microsoft
+  written_from:
+  - 930631b4-92b3-4698-8d67-7197265ec8a3
+  decides: true
+  origin: new
+- id: sv-a-09
+  type: single_vendor
+  question: When setting up Azure Backup for Azure Database for PostgreSQL databases in the portal, which
+    servers and databases can I pick, and how does the vault get the database credentials?
+  gold_facts:
+  - The Backup vault must be in the same region as the PostgreSQL server; servers across subscriptions
+    can be selected if they are in the vault's region.
+  - The azure_maintenance and azure_sys databases do not need to be backed up.
+  - A database already backed up to a Backup vault cannot be backed up again.
+  - Credentials are supplied as a secret in Azure Key Vault (the PG server connection string in ADO.net
+    format).
+  - If you enter a secret URI, Azure Backup has no visibility of the key vault, so the vault's access
+    on the key vault must be granted manually.
+  gold_sources:
+  - article_id: d2717708-ce2a-432e-8c06-3ad939c4103a
+    section: Configure backup on the database
+  vendors:
+  - Microsoft
+  written_from:
+  - d2717708-ce2a-432e-8c06-3ad939c4103a
+  decides: true
+  origin: new
+- id: sv-a-10
+  type: single_vendor
+  question: For Azure Blob backup, how long should I keep blob versions in the storage account relative
+    to my backup retention, and will the Backup vault clean up old versions for me?
+  gold_facts:
+  - For operational backup, set version retention to backup retention plus 7 days (e.g. 30 days -> 37
+    days).
+  - For vaulted backup only, version retention can be reduced after the first successful backup, keeping
+    versions at least 7 days after backup completion.
+  - If both operational and vaulted backup are used, apply the higher of the two retention requirements.
+  - The Backup vault does not delete or reconcile blob versions in the source storage account; use Lifecycle
+    Management policies or manual cleanup.
+  gold_sources:
+  - article_id: f4fb6701-1b5c-40a1-b9ea-382fd46ebccc
+    section: Can I align blob versioning retention with my backup policy, such as 42 days?
+  vendors:
+  - Microsoft
+  written_from:
+  - f4fb6701-1b5c-40a1-b9ea-382fd46ebccc
+  decides: true
+  origin: new
+- id: sv-a-11
+  type: single_vendor
+  question: When I query Azure Backup data in Log Analytics with the built-in system functions, do I get
+    today's records, can I modify those functions, and do they include the legacy AzureDiagnostics table?
+  gold_facts:
+  - System functions return data only up to the last completed day (UTC); the current partial day requires
+    querying the raw LA tables.
+  - System functions are maintained by Microsoft and cannot be edited; use saved functions in Log Analytics
+    for editable ones.
+  - The ExcludeLegacyEvent parameter controls whether the legacy AzureDiagnostics table is queried; its
+    default is true (resource-specific tables only).
+  gold_sources:
+  - article_id: f94f1312-c3e2-4fee-a5f1-05995a1e5bfb
+  vendors:
+  - Microsoft
+  written_from:
+  - f94f1312-c3e2-4fee-a5f1-05995a1e5bfb
+  decides: true
+  origin: new
+- id: sv-a-12
+  type: single_vendor
+  question: Are snapshots vaulted to Cohesity FortKnox immutable by default, and what mechanism enforces
+    it?
+  gold_facts:
+  - Snapshots vaulted in a FortKnox cloud vault are DataLocked by default.
+  - DataLock makes storage WORM-compliant so backups and archives cannot be tampered with or deleted.
+  - FortKnox uses AWS S3 Object Lock as the DataLock mechanism.
+  gold_sources:
+  - article_id: 0f3cb305-4373-49e3-baeb-e02daa49cda7
+    section: DataLock
+  vendors:
+  - Cohesity
+  written_from:
+  - 0f3cb305-4373-49e3-baeb-e02daa49cda7
+  decides: true
+  origin: new
+- id: sv-a-13
+  type: single_vendor
+  question: How many Cohesity FortKnox cloud vaults can I create in one region, and what do I need in
+    order to use cold storage vaults?
+  gold_facts:
+  - Up to 10 cloud vaults can be created in a region, with a name chosen at creation.
+  - A cloud vault's storage class can be Warm or Cold.
+  - Cold storage cloud vaults require the FortKnox Cold Vault entitlement.
+  gold_sources:
+  - article_id: a8841493-d45e-4433-9ab4-2f7e03431fc5
+    section: Support for Multiple Cloud Vaults in a Region
+  vendors:
+  - Cohesity
+  written_from:
+  - a8841493-d45e-4433-9ab4-2f7e03431fc5
+  decides: true
+  origin: new
+- id: sv-a-14
+  type: single_vendor
+  question: After the Cohesity Data Cloud UI redesign, how do I open an app like FortKnox, and how did
+    that differ before?
+  gold_facts:
+  - The redesigned UI adds a centralized Apps menu/icon from which apps are launched directly.
+  - 'Previously, opening an app took two steps: selecting a pillar, then choosing the app.'
+  - Users no longer need to remember which pillar an app belongs to.
+  gold_sources:
+  - article_id: 7ea03713-ca26-4865-9f6b-44d5017b3a7e
+    section: Redesigned User Interface
+  vendors:
+  - Cohesity
+  written_from:
+  - 7ea03713-ca26-4865-9f6b-44d5017b3a7e
+  decides: true
+  origin: new
+- id: sv-b-01
+  type: single_vendor
+  question: I just created a new backup repository in Veeam Backup & Replication for my Veeam Agent for
+    Oracle Solaris machines. Can the Solaris agents write to it straight away, and does it matter that
+    the repository uses KMS encryption?
+  gold_facts:
+  - A newly created backup repository has access permissions set to Deny to everyone, so users must be
+    granted access before they can store backups there.
+  - The default backup repository is set to Allow to everyone right after installation (for testing/evaluation).
+  - Veeam Agent for Oracle Solaris does not support Veeam backup repositories with KMS encryption enabled.
+  - Access permissions are not needed when backups go through Veeam Agent backup jobs managed by Veeam
+    Backup & Replication (it uses a TLS certificate instead).
+  gold_sources:
+  - article_id: 115e0d8c-babf-49f6-a562-93e6ddbb8f88
+    section: Setting Up User Permissions on Backup Repositories
+  vendors:
+  - Veeam
+  written_from:
+  - 115e0d8c-babf-49f6-a562-93e6ddbb8f88
+  decides: true
+  origin: new
+- id: sv-b-02
+  type: single_vendor
+  question: With Veeam Agent for IBM AIX, what happens to the backup chain if I turn on encryption for
+    an existing job, change its password later, or turn encryption off?
+  gold_facts:
+  - Enabling encryption makes the next job session create a full backup, and it and later incrementals
+    are encrypted.
+  - Changing the password of an already encrypted job makes the next session create a new incremental
+    backup encrypted with the new password.
+  - Disabling encryption makes the next job session create a full backup.
+  gold_sources:
+  - article_id: 18339979-a98d-4c40-a7a7-3674300f9f6f
+    section: Encryption for Existing Job
+  vendors:
+  - Veeam
+  written_from:
+  - 18339979-a98d-4c40-a7a7-3674300f9f6f
+  decides: true
+  origin: new
+- id: sv-b-03
+  type: single_vendor
+  question: Before I turn on MFA for my Veeam Service Provider Console account, what could break and what
+    clock requirement applies to the authenticator device?
+  gold_facts:
+  - VSPC MFA is TOTP-based and requires an authenticator app on a trusted device.
+  - Enabling MFA on an account used for third-party integration stops that integration; configure an API
+    key first.
+  - The time difference between the trusted device and the machine running the VSPC Web UI must not exceed
+    one minute.
+  gold_sources:
+  - article_id: 2beee6f0-c525-47eb-b6a6-c9a1fbbc70f0
+  vendors:
+  - Veeam
+  written_from:
+  - 2beee6f0-c525-47eb-b6a6-c9a1fbbc70f0
+  decides: true
+  origin: new
+- id: sv-b-04
+  type: single_vendor
+  question: What do I need before booting Veeam Recovery Media to restore a Linux machine backed up with
+    Veeam Agent for Linux, and which hypervisors can I restore to?
+  gold_facts:
+  - You need the recovery image on media (CD/DVD/BD or removable storage) set as the primary boot source.
+  - You need a volume-level or file-level Veeam Agent for Linux backup that has been successfully created
+    at least once.
+  - For a backup on a Veeam backup repository you need access permissions on that repository.
+  - For restore to a virtual environment, Veeam Recovery Media supports only VMware and Hyper-V.
+  gold_sources:
+  - article_id: 4b6bbc01-b03f-4399-826d-6341ac64ff81
+  vendors:
+  - Veeam
+  written_from:
+  - 4b6bbc01-b03f-4399-826d-6341ac64ff81
+  decides: true
+  origin: new
+- id: sv-b-05
+  type: single_vendor
+  question: In Veeam Service Provider Console, when a reseller creates a cloud tenant for a VMware Cloud
+    Director company, what name does the tenant get and what credentials does the client use to connect?
+  gold_facts:
+  - VSPC registers a VMware Cloud Director tenant account on the selected Veeam Cloud Connect server.
+  - The Cloud Director organization's name is used as the cloud tenant name.
+  - Clients use the Organization Administrator account of the selected VMware Cloud Director organization.
+  - The user name is specified in the Organization\Username format.
+  gold_sources:
+  - article_id: 50d15c6b-8d2e-4ead-bfa3-05c14e7eb075
+  vendors:
+  - Veeam
+  written_from:
+  - 50d15c6b-8d2e-4ead-bfa3-05c14e7eb075
+  decides: true
+  origin: new
+- id: sv-b-06
+  type: single_vendor
+  question: When restoring items with the Veeam Explorer restore wizard for Veeam Backup for Microsoft
+    365, what happens to existing items if I don't tick "Restore only latest version"?
+  gold_facts:
+  - If Restore only latest version is not selected, backed-up versions are merged with the existing versions
+    in production.
+  - If Restore only latest version is selected, you choose Merge or Overwrite.
+  gold_sources:
+  - article_id: 5ab07ece-6b77-4e04-ae10-8b0f0605d613
+  vendors:
+  - Veeam
+  written_from:
+  - 5ab07ece-6b77-4e04-ae10-8b0f0605d613
+  decides: true
+  origin: new
+- id: sv-b-07
+  type: single_vendor
+  question: What permissions does the SQL login need when I add an Azure SQL Server account in Veeam Data
+    Cloud, and can I use Entra ID authentication?
+  gold_facts:
+  - 'Required server-level roles: ##MS_DatabaseManager##, ##MS_LoginManager##, ##MS_DatabaseConnector##
+    and ##MS_DefinitionReader##.'
+  - The db_owner database-level role is also required, but only for backup operations.
+  - Microsoft Entra ID authentication is not supported.
+  gold_sources:
+  - article_id: 7f9ca97d-cf27-4589-87d1-344c28a49fd4
+  vendors:
+  - Veeam
+  written_from:
+  - 7f9ca97d-cf27-4589-87d1-344c28a49fd4
+  decides: true
+  origin: new
+- id: sv-b-08
+  type: single_vendor
+  question: After I kick off a restore in the Veeam Data Cloud restore wizard, how will I know whether
+    it worked, and can I record why the restore was done?
+  gold_facts:
+  - You can enter a restore reason, which is saved to the session history.
+  - You receive an email notification when the restore completes successfully or fails.
+  gold_sources:
+  - article_id: 89f5592e-5c4c-42ba-afca-9fe8068f8678
+  vendors:
+  - Veeam
+  written_from:
+  - 89f5592e-5c4c-42ba-afca-9fe8068f8678
+  decides: true
+  origin: new
+- id: sv-b-09
+  type: single_vendor
+  question: What are the limitations of sending Veeam Agent for Microsoft Windows backups to object storage?
+  gold_facts:
+  - Object storage with lifecycle rules enabled is not supported.
+  - Synthetic full backups are not supported for backups in object storage.
+  - The compact full backup file option is not supported for backups in object storage.
+  - S3 compatible storage must be accessible over HTTPS.
+  - Azure Blob Storage with a general-purpose V1 storage account cannot be used in direct connection mode.
+  - If Veeam Backup & Replication uses HTTP/HTTPS proxies, backup to object storage repositories is only
+    available through a gateway server.
+  gold_sources:
+  - article_id: a180ed02-61ad-495b-aa66-f1564b377d4a
+    section: Considerations and Limitations
+  vendors:
+  - Veeam
+  written_from:
+  - a180ed02-61ad-495b-aa66-f1564b377d4a
+  decides: true
+  origin: new
+- id: sv-b-10
+  type: single_vendor
+  question: In a Veeam Service Provider Console backup policy writing to a network share, I want each
+    managed computer to get its own subfolder. What has to be in place for that, and what is the default
+    retention?
+  gold_facts:
+  - Managed computers must be members of an Active Directory domain, and the shared folder must be in
+    the same domain.
+  - Everyone must have Read and Write permissions on the shared folder.
+  - Subfolders must not inherit permissions from the shared folder.
+  - The machine account of each computer becomes owner of its subfolder and cannot access other subfolders.
+  - Default retention is 7 days.
+  gold_sources:
+  - article_id: b3f20376-ecf9-4fc0-99e7-9fdafec9167a
+  vendors:
+  - Veeam
+  written_from:
+  - b3f20376-ecf9-4fc0-99e7-9fdafec9167a
+  decides: true
+  origin: new
+- id: sv-b-11
+  type: single_vendor
+  question: Using modern authentication in the Veeam Explorer restore wizard for Veeam Backup for Microsoft
+    365, how long does the sign-in device code last and what if it expires?
+  gold_facts:
+  - The authentication code is valid for 15 minutes.
+  - You can click Refresh to request a new code from Microsoft.
+  gold_sources:
+  - article_id: cead0eb6-9907-4378-93b7-21ee608612b2
+  vendors:
+  - Veeam
+  written_from:
+  - cead0eb6-9907-4378-93b7-21ee608612b2
+  decides: true
+  origin: new
+- id: sv-b-12
+  type: single_vendor
+  question: What rights does an account need to perform restores with Veeam Explorer for Microsoft OneDrive?
+  gold_facts:
+  - Veeam Explorer for Microsoft OneDrive must run with elevated permissions; the account must be in the
+    local Administrators group on that machine.
+  - On the backup server the account needs the Backup Administrator or Restore Operator role, or a custom
+    role.
+  - A custom role needs at least the Manage restores permission and the Veeam Explorer for Microsoft OneDrive
+    restore option, with access to the target server and the backup.
+  gold_sources:
+  - article_id: e8eedc67-1748-48f9-88a1-0641fe3a1b76
+  vendors:
+  - Veeam
+  written_from:
+  - e8eedc67-1748-48f9-88a1-0641fe3a1b76
+  decides: true
+  origin: new
+- id: sv-c-01
+  type: single_vendor
+  question: As a Veeam Cloud Connect service provider, how can I publish disks from a tenant's backup
+    to one of my servers, and does it work if the tenant's backups are encrypted?
+  gold_facts:
+  - The SP must use Veeam PowerShell cmdlets; disk publishing is not available in the SP Veeam backup
+    console.
+  - Disk publishing from encrypted tenant backups is supported only if the tenant has granted the SP restore
+    access to all backups; otherwise only unencrypted backups are supported.
+  - The tenant account must be disabled before publishing (and can be re-enabled after the publishing
+    session is stopped).
+  - Disks are published with the Publish-VBRBackupContent cmdlet, after getting the backup and restore
+    point with Get-VBRCloudTenantBackup and Get-VBRCloudTenantRestorePoint.
+  - Published disk content appears in the C:\VeeamFLR\ folder on the target server, read-only for Windows
+    machine disks.
+  gold_sources:
+  - article_id: 1373f5df-6d3f-40d7-a08c-a8b891eaaddc
+    section: Publishing Disks from Tenant Backups
+  vendors:
+  - Veeam
+  written_from:
+  - 1373f5df-6d3f-40d7-a08c-a8b891eaaddc
+  decides: true
+  origin: new
+- id: sv-c-02
+  type: single_vendor
+  question: What are the requirements and restrictions for the staging SQL Server used by Veeam Explorer
+    for Microsoft SQL Server? Can I use SQL Express or a clustered instance?
+  gold_facts:
+  - Any edition of Microsoft SQL Server can be used as the staging server, including Express Edition.
+  - Databases larger than 10 GB cannot be attached to a SQL Server Express Edition instance.
+  - The staging server must run the same SQL Server version as the source server, or a later one.
+  - A SQL Server that is part of a failover cluster cannot be used as a staging server.
+  - Using Availability Group Listeners as staging servers is not recommended.
+  - The staging server can be in the same domain as the mount server, a trusted domain, or an untrusted
+    domain.
+  gold_sources:
+  - article_id: 18a680cb-655e-4afb-a712-a38e46da662c
+    section: Considerations and Limitations
+  vendors:
+  - Veeam
+  written_from:
+  - 18a680cb-655e-4afb-a712-a38e46da662c
+  decides: true
+  origin: new
+- id: sv-c-03
+  type: single_vendor
+  question: What access does the Securiti.ai Zendesk Support (self-hosted) connector request, and do I
+    have to configure granular per-object scopes in Zendesk?
+  gold_facts:
+  - The connector requests scope=read, i.e. read access to the Zendesk objects it uses.
+  - No granular scope request needs to be specified, because Zendesk applies the read scope to all objects
+    by default.
+  gold_sources:
+  - article_id: 46b29771-71a0-46b4-a6b6-de439eb69a38
+  vendors:
+  - Veeam
+  written_from:
+  - 46b29771-71a0-46b4-a6b6-de439eb69a38
+  decides: true
+  origin: new
+- id: sv-c-04
+  type: single_vendor
+  question: With the Veeam Plug-in for Google Cloud in Veeam Backup & Replication, which guest file systems
+    support file-level recovery, and what can't be restored to the original location?
+  gold_facts:
+  - File-level recovery supports only FAT, FAT32, NTFS, ext2, ext3, ext4, XFS and Btrfs.
+  - Attributes of files and folders on FAT and FAT32 cannot be restored to the original location.
+  - NTFS links (hard links, junction points, symbolic links) cannot be restored to the original location.
+  - A disk shared between multiple VMs can be restored to only one of them as its original location; it
+    must be manually re-attached to the others.
+  - The machine opening the file-level recovery browser needs internet access to worker instances via
+    an inbound HTTPS rule on port 443 (private network access requires private network deployment).
+  gold_sources:
+  - article_id: 4e9aae25-9f3a-4d73-a0cd-7eaaea2c550b
+    section: Performing File-Level Recovery
+  vendors:
+  - Veeam
+  written_from:
+  - 4e9aae25-9f3a-4d73-a0cd-7eaaea2c550b
+  decides: true
+  origin: new
+- id: sv-c-05
+  type: single_vendor
+  question: I started a database restore in the Veeam Explorer for Microsoft SQL Server web UI and want
+    to cancel it. How do I do that?
+  gold_facts:
+  - Go to the Database recovery sessions view and select the restore session.
+  - Click Stop (or right-click the session and select Stop).
+  gold_sources:
+  - article_id: 5318974d-ee90-446c-8c19-d8bc3de79d67
+    section: Stopping Restore Session
+  vendors:
+  - Veeam
+  written_from:
+  - 5318974d-ee90-446c-8c19-d8bc3de79d67
+  decides: true
+  origin: new
+- id: sv-c-06
+  type: single_vendor
+  question: When restoring a full VMware VM from Veeam Backup Enterprise Manager, can I change the datastore
+    and disk provisioning type, and are there any conditions on that?
+  gold_facts:
+  - The datastore/disk type step is available only when restoring the VM to a new location or with different
+    settings.
+  - By default the original VM's datastore and disk type settings are used.
+  - Configuration files and individual disks can be placed on different datastores.
+  - The disk format can be changed only for VMs with Virtual Hardware version 7 or later.
+  gold_sources:
+  - article_id: 71a0f075-8f35-47c0-bcdb-af1fa046f8ef
+    section: Step 5. Specify Datastore and Disk Type
+  vendors:
+  - Veeam
+  written_from:
+  - 71a0f075-8f35-47c0-bcdb-af1fa046f8ef
+  decides: true
+  origin: new
+- id: sv-c-07
+  type: single_vendor
+  question: In Veeam Service Provider Console, what's the difference between diagnostic logs and task/activity
+    logs, and when would I need each?
+  gold_facts:
+  - Diagnostic logs are required when submitting tickets to Veeam Customer Technical Support.
+  - Task and activity logs record the most crucial operations performed by VSPC management agents in the
+    client managed infrastructure.
+  - Task and activity logs also record configuration, management and security-related activities.
+  gold_sources:
+  - article_id: 815bded7-4ca5-4d4c-ba61-4a1c0bdcd641
+    section: Downloading Logs
+  vendors:
+  - Veeam
+  written_from:
+  - 815bded7-4ca5-4d4c-ba61-4a1c0bdcd641
+  decides: true
+  origin: new
+- id: sv-c-08
+  type: single_vendor
+  question: What is a hardware plan in Veeam Cloud Connect, how do tenants see it, and which hypervisors
+    can it be built on?
+  gold_facts:
+  - A hardware plan is a set of compute, storage and network resources in the SP virtualization environment
+    exposed as a target for tenant VM replicas.
+  - Hardware plans are required to expose cloud hosts to tenants.
+  - Tenants see hardware plans as cloud hosts on which they can create VM replicas.
+  - A tenant can be subscribed to multiple hardware plans using resources on different SP hosts.
+  - Hardware plans can be configured on a VMware host or cluster or a Hyper-V host or cluster.
+  gold_sources:
+  - article_id: 8f72d992-d48f-4280-b0ef-3ef574a19935
+    section: Configuring Hardware Plans
+  vendors:
+  - Veeam
+  written_from:
+  - 8f72d992-d48f-4280-b0ef-3ef574a19935
+  decides: true
+  origin: new
+- id: sv-c-09
+  type: single_vendor
+  question: How does Veeam Agent for Linux clean up backups in the repository when a machine stops backing
+    up, and what is the default period?
+  gold_facts:
+  - The Maintenance setting is available only when the destination is a Veeam backup repository or a Veeam
+    Cloud Connect repository.
+  - The 'Allow backup server to prune old backups' option must be enabled.
+  - If the agent creates no new restore points for the specified number of days, the backup is removed
+    from the target location.
+  - The default period is 30 days.
+  - Setting a very short period such as 1 day is advised against, as the job may remove data still needed.
+  gold_sources:
+  - article_id: a7f67214-cd7f-4e0f-8d53-e80026f00d09
+    section: Maintenance Settings
+  vendors:
+  - Veeam
+  written_from:
+  - a7f67214-cd7f-4e0f-8d53-e80026f00d09
+  decides: true
+  origin: new
+- id: sv-c-10
+  type: single_vendor
+  question: I want Veeam Explorer for Microsoft SharePoint to email restored items through an SMTP server
+    with basic auth. What port and server does it use by default, and which port do I need for TLS?
+  gold_facts:
+  - The default SMTP port is 25.
+  - Port 587 should be specified to use TLS encryption.
+  - By default it connects to the smtp.office365.com server.
+  - A 'Connect using SSL' option and an option for SMTP servers requiring authentication (with credentials)
+    are available in the advanced settings.
+  gold_sources:
+  - article_id: c72e5441-24b5-4db4-a794-132eeaf83ff2
+    section: SMTP Server with Basic Authentication
+  vendors:
+  - Veeam
+  written_from:
+  - c72e5441-24b5-4db4-a794-132eeaf83ff2
+  decides: true
+  origin: new
+- id: sv-c-11
+  type: single_vendor
+  question: When I create a new virtual lab for SureBackup in Veeam Backup & Replication, what does the
+    description field contain if I leave the default?
+  gold_facts:
+  - The default description contains the user who created the virtual lab.
+  - It also contains the date and time when the lab was created.
+  gold_sources:
+  - article_id: df6d74b7-21af-4beb-86d6-1254fb1be2c9
+    section: Step 2. Specify Virtual Lab Name and Description
+  vendors:
+  - Veeam
+  written_from:
+  - df6d74b7-21af-4beb-86d6-1254fb1be2c9
+  decides: true
+  origin: new
+- id: sv-c-12
+  type: single_vendor
+  question: What should I have ready before installing the Veeam Service Provider Console Server component,
+    i.e. what does the setup ask me to provide?
+  gold_facts:
+  - A license file.
+  - A service account.
+  - A Microsoft SQL Server to use.
+  - A data location.
+  - A security certificate.
+  - The ports to use.
+  gold_sources:
+  - article_id: f9925ffc-d005-4e8f-81dd-2b52719f2dbb
+    section: Installing Server Component
+  vendors:
+  - Veeam
+  written_from:
+  - f9925ffc-d005-4e8f-81dd-2b52719f2dbb
+  decides: true
+  origin: new
+- id: sv-d-01
+  type: single_vendor
+  question: We want to roll out Veeam Recon for Veeam Infrastructure. Which licence editions include it,
+    how many machines can it run on at once, and how many extra people can I give access to the Coveware
+    portal?
+  gold_facts:
+  - Recon is included in the Advanced and Premium editions of the Veeam Data Platform Universal License.
+  - Recon is not supported with Veeam Data Platform Essentials.
+  - Recon can be installed and run simultaneously on up to 10 endpoints.
+  - Up to 15 additional users can be added in the Coveware account (Settings > Users > Add User).
+  gold_sources:
+  - article_id: 173e3921-f0ee-49b9-9148-acef19dbb7d2
+    section: Adding Users
+  vendors:
+  - Veeam
+  written_from:
+  - 173e3921-f0ee-49b9-9148-acef19dbb7d2
+  decides: true
+  origin: new
+- id: sv-d-02
+  type: single_vendor
+  question: When doing a file-level restore with Veeam Agent for Microsoft Windows from a backup sitting
+    in an Amazon S3 bucket, what connection details do I have to provide, and which AWS region is used
+    if I don't change it?
+  gold_facts:
+  - You must enter an access key ID and a secret access key to connect to Amazon S3.
+  - By default Veeam Agent uses the Global AWS region.
+  - You must then select the data center (geographic region) where the backup is stored, the bucket, and
+    the folder in the bucket.
+  gold_sources:
+  - article_id: 19bf89a6-3d2b-4a3b-9226-93c7184a35fe
+    section: Specifying Account Settings
+  vendors:
+  - Veeam
+  written_from:
+  - 19bf89a6-3d2b-4a3b-9226-93c7184a35fe
+  decides: true
+  origin: new
+- id: sv-d-03
+  type: single_vendor
+  question: Why can't Veeam Backup & Replication restore my Google Cloud SQL instance back to its original
+    location, and whose permissions does the restore use by default?
+  gold_facts:
+  - Restore to the original location is not supported if the source Cloud SQL instance still exists in
+    that location.
+  - It is also not supported if the source instance was deleted recently (less than a week ago) or if
+    its name is reserved.
+  - These limits are due to technical limitations in Google Cloud.
+  - By default the restore uses the permissions of the service account that was used to protect the source
+    Cloud SQL instance.
+  gold_sources:
+  - article_id: 3316b72a-b316-4930-9049-8187827cb959
+    section: Step 3. Choose Restore Mode
+  vendors:
+  - Veeam
+  written_from:
+  - 3316b72a-b316-4930-9049-8187827cb959
+  decides: true
+  origin: new
+- id: sv-d-04
+  type: single_vendor
+  question: When Veeam Backup & Replication backs up PostgreSQL through Veeam Agent for Linux, how often
+    can archived logs be backed up, how long can they be kept, and where are they staged during backup?
+  gold_facts:
+  - Archived logs are backed up every 15 minutes by default.
+  - The log backup interval can be between 5 and 480 minutes.
+  - With Keep only last, archived logs are kept 15 days by default, up to a maximum of 60 days, and must
+    not exceed the Veeam Agent backup retention.
+  - Archived logs are staged in a temporary location, /tmp by default, before being moved to the backup
+    repository.
+  - If the temporary location is not set or not usable, Veeam Agent cannot back up the logs.
+  gold_sources:
+  - article_id: e8b37f14-66a9-432d-851d-73480acdbd15
+    section: Configuring PostgreSQL Processing
+  vendors:
+  - Veeam
+  written_from:
+  - e8b37f14-66a9-432d-851d-73480acdbd15
+  decides: true
+  origin: new
+- id: sv-d-05
+  type: single_vendor
+  question: In Veeam Data Cloud, can I recover Entra ID administrative units only from my backups, and
+    do I have to restore the whole unit or can I recover individual properties?
+  gold_facts:
+  - Entire administrative units can be restored from a backup or from the Entra ID recycle bin.
+  - One or multiple administrative units can be restored at a time.
+  - Specific administrative unit properties (one or multiple) can be restored instead of the whole unit.
+  gold_sources:
+  - article_id: 4fba62ae-81a0-470a-9340-65f417a8752b
+    section: Entra ID Administrative Units Restore
+  vendors:
+  - Veeam
+  written_from:
+  - 4fba62ae-81a0-470a-9340-65f417a8752b
+  decides: true
+  origin: new
+- id: sv-d-06
+  type: single_vendor
+  question: Our Kubernetes apps sit on NFS volumes with no CSI snapshot support. Can Veeam Kasten still
+    protect them, and what does Kasten recommend we do?
+  gold_facts:
+  - Kasten supports Generic Storage Backups (GSB) for storage without CSI drivers, but this approach is
+    not recommended.
+  - Kasten highly recommends storage with a CSI driver that supports VolumeSnapshot (snapshot and clone
+    capabilities).
+  - It recommends migrating persistent data from NFS to a storage system with such a CSI driver.
+  - GSB uses a file-copy-based backup to an external location, which can then be restored onto CSI-capable
+    storage to help the migration.
+  gold_sources:
+  - article_id: 592c61e1-7e03-4490-87c2-abebc8975cf6
+    section: Generic Storage Backups
+  vendors:
+  - Veeam
+  written_from:
+  - 592c61e1-7e03-4490-87c2-abebc8975cf6
+  decides: true
+  origin: new
+- id: sv-d-07
+  type: single_vendor
+  question: How do I make Veeam Agent for IBM AIX take an active full backup only on the second Monday
+    of January and July, and what happens if I leave out the months?
+  gold_facts:
+  - Use veeamconfig schedule activefull set with --monthlyweekday, --weeknumber and --months (with --jobid
+    or --jobname).
+  - 'Example: --monthlyweekday Mon --weeknumber Second --months Jan,Jul.'
+  - --weeknumber accepts First, Second, Third, Fourth or Last.
+  - If --months is not specified, the active full backup is created every month.
+  gold_sources:
+  - article_id: 5fb3319d-a33d-4e81-8089-dab43d70183a
+    section: Specifying Monthly Schedules
+  vendors:
+  - Veeam
+  written_from:
+  - 5fb3319d-a33d-4e81-8089-dab43d70183a
+  decides: true
+  origin: new
+- id: sv-d-08
+  type: single_vendor
+  question: In Veeam Service Provider Console, what happens if a management agent is installed after its
+    download token has expired, and what expiry period should I set?
+  gold_facts:
+  - Agents installed after the token expiry period cannot connect to Veeam Service Provider Console automatically.
+  - Such an agent gets the Unverified connection status and must be verified manually by setting a company
+    to it.
+  - Agents already connected are not affected by the expiry.
+  - An expiry period of 6 months or less is recommended.
+  - Agent setup files in the default welcome email expire after 2 days.
+  gold_sources:
+  - article_id: 7df48b34-91f7-43c6-a75d-ac2e425091d9
+    section: Downloading Management Agent Setup File in Veeam Service Provider Console
+  vendors:
+  - Veeam
+  written_from:
+  - 7df48b34-91f7-43c6-a75d-ac2e425091d9
+  decides: true
+  origin: new
+- id: sv-d-09
+  type: single_vendor
+  question: Should I still add extra auxiliary Entra applications to Veeam Backup for Microsoft 365 to
+    speed up SharePoint and OneDrive backups and avoid throttling?
+  gold_facts:
+  - Auxiliary backup applications were previously recommended to improve performance and minimise Microsoft
+    365 throttling for SharePoint Online and OneDrive backups.
+  - Due to recent Microsoft restrictions, Veeam now asks you to use a single Microsoft Entra application
+    for backing up the production SharePoint environment.
+  gold_sources:
+  - article_id: 877b55cd-ddb0-4ee8-83dc-6518782070b1
+    section: Impact of Multiple Backup Applications on Performance
+  vendors:
+  - Veeam
+  written_from:
+  - 877b55cd-ddb0-4ee8-83dc-6518782070b1
+  decides: true
+  origin: new
+- id: sv-d-10
+  type: single_vendor
+  question: What backup scope does Veeam Agent for Oracle Solaris need so that I can do a bare metal recovery
+    from recovery media later?
+  gold_facts:
+  - Bare metal recovery with Veeam Recovery Media requires a backup that includes the full contents of
+    the root directory.
+  - Set the --includedirs option to / when creating the job (e.g. veeamconfig job create ... --includedirs
+    /).
+  - A job with this scope generates an additional configuration file needed for bare metal recovery.
+  gold_sources:
+  - article_id: 98babf35-267b-4359-8f6d-e8e7cade74ea
+    section: Getting Started
+  vendors:
+  - Veeam
+  written_from:
+  - 98babf35-267b-4359-8f6d-e8e7cade74ea
+  decides: true
+  origin: new
+- id: sv-d-11
+  type: single_vendor
+  question: The protected users count on my Veeam Data Cloud for Entra ID dashboard is higher than the
+    licences I'm consuming. Why the difference?
+  gold_facts:
+  - The protected users count includes all existing users in the Entra ID tenant regardless of type or
+    status.
+  - Only enabled Entra ID member users count towards the license.
+  gold_sources:
+  - article_id: b2d2fed0-0af0-4c09-beba-5bc1f7855f96
+    section: Viewing Dashboard
+  vendors:
+  - Veeam
+  written_from:
+  - b2d2fed0-0af0-4c09-beba-5bc1f7855f96
+  decides: true
+  origin: new
+- id: sv-d-12
+  type: single_vendor
+  question: Can I use my Veeam licences to back up customer data as a managed service provider, and what
+    do I have to commit to?
+  gold_facts:
+  - The Veeam EULA does not allow licenses to be used to process third-party data.
+  - Rental licenses through the VCSP program lift this restriction, allowing commercial hosting and managed
+    services.
+  - The provider must report license usage to Veeam every month.
+  - The provider must therefore be able to access reporting for the customer's environment.
+  gold_sources:
+  - article_id: c9bf0944-7b4b-43ac-8b9d-4235e167489a
+    section: Expanded Usage Rights
+  vendors:
+  - Veeam
+  written_from:
+  - c9bf0944-7b4b-43ac-8b9d-4235e167489a
+  decides: true
+  origin: new
+- id: ma-a-01
+  type: multi_article
+  question: When I install Veeam Service Provider Console, which port do the web portal and REST API listen
+    on by default, how can I lock that endpoint down to TLS 1.2 only, and which certificate does it present
+    to browsers out of the box?
+  gold_facts:
+  - The default port for the Veeam Service Provider Console website and REST API is 1280.
+  - Selecting the High security mode check box at the Port Configuration step enforces TLS 1.2 and disables
+    weak ciphers.
+  - High security mode disables SSL 2.0, SSL 3.0 and TLS 1.0 and the Triple DES and RC4 ciphers in the
+    Windows Registry, which may interfere with third-party software on the same machine.
+  - Browsers and REST API clients connect using the Veeam Service Provider Console Web UI certificate.
+  - By default the Web UI certificate is a self-signed certificate generated during installation or upgrade,
+    and it can be changed in the Veeam Service Provider Console settings.
+  gold_sources:
+  - article_id: 673d169d-8ed2-4175-8a1c-6d3b86b1f86b
+    section: Step 8. Specify Port
+  - article_id: 6fe00b9f-e425-467c-95c2-3621b56ba9f3
+    section: Veeam Service Provider Console Certificates
+  vendors:
+  - Veeam
+  written_from:
+  - 673d169d-8ed2-4175-8a1c-6d3b86b1f86b
+  - 6fe00b9f-e425-467c-95c2-3621b56ba9f3
+  decides: true
+  origin: new
+- id: ma-a-02
+  type: multi_article
+  question: I want Veeam Agent for Oracle Solaris to back up to an S3 bucket from the command line. Which
+    object storage types can I create a repository on, what do I have to prepare first, and can I later
+    use the Copy backup function in Veeam Backup & Replication to move those backups elsewhere?
+  gold_facts:
+  - The repository is created with the veeamconfig objectstorage createrepository command.
+  - Supported provider types are amazons3 (Amazon S3) and s3compatible (S3 Compatible, including IBM Cloud,
+    Wasabi and MinIO).
+  - The bucket must be created beforehand; if the specified folder does not exist, Veeam Agent creates
+    it under Veeam/Backup/ in the bucket.
+  - Veeam Agent prompts for the secret key after the command is run.
+  - Copy backup in Veeam Backup & Replication cannot copy backups to or from object storage repositories.
+  gold_sources:
+  - article_id: e25940c8-999a-4752-abdf-26a47d21fe5b
+    section: Creating Repository in Object Storage
+  - article_id: 8f15b2c2-e2de-4e85-9e39-18a014d0492b
+    section: Copying Veeam Agent Backups
+  vendors:
+  - Veeam
+  written_from:
+  - e25940c8-999a-4752-abdf-26a47d21fe5b
+  - 8f15b2c2-e2de-4e85-9e39-18a014d0492b
+  decides: true
+  origin: new
+- id: ma-a-03
+  type: multi_article
+  question: In Veeam Backup for Microsoft 365, I'm setting up an Azure Blob object storage repository
+    with immutability and also want to use the Azure archiver appliance to copy data to the Archive tier.
+    What retention restrictions apply to that repository, and what Azure roles does the account need to
+    create the archiver's service account application?
+  gold_facts:
+  - Once configured, the repository's retention period setting cannot be changed.
+  - The Keep forever retention option is unavailable for object storage repositories with immutability
+    enabled (and 10/25 years are not recommended with immutability).
+  - The retention type (snapshot-based or item-level) cannot be changed once set.
+  - Using the Azure archiver appliance requires a Microsoft Azure service account.
+  - The user creating the Microsoft Entra application must have the Application Administrator role and
+    be Owner of the selected Azure subscription.
+  - That user account must not be a Contributor of the selected subscription.
+  gold_sources:
+  - article_id: 4f2ebbc8-bf8c-41e9-a1dd-93fbc6321ce8
+    section: Step 8. Specify Retention Policy Settings
+  - article_id: 66d73776-62c5-4d19-a8e3-b9de0f481b18
+    section: Permissions for Azure Archiver Appliance
+  vendors:
+  - Veeam
+  written_from:
+  - 4f2ebbc8-bf8c-41e9-a1dd-93fbc6321ce8
+  - 66d73776-62c5-4d19-a8e3-b9de0f481b18
+  decides: true
+  origin: new
+- id: ma-a-04
+  type: multi_article
+  question: Using Veeam Explorer for Microsoft Exchange, how do I kick off a restore of a single email
+    back to a Microsoft 365 tenant that enforces MFA, and what authentication options and account or certificate
+    requirements apply?
+  gold_facts:
+  - To restore an item, select it in the preview pane and use Restore Item > Restore to on the Items tab,
+    or right-click it and select Restore to.
+  - Modern authentication uses a Microsoft Entra application and is used to restore to Microsoft 365 organizations
+    with MFA enabled.
+  - Modern authentication can use a one-time authentication code or a Microsoft Entra application certificate.
+  - The certificate must have a private exportable key (and if taken from the certificate store, it must
+    be in the Personal store); it can also be imported from a PFX file.
+  - Basic authentication requires an account with both the Exchange Administrator and Global Administrator
+    roles.
+  gold_sources:
+  - article_id: 51f13883-ee7b-47de-8141-4eee4d73d0ba
+    section: Step 1. Launch Restore Wizard
+  - article_id: 4a0caace-72d5-4cfd-ad8a-6ed695ec0e40
+    section: Step 2. Select Authentication Method
+  vendors:
+  - Veeam
+  written_from:
+  - 51f13883-ee7b-47de-8141-4eee4d73d0ba
+  - 4a0caace-72d5-4cfd-ad8a-6ed695ec0e40
+  decides: true
+  origin: new
+- id: ma-a-05
+  type: multi_article
+  question: As a VCSP on rental licensing, when is my monthly usage report due, and if I switch to automatic
+    license reporting, how long is the auto-reported license valid and what keeps it from expiring?
+  gold_facts:
+  - Rental license consumption is reported by the third day of each month through VCSP Pulse, and the
+    partner is billed by the Veeam Aggregator.
+  - A newly created automatically reported license is valid for 2.5 months.
+  - The license is extended every month if it is reported in the VCSP Pulse monthly usage report and the
+    report is closed; if Veeam does not receive the report, the license expires.
+  - Auto-reported usage is populated automatically on the third day of the month (older product versions
+    on the fifth or sixth day).
+  - Automatic license reporting must first be enabled for the account in VCSP Pulse (Pulse Settings >
+    Auto-Reporting), and usage must be submitted manually until it is configured.
+  gold_sources:
+  - article_id: b8b336d9-7c91-440b-b49a-307f56932810
+    section: Pay-As-You-Go Pricing
+  - article_id: a2b68866-f221-4014-907d-afda661b082c
+    section: Automatic License Reporting
+  vendors:
+  - Veeam
+  written_from:
+  - b8b336d9-7c91-440b-b49a-307f56932810
+  - a2b68866-f221-4014-907d-afda661b082c
+  decides: true
+  origin: new
+- id: ma-a-06
+  type: multi_article
+  question: For Veeam Agent for Microsoft Windows, how does the Server edition differ from the Free and
+    Workstation editions in backup scheduling and failed-job retries, and what kind of VSS snapshot does
+    the Server edition take depending on the application-aware processing settings?
+  gold_facts:
+  - Free and Workstation editions can schedule the job daily at a specific time or on specific weekdays,
+    or trigger it on specific events.
+  - The Server edition supports daily, monthly and periodic schedules, configurable automatic retries
+    and a backup window.
+  - In Free and Workstation editions, a failed scheduled job is retried every 10 minutes within the next
+    23 hours.
+  - 'Server edition: with application-aware processing disabled, Veeam Agent requests a copy-only VSS
+    snapshot.'
+  - 'Server edition: with application-aware processing enabled and Perform copy only selected, it requests
+    a copy-only VSS snapshot.'
+  - 'Server edition: with application-aware processing enabled and Process transaction logs with this
+    job selected, it requests a full VSS snapshot.'
+  gold_sources:
+  - article_id: f395cbcf-8480-4bcd-a886-38c1dcb220f7
+    section: Backup Job Schedule
+  - article_id: d025fda0-ead5-4d63-8a28-3ade793ae34b
+    section: Application-Aware Processing
+  vendors:
+  - Veeam
+  written_from:
+  - f395cbcf-8480-4bcd-a886-38c1dcb220f7
+  - d025fda0-ead5-4d63-8a28-3ade793ae34b
+  decides: true
+  origin: new
+- id: ma-a-07
+  type: multi_article
+  question: As a company administrator in Veeam Service Provider Console, can I get a report showing whether
+    our Microsoft 365 data is properly protected? Which Veeam Backup for Microsoft 365 versions does this
+    need, what does the report check, and how is it delivered?
+  gold_facts:
+  - VSPC integration with Veeam Backup for Microsoft 365 requires version 6 or later; job management,
+    reporting and restore require version 7 or later.
+  - Consolidated reporting is provided by the Protected Microsoft 365 objects report.
+  - The Protected Microsoft 365 objects report examines whether protected Microsoft 365 objects are compliant
+    with the SLA target.
+  - Backup reports are sent by email as PDF attachments and can be generated on a schedule; unscheduled
+    reports must be generated manually.
+  - Accessing backup reports requires at least one managed Veeam product in the infrastructure.
+  gold_sources:
+  - article_id: df069155-c219-4155-9237-c80bf8c9c54c
+    section: Integration with Veeam Backup for Microsoft 365
+  - article_id: 16ef553d-78fc-4f3d-bfb8-79e29af57eb5
+    section: Backup Reporting
+  vendors:
+  - Veeam
+  written_from:
+  - df069155-c219-4155-9237-c80bf8c9c54c
+  - 16ef553d-78fc-4f3d-bfb8-79e29af57eb5
+  decides: true
+  origin: new
+- id: ma-a-08
+  type: multi_article
+  question: I've booted a Linux server from Veeam Recovery Media for Veeam Agent for Linux and the backup
+    sits on an SMB share. How do I get networking working in the recovery environment, and what do I need
+    to provide to mount the share?
+  gold_facts:
+  - If a DHCP server is present, Veeam Agent configures network settings automatically.
+  - Network settings can be verified or configured manually with the nmtui tool via the Configure network
+    option in the Recovery Media main menu.
+  - A modified connection must be deactivated and then activated again to apply changes.
+  - For the share, choose SMB and give the path in SERVER/DIRECTORY format.
+  - For SMB you must also specify the domain, username and password of an account with access permissions
+    on the share.
+  - Veeam Agent mounts the shared folder to the /media directory of the recovery image OS file system.
+  gold_sources:
+  - article_id: a9f0e629-e36f-4bbd-91b3-41e5772d3626
+    section: Step 2. Configure Network Settings
+  - article_id: b166ddea-4394-4378-a590-b56def5ab6cf
+    section: Shared Folder Settings
+  vendors:
+  - Veeam
+  written_from:
+  - a9f0e629-e36f-4bbd-91b3-41e5772d3626
+  - b166ddea-4394-4378-a590-b56def5ab6cf
+  decides: true
+  origin: new
+- id: ma-b-01
+  type: multi_article
+  question: We're a Veeam Cloud Connect provider with insider protection turned on and an archive tier
+    on our SOBR. If a tenant deletes a backup whose data was moved to the archive tier, what actually
+    happens to it, and how does the tenant get data back from the archive tier?
+  gold_facts:
+  - For backups whose data was moved (not copied) to capacity/archive tier, the files are not physically
+    moved to the recycle bin; they are only marked as moved to the recycle bin in the SP configuration
+    database.
+  - That record is kept for the number of days set in the tenant account (Keep deleted backup files for
+    N days); after that the backup files are removed from object storage.
+  - To restore deleted backups residing in the capacity/archive tier, the SP must download them using
+    Windows PowerShell scripts (with Veeam Customer Support); they are saved to the recycle bin in the
+    performance tier and removed from the object tier.
+  - A tenant cannot restore from the archive tier without the SP; the SP must retrieve the archived data
+    first.
+  - In Cloud Connect, retrieving archived tenant data is available only through a PowerShell cmdlet, not
+    the console.
+  - The tenant's restore attempt fails with a message giving the restore point ID; the tenant sends it
+    to the SP, who retrieves the data, publishes the restore point and notifies the tenant to retry.
+  gold_sources:
+  - article_id: 787d942e-20b0-42b5-b104-9eec01dd262d
+    section: Insider Protection and Capacity Tier
+  - article_id: abf75bbf-f3f6-4a64-9881-43fc785a098b
+    section: How Restore from Archive Tier Works
+  vendors:
+  - Veeam
+  written_from:
+  - 787d942e-20b0-42b5-b104-9eec01dd262d
+  - abf75bbf-f3f6-4a64-9881-43fc785a098b
+  decides: true
+  origin: new
+- id: ma-b-02
+  type: multi_article
+  question: I want Veeam Kasten to export application backups into a Veeam Backup & Replication repository.
+    What do I have to set up on the Kasten side, and what account and repository permissions does VBR
+    need for this to work?
+  gold_facts:
+  - In the Veeam Kasten dashboard, configure a Veeam backup repository location profile specifying the
+    VBR server and the repository that will keep the exported backups.
+  - Create a Kasten policy that selects that Veeam backup location profile; the policy then appears in
+    the VBR infrastructure.
+  - The VBR user account used by Kasten must have the Veeam Backup Administrator role (directly or via
+    a group with that role).
+  - The target repository must have Allow to everyone or Allow to the following accounts or groups only
+    access permissions.
+  - Changing access permissions of a repository that already holds Kasten-exported backups makes the Kasten
+    policy fail.
+  - With VBR on Linux, a domain user cannot be used for Kasten location profiles.
+  gold_sources:
+  - article_id: 65623622-8ffd-4f86-9668-5dc56751684c
+  - article_id: 18b97b89-ead8-4fd6-887f-e3c006b44041
+  vendors:
+  - Veeam
+  written_from:
+  - 65623622-8ffd-4f86-9668-5dc56751684c
+  - 18b97b89-ead8-4fd6-887f-e3c006b44041
+  decides: true
+  origin: new
+- id: ma-b-03
+  type: multi_article
+  question: We're planning to deploy Veeam Kasten Enterprise on GKE from the Google Cloud Marketplace.
+    Is the Enterprise edition a different build from Kasten Free, and what has to be in place on the cluster
+    before we install it?
+  gold_facts:
+  - Veeam Kasten Free and Enterprise use the same container images and an identical install process.
+  - Kasten Free is functionally the same as Enterprise but limited in support and scale; Enterprise is
+    obtained with a license key from Kasten or by installing from a cloud marketplace.
+  - The GKE node pool must have Compute Engine access set to Read Write.
+  - The cluster must be created with a service account that has the required access to the underlying
+    storage.
+  - Kasten should be installed in a dedicated, non-default namespace (e.g. kasten-io), created beforehand
+    or in the Marketplace wizard.
+  gold_sources:
+  - article_id: f93bdf28-755d-40af-a7c4-e936a14099e3
+  - article_id: b49f1b9d-23c4-448d-a382-37748904b29f
+    section: Prerequisites
+  vendors:
+  - Veeam
+  written_from:
+  - f93bdf28-755d-40af-a7c4-e936a14099e3
+  - b49f1b9d-23c4-448d-a382-37748904b29f
+  decides: true
+  origin: new
+- id: ma-b-04
+  type: multi_article
+  question: How do I get Veeam Backup Enterprise Manager to send its email notifications through our Microsoft
+    365 tenant instead of SMTP? What needs to be set up in Azure and what do I enter in Enterprise Manager?
+  gold_facts:
+  - Enterprise Manager sends via the Microsoft Graph API using an access token from the Microsoft identity
+    platform, so an application must be registered in the Azure portal.
+  - The app registration uses the Accounts in this organizational directory only option and a Web redirect
+    URI of https://<EnterpriseManagerServer>/api/Notifications/GrantPermissions.
+  - The application must be granted the Microsoft Graph Mail.Send permission and given a client secret.
+  - The registering account must have an active subscription and permission to register Microsoft Entra
+    applications.
+  - In Enterprise Manager (logged in with the Portal Administrator role), Configuration > Notifications
+    > Server Settings, select Microsoft 365 as the mail server.
+  - Enter the Application (client) ID, Tenant ID and client secret, save, then click Authorize now and
+    allow access to the Microsoft 365 account.
+  gold_sources:
+  - article_id: d8e02ba4-ffc0-479b-a900-d54b59d9bdf1
+  - article_id: dd5b0356-2def-4577-bc9d-df57e43ae0f6
+  vendors:
+  - Veeam
+  written_from:
+  - d8e02ba4-ffc0-479b-a900-d54b59d9bdf1
+  - dd5b0356-2def-4577-bc9d-df57e43ae0f6
+  decides: true
+  origin: new
+- id: ma-b-05
+  type: multi_article
+  question: After I export objects in Veeam Data Cloud, how do I get hold of the exported files, what
+    format are they in, and is there a time limit on downloading them?
+  gold_facts:
+  - At the end of the export wizard you can enter a Reason for Export, which is saved to the session history.
+  - Veeam Data Cloud creates a download link once the files are exported.
+  - The exported files are JSON, compressed into a ZIP for download.
+  - Download them from Activity > Restore Sessions > session details (See details here) > Download.
+  - The download link is valid for 7 days; after it expires a new export session must be started.
+  gold_sources:
+  - article_id: af9f7362-ce6e-4b32-8b89-fade504fb852
+  - article_id: 750017dd-003e-458b-9ed6-0abc69b0c66c
+  vendors:
+  - Veeam
+  written_from:
+  - af9f7362-ce6e-4b32-8b89-fade504fb852
+  - 750017dd-003e-458b-9ed6-0abc69b0c66c
+  decides: true
+  origin: new
+- id: ma-b-06
+  type: multi_article
+  question: As a service provider on Veeam Data Cloud for Azure, I've just added a customer's Azure tenant
+    and want to protect their Azure SQL databases. When can I start working in that tenant, and what network
+    gotchas will hit the first SQL backup policy runs?
+  gold_facts:
+  - A newly added Azure tenant appears on the Azure Management page with Provisioning status.
+  - The tenant's management dashboard is accessible only after Veeam provisions backup infrastructure
+    to the tenant.
+  - If public access is disabled on the SQL Server, the first policy run tries to create a private endpoint
+    connection and fails; the connection request must be approved in the Azure portal or the policy keeps
+    failing.
+  - If public access is enabled on an Azure SQL Managed Instance, the policy uses the public endpoint,
+    requiring inbound port 3342 open, even if a private endpoint is also configured.
+  gold_sources:
+  - article_id: ec76c3f5-2c43-4877-bb41-1a22861f0fa1
+  - article_id: 7f356fb5-fa6d-4d57-9336-4e92aa460ada
+  vendors:
+  - Veeam
+  written_from:
+  - ec76c3f5-2c43-4877-bb41-1a22861f0fa1
+  - 7f356fb5-fa6d-4d57-9336-4e92aa460ada
+  decides: true
+  origin: new
+- id: ma-b-07
+  type: multi_article
+  question: I'd like to enable Azure Backup for a SQL Server VM straight from the VM's Backup blade, but
+    our policy is that backup traffic goes over private endpoints. What vault will the blade create for
+    me, and what ordering constraints do I have to respect for private endpoints?
+  gold_facts:
+  - Enabling backup from the VM blade registers the VM with Azure Backup and autoprotects all SQL Server
+    instances in it (existing and future databases).
+  - A new vault created from the blade is placed in the same subscription and region as the SQL Server
+    VM.
+  - The new vault uses geo-redundant storage (GRS); redundancy must be changed before protecting the VM.
+  - Private endpoints can only be created for a Recovery Services vault that has never had items protected
+    or registered, so the private endpoint must be set up before any backup is configured (a new vault
+    is recommended).
+  - If private endpoints are removed after a SQL server is registered, the container must be re-registered
+    with the vault (protection need not be stopped).
+  gold_sources:
+  - article_id: 34a6c1ff-9c97-465d-aa9c-185ca26497e7
+    section: Configure backup on the SQL Server
+  - article_id: d08a68ff-0dc5-4991-8862-d3a99bc7571a
+    section: Create a Recovery Services vault
+  vendors:
+  - Microsoft
+  written_from:
+  - 34a6c1ff-9c97-465d-aa9c-185ca26497e7
+  - d08a68ff-0dc5-4991-8862-d3a99bc7571a
+  decides: true
+  origin: new
+- id: ex-gq-01
+  type: single_vendor
+  question: How does AWS Backup copy backups to another AWS Region?
+  gold_facts:
+  - AWS Backup copies backups to other AWS Regions either on demand (Copy action on a recovery point in
+    a backup vault) or automatically through a copy rule (Copy to destination) in a scheduled backup plan.
+  - The first copy to a new Region is a full copy; later copies are incremental if the service supports
+    incremental backups.
+  - The copy is re-encrypted with the customer managed key of the destination vault (for Amazon EBS, a
+    different KMS key forces a full copy).
+  - Cross-Region copies are not supported for storage in cold tiers.
+  - For Amazon RDS the custom option group is not copied; a matching option group must exist in the destination
+    Region or the copy fails.
+  gold_sources:
+  - article_id: 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+    section: Creating backup copies across AWS Regions
+  vendors:
+  - AWS
+  written_from:
+  - 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+  decides: false
+  origin: golden_questions
+- id: ex-gq-04
+  type: single_vendor
+  question: How does AWS Backup support continuous backups and point-in-time recovery?
+  gold_facts:
+  - Continuous backup first creates a full backup and then continuously backs up the resource's transaction
+    logs; PITR replays the logs to the chosen time.
+  - PITR restores to a chosen time with 1-second precision, going back at most 35 days.
+  - Continuous backup is enabled in a backup plan rule; on-demand continuous backups are not supported.
+  - A resource can have only one continuous backup (recovery point).
+  - Continuous backups cannot transition to cold storage.
+  - If a continuous backup cannot be performed, AWS Backup falls back to a snapshot backup.
+  - Supported services include Amazon S3, Amazon RDS, Aurora and SAP HANA on Amazon EC2.
+  gold_sources:
+  - article_id: d4d25628-1f6e-42ea-a5c5-e66b2e1bf2f8
+    section: Point-in-time recovery considerations
+  vendors:
+  - AWS
+  written_from:
+  - d4d25628-1f6e-42ea-a5c5-e66b2e1bf2f8
+  decides: false
+  origin: golden_questions
+- id: ex-gq-05
+  type: single_vendor
+  question: How are Amazon Redshift clusters backed up?
+  gold_facts:
+  - AWS Backup backs up Amazon Redshift provisioned clusters, on demand or on a schedule as part of a
+    backup plan.
+  - Amazon Redshift must be turned On under Protected resources (opt-in) before it can be included in
+    a backup plan.
+  - Tables cannot be backed up by themselves; they are backed up as part of the cluster, but a single
+    table (item-level) or the whole cluster can be restored.
+  - Once manual snapshot settings are managed through AWS Backup, they can no longer be managed in Amazon
+    Redshift.
+  gold_sources:
+  - article_id: d1f26f66-1acb-421e-889d-d0d79e3af387
+    section: Back up Amazon Redshift provisioned clusters
+  vendors:
+  - AWS
+  written_from:
+  - d1f26f66-1acb-421e-889d-d0d79e3af387
+  decides: false
+  origin: golden_questions
+- id: ex-gq-08
+  type: multi_article
+  question: What is soft delete in Azure Backup and how long does it retain deleted items?
+  gold_facts:
+  - Soft delete delays permanent deletion of backup data (and vaults), so data deleted accidentally or
+    maliciously can be recovered.
+  - Deleted data is retained for 14 days by default; the soft-delete retention can be extended up to 180
+    days.
+  - The first 14 days cost nothing; retention beyond 14 days is charged.
+  - To restore soft-deleted data you must undelete it first, which returns it to the Stop protection with
+    retain data state.
+  - Soft-deleted items cannot be force-deleted early, and a Recovery Services vault cannot be deleted
+    while it holds soft-deleted items.
+  gold_sources:
+  - article_id: 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+    section: What's soft delete?
+  - article_id: b0eadd12-baf7-484e-8fb0-f0fd756aaba5
+  vendors:
+  - Microsoft
+  written_from:
+  - 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+  - b0eadd12-baf7-484e-8fb0-f0fd756aaba5
+  decides: false
+  origin: golden_questions
+- id: ex-gq-09
+  type: single_vendor
+  question: How does Azure Backup encrypt backup data?
+  gold_facts:
+  - Backup data at rest is automatically encrypted with Azure Storage encryption using 256-bit AES; data
+    in transit uses HTTPS and stays on the Azure backbone.
+  - By default data in the Recovery Services vault is encrypted with platform-managed keys.
+  - Customer-managed keys (RSA keys in Azure Key Vault) can be used for Azure VM backups, and must be
+    enabled before protecting any items in the vault.
+  - Infrastructure-level encryption adds a second layer and can only be configured together with customer-managed
+    keys.
+  - 'Workload-specific: VMs encrypted with ADE (BitLocker/DM-Crypt) and TDE-enabled SQL databases can
+    be backed up.'
+  gold_sources:
+  - article_id: f3199c91-3ccb-4538-b3e7-b4e45521d8ec
+    section: Encryption levels
+  vendors:
+  - Microsoft
+  written_from:
+  - f3199c91-3ccb-4538-b3e7-b4e45521d8ec
+  decides: false
+  origin: golden_questions
+- id: ex-gq-10
+  type: single_vendor
+  question: How do you configure and run Cross Region Restore in Azure Backup?
+  gold_facts:
+  - Cross Region Restore restores data in the secondary Azure paired region, even without an outage in
+    the primary region (useful for drills).
+  - It is supported only for a Backup vault with Geo-redundant storage redundancy, and incurs additional
+    charges.
+  - 'Enable it in the vault''s Properties: Vault Settings > Cross Region Restore > Update > Enable.'
+  - After enabling, backup items can take up to 48 hours to appear in the secondary region; recovery points
+    can take up to 12 hours to replicate.
+  - A GRS vault with Cross Region Restore enabled cannot be changed to ZRS or LRS after protection starts.
+  - To restore, filter backup instances by Instance Region = Secondary Region and choose Restore to secondary
+    region.
+  gold_sources:
+  - article_id: e2f3ee74-04f0-4d6f-9925-83dc0b43b193
+    section: Enable Cross Region Restore on a Backup vault
+  vendors:
+  - Microsoft
+  written_from:
+  - e2f3ee74-04f0-4d6f-9925-83dc0b43b193
+  decides: false
+  origin: golden_questions
+- id: ex-gq-11
+  type: single_vendor
+  question: How do you restore a SQL Server database from an Azure Backup vault?
+  gold_facts:
+  - You can restore to a specific date/time (to the second) using log backups, or to a specific full or
+    differential recovery point.
+  - 'Restore targets: Alternate Location, Original location (overwrites the database; not allowed for
+    Always On availability group databases), or Restore as files (.bak files).'
+  - The destination server must be in the same Azure region and registered to the same vault (unless using
+    Cross Subscription Restore).
+  - 'Required permissions: Backup Operator on the vault and Contributor (write) on the source and target
+    VMs.'
+  - Point-in-time restore is only available for databases in full or bulk-logged recovery mode.
+  - The master database should be restored with Restore as files and then T-SQL; CDC-enabled databases
+    must use Restore as files.
+  gold_sources:
+  - article_id: 8f869443-b48d-4a45-a9fb-7d0df772e632
+    section: Restore a database
+  vendors:
+  - Microsoft
+  written_from:
+  - 8f869443-b48d-4a45-a9fb-7d0df772e632
+  decides: false
+  origin: golden_questions
+- id: ex-gq-12
+  type: single_vendor
+  question: How do you back up an encrypted Azure VM?
+  gold_facts:
+  - VMs encrypted with platform-managed or customer-managed keys (SSE) need no special action to back
+    up.
+  - Azure Backup supports managed VMs encrypted with ADE (BEK, or BEK with KEK); VMs with unmanaged disks
+    are not supported.
+  - 'Azure Backup needs read-only access to the keys and secrets in the key vault: add an access policy
+    for Backup Management Service (key permissions can be cleared for BEK-only).'
+  - For RBAC-enabled key vaults, assign the Key Vault Administrator role (or a custom role) to the Backup
+    Management Service app.
+  - ADE-encrypted VMs can be backed up and restored only within the same subscription, and only standalone
+    keys (not certificate keys) are supported.
+  - Backup is enabled from the Recovery Services vault by choosing a policy and adding the encrypted VMs.
+  gold_sources:
+  - article_id: a0e14280-837e-4e23-a930-9119e7692e94
+    section: Provide permissions
+  vendors:
+  - Microsoft
+  written_from:
+  - a0e14280-837e-4e23-a930-9119e7692e94
+  decides: false
+  origin: golden_questions
+- id: ex-gq-13
+  type: single_vendor
+  question: How do you restore VMware VMs with Azure Backup Server?
+  gold_facts:
+  - 'Restores are run from the MABS Administrator Console Recovery view: pick the VM and a recovery point
+    date, then Recover to open the Recovery Wizard.'
+  - Original location recovery is only possible if no disks were added or deleted since the backup.
+  - Alternate location recovery requires an ESXi host, resource pool, folder and datastore path.
+  - Individual file/folder recovery is available only for Windows Server VMs and recovers to a network
+    folder.
+  - MABS v4 and later restores VMware VMs from the same vCenter in parallel, eight by default, raised
+    with the MaxParallelRecoveryJobs registry key.
+  gold_sources:
+  - article_id: 9967084e-7d84-4f8f-bca7-0ce534bee0a6
+    section: Restore a VMware VM recovery point
+  vendors:
+  - Microsoft
+  written_from:
+  - 9967084e-7d84-4f8f-bca7-0ce534bee0a6
+  decides: false
+  origin: golden_questions
+- id: ex-gq-14
+  type: single_vendor
+  question: How do you change the backup retention period in AWS Backup?
+  gold_facts:
+  - The retention period of a continuous backup rule is changed through the backup plan; the UpdateRecoveryPointLifecycle
+    API/CLI cannot be used for continuous backups.
+  - Continuous backup retention ranges from 1 to 35 days.
+  - The change takes effect after the next backup completes.
+  - For Amazon S3, changing retention stops the current continuous recovery point and creates a new one;
+    for Aurora, RDS and SAP HANA on EC2 the existing recovery point is updated.
+  gold_sources:
+  - article_id: b64e0602-ddf5-46dd-a7b5-789403ed3fd6
+    section: Changing your retention period
+  vendors:
+  - AWS
+  written_from:
+  - b64e0602-ddf5-46dd-a7b5-789403ed3fd6
+  decides: false
+  origin: golden_questions
+- id: ex-rt-00
+  type: multi_article
+  question: How does a Veeam Backup & Replication hardened repository keep backups immutable?
+  gold_facts:
+  - A hardened repository is a Linux server; you specify an immutability period during which backup files
+    cannot be moved, modified or deleted (but can be copied).
+  - Single-use credentials are used only to deploy Veeam Data Mover and are not stored, so a compromised
+    backup server cannot reach the repository.
+  - The single-use SSH account must be a non-root user (remove it from sudoers after the server is added).
+  - No other roles can be assigned to the hardened repository except a VMware backup proxy in Network
+    mode.
+  - Veeam Backup & Replication does not allow deleting immutable backups until the immutability expiration
+    date.
+  gold_sources:
+  - article_id: db578a27-8819-4a7e-815b-7bea6b8d0bd9
+    section: Hardened Repository
+  - article_id: 3d119b37-0c7f-473c-9d9c-ed2c603ea1c5
+    section: Adding Hardened Repositories
+  - article_id: 53d7f217-f034-4069-9bb6-b84ab5545b61
+    section: Immutability for Backup Files
+  vendors:
+  - Veeam
+  written_from:
+  - db578a27-8819-4a7e-815b-7bea6b8d0bd9
+  - 84ac8603-a955-48a2-83c9-e6b9090ec7e4
+  - dc412a85-ca2e-440c-982e-dcc91c45d6d5
+  - f3d74dc7-5a1d-4075-b536-36c297d2a8f0
+  - 3d119b37-0c7f-473c-9d9c-ed2c603ea1c5
+  - 53d7f217-f034-4069-9bb6-b84ab5545b61
+  - cf7cca71-4650-4338-876e-1e243364b02c
+  - 47f50fe3-d4e3-45a2-b009-c48dfc73dfc0
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-01
+  type: multi_article
+  question: What does a Veeam SureBackup job verify, and how is it processed?
+  gold_facts:
+  - SureBackup verifies that machines can be recovered from backups; a SureBackup job runs in Full recoverability
+    testing or Backup verification and content scan only mode.
+  - Full recoverability testing starts the virtual lab and the application group machines, then boots
+    verified machines from backup in an isolated environment and tests them.
+  - Tests include heartbeat, ping, application initialization (120 s default) and test scripts (return
+    code 0 = success).
+  - After testing, the VM is powered off and a CRC backup integrity check verifies the backup file is
+    not corrupted.
+  - Backup verification and content scan only mode runs only the integrity check and malware/content scan,
+    with no virtual lab or application group.
+  - By default up to three machines are started and tested at the same time.
+  gold_sources:
+  - article_id: 62b8896f-e1c4-4d11-b95f-24c248885fe4
+    section: SureBackup Job
+  - article_id: 4200f582-f549-4103-bd4d-06020d00a229
+    section: SureBackup Job Processing
+  vendors:
+  - Veeam
+  written_from:
+  - 2f206549-5cb8-432a-960d-9073d0fc1696
+  - 4200f582-f549-4103-bd4d-06020d00a229
+  - 62b8896f-e1c4-4d11-b95f-24c248885fe4
+  - c1e8b357-dd67-4c6a-8de1-b527d99f3cb2
+  - 00fe2fcf-cbe3-4b77-aa78-8924729b16e8
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-02
+  type: single_vendor
+  question: How does Veeam Backup & Replication detect malware in backups?
+  gold_facts:
+  - File system activity analysis of indexing data detects suspicious files/extensions, indicators of
+    compromise, deleted files and extension changes, marking workloads Suspicious.
+  - Inline entropy analysis of the data stream during backup detects encrypted files, onion links and
+    ransom notes, marking workloads Suspicious.
+  - Signature-based detection (Veeam Threat Hunter), 3rd party antivirus and YARA rules scan restore points
+    during Scan Backup, Secure Restore and SureBackup, marking workloads Infected.
+  - Scan Backup can find the last clean restore point.
+  - 3rd party malware protection solutions can report detections through the Veeam Incident API.
+  gold_sources:
+  - article_id: 941f4db6-d2ed-4c4e-a02a-8df1d77ba17a
+    section: Malware Detection Methods
+  vendors:
+  - Veeam
+  written_from:
+  - 941f4db6-d2ed-4c4e-a02a-8df1d77ba17a
+  - 809e436f-2e6b-4166-bf5b-499df8ae53a1
+  - 72baa41b-561a-413c-bed9-611cab5a8f1d
+  - 1151275e-522a-43c9-a3f7-8897f4c2096c
+  - d3929ed1-ac69-49c1-bf87-58032c01851e
+  - 273181d1-d815-471c-b1fe-225c4e989593
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-05
+  type: multi_article
+  question: What should I consider when enabling backup immutability for Veeam Agent backups?
+  gold_facts:
+  - 'Veeam Agent immutability works only for object storage: Veeam Data Cloud Vault, Amazon S3, S3 compatible
+    storage with Object Lock, Microsoft Azure Blob Storage and Google Cloud Storage.'
+  - For S3 buckets, enable S3 Versioning and Object Lock when creating the bucket and disable the Object
+    Lock default retention; Veeam Agent uses compliance mode.
+  - For Azure Blob, enable blob versioning and version-level immutability on the container, and do not
+    enable immutability on existing containers in the Azure portal.
+  - Immutability can add API and storage charges from the storage provider.
+  - Veeam Agent appends a block generation period (30 days for Amazon S3 and Google Cloud; 10 days for
+    S3 compatible, Azure Blob and Veeam Data Cloud Vault); effective immutability = user period + block
+    generation.
+  - Obsolete restore points are removed by retention only after their immutability expires.
+  gold_sources:
+  - article_id: 1175394a-a25b-4b6d-bf24-095c4dd256f4
+    section: Backup Immutability
+  - article_id: 85fa59d8-84fa-496e-9888-e188f7775107
+    section: How Backup Immutability Works
+  vendors:
+  - Veeam
+  written_from:
+  - 28607e75-57ed-45fa-bfd3-01994fac2900
+  - 85fa59d8-84fa-496e-9888-e188f7775107
+  - 1175394a-a25b-4b6d-bf24-095c4dd256f4
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-07
+  type: cross_vendor
+  question: Compare Veeam backup copy jobs with AWS Backup cross-Region copy for keeping an off-site copy.
+  gold_facts:
+  - 'Veeam: documented: backup copy is a job-driven process that creates instances of the same backup
+    data in other on-site or off-site locations, supporting the 3-2-1 rule.'
+  - 'Veeam: documented: backup copies have the same format as backup job output and have their own retention,
+    including full backups for archival.'
+  - 'AWS: documented: AWS Backup copies backups to other Regions on demand or automatically via a copy
+    rule in a backup plan.'
+  - 'AWS: documented: the first cross-Region copy is full and later ones incremental where supported;
+    copies are re-encrypted with the destination vault''s key.'
+  - 'AWS: documented: cross-Region copies are not supported for cold-tier storage.'
+  gold_sources:
+  - article_id: 3f4fec00-cd76-41b4-ac19-bec8894d09bb
+    section: Backup Copy
+  - article_id: 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+    section: Creating backup copies across AWS Regions
+  vendors:
+  - Veeam
+  - AWS
+  written_from:
+  - 3f4fec00-cd76-41b4-ac19-bec8894d09bb
+  - 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-08
+  type: cross_vendor
+  question: How do Veeam Backup & Replication and Azure Backup each protect backups against ransomware?
+  gold_facts:
+  - 'Veeam: documented: inline entropy analysis during backup and file system activity analysis of indexing
+    data flag ransomware activity (encrypted files, ransom notes, extension changes).'
+  - 'Veeam: documented: Scan Backup / Secure Restore with Veeam Threat Hunter, antivirus or YARA finds
+    the last clean restore point and detects infected data.'
+  - 'Veeam: documented: immutable backups (e.g. Veeam Plug-in for Microsoft Azure uses Azure immutable
+    blob storage) cannot be deleted by any user until the immutability period ends.'
+  - 'Veeam: documented: Cloud Connect insider protection moves deleted tenant backup files to a recycle
+    bin for a configured number of days.'
+  - 'Microsoft: documented: Azure Backup soft delete retains deleted backup data for 14 days at no cost
+    (extendable up to 180 days).'
+  - 'Microsoft: documented: Multi-user authorization (Resource Guard) protects critical operations such
+    as disabling soft delete or reducing retention.'
+  - 'Microsoft: documented: vault isolation with Azure RBAC, plus encryption of backup data (platform-
+    or customer-managed keys).'
+  gold_sources:
+  - article_id: 941f4db6-d2ed-4c4e-a02a-8df1d77ba17a
+    section: Malware Detection Methods
+  - article_id: 84ac8603-a955-48a2-83c9-e6b9090ec7e4
+    section: Immutability
+  - article_id: 787d942e-20b0-42b5-b104-9eec01dd262d
+    section: How Insider Protection Works
+  - article_id: f38be958-930f-4d86-9b79-9cbc68172860
+  - article_id: 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+    section: What's soft delete?
+  vendors:
+  - Veeam
+  - Microsoft
+  written_from:
+  - 941f4db6-d2ed-4c4e-a02a-8df1d77ba17a
+  - 809e436f-2e6b-4166-bf5b-499df8ae53a1
+  - 84ac8603-a955-48a2-83c9-e6b9090ec7e4
+  - f38be958-930f-4d86-9b79-9cbc68172860
+  - 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+  - 787d942e-20b0-42b5-b104-9eec01dd262d
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-09
+  type: cross_vendor
+  question: How does immutability in Veeam Backup for Microsoft 365 compare with soft delete in Azure
+    Backup?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup for Microsoft 365 immutability is enabled when adding an object storage
+    repository; it cannot be enabled later or disabled.'
+  - 'Veeam: documented: data cannot be modified or deleted within the immutability period, set as a number
+    of days or equal to the repository retention.'
+  - 'Veeam: documented: compliance mode is the default; governance mode lets a storage administrator with
+    permissions override the lock.'
+  - 'Veeam: documented: extra days are added automatically (30 for backup copy repositories, 10 for backup
+    repositories) to reduce I/O.'
+  - 'Microsoft: documented: Azure Backup soft delete keeps deleted backup data for 14 days by default,
+    extendable to 180 days; the first 14 days are free.'
+  - 'Microsoft: documented: soft-deleted data must be undeleted before it can be restored; it cannot be
+    force-deleted early.'
+  - 'Microsoft: documented: soft delete is enabled by default and cannot be disabled where secure by default
+    is in effect.'
+  gold_sources:
+  - article_id: 32213b64-34a7-4d22-b215-bfbf0679f105
+    section: Immutability
+  - article_id: 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+    section: What's soft delete?
+  - article_id: b0eadd12-baf7-484e-8fb0-f0fd756aaba5
+  vendors:
+  - Veeam
+  - Microsoft
+  written_from:
+  - 32213b64-34a7-4d22-b215-bfbf0679f105
+  - 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+  - b0eadd12-baf7-484e-8fb0-f0fd756aaba5
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-10
+  type: cross_vendor
+  question: Which backup vendors support immutable backups, and how do their approaches differ?
+  gold_facts:
+  - 'Veeam: documented: a hardened (Linux) repository keeps backup files immutable for a set period, during
+    which they cannot be moved, modified or deleted.'
+  - 'Veeam: documented: cloud plug-ins use the cloud''s native lock (Veeam Plug-in for Microsoft Azure
+    uses Azure immutable blob storage), with the immutability period based on policy retention, and no
+    user can delete the data early.'
+  - 'Microsoft: documented: Azure Backup protects backups with soft delete, retaining deleted backup data
+    for 14 days by default (up to 180 days).'
+  - 'Microsoft: documented: Multi-user authorization (Resource Guard) guards critical operations such
+    as disabling soft delete or reducing retention.'
+  gold_sources:
+  - article_id: db578a27-8819-4a7e-815b-7bea6b8d0bd9
+    section: Hardened Repository
+  - article_id: 84ac8603-a955-48a2-83c9-e6b9090ec7e4
+    section: Immutability
+  - article_id: 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+    section: What's soft delete?
+  - article_id: f38be958-930f-4d86-9b79-9cbc68172860
+  vendors:
+  - Veeam
+  - Microsoft
+  written_from:
+  - db578a27-8819-4a7e-815b-7bea6b8d0bd9
+  - 84ac8603-a955-48a2-83c9-e6b9090ec7e4
+  - f38be958-930f-4d86-9b79-9cbc68172860
+  - 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
+  decides: false
+  origin: router_golden_tier1
+- id: ex-rt-12
+  type: cross_vendor
+  question: Which backup vendors can keep a copy of backups in another region or at another site?
+  gold_facts:
+  - 'Veeam: documented: backup copy jobs create copies of backup data in other on-site or off-site locations
+    (3-2-1 rule).'
+  - 'AWS: documented: AWS Backup copies backups to other AWS Regions on demand or via a backup plan copy
+    rule.'
+  - 'AWS: documented: AWS Backup can also copy backups to other AWS accounts within AWS Organizations.'
+  - 'Microsoft: documented: Azure Backup Cross Region Restore restores from the Azure paired secondary
+    region; it requires a geo-redundant (GRS) vault.'
+  - 'Microsoft: documented: recovery points can take up to 12 hours to replicate to the secondary region.'
+  gold_sources:
+  - article_id: 3f4fec00-cd76-41b4-ac19-bec8894d09bb
+    section: Backup Copy
+  - article_id: 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+  - article_id: 2c92266f-f84c-49c2-9e89-3b4376ec9043
+    section: Cross-account management and cross-account backup
+  - article_id: 8f869443-b48d-4a45-a9fb-7d0df772e632
+    section: Cross Region Restore
+  - article_id: e53dfaee-916c-4947-9224-43ba63f6a14f
+  vendors:
+  - Veeam
+  - AWS
+  - Microsoft
+  written_from:
+  - 2c92266f-f84c-49c2-9e89-3b4376ec9043
+  - 3f4fec00-cd76-41b4-ac19-bec8894d09bb
+  - 78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd
+  - 8f869443-b48d-4a45-a9fb-7d0df772e632
+  - e53dfaee-916c-4947-9224-43ba63f6a14f
+  decides: false
+  origin: router_golden_tier1
+- id: cv-01
+  type: cross_vendor
+  question: We want a second person to sign off before anyone can delete backups or do other destructive
+    operations. Which of these vendors' products offer that kind of multi-person approval, and how does
+    each one implement it?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup & Replication four-eyes authorization requires a second user with
+    the Backup Administrator or Security Administrator role to approve operations such as deleting backups
+    or removing repositories; requests nobody processes are rejected automatically after 7 days by default.'
+  - 'Microsoft: documented: Azure Backup Multi-user authorization (MUA) protects critical operations on
+    Recovery Services vaults and Backup vaults through a separate Azure resource called a Resource Guard.'
+  - 'AWS: documented: AWS Backup can associate a Multi-party approval team with a logically air-gapped
+    vault so that access to the vault is approved collaboratively.'
+  - 'Cohesity: documented: FortKnox quorum approvals require a predefined quorum of approvers to approve
+    sensitive or privileged operations before they run.'
+  gold_sources:
+  - article_id: c9aedbf0-a995-4954-ac9e-514c64b7a80c
+    section: Four-Eyes Authorization
+  - article_id: 56af70d3-1433-410b-b5f5-cb164cbacd89
+    section: 'Quickstart: Enable protection using Multi-user authorization in Azure Backup'
+  - article_id: 4abf72f3-3f93-4292-8257-cf1dad0d425b
+    section: Associate a Multi-party approval team with a logically air-gapped vault
+  - article_id: 4733814b-de67-4727-9060-c8c2384aeefc
+    section: Quorum Approvals
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - c9aedbf0-a995-4954-ac9e-514c64b7a80c
+  - 56af70d3-1433-410b-b5f5-cb164cbacd89
+  - 4abf72f3-3f93-4292-8257-cf1dad0d425b
+  - 4733814b-de67-4727-9060-c8c2384aeefc
+  decides: true
+  origin: new
+- id: cv-02
+  type: cross_vendor
+  question: Which of the documented backup products can protect Kubernetes workloads, and how does each
+    one go about it?
+  gold_facts:
+  - 'Veeam: documented: Veeam Kasten for Kubernetes is a Kubernetes-native platform for backup/restore,
+    disaster recovery and mobility of Kubernetes applications.'
+  - 'Microsoft: documented: Azure Backup protects AKS clusters through a Backup extension installed in
+    the cluster; backups go to a blob container in a storage account in the same region and subscription
+    as the cluster.'
+  - 'AWS: documented: AWS Backup backs up an Amazon EKS cluster as a composite recovery point containing
+    the cluster state plus persistent volumes (EBS, EFS, S3).'
+  - 'Cohesity: documented: FortKnox lists Kubernetes among its supported workloads.'
+  gold_sources:
+  - article_id: 0435a405-a897-4b3b-8c8c-a53aa85ae2d4
+    section: Veeam Kasten for Kubernetes Overview
+  - article_id: 97378773-4a31-45c6-af1d-5572f5a12266
+    section: Install Backup extension in an AKS cluster
+  - article_id: e2f5ddee-5104-49af-bdc4-d2a7a06bf6d6
+    section: Amazon EKS backups
+  - article_id: cca9c923-7dc7-4b2c-86c6-b0038a27f389
+    section: Workloads
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - 0435a405-a897-4b3b-8c8c-a53aa85ae2d4
+  - 97378773-4a31-45c6-af1d-5572f5a12266
+  - e2f5ddee-5104-49af-bdc4-d2a7a06bf6d6
+  - cca9c923-7dc7-4b2c-86c6-b0038a27f389
+  decides: true
+  origin: new
+- id: cv-03
+  type: cross_vendor
+  question: A lot of our on-prem estate still runs on Microsoft Hyper-V. Which of these vendors document
+    backing up Hyper-V virtual machines?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup & Replication creates image-level (block-level) backups of Hyper-V
+    VMs that support Instant Recovery, full VM restore and file-level restore.'
+  - 'Microsoft: documented: Azure Backup Server (MABS) backs up Hyper-V VMs at host level or guest level,
+    with the MABS protection agent installed on the Hyper-V hosts or cluster nodes.'
+  - 'AWS: no evidence in the corpus'
+  - 'Cohesity: documented: FortKnox lists Microsoft Hyper-V among its supported workloads.'
+  gold_sources:
+  - article_id: 458bb44f-6ce2-492a-a6ca-ec7dd50bac07
+    section: Backup for Microsoft Hyper-V
+  - article_id: 30e340d6-6241-49b5-bcc2-f995ca9a5a2d
+    section: Host versus guest backup
+  - article_id: cca9c923-7dc7-4b2c-86c6-b0038a27f389
+    section: Workloads
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - 458bb44f-6ce2-492a-a6ca-ec7dd50bac07
+  - 30e340d6-6241-49b5-bcc2-f995ca9a5a2d
+  - cca9c923-7dc7-4b2c-86c6-b0038a27f389
+  decides: true
+  origin: new
+- id: cv-04
+  type: cross_vendor
+  question: Our WAN link is too slow to push the first full copy of our data to the cloud. Which products
+    let us ship the initial backup data on a physical device instead?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup & Replication can use an AWS Snowball Edge or Azure Data Box device
+    as object storage, offload backups to it, and ship it back so the data is seeded into Amazon S3 or
+    Azure Blob storage.'
+  - 'Microsoft: documented: Azure Backup can seed large initial MARS agent backups offline to a Recovery
+    Services vault with Azure Data Box; the Azure Import/Export service is the other offline option.'
+  - 'AWS: no evidence in the corpus'
+  - 'Cohesity: no evidence in the corpus'
+  gold_sources:
+  - article_id: e4a4f400-b14f-4cd2-b966-5e5b936b0636
+    section: Adding AWS Snowball Edge Storage
+  - article_id: d2abf574-c071-4638-b45b-c5e5eb0bb44f
+    section: Adding Azure Data Box Storage
+  - article_id: 390fd0aa-c44a-4f13-b0e7-baf15c5db0b4
+    section: Azure Backup offline backup by using Azure Data Box
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - e4a4f400-b14f-4cd2-b966-5e5b936b0636
+  - d2abf574-c071-4638-b45b-c5e5eb0bb44f
+  - 390fd0aa-c44a-4f13-b0e7-baf15c5db0b4
+  decides: true
+  origin: new
+- id: cv-05
+  type: cross_vendor
+  question: How can I stop backup traffic from saturating our network links? Which products let me cap
+    or schedule the bandwidth backups use?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup & Replication network traffic rules can throttle traffic between
+    backup infrastructure components; jobs falling under the same rule split the throttled bandwidth equally.'
+  - 'Microsoft: documented: the Azure Backup MARS agent can limit bandwidth with separate work-hour and
+    non-work-hour settings for chosen days of the week (Set-OBMachineSetting).'
+  - 'AWS: documented: an AWS Backup gateway has no rate limit by default; you can set a bandwidth rate-limit
+    schedule to cap its upload throughput to AWS Backup.'
+  - 'Cohesity: documented: FortKnox lets you configure a bandwidth throttle, and changing it is a suggested
+    fix when data transfer from a cloud vault is slow.'
+  gold_sources:
+  - article_id: e418d768-bf2e-4ef7-9ea8-2fdbce16393c
+    section: Enabling Traffic Throttling
+  - article_id: b48359de-14a9-4148-92bf-2f1b26513e75
+    section: Networking settings
+  - article_id: 481d7026-1b57-458e-9ee0-b3d01e8ec761
+    section: Backup gateway Bandwidth Throttling
+  - article_id: bc0bdcbc-b80d-4498-bf90-1cd52c4e8150
+    section: Manage FortKnox
+  - article_id: eb4da551-d5f7-47b0-8c76-d66d404bcf9c
+    section: Data Transfer from Cloud Vault is Slow
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - e418d768-bf2e-4ef7-9ea8-2fdbce16393c
+  - b48359de-14a9-4148-92bf-2f1b26513e75
+  - 481d7026-1b57-458e-9ee0-b3d01e8ec761
+  - bc0bdcbc-b80d-4498-bf90-1cd52c4e8150
+  - eb4da551-d5f7-47b0-8c76-d66d404bcf9c
+  decides: true
+  origin: new
+- id: cv-06
+  type: cross_vendor
+  question: Which vendors offer a way to back up Microsoft 365 data such as Exchange Online mailboxes,
+    OneDrive and SharePoint?
+  gold_facts:
+  - 'Veeam: documented: Veeam Backup for Microsoft 365 backs up and restores Exchange, SharePoint, OneDrive
+    for work or school and Teams data (and on-premises Exchange and SharePoint).'
+  - 'Microsoft: documented: Microsoft 365 Backup restores OneDrive accounts, SharePoint sites and Exchange
+    mailbox content from prior restore points, to the original or a new location.'
+  - 'AWS: no evidence in the corpus'
+  - 'Cohesity: documented: FortKnox lists Microsoft 365 among its supported workloads.'
+  gold_sources:
+  - article_id: ade9526f-71c3-4538-a5c2-875248158cd8
+    section: About Veeam Backup for Microsoft 365
+  - article_id: 5c9a6c31-f0ef-4726-9dbe-4e911625025b
+    section: Restore data in Microsoft 365 Backup
+  - article_id: cca9c923-7dc7-4b2c-86c6-b0038a27f389
+    section: Workloads
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - ade9526f-71c3-4538-a5c2-875248158cd8
+  - 5c9a6c31-f0ef-4726-9dbe-4e911625025b
+  - cca9c923-7dc7-4b2c-86c6-b0038a27f389
+  decides: true
+  origin: new
+- id: cv-07
+  type: cross_vendor
+  question: Management wants backup status reports delivered automatically on a schedule. Which products
+    can do that, and where do the reports end up?
+  gold_facts:
+  - 'Veeam: documented: Veeam Data Cloud (Microsoft 365) supports scheduled reports with a frequency and
+    email recipients, which can be run on demand, edited, disabled or deleted.'
+  - 'Microsoft: documented: the Azure Backup Reports Email Report feature deploys a logic app that queries
+    Log Analytics workspaces and emails reports periodically.'
+  - 'AWS: documented: AWS Backup report plans automate report creation (jobs or compliance reports) and
+    deliver them to an Amazon S3 bucket in the same account.'
+  - 'Cohesity: documented: FortKnox can schedule reports to run periodically and email them to recipients
+    in PDF, CSV or Excel; a report that is too large is sent as a download link.'
+  gold_sources:
+  - article_id: 5d510c9c-816f-4501-b1a6-fd9d49e7f97d
+    section: Managing Scheduled Reports
+  - article_id: 4b79b518-67c7-4a99-b26d-bf8765d6a2b5
+    section: Email Azure Backup Reports
+  - article_id: 08b4ad14-3edf-4180-b628-e3905b1379e3
+    section: Creating report plans using the AWS Backup console
+  - article_id: 2a43df42-fadb-469d-ad78-2a450c3911d8
+    section: Schedule Reports
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - 5d510c9c-816f-4501-b1a6-fd9d49e7f97d
+  - 4b79b518-67c7-4a99-b26d-bf8765d6a2b5
+  - 08b4ad14-3edf-4180-b628-e3905b1379e3
+  - 2a43df42-fadb-469d-ad78-2a450c3911d8
+  decides: true
+  origin: new
+- id: cv-08
+  type: cross_vendor
+  question: We still have some IBM AIX servers. Which of these vendors can protect AIX machines?
+  gold_facts:
+  - 'Veeam: documented: Veeam Agent for IBM AIX backs up directories and files of AIX machines (installed
+    in the LPAR root file system or a WPAR) and can be integrated with Veeam Backup & Replication.'
+  - 'Microsoft: no evidence in the corpus'
+  - 'AWS: no evidence in the corpus'
+  - 'Cohesity: documented: FortKnox lists AIX Server among its supported workloads.'
+  gold_sources:
+  - article_id: cc1e2159-0a98-495a-8b6b-0539d01cb277
+    section: Overview
+  - article_id: cca9c923-7dc7-4b2c-86c6-b0038a27f389
+    section: Workloads
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - cc1e2159-0a98-495a-8b6b-0539d01cb277
+  - cca9c923-7dc7-4b2c-86c6-b0038a27f389
+  decides: true
+  origin: new
+- id: cv-09
+  type: cross_vendor
+  question: I need to run my own scripts right before and after each backup, for example to quiesce an
+    application. Which products support custom pre- and post-backup scripts?
+  gold_facts:
+  - 'Veeam: documented: Veeam Agent for Linux runs pre-job and post-job scripts, and in the Server edition
+    pre-freeze and post-thaw scripts around the snapshot; the default script timeout is 10 minutes.'
+  - 'Microsoft: documented: Azure Backup Server (MABS) runs a pre-backup and post-backup script per data
+    source, defined in ScriptingConfig.xml on the protected computer and executed under the local system
+    account.'
+  - 'AWS: no evidence in the corpus'
+  - 'Cohesity: no evidence in the corpus'
+  gold_sources:
+  - article_id: 04f8571c-2c83-456b-8dd6-3e82cc551056
+    section: Backup Job Scripts
+  - article_id: a8ba8211-f452-4e2d-a7c8-3c24b08155aa
+    section: Use pre-backup and post-backup scripts
+  vendors:
+  - Veeam
+  - Microsoft
+  - AWS
+  - Cohesity
+  written_from:
+  - 04f8571c-2c83-456b-8dd6-3e82cc551056
+  - a8ba8211-f452-4e2d-a7c8-3c24b08155aa
+  decides: true
+  origin: new
+- id: cv-10
+  type: cross_vendor
+  question: How is Microsoft 365 Backup billed compared with how Veeam Backup for Microsoft 365 is licensed?
+  gold_facts:
+  - 'Microsoft: Microsoft 365 Backup is a pay-as-you-go offering charged by consumption rather than per
+    seat, set up against an Azure subscription.'
+  - 'Veeam: Veeam Backup for Microsoft 365 is licensed per protected user account, each consuming one
+    license unit; restores need no license.'
+  - 'Veeam: a license unit is revoked automatically when the object has not been backed up for 31 days,
+    and Teams objects and group/non-personal SharePoint sites do not consume units.'
+  gold_sources:
+  - article_id: 953570f6-46b8-4b6d-8584-a30cd9dcc37c
+    section: 'Step 1: Set up pay-as-you-go billing'
+  - article_id: 5b507749-cba1-437c-ad3b-b5a3823b15cc
+    section: Licensing and License Types
+  vendors:
+  - Microsoft
+  - Veeam
+  written_from:
+  - 953570f6-46b8-4b6d-8584-a30cd9dcc37c
+  - 5b507749-cba1-437c-ad3b-b5a3823b15cc
+  decides: true
+  origin: new
+- id: cv-11
+  type: cross_vendor
+  question: Can I bring my own encryption key to a Cohesity FortKnox vault and to an AWS Backup vault,
+    and can I switch keys after the vault exists?
+  gold_facts:
+  - 'Cohesity: FortKnox offers Cohesity-managed KMS (AES-256 in CBC mode) or your own AWS KMS keys, and
+    bring-your-own keys are available only for AWS vaults.'
+  - 'Cohesity: the key management service cannot be changed once the cloud vault is created.'
+  - 'AWS: an AWS Backup vault uses the default aws/backup KMS key or any other KMS key in your account
+    (cross-account keys via the CLI).'
+  - 'AWS: once the vault is created with its KMS key, the key can no longer be edited.'
+  gold_sources:
+  - article_id: 8d28293a-4280-41fd-a19a-b8a81f011a4c
+    section: Key Management
+  - article_id: 6caffcaa-5228-4c6c-9af0-6cab6b8494ff
+    section: Creating a backup vault (programmatically)
+  vendors:
+  - Cohesity
+  - AWS
+  written_from:
+  - 8d28293a-4280-41fd-a19a-b8a81f011a4c
+  - 6caffcaa-5228-4c6c-9af0-6cab6b8494ff
+  decides: true
+  origin: new
+- id: cv-12
+  type: cross_vendor
+  question: How long can I keep Entra ID backups with Microsoft's built-in Entra Backup and Recovery compared
+    with Veeam Data Cloud for Entra ID, and can I trigger a backup myself?
+  gold_facts:
+  - 'Microsoft: Microsoft Entra Backup and Recovery backs up supported objects automatically once a day
+    and keeps up to seven days of backup history.'
+  - 'Microsoft: no user or app, even with the highest admin privileges, can turn off, delete or modify
+    these backups.'
+  - 'Veeam: in Veeam Data Cloud for Entra ID the retention period can be increased up to 99 years (1,187
+    months) but never shortened.'
+  - 'Veeam: you can start an Entra ID backup policy manually to create an immediate restore point.'
+  gold_sources:
+  - article_id: 906e3681-de3f-44a6-ae19-122c4e2ed385
+    section: Microsoft Entra Backup and Recovery overview
+  - article_id: fe874167-83a5-4645-92d9-1375b2728253
+    section: Increasing Retention Period
+  - article_id: 6d6f73e2-e740-436f-b4d8-e1488a16d7b6
+    section: Entra ID Backup
+  vendors:
+  - Microsoft
+  - Veeam
+  written_from:
+  - 906e3681-de3f-44a6-ae19-122c4e2ed385
+  - fe874167-83a5-4645-92d9-1375b2728253
+  - 6d6f73e2-e740-436f-b4d8-e1488a16d7b6
+  decides: true
+  origin: new
+- id: cv-13
+  type: cross_vendor
+  question: What does the "backup window" actually control in Cohesity FortKnox, and how is that different
+    from the backup window in an AWS Backup plan?
+  gold_facts:
+  - 'Cohesity: the FortKnox backup window is a virtual air gap: you set a time interval and days of the
+    week when connectivity to the cloud vaults is established, and it is severed outside that window.'
+  - 'AWS: an AWS Backup window is a start time plus a duration within which backup jobs must start; console
+    defaults are 12:30 AM, start within 8 hours, complete within 7 days.'
+  - 'AWS: a job stays CREATED during the start window (retryable errors are retried at least every 10
+    minutes) and becomes EXPIRED if it has not started when the window ends.'
+  gold_sources:
+  - article_id: 68cca74d-e0dc-4b68-8ff4-54bb79833861
+    section: Backup Window
+  - article_id: fc409999-9c70-47cd-9944-dc829cf5824c
+    section: Cohesity FortKnox
+  - article_id: 554ebdbf-e818-43e8-9d1d-55fbd28a983b
+    section: Backup window
+  vendors:
+  - Cohesity
+  - AWS
+  written_from:
+  - 68cca74d-e0dc-4b68-8ff4-54bb79833861
+  - fc409999-9c70-47cd-9944-dc829cf5824c
+  - 554ebdbf-e818-43e8-9d1d-55fbd28a983b
+  decides: true
+  origin: new
+- id: cv-14
+  type: cross_vendor
+  question: How do AWS Backup and Azure Backup each integrate with SAP HANA, and what restrictions should
+    I plan around?
+  gold_facts:
+  - 'AWS: AWS Backup protects SAP HANA databases on Amazon EC2 instances, working with AWS Backint and
+    AWS Systems Manager for SAP.'
+  - 'AWS: SAP HANA restores are destructive (they overwrite the target database), and backup and restore
+    jobs on the same database cannot run at the same time.'
+  - 'Microsoft: Azure Backup uses a backup user (AZUREWLBACKUPHANAUSER) whose permissions are set up by
+    a pre-registration script run on the SAP HANA instance.'
+  - 'Microsoft: multiple SAP HANA instances on a single Azure VM cannot be backed up.'
+  gold_sources:
+  - article_id: a5cfa426-f5dd-4bea-8553-460e13df7763
+    section: Working with AWS BackInt, AWS Systems Manager for SAP, and SAP HANA
+  - article_id: ce061265-a962-47b2-85bf-f724599c82b1
+    section: Restore an SAP HANA database with the AWS Backup console
+  - article_id: 701cef74-dfa9-4bba-bdc2-f2be4482fb1e
+    section: Common user errors for backup and restore of SAP HANA databases
+  vendors:
+  - AWS
+  - Microsoft
+  written_from:
+  - a5cfa426-f5dd-4bea-8553-460e13df7763
+  - ce061265-a962-47b2-85bf-f724599c82b1
+  - 701cef74-dfa9-4bba-bdc2-f2be4482fb1e
+  decides: true
+  origin: new
+- id: cv-15
+  type: cross_vendor
+  question: We want our on-prem backup traffic to Azure to stay off the public internet. How do Cohesity
+    FortKnox Azure vaults and Azure Backup Recovery Services vaults handle private connectivity?
+  gold_facts:
+  - 'Cohesity: FortKnox Azure cloud vaults can be reached through an Azure Private Endpoint over ExpressRoute
+    or an Azure VPN, using a storage account resource ID requested from Cohesity.'
+  - 'Cohesity: each Azure region with a FortKnox vault needs its own private endpoint, though several
+    Cohesity clusters sharing a vault can use one endpoint.'
+  - 'Microsoft: Recovery Services vault private endpoints can be created only for new vaults with no registered
+    or protected items (MABS needs v4 or later).'
+  - 'Microsoft: with a vault private endpoint, ExpressRoute Private Peering is required to carry backup
+    traffic between on-premises and Azure.'
+  gold_sources:
+  - article_id: 799ddd0b-8910-42c3-830c-703e6a8e4129
+    section: Configure Cohesity Cluster to Support Azure Express Route
+  - article_id: 799ddd0b-8910-42c3-830c-703e6a8e4129
+    section: Private Endpoint Deployment
+  - article_id: 8681e4eb-61b9-4039-895b-fe141981e39e
+    section: Considerations
+  vendors:
+  - Cohesity
+  - Microsoft
+  written_from:
+  - 799ddd0b-8910-42c3-830c-703e6a8e4129
+  - 8681e4eb-61b9-4039-895b-fe141981e39e
+  decides: true
+  origin: new
+- id: un-01
+  type: unanswerable
+  question: Is there a limit on how many recovery plans Veeam Recovery Orchestrator can run failover for
+    at the same time?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Recovery Orchestrator limit on number of recovery plans running failover at
+    the same time'' --vendor Veeam (top 15) and unscoped (top 15), fts ''failover plans concurrent simultaneous
+    limit'', titles ''%failover%'', regex ''failover'' near ''same time|simultaneous|concurren|parallel|at
+    once'' over Orchestrator chunks (0 hits): ''Plan States and Modes'' and ''Working with Recovery Plans''
+    describe plan execution (''simultaneous management of multiple plans'') and the per-group ''Maximum
+    in parallel'' VM setting, but give no limit on concurrent plan failovers.'
+- id: un-02
+  type: unanswerable
+  question: How long should I expect a VBR backup file health check to take on a backup chain of about
+    10 TB?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''how long does a health check of backup files take for a large backup chain''
+    --vendor Veeam (top 15) and unscoped (top 15), fts ''health check duration time long'', titles ''%health
+    check%'', regex ''health check'' + minutes/hours/take over VBR chunks: ''Health Check for Backup Files''
+    says only that the health check ''may take long'', and ''Health Check for Object Storage'' that it
+    ''works faster''; no duration or rate.'
+- id: un-03
+  type: unanswerable
+  question: Is there a maximum number of Microsoft Entra ID tenants I can protect under one Veeam Data
+    Cloud account?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Veeam Data Cloud maximum number of Microsoft Entra ID tenants per organization''
+    --vendor Veeam (top 15) and unscoped (top 15), fts ''maximum tenants Entra ID limit'', titles ''%tenant%'',
+    regex ''maximum|up to N|limit'' near ''tenants'' over Veeam Data Cloud chunks: ''Managing/Viewing
+    Microsoft Entra ID Tenants'', ''Licensing'' and ''Roles'' cover adding tenants, user-based licensing
+    and role scoping to tenants; no tenant-count limit for Entra ID (the only tenant thresholds are for
+    Salesforce licensed-user percentages).'
+- id: un-04
+  type: unanswerable
+  question: What export throughput should I expect when Veeam Kasten exports a PVC snapshot to an S3 location
+    profile, say for a 500 GB volume?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Kasten export throughput speed how long to export PVC snapshot to object storage''
+    --vendor Veeam (top 15) and unscoped (top 15), fts ''export throughput speed performance'', titles
+    ''%performance%'', regex ''throughput|MB/s|GB/h|per hour'' over all Kasten chunks (0 hits): export
+    docs cover location profiles, immutability and Veeam Vault limits; no export speed or duration (closest
+    numeric hits are dashboard screenshots of individual action durations).'
+- id: un-05
+  type: unanswerable
+  question: Is there a maximum number of Microsoft 365 organizations that a single Veeam Backup for Microsoft
+    365 server can protect?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Veeam Backup for Microsoft 365 maximum number of organizations per backup server''
+    --vendor Veeam (top 15) and unscoped (top 15), fts ''maximum organizations per server limit'', titles
+    ''%organization%'', regex ''maximum|up to N|limit'' near ''organization'' over VB365 chunks: ''Considerations
+    and Limitations'' and the licensing pages cover per-organization restrictions and Community Edition
+    user limits ''in all organizations'', but no limit on the number of organizations per server.'
+- id: un-06
+  type: unanswerable
+  question: Roughly how long does Veeam Backup for Salesforce take to complete the initial full backup
+    of an org with about 50 million records?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Veeam Backup for Salesforce how long initial full backup of large organization
+    takes'' --vendor Veeam (top 15) and unscoped (top 15), fts ''initial backup duration records time'',
+    titles ''%backup%works%'', regex ''throughput|MB/s|GB/h|per hour|records per'' over Salesforce chunks
+    (only ''records per page'' UI limits): docs cover API request limits, the 24-hour no-response termination
+    and SSD guidance; no initial-backup duration or rate.'
+- id: un-07
+  type: unanswerable
+  question: How often does a Veeam Service Provider Console management agent send a heartbeat, and how
+    long without one before the computer shows as Inaccessible?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Service Provider Console management agent heartbeat interval inaccessible status
+    after'' --vendor Veeam (top 15) and unscoped (top 15), fts ''heartbeat interval inaccessible management
+    agent'', titles ''%management agent%'', regex ''heartbeat'' with seconds/minutes/interval over all
+    Veeam chunks: VSPC shows a ''Last Heartbeat'' column and an Inaccessible connection status, but no
+    heartbeat interval or timeout appears (the numeric heartbeat hits are SureBackup and vSphere alarms).'
+- id: un-08
+  type: unanswerable
+  question: What happens to running Veeam Backup & Replication jobs if the disk holding the PostgreSQL
+    configuration database fills up?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Veeam
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Veeam Backup & Replication configuration database disk full what happens to
+    running jobs'' --vendor Veeam (top 15) and unscoped (top 15), fts ''configuration database disk space
+    full'', titles ''%configuration database%'', regex ''database'' near ''runs out|out of space|is full|no
+    free space'' over VBR chunks: ''Veeam Backup & Replication Configuration Database'' and the connection-utility
+    pages cover setup and connection; the only free-space warning is for the cloud backup appliance''s
+    data volume (85%); behaviour of running jobs when the database disk is full is never described.'
+- id: un-09
+  type: unanswerable
+  question: How many restore sessions can I run at the same time in Microsoft 365 Backup?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Microsoft
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Microsoft 365 Backup how many restore sessions can run concurrently'' --vendor
+    Microsoft (top 15) and unscoped (top 15), fts ''concurrent restore sessions simultaneous limit'',
+    titles ''%restore%'', grep of all 15 Microsoft 365 Backup articles for ''concurrent|simultaneous|at
+    the same time|in parallel'': the docs give per-policy scale limits, restore speeds and a 1,000-item
+    limit for granular restore, but no limit on concurrent restore sessions.'
+- id: un-10
+  type: unanswerable
+  question: Roughly how long does Azure Backup take to complete the first vaulted backup of a large (around
+    16 TB) Azure Elastic SAN volume?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Microsoft
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Azure Backup Elastic SAN how long does first vaulted backup take'' --vendor
+    Microsoft (top 15) and unscoped (top 15), fts ''Elastic SAN backup duration initial'', titles ''%elastic
+    san%'', regex for take/duration with minutes/hours over all Microsoft chunks mentioning Elastic SAN
+    (0 hits): the docs give the 16 TB volume-size limit and setup/restore steps; no backup duration.'
+- id: un-11
+  type: unanswerable
+  question: If the Azure subscription that pays for Microsoft 365 Backup is disabled or suspended, what
+    happens to existing backups and active backup policies?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Microsoft
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Microsoft 365 Backup Azure subscription billing disabled suspended what happens
+    to backups'' --vendor Microsoft (top 15) and unscoped (top 15), fts ''billing subscription disabled
+    suspended'', titles ''%billing%'', grep of all 15 Microsoft 365 Backup articles for ''subscription''
+    or ''billing'' near ''disabled|suspend|deleted|expire|cancel|fail|unpaid'' (0 hits): ''Initial setup'',
+    ''Billing'' and ''Invoice management'' cover setting up pay-as-you-go billing, and ''Offboarding''
+    covers deliberate offboarding, but a disabled or suspended billing subscription is never addressed.'
+- id: un-12
+  type: unanswerable
+  question: How many Recovery Services or Backup vaults can a single Azure Backup Resource Guard protect?
+    Is there a limit?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Microsoft
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Azure Backup Resource Guard how many vaults can one Resource Guard protect limit''
+    --vendor Microsoft (top 15) and unscoped (top 15), fts ''Resource Guard vaults limit'', titles ''%resource
+    guard%'', regex for vault counts (''multiple|single|up to|number of N vaults'') in Microsoft chunks
+    mentioning Resource Guard (0 hits): the multi-user authorization articles cover creating a Resource
+    Guard in another subscription or tenant and the PIM approval flow, but give no number of vaults per
+    Resource Guard.'
+- id: un-13
+  type: unanswerable
+  question: At what time of day does Microsoft Entra Backup and Recovery take its daily backup?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Microsoft
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Microsoft Entra Backup and Recovery what time of day is the daily backup taken''
+    --vendor Microsoft (top 15) and unscoped (top 15), fts ''daily backup time schedule UTC'', titles
+    ''%backup%'', grep of all 12 Entra ID Backup articles for ''UTC|time of day|midnight|schedul|backup
+    window'' (0 hits): the docs say only that backups are taken automatically once per day and up to seven
+    are retained.'
+- id: un-14
+  type: unanswerable
+  question: What does AWS Backup charge per GB-month to keep EBS backups in warm storage in us-east-1?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - AWS
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''AWS Backup price per GB-month for warm backup storage'' --vendor AWS (top 15)
+    and unscoped (top 15), fts ''price cost GB-month warm storage'', titles ''%pric%'', regex ''per GB|GB-month''
+    over AWS chunks (0 hits): closest hits are ''Metering, costs, and billing'', which links to the external
+    pricing page without figures, and ''Backup tiering'', which gives only an S3 example in total dollars;
+    no per-GB EBS warm-storage rate is in the corpus.'
+- id: un-15
+  type: unanswerable
+  question: After I turn on backup indexing for an EBS recovery point, roughly how long does AWS Backup
+    take to finish the index before I can search it?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - AWS
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''AWS Backup how long does backup indexing take before search'' --vendor AWS (top
+    15) and unscoped (top 15), fts ''backup index indexing duration time'', titles ''%search%'', grep
+    of all AWS articles for ''index'' with minutes/hours/take/duration (0 hits): ''Backup search'' says
+    the first index is full and search results are kept 7 days, and the quotas give concurrent indexing
+    jobs, but no indexing duration.'
+- id: un-16
+  type: unanswerable
+  question: How many AWS Backup gateways can I deploy per account in a single Region?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - AWS
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''AWS Backup gateway how many gateways per account per Region limit'' --vendor
+    AWS (top 15) and unscoped (top 15), fts ''gateways per account Region quota'', titles ''%gateway%'',
+    grep of AWS articles for ''gateways per|number of gateways'': the Quotas page lists 4 backup/restore
+    jobs per gateway and a hypervisor quota, and ''Working with gateways'' covers setup, but no limit
+    on gateways per account or Region.'
+- id: un-17
+  type: unanswerable
+  question: What's the maximum size of a backup vault access policy document in AWS Backup?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - AWS
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''AWS Backup backup vault access policy maximum size limit'' --vendor AWS (top
+    15) and unscoped (top 15), fts ''vault access policy size limit'', titles ''%access%'', grep of all
+    AWS articles for ''access policy'' near ''size|maximum|limit|characters|KB'' (0 hits), and the Quotas
+    page (no policy-size row): ''Vault access policies'' gives example policies only, and no policy size
+    limit is stated.'
+- id: un-18
+  type: unanswerable
+  question: Is Cohesity FortKnox FedRAMP authorized, and does it hold a SOC 2 Type II report?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Cohesity
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''Cohesity FortKnox FedRAMP authorization SOC 2 compliance certification'' --vendor
+    Cohesity (top 15) and unscoped (top 15), fts ''FedRAMP SOC compliance certification'', titles ''%complian%''
+    (none), grep of all 91 Cohesity articles for ''fedramp|soc 2|iso 27001|hipaa|govcloud'' (0 hits):
+    closest hits are ''Prerequisites'' and ''Configure SSO''; the only certification text is a generic
+    Copilot statement and SSO certificates.'
+- id: un-19
+  type: unanswerable
+  question: After our paid Cohesity FortKnox subscription expires, how many days does the grace period
+    last, and what happens to data already in the vault when it ends?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Cohesity
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''FortKnox subscription expiry grace period length data deleted after'' --vendor
+    Cohesity (top 15) and unscoped (top 15), fts ''grace period subscription expired days'', titles ''%subscription%'',
+    grep of all Cohesity articles for ''grace|post expiration|subscription expir'': ''Subscription Status''
+    / the banner table say a grace period exists (''access is unrestricted, but product functionality
+    is limited''), with banners 30 and 15 days before expiry, but give no grace-period length and do not
+    say what happens to vaulted data.'
+- id: un-20
+  type: unanswerable
+  question: In a FortKnox quorum group, what is the default time a pending approval request waits before
+    it expires and the auto-approve/deny workflow kicks in, and what's the maximum I can set?
+  gold_facts: []
+  gold_sources: []
+  vendors:
+  - Cohesity
+  written_from: []
+  decides: true
+  origin: new
+  search_check: 'search ''FortKnox quorum request default expiry time before auto approve or deny'' --vendor
+    Cohesity (top 15) and unscoped (top 15), fts ''quorum request expiry time limit default'', titles
+    ''%quorum%'', grep of Cohesity articles for ''expir|time limit|valid for'': ''Quorum Approvals'' and
+    ''No Response from Quorum Group Members'' say the workflow starts ''after the time defined in Quorum
+    Group settings'' and show an ''Expires on'' column, but give no default or maximum expiry time.'
