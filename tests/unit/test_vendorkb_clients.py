@@ -27,7 +27,7 @@ async def test_embedder_batches_at_the_cap():
     texts = ["x" * (i + 1) for i in range(70)]
     async with Embedder(_settings(), transport=httpx.MockTransport(handler)) as emb:
         out = await emb.embed(texts)
-    assert sizes == [32, 32, 6]
+    assert sizes == [8] * 8 + [6]
     assert [v[0] for v in out] == [float(i + 1) for i in range(70)]
 
 

@@ -11,7 +11,7 @@ class VendorkbSettings(BaseSettings):
     embed_base_url: str = "http://srv-llm.home.lan:8082/v1"
     embed_model: str = "jinaai/jina-embeddings-v5-text-nano-retrieval"
     embed_dim: int = 768
-    embed_max_batch: int = 32
+    embed_max_batch: int = 8  # 32 x 1,200-token chunks needs ~120 s on the CPU-bound TEI: timeouts
     rerank_base_url: str = ""
     rerank_model: str = "rerank-3"
     rerank_api_key: str = ""
