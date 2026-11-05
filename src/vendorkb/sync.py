@@ -10,9 +10,12 @@ import hashlib
 import logging
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from contextlib import aclosing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
 
+import httpx
 import psycopg
 
 from vendorkb.chunker import Chunk, chunk_markdown
@@ -42,6 +45,19 @@ class SyncReport:
 
 
 Item = Content | Tombstone
+_Write = tuple[DocMeta, str, list[Chunk]]
+_FAILED = object()
+_TRANSIENT_4XX = {408, 409, 425, 429}  # retried by the Embedder; never per-record
+
+
+def _deterministic(exc: httpx.HTTPStatusError) -> bool:
+    """A 4xx the provider will repeat for the same input (bad request, too long, ...)."""
+    status = exc.response.status_code
+    return 400 <= status < 500 and status not in _TRANSIENT_4XX
+
+
+def _short(text: str) -> str:
+    return " ".join(text.split())[:200]
 
 
 async def _load_state(conn: psycopg.AsyncConnection) -> dict[str, str]:
@@ -94,8 +110,40 @@ class _Run:
             self.names.update(fetched)
         return self.names.get(key)
 
+    async def _embed(self, writes: list[_Write]
+                     ) -> tuple[list[_Write], list[list[float]], list[tuple[uuid.UUID, str]]]:
+        """One embed call for the page. A deterministic 4xx is isolated per record so one
+        rejected article cannot stall the sync; anything else propagates (page aborts)."""
+        texts = [c.text for _, _, chunks in writes for c in chunks]
+        if not texts:
+            return writes, [], []
+        try:
+            return writes, await self.embedder.embed(texts, input_type="document"), []
+        except httpx.HTTPStatusError as exc:
+            if not _deterministic(exc):
+                raise
+            logger.warning("page embed rejected (%s); embedding its records one by one",
+                           exc.response.status_code)
+        kept: list[_Write] = []
+        vectors: list[list[float]] = []
+        failures: list[tuple[uuid.UUID, str]] = []
+        for w in writes:
+            try:
+                vecs = await self.embedder.embed([c.text for c in w[2]], input_type="document")
+            except httpx.HTTPStatusError as exc:
+                if not _deterministic(exc):
+                    raise
+                failures.append((w[0].doc_id, f"embed: {exc.response.status_code} "
+                                              f"{_short(exc.response.text)}"))
+                continue
+            kept.append(w)
+            vectors.extend(vecs)
+        return kept, vectors, failures
+
     async def flush(self, page: list[Item]) -> None:
-        """Embed and write one page in a single transaction; nothing is written on error."""
+        """Embed and write one page in a single transaction. A transient error writes
+        nothing; deterministic per-record failures go to ``sync_failures`` and the page
+        still commits."""
         if not page:
             return
         ids = [it.doc_id for it in page]
@@ -103,7 +151,7 @@ class _Run:
         deletes: list[uuid.UUID] = []
         unchanged: list[DocMeta] = []
         failures: list[tuple[uuid.UUID, str]] = []
-        writes: list[tuple[DocMeta, str, list[Chunk]]] = []
+        writes: list[_Write] = []
         for it in page:
             if isinstance(it, Tombstone):
                 deletes.append(it.doc_id)
@@ -112,46 +160,105 @@ class _Run:
                            source=await self._source_name(it.source_id),
                            source_id=it.source_id, title=it.title, url=it.url)
             h = _hash(it)
+            # Postgres text rejects NUL; strip it so it never becomes a DataError.
+            markdown = it.markdown.replace("\x00", "") if it.markdown is not None else None
             if h is not None and stored.get(it.doc_id) == h:
                 unchanged.append(meta)
-            elif it.markdown is None or not it.markdown.strip():
+            elif markdown is None or not markdown.strip():
                 failures.append((it.doc_id, "missing markdown"))
-            elif not (chunks := chunk_markdown(it.title or "", it.markdown)):
+            elif not (chunks := chunk_markdown(it.title or "", markdown)):
                 failures.append((it.doc_id, "markdown yields 0 chunks"))
             else:
                 assert h is not None  # markdown is present
                 writes.append((meta, h, chunks))
-        texts = [c.text for _, _, chunks in writes for c in chunks]
-        vectors = await self.embedder.embed(texts, input_type="document") if texts else []
-
-        removed = metadata_updated = 0
-        async with self.conn.transaction():
-            for doc_id in deletes:
-                removed += await delete_document(self.conn, doc_id)
-            for meta in unchanged:
-                metadata_updated += await update_metadata(self.conn, meta)
-            at = 0
-            for meta, h, chunks in writes:
-                await write_document(self.conn, meta, h, chunks,
-                                     vectors[at:at + len(chunks)])
-                at += len(chunks)
-            settled = deletes + [m.doc_id for m in unchanged] + [m.doc_id for m, _, _ in writes]
-            await self.conn.execute("DELETE FROM sync_failures WHERE doc_id = ANY(%s)",
-                                    (settled,))
-            for doc_id, reason in failures:
-                await self.conn.execute(
-                    "INSERT INTO sync_failures(doc_id, reason) VALUES (%s, %s) ON CONFLICT"
-                    " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
-                    (doc_id, reason))
-            if self.report.mode == "bootstrap":
-                # Same transaction as the data: the watermark can never run ahead of it.
-                await _set_state(self.conn, "bootstrap_after", str(page[-1].doc_id))
+        unchanged = await self._keep_stored_source(unchanged)
+        writes, vectors, embed_failures = await self._embed(writes)
+        failures += embed_failures
+        try:
+            async with self.conn.transaction():
+                counts = await self._apply(page, deletes, unchanged, writes, vectors,
+                                           failures, isolate=False)
+        except psycopg.DataError as exc:
+            # The transaction rolled back. Redo it with a savepoint per item, reusing the
+            # vectors, so only the offending records are set aside.
+            logger.warning("page %s..%s hit a data error (%s); applying records one by one",
+                           page[0].doc_id, page[-1].doc_id, _short(str(exc)))
+            async with self.conn.transaction():
+                counts = await self._apply(page, deletes, unchanged, writes, vectors,
+                                           failures, isolate=True)
         r = self.report
-        r.removed += removed
-        r.unchanged += len(unchanged)
-        r.metadata_updated += metadata_updated
-        r.failed += len(failures)
-        r.written += len(writes)
+        r.removed += counts["removed"]
+        r.unchanged += counts["unchanged"]
+        r.metadata_updated += counts["metadata_updated"]
+        r.failed += counts["failed"]
+        r.written += counts["written"]
+
+    async def _keep_stored_source(self, unchanged: list[DocMeta]) -> list[DocMeta]:
+        """An unresolved source name must not blank a stored one for the same source."""
+        unresolved = [m.doc_id for m in unchanged if m.source is None and m.source_id]
+        if not unresolved:
+            return unchanged
+        cur = await self.conn.execute(
+            "SELECT doc_id, source, source_id FROM documents WHERE doc_id = ANY(%s)",
+            (unresolved,))
+        stored = {d: (s, sid) for d, s, sid in await cur.fetchall()}
+        out = []
+        for m in unchanged:
+            src, sid = stored.get(m.doc_id, (None, None))
+            out.append(replace(m, source=src) if m.source is None and sid == m.source_id
+                       and src is not None else m)
+        return out
+
+    async def _apply(self, page: list[Item], deletes: list[uuid.UUID],
+                     unchanged: list[DocMeta], writes: list[_Write],
+                     vectors: list[list[float]], failures: list[tuple[uuid.UUID, str]], *,
+                     isolate: bool) -> dict[str, int]:
+        conn = self.conn
+        failures = list(failures)
+        settled: list[uuid.UUID] = []
+        counts = dict.fromkeys(
+            ("removed", "unchanged", "metadata_updated", "written"), 0)
+
+        async def one(doc_id: uuid.UUID, op: Callable[[], Awaitable[object]]) -> object:
+            if not isolate:
+                result = await op()
+            else:
+                try:
+                    async with conn.transaction():  # a savepoint
+                        result = await op()
+                except psycopg.DataError as exc:
+                    failures.append((doc_id, f"db: {_short(str(exc))}"))
+                    return _FAILED
+            settled.append(doc_id)
+            return result
+
+        for doc_id in deletes:
+            res = await one(doc_id, partial(delete_document, conn, doc_id))
+            if res is not _FAILED:
+                counts["removed"] += bool(res)
+        for meta in unchanged:
+            res = await one(meta.doc_id, partial(update_metadata, conn, meta))
+            if res is not _FAILED:
+                counts["unchanged"] += 1
+                counts["metadata_updated"] += bool(res)
+        at = 0
+        for meta, h, chunks in writes:
+            vecs = vectors[at:at + len(chunks)]
+            at += len(chunks)
+            res = await one(meta.doc_id, partial(write_document, conn, meta, h, chunks, vecs))
+            if res is not _FAILED:
+                counts["written"] += 1
+        await conn.execute("DELETE FROM sync_failures WHERE doc_id = ANY(%s)", (settled,))
+        for doc_id, reason in failures:
+            await conn.execute(
+                "INSERT INTO sync_failures(doc_id, reason) VALUES (%s, %s) ON CONFLICT"
+                " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
+                (doc_id, reason))
+        counts["failed"] = len(failures)
+        if self.report.mode == "bootstrap":
+            # Same transaction as the data: the watermark can never run ahead of it.
+            await _set_state(conn, "bootstrap_after", str(page[-1].doc_id))
+        return counts
 
     async def finish(self, line: CursorLine) -> None:
         async with self.conn.transaction():
@@ -162,8 +269,8 @@ class _Run:
                     raise RuntimeError("bootstrap ended with no stored bootstrap_start")
                 await _set_state(self.conn, "cursor", since)
                 await _set_state(self.conn, "mode", "incremental")
-                await self.conn.execute(
-                    "DELETE FROM sync_state WHERE key='bootstrap_after'")
+                await self.conn.execute("DELETE FROM sync_state WHERE key IN"
+                                        " ('bootstrap_after', 'bootstrap_next_since')")
             else:
                 await _set_state(self.conn, "cursor", line.next_since)
 
@@ -172,15 +279,19 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
                page_size: int = 200, max_tokens: int | None = None) -> SyncReport:
     started = time.monotonic()
     tokens0 = embedder.tokens_used
+    report = SyncReport(mode="bootstrap")
     cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
     got = await cur.fetchone()
-    state = await _load_state(conn)
-    report = SyncReport(mode="incremental" if "cursor" in state else "bootstrap")
     if not (got and got[0]):
+        if "cursor" in await _load_state(conn):
+            report.mode = "incremental"
         report.locked = True
         return report
     page: list[Item] = []
-    try:
+    try:  # everything after the lock is acquired, so every path releases it
+        state = await _load_state(conn)
+        if "cursor" in state:
+            report.mode = "incremental"
         run = _Run(conn, docext, embedder, report, state)
         await run.load_names()
         if report.mode == "bootstrap":
@@ -207,6 +318,10 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
                     report.complete = True
                     break
                 report.records += 1
+                if report.mode == "bootstrap" and "bootstrap_next_since" not in state:
+                    # Without the first watermark the bootstrap can never hand over to
+                    # incremental pulls; write nothing and retry from scratch.
+                    raise RuntimeError("bootstrap stream did not start with bootstrap_start")
                 if any(p.doc_id == item.doc_id for p in page):
                     # Stream order must win for a repeated id: write the earlier one first.
                     await run.flush(page)

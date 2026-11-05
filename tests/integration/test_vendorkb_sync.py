@@ -3,7 +3,9 @@ import json
 import uuid
 
 import httpx
+import psycopg
 
+from vendorkb import sync as sync_mod
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -56,7 +58,8 @@ class FakeDocExt:
         if req.url.path == "/api/articles/delta":
             self.params.append(dict(req.url.params))
             lines = self.bodies.pop(0)
-            return httpx.Response(200, text="".join(json.dumps(x) + "\n" for x in lines))
+            return httpx.Response(200, text="".join(
+                (x if isinstance(x, str) else json.dumps(x)) + "\n" for x in lines))
         if req.url.path == "/api/products":
             self.products_calls += 1
             return httpx.Response(200, json={"products": [{"id": "p1"}]})
@@ -70,21 +73,30 @@ class FakeDocExt:
 
 
 class FakeEmbedder:
-    def __init__(self, status: int = 200):
+    """Counts requests and texts; ``status`` fails every request, ``reject`` returns 400
+    for any request containing that marker text."""
+
+    def __init__(self, status: int = 200, reject: str | None = None):
         self.status = status
+        self.reject = reject
+        self.calls = 0
         self.texts: list[str] = []
 
     def handler(self, req: httpx.Request) -> httpx.Response:
+        self.calls += 1
         if self.status != 200:
             return httpx.Response(self.status, text="bad request")
         inputs = json.loads(req.content)["input"]
+        if self.reject and any(self.reject in t for t in inputs):
+            return httpx.Response(400, text="input too long")
         self.texts.extend(inputs)
         return httpx.Response(200, json={
             "data": [{"index": i, "embedding": [0.0] * 767 + [1.0]} for i in range(len(inputs))],
             "usage": {"total_tokens": len(inputs)}})
 
     def client(self) -> Embedder:
-        return Embedder(_settings(), transport=httpx.MockTransport(self.handler))
+        return Embedder(_settings(), transport=httpx.MockTransport(self.handler),
+                        retry_base_delay=0.0)
 
 
 async def _fresh(dsn):
@@ -102,6 +114,24 @@ async def _run(conn, docext: FakeDocExt, emb: FakeEmbedder, **kw):
 async def _state(conn) -> dict[str, str]:
     cur = await conn.execute("SELECT key, value FROM sync_state")
     return dict(await cur.fetchall())
+
+
+async def _failures(conn) -> dict[uuid.UUID, str]:
+    cur = await conn.execute("SELECT doc_id, reason FROM sync_failures")
+    return dict(await cur.fetchall())
+
+
+async def _lock_free(dsn) -> bool:
+    """Session advisory locks are re-entrant, so probe from a different connection."""
+    other = await connect(dsn)
+    try:
+        cur = await other.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
+        got = (await cur.fetchone())[0]
+        if got:
+            await other.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+        return got
+    finally:
+        await other.close()
 
 
 async def _doc_ids(conn) -> set[uuid.UUID]:
@@ -208,23 +238,93 @@ async def test_unchanged_hash_updates_metadata_without_embedding(vkb_dsn):
         await conn.close()
 
 
-async def test_embed_failure_aborts_without_moving_watermark(vkb_dsn):
-    # the embedder transport returns 400 (not retried). Assert 0 documents written,
-    # bootstrap_after unset, report.complete False, sync_failures empty
+async def test_transient_embed_failure_aborts_without_moving_watermark(vkb_dsn):
+    # a 503 that exhausts the Embedder's retries: 0 documents written, bootstrap_after
+    # unset, report.complete False, sync_failures empty, lock released, conn usable
     conn = await _fresh(vkb_dsn)
     try:
         fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
-        report = await _run(conn, fd, FakeEmbedder(status=400))
+        report = await _run(conn, fd, FakeEmbedder(status=503))
         assert not report.complete
         assert await _doc_ids(conn) == set()
         state = await _state(conn)
         assert "bootstrap_after" not in state and "cursor" not in state
-        cur = await conn.execute("SELECT count(*) FROM sync_failures")
-        assert (await cur.fetchone())[0] == 0
-        # the lock was released and the connection is still usable
-        cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
-        assert (await cur.fetchone())[0] is True
-        await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+        assert await _failures(conn) == {}
+        assert await _lock_free(vkb_dsn)
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
+
+
+async def test_embed_4xx_for_every_record_goes_to_sync_failures_and_page_commits(vkb_dsn):
+    # every request 400s: each record lands in sync_failures, the page commits, the
+    # watermark moves and the run completes
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder(status=400))
+        assert report.complete and report.failed == 2
+        assert await _doc_ids(conn) == set()
+        fails = await _failures(conn)
+        assert set(fails) == {A[0], A[1]}
+        assert all(r.startswith("embed: 400") for r in fails.values())
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_embed_4xx_for_one_record_isolates_it(vkb_dsn):
+    # 400 only for requests containing the marker: that record goes to sync_failures,
+    # the other record on the page is written, the watermark moves
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1], body="POISON text")]])
+        report = await _run(conn, fd, FakeEmbedder(reject="POISON"))
+        assert (report.written, report.failed) == (1, 1)
+        assert await _doc_ids(conn) == {A[0]}
+        assert list(await _failures(conn)) == [A[1]]
+        assert (await _state(conn))["bootstrap_after"] == str(A[1])
+    finally:
+        await conn.close()
+
+
+async def test_nul_characters_are_stripped_before_chunking(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0], markdown=_md("null\x00byte here")),
+                          _cursor("S9", 1)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and report.written == 1
+        cur = await conn.execute("SELECT text FROM chunks WHERE doc_id=%s", (A[0],))
+        texts = [r[0] for r in await cur.fetchall()]
+        assert texts and all("\x00" not in t for t in texts)
+        assert any("nullbyte here" in t for t in texts)
+    finally:
+        await conn.close()
+
+
+async def test_data_error_isolates_the_record_without_re_embedding(vkb_dsn, monkeypatch):
+    # write_document raises DataError for one doc: only it goes to sync_failures, the
+    # rest of the page commits, and the page was embedded exactly once
+    real = sync_mod.write_document
+
+    async def flaky(conn, meta, *args):
+        if meta.doc_id == A[1]:
+            raise psycopg.DataError("value out of range")
+        await real(conn, meta, *args)
+
+    monkeypatch.setattr(sync_mod, "write_document", flaky)
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1])]])
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert emb.calls == 1
+        assert (report.written, report.failed) == (1, 1)
+        assert await _doc_ids(conn) == {A[0]}
+        fails = await _failures(conn)
+        assert list(fails) == [A[1]] and fails[A[1]].startswith("db: ")
+        assert (await _state(conn))["bootstrap_after"] == str(A[1])
     finally:
         await conn.close()
 
@@ -277,6 +377,7 @@ async def test_max_tokens_stops_after_the_current_page(vkb_dsn):
         fd = FakeDocExt([[_start("S0"), *(_rec(a) for a in A[:4]), _cursor("S9", 4)]])
         report = await _run(conn, fd, FakeEmbedder(), max_tokens=1)
         assert report.stopped_by_budget and not report.complete
+        assert await _lock_free(vkb_dsn)
         assert report.tokens >= 1
         assert await _doc_ids(conn) == set(A[:2])
         state = await _state(conn)
@@ -299,4 +400,89 @@ async def test_second_concurrent_run_reports_locked(vkb_dsn):
         assert fd.params == []
     finally:
         await holder.close()
+        await conn.close()
+
+
+async def test_duplicate_id_in_a_page_applies_in_stream_order(vkb_dsn):
+    # page_size 2: a1 updated then a1 removed. The early flush writes the update, the
+    # tombstone then deletes it; reversed order would leave a1 present.
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)],
+                         [_rec(A[0], change="updated", body="new"), _tomb(A[0]),
+                          _cursor("S10", 2)]])
+        await _run(conn, fd, FakeEmbedder())
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete
+        assert (report.written, report.removed) == (1, 1)
+        assert await _doc_ids(conn) == set()
+    finally:
+        await conn.close()
+
+
+async def test_malformed_line_mid_stream_keeps_committed_pages(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _rec(A[2]), "{not json",
+                          _rec(A[3]), _cursor("S9", 4)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert not report.complete
+        assert await _doc_ids(conn) == set(A[:2])
+        assert (await _state(conn))["bootstrap_after"] == str(A[1])
+        assert await _lock_free(vkb_dsn)
+    finally:
+        await conn.close()
+
+
+async def test_missing_markdown_goes_to_sync_failures(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0], markdown=None, content_hash="h1"),
+                          _rec(A[1]), _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and (report.failed, report.written) == (1, 1)
+        assert await _failures(conn) == {A[0]: "missing markdown"}
+        assert await _doc_ids(conn) == {A[1]}
+    finally:
+        await conn.close()
+
+
+async def test_bootstrap_without_bootstrap_start_writes_nothing(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert not report.complete
+        assert await _doc_ids(conn) == set()
+        assert await _state(conn) == {}
+    finally:
+        await conn.close()
+
+
+async def test_unchanged_doc_keeps_stored_source_when_name_unresolved(vkb_dsn):
+    sid = uuid.uuid4()
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _run(conn, FakeDocExt([[_start("S0"), _rec(A[0], source_id=sid),
+                                      _cursor("S9", 1)]], sources={str(sid): "Guide"}),
+                   FakeEmbedder())
+        await conn.execute("TRUNCATE sources")  # the name is no longer resolvable
+        fd = FakeDocExt([[_rec(A[0], change="updated", source_id=sid, title="Renamed"),
+                          _cursor("S10", 1)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and report.metadata_updated == 1
+        cur = await conn.execute("SELECT source, title FROM documents WHERE doc_id=%s",
+                                 (A[0],))
+        assert await cur.fetchone() == ("Guide", "Renamed")
+    finally:
+        await conn.close()
+
+
+async def test_full_bootstrap_clears_bootstrap_next_since(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]])
+        await _run(conn, fd, FakeEmbedder())
+        assert await _state(conn) == {"cursor": "S0", "mode": "incremental"}
+    finally:
         await conn.close()

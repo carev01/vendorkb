@@ -72,9 +72,17 @@ loaded production.
 **Guards**
 - `--max-tokens N`: stop cleanly (after the current page) once the run's embedding tokens
   reach N. The bootstrap Job runs with a cap just above the projection.
-- A record whose markdown yields 0 chunks or whose embed fails after retries is recorded
-  in a `sync_failures` table (article id, reason, time) and skipped; the page still
-  commits. Repeated failures are visible in `vendorkb stats`.
+- Failures are split by class. **Deterministic** per-record failures are recorded in a
+  `sync_failures` table (article id, reason, time) and skipped; the page still commits and
+  the watermark moves. These are: missing markdown, markdown that yields 0 chunks, an embed
+  4xx other than 408/409/425/429 (the page embed is retried record by record to isolate the
+  offender; reason `embed: <status> <message>`), and a `psycopg.DataError` (the page is
+  re-applied with a savepoint per record, reusing the vectors; reason `db: <message>`). NUL
+  characters are stripped from markdown before chunking so the common DataError never
+  happens. **Transient** failures (embed 5xx/408/409/425/429 after the client's retries,
+  transport errors, `OperationalError`, anything unexpected) abort the page: nothing is
+  written, the watermark stays, and the run exits non-zero to resume next time. Repeated
+  failures are visible in `vendorkb stats`.
 - Run report (stdout, one JSON line): mode, records seen, written, skipped-unchanged,
   removed, failed, tokens, seconds.
 
