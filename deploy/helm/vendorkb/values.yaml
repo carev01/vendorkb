@@ -29,6 +29,7 @@ postgres:
   database: vendorkb
   user: vendorkb
   fsGroup: 999   # the Debian postgres uid (alpine's is 70)
+  shmSize: 1Gi   # memory-backed /dev/shm: parallel HNSW builds outgrow the 64 MB default
   resources:     # HNSW index builds need memory
     requests: {cpu: 250m, memory: 1Gi}
     limits: {cpu: "2", memory: 4Gi}
@@ -37,6 +38,11 @@ sync:
   schedule: "*/30 * * * *"
   suspend: true
   concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 600
+  # --max-tokens per run. In incremental mode it caps this run's embedding tokens; if the
+  # bootstrap has not finished it caps the bootstrap's running total instead, so the
+  # CronJob can never continue a bootstrap past it. Empty removes the cap.
+  maxTokens: 5000000
   activeDeadlineSeconds: 21600
   backoffLimit: 0
   command: ["vendorkb", "sync"]
@@ -48,6 +54,8 @@ sync:
 # a dropped feed recovers (sync exits 1 on a dropped stream).
 bootstrap:
   enabled: false
+  # Cumulative across every attempt, retry and Job of this bootstrap (sync_state
+  # bootstrap_tokens), smoke run included; not per pod.
   maxTokens: 85000000
   activeDeadlineSeconds: 43200
   backoffLimit: 6

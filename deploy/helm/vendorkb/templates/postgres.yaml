@@ -42,6 +42,10 @@ spec:
           resources: {{- toYaml .Values.postgres.resources | nindent 12 }}
           volumeMounts:
             - {name: data, mountPath: /var/lib/postgresql/data}
+            - {name: dshm, mountPath: /dev/shm}
+      volumes:
+        - name: dshm
+          emptyDir: {medium: Memory, sizeLimit: {{ .Values.postgres.shmSize }}}
   volumeClaimTemplates:
     - metadata:
         name: data

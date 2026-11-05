@@ -7,6 +7,7 @@ spec:
   schedule: {{ .Values.sync.schedule | quote }}
   suspend: {{ .Values.sync.suspend }}
   concurrencyPolicy: {{ .Values.sync.concurrencyPolicy }}
+  startingDeadlineSeconds: {{ .Values.sync.startingDeadlineSeconds }}
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
@@ -26,6 +27,10 @@ spec:
               image: {{ include "vendorkb.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: {{- toYaml .Values.sync.command | nindent 16 }}
+                {{- if .Values.sync.maxTokens }}
+                - "--max-tokens"
+                - {{ .Values.sync.maxTokens | int64 | toString | quote }}
+                {{- end }}
               {{- include "vendorkb.env" . | nindent 14 }}
               {{- include "vendorkb.envFrom" . | nindent 14 }}
               {{- include "vendorkb.containerSecurity" . | nindent 14 }}
