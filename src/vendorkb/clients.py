@@ -132,7 +132,6 @@ class DocExtractor(_Client):
         resp.raise_for_status()
         return resp.json()
 
-
     async def delta(self, *, since: str | None = None,
                     bootstrap_after: str | None = None) -> AsyncIterator[FeedItem]:
         """Stream the delta feed. A malformed line raises ValueError and a transport

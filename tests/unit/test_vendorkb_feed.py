@@ -83,3 +83,38 @@ async def test_source_names_unions_per_product():
 
     async with DocExtractor(_settings(), transport=httpx.MockTransport(handler)) as dx:
         assert await dx.source_names() == {"s1": "A", "s2": "B"}
+
+
+def test_parse_line_rejects_bad_control_lines():
+    for rec in ({"control": "cursor", "next_since": None, "count": 1},
+                {"control": "cursor", "count": 1},
+                {"control": "cursor", "next_since": "", "count": 1},
+                {"control": "bootstrap_start", "next_since": None},
+                {"control": "bootstrap_start"},
+                {"control": "cursor", "next_since": "c", "count": "3"},
+                {"control": "cursor", "next_since": "c", "count": True},
+                {"control": "cursor", "next_since": "c"}):
+        with pytest.raises(ValueError):
+            parse_line(json.dumps(rec))
+
+
+async def test_delta_malformed_line_raises_after_earlier_items():
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="\n".join([
+            json.dumps({"change_type": "removed", "id": ID}), "garbage"]))
+
+    got = []
+    async with DocExtractor(_settings(), transport=httpx.MockTransport(handler)) as dx:
+        with pytest.raises(ValueError):
+            async for item in dx.delta(since="a"):
+                got.append(item)
+    assert got == [Tombstone(uuid.UUID(ID))]
+
+
+async def test_delta_without_terminal_line_yields_no_cursor():
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=json.dumps({"change_type": "removed", "id": ID}))
+
+    async with DocExtractor(_settings(), transport=httpx.MockTransport(handler)) as dx:
+        items = [i async for i in dx.delta(since="a")]
+    assert not any(isinstance(i, CursorLine) for i in items)

@@ -55,10 +55,16 @@ def parse_line(line: str) -> FeedItem | None:
     if not isinstance(rec, dict):
         raise ValueError("feed line is not a JSON object")
     control = rec.get("control")
-    if control == "bootstrap_start":
-        return BootstrapStart(str(rec["next_since"]))
-    if control == "cursor":
-        return CursorLine(str(rec["next_since"]), int(rec.get("count") or 0))
+    if control in ("bootstrap_start", "cursor"):
+        since = rec.get("next_since")
+        if not isinstance(since, str) or not since:
+            raise ValueError(f"{control} line needs a non-empty string next_since")
+        if control == "bootstrap_start":
+            return BootstrapStart(since)
+        count = rec.get("count")
+        if not isinstance(count, int) or isinstance(count, bool):
+            raise ValueError("cursor line needs an integer count")
+        return CursorLine(since, count)
     if control is not None:
         return None
     change = rec.get("change_type")
