@@ -52,3 +52,20 @@ async def test_init_schema_upgrades_a_pre_sync_database(vkb_dsn):
         assert {"sync_state", "sources", "sync_failures"} <= tables
     finally:
         await conn.close()
+
+
+async def test_init_schema_adds_the_quarantine_hash_to_sync_failures(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=768)
+        await conn.execute("DROP TABLE sync_failures")
+        await conn.execute("CREATE TABLE sync_failures (doc_id uuid PRIMARY KEY, reason text "
+                           "NOT NULL, failed_at timestamptz NOT NULL DEFAULT now())")
+        await conn.execute("INSERT INTO sync_failures(doc_id, reason) VALUES (%s, 'old')",
+                           (uuid.uuid4(),))
+        await init_schema(conn, embed_dim=768)
+        await init_schema(conn, embed_dim=768)
+        cur = await conn.execute("SELECT reason, content_hash FROM sync_failures")
+        assert await cur.fetchall() == [("old", None)]
+    finally:
+        await conn.close()
