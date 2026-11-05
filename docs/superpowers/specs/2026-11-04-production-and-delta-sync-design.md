@@ -76,6 +76,12 @@ loaded production.
   Job retries cannot spend it twice; in incremental mode it is per run. The bootstrap Job
   runs with a cap just above the projection; the sync CronJob with 5M (`sync.maxTokens`),
   so it can never continue an unfinished bootstrap uncapped.
+- **Token reservation**: in bootstrap mode, immediately before a page's embed call, its own
+  short transaction commits `bootstrap_tokens = total + estimate` (chars/4 over the page's
+  texts, which overstates Voyage's count ~1.2x). The page transaction then writes the actual
+  total; on any abort after the reservation a best-effort write of the actual total replaces
+  it (embed failures included, without counting against the breaker). If that write fails the
+  reservation stands: an over-count of at most one page, never an under-count.
 - **Circuit breaker**: a page that aborts after it was embedded is recorded (autocommit)
   as `abort_position` (its first id) and `abort_count`. Only the commit of that same page,
   or the run's terminal line (the cursor moved or the bootstrap finished), clears both: an

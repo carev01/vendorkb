@@ -247,9 +247,11 @@ class _Run:
                 assert h is not None  # markdown is present
                 writes.append((meta, h, chunks))
         unchanged = await self._keep_stored_source(unchanged)
-        writes, vectors, embed_failures = await self._embed(writes)
-        failures += embed_failures
+        reserved = await self._reserve_tokens(writes)
+        vectors: list[list[float]] = []
         try:
+            writes, vectors, embed_failures = await self._embed(writes)
+            failures += embed_failures
             try:
                 async with self.conn.transaction():
                     counts = await self._apply(page, deletes, unchanged, writes, vectors,
@@ -263,8 +265,8 @@ class _Run:
                     counts = await self._apply(page, deletes, unchanged, writes, vectors,
                                                failures, isolate=True)
         except Exception:
-            if vectors:  # the embedding was paid for: count the abort against this page
-                await self._record_abort(first)
+            if vectors or reserved:
+                await self._record_abort(first, embedded=bool(vectors))
             raise
         if self.state.get("abort_position") == first:
             self._clear_breaker()
@@ -283,20 +285,37 @@ class _Run:
         self.state.pop("abort_position", None)
         self.state.pop("abort_count", None)
 
-    async def _record_abort(self, first: str) -> None:
-        """Outside the rolled-back page transaction, so it survives the abort."""
+    async def _reserve_tokens(self, writes: list[_Write]) -> bool:
+        """Bootstrap only: commit ``bootstrap_tokens`` plus a chars/4 estimate of the page
+        (Voyage counts ~0.84x that) before embedding, so an abort can never under-count."""
+        if self.report.mode != "bootstrap" or not writes:
+            return False
+        estimate = sum(len(c.text) // 4 for _, _, chunks in writes for c in chunks)
+        async with self.conn.transaction():
+            await _set_state(self.conn, "bootstrap_tokens",
+                             str(self.budget_tokens() + estimate))
+        return True
+
+    async def _record_abort(self, first: str, *, embedded: bool) -> None:
+        """Outside the rolled-back page transaction, so it survives the abort. Only a page
+        that was embedded counts against the breaker (an embed outage must not trip it);
+        in bootstrap mode the actual token total replaces the reservation either way."""
+        bootstrap = self.report.mode == "bootstrap"
         count = (int(self.state.get("abort_count", 0)) + 1
                  if self.state.get("abort_position") == first else 1)
         try:
             async with self.conn.transaction():
-                await _set_state(self.conn, "abort_position", first)
-                await _set_state(self.conn, "abort_count", str(count))
-                if self.report.mode == "bootstrap":  # the tokens were spent all the same
+                if embedded:
+                    await _set_state(self.conn, "abort_position", first)
+                    await _set_state(self.conn, "abort_count", str(count))
+                if bootstrap:  # the tokens were spent all the same
                     await _set_state(self.conn, "bootstrap_tokens", str(self.budget_tokens()))
         except psycopg.Error:
+            # The reservation stands: an over-count of at most one page, never an under-count.
             logger.warning("could not record the abort of page %s", first, exc_info=True)
             return
-        self.state.update(abort_position=first, abort_count=str(count))
+        if embedded:
+            self.state.update(abort_position=first, abort_count=str(count))
 
     async def _keep_stored_source(self, unchanged: list[DocMeta]) -> list[DocMeta]:
         """An unresolved source name must not blank a stored one for the same source."""

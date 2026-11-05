@@ -7,6 +7,7 @@ import httpx
 import psycopg
 
 from vendorkb import sync as sync_mod
+from vendorkb.chunker import chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -78,15 +79,23 @@ class FakeEmbedder:
     for any request containing that marker text, ``canary_status`` fails the canary."""
 
     def __init__(self, status: int = 200, reject: str | None = None,
-                 canary_status: int = 200):
+                 canary_status: int = 200, *, max_batch: int = 128,
+                 fail_after: int | None = None, on_call=None):
         self.status = status
         self.reject = reject
         self.canary_status = canary_status
+        self.max_batch = max_batch
+        self.fail_after = fail_after  # requests after this many return 503
+        self.on_call = on_call
         self.calls = 0
         self.texts: list[str] = []
 
     def handler(self, req: httpx.Request) -> httpx.Response:
         self.calls += 1
+        if self.on_call:
+            self.on_call()
+        if self.fail_after is not None and self.calls > self.fail_after:
+            return httpx.Response(503, text="unavailable")
         if self.status != 200:
             return httpx.Response(self.status, text="bad request")
         inputs = json.loads(req.content)["input"]
@@ -100,7 +109,8 @@ class FakeEmbedder:
             "usage": {"total_tokens": len(inputs)}})
 
     def client(self) -> Embedder:
-        return Embedder(_settings(), transport=httpx.MockTransport(self.handler),
+        settings = _settings().model_copy(update={"embed_max_batch": self.max_batch})
+        return Embedder(settings, transport=httpx.MockTransport(self.handler),
                         retry_base_delay=0.0)
 
 
@@ -863,5 +873,58 @@ async def test_rerun_after_a_prune_refusal_embeds_nothing(vkb_dsn):
         assert third.complete and third.pruned == 600
         assert await _doc_ids(conn) == {A[0]}
         assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_tokens_spent_before_a_failed_embed_are_kept(vkb_dsn):
+    # batch 1 succeeds (1 token reported), batch 2 exhausts its 503 retries: the page
+    # aborts before anything is written, but bootstrap_tokens keeps the spent token
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder(max_batch=1, fail_after=1))
+        assert not report.complete and report.tokens == 1
+        state = await _state(conn)
+        assert state["bootstrap_tokens"] == "1"  # the reservation replaced by the actual
+        assert "abort_count" not in state  # an embed failure never trips the breaker
+    finally:
+        await conn.close()
+
+
+async def test_bootstrap_tokens_are_reserved_before_the_embed_call(vkb_dsn):
+    seen: list[int] = []
+
+    def observe():
+        with psycopg.connect(vkb_dsn) as other:
+            row = other.execute(
+                "SELECT value FROM sync_state WHERE key='bootstrap_tokens'").fetchone()
+            seen.append(int(row[0]))
+
+    conn = await _fresh(vkb_dsn)
+    try:
+        await conn.execute(
+            "INSERT INTO sync_state(key, value) VALUES ('bootstrap_tokens', '100')")
+        recs = [_rec(A[0]), _rec(A[1])]
+        estimate = sum(len(c.text) // 4 for r in recs
+                       for c in chunk_markdown(r["title"], r["content_markdown"]))
+        assert estimate > 0
+        fd = FakeDocExt([[_start("S0"), *recs]])  # drops: the total is not deleted
+        report = await _run(conn, fd, FakeEmbedder(on_call=observe))
+        assert seen and seen[0] >= 100 + estimate
+        assert (await _state(conn))["bootstrap_tokens"] == str(100 + report.tokens)
+    finally:
+        await conn.close()
+
+
+async def test_incremental_makes_no_reservation(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)],
+                         [_rec(A[1]), _cursor("S10", 1)]])
+        await _run(conn, fd, FakeEmbedder())
+        report = await _run(conn, fd, FakeEmbedder(fail_after=0))
+        assert not report.complete
+        assert "bootstrap_tokens" not in await _state(conn)
     finally:
         await conn.close()
