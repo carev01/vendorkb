@@ -75,11 +75,13 @@ class FakeDocExt:
 
 class FakeEmbedder:
     """Counts requests and texts; ``status`` fails every request, ``reject`` returns 400
-    for any request containing that marker text."""
+    for any request containing that marker text, ``canary_status`` fails the canary."""
 
-    def __init__(self, status: int = 200, reject: str | None = None):
+    def __init__(self, status: int = 200, reject: str | None = None,
+                 canary_status: int = 200):
         self.status = status
         self.reject = reject
+        self.canary_status = canary_status
         self.calls = 0
         self.texts: list[str] = []
 
@@ -88,6 +90,8 @@ class FakeEmbedder:
         if self.status != 200:
             return httpx.Response(self.status, text="bad request")
         inputs = json.loads(req.content)["input"]
+        if self.canary_status != 200 and inputs == [sync_mod.CANARY_TEXT]:
+            return httpx.Response(self.canary_status, text="canary failed")
         if self.reject and any(self.reject in t for t in inputs):
             return httpx.Response(400, text="input too long")
         self.texts.extend(inputs)
@@ -274,6 +278,38 @@ async def test_embed_400_for_every_record_aborts_the_page(vkb_dsn):
         await conn.close()
 
 
+async def test_embed_400_for_a_lone_record_that_the_canary_repeats_aborts(vkb_dsn):
+    # one to-embed record and every call 400s (a wrong model name, say): the canary is
+    # rejected too, so the 400 is systemic -- the page aborts, nothing marked failed
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]])
+        emb = FakeEmbedder(status=400)
+        report = await _run(conn, fd, emb)
+        assert not report.complete
+        assert emb.calls == 3  # page, record, canary
+        assert await _doc_ids(conn) == set()
+        assert await _failures(conn) == {}
+        state = await _state(conn)
+        assert "bootstrap_after" not in state and "cursor" not in state
+    finally:
+        await conn.close()
+
+
+async def test_transient_canary_failure_aborts_the_page(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1], body="POISON text"),
+                          _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder(reject="POISON", canary_status=503))
+        assert not report.complete
+        assert await _doc_ids(conn) == set()
+        assert await _failures(conn) == {}
+        assert "bootstrap_after" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
 async def test_embed_401_aborts_the_page(vkb_dsn):
     # an expired key: transient, so nothing is written and nothing is marked failed
     conn = await _fresh(vkb_dsn)
@@ -296,7 +332,10 @@ async def test_embed_4xx_for_one_record_isolates_it(vkb_dsn):
     conn = await _fresh(vkb_dsn)
     try:
         fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1], body="POISON text")]])
-        report = await _run(conn, fd, FakeEmbedder(reject="POISON"))
+        emb = FakeEmbedder(reject="POISON")
+        report = await _run(conn, fd, emb)
+        # the page, each record, then the canary once (it succeeds: per-record rejection)
+        assert emb.calls == 4 and emb.texts.count(sync_mod.CANARY_TEXT) == 1
         assert (report.written, report.failed) == (1, 1)
         assert await _doc_ids(conn) == {A[0]}
         assert list(await _failures(conn)) == [A[1]]

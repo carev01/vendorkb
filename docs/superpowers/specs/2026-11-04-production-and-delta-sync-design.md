@@ -92,6 +92,11 @@ loaded production.
   unset, `sync_seen` and bootstrap state kept), one ERROR names the count, ceiling and
   override, the report sets `prune_refused`, and the run exits 1. A re-run streams nothing
   (`bootstrap_after` is at the end), so it embeds nothing before it is refused again.
+- **Embed canary**: when isolation rejects any record, the fixed text `CANARY_TEXT`
+  ("backup") is embedded once. A deterministic rejection of the canary means the 4xx is
+  systemic (wrong model name, bad `output_dimension`/`input_type`), so the page aborts with
+  nothing written, even for a single to-embed record; a transient canary failure aborts too;
+  only a canary success records the rejections in `sync_failures`.
 - A malformed record whose id parses is a per-record failure (`malformed: ...`).
 - Failures are split by class. **Deterministic** per-record failures are recorded in a
   `sync_failures` table (article id, reason, time) and skipped; the page still commits and

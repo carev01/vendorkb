@@ -38,6 +38,7 @@ LOCK_KEY = 0x766B62  # "vkb": single-flight across sync runs
 BREAKER_LIMIT = 3  # post-embed aborts of one page before it is refused
 PRUNE_FLOOR = 500  # the bootstrap prunes at most max(PRUNE_FLOOR, PRUNE_SHARE * documents)
 PRUNE_SHARE = 0.02
+CANARY_TEXT = "backup"  # embedded once after a per-record rejection: systemic or not?
 
 
 @dataclass
@@ -160,7 +161,9 @@ class _Run:
     async def _embed(self, writes: list[_Write]
                      ) -> tuple[list[_Write], list[list[float]], list[tuple[uuid.UUID, str]]]:
         """One embed call for the page. A deterministic 4xx is isolated per record so one
-        rejected article cannot stall the sync; anything else propagates (page aborts)."""
+        rejected article cannot stall the sync; anything else propagates (page aborts). A
+        canary text tells a per-record rejection from a systemic one (wrong model name,
+        bad ``output_dimension``): if it is rejected too, the page aborts."""
         texts = [c.text for _, _, chunks in writes for c in chunks]
         if not texts:
             return writes, [], []
@@ -190,6 +193,15 @@ class _Run:
             # than mark it all failed and move the watermark past it.
             raise RuntimeError(f"embed rejected all {len(writes)} records on the page "
                                f"({failures[0][1]})")
+        if failures:
+            try:  # a transient failure propagates: the page aborts
+                await self.embedder.embed([CANARY_TEXT], input_type="document")
+            except httpx.HTTPStatusError as exc:
+                if _deterministic(exc):
+                    raise RuntimeError(
+                        f"embed rejected the canary text too ({exc.response.status_code} "
+                        f"{_short(exc.response.text)}): systemic, not per-record") from exc
+                raise
         return kept, vectors, failures
 
     async def flush(self, page: list[Item]) -> None:
