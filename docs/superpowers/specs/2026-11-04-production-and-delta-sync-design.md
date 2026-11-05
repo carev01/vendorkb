@@ -88,7 +88,9 @@ loaded production.
   as `abort_position` (a page key: sha256 of the page's items in order, each as id plus
   content hash, or its kind for a tombstone or malformed record, so two pages that share a
   first id never alias; new upstream content changes the key and gets a fresh try) and
-  `abort_count`. Only the commit of that same page, or the run's terminal line (the cursor
+  `abort_count`. It is stored as `n:<key of the first n items>` and a page with at least n
+  items whose first n hash the same matches, so a partial last page that new arrivals grow
+  (or push past page_size) still trips the breaker. Only the commit of that same page, or the run's terminal line (the cursor
   moved or the bootstrap finished), clears both: an incremental run replays the unchanged
   pages before it, and their commits must not reset the count. At 3 the page is refused
   before any embed call (exit 1) until an operator deletes the two keys.

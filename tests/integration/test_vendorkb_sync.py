@@ -125,7 +125,7 @@ async def _fresh(dsn):
 
 async def _run(conn, docext: FakeDocExt, emb: FakeEmbedder, **kw):
     async with docext.client() as d, emb.client() as e:
-        return await sync(conn, docext=d, embedder=e, page_size=2, **kw)
+        return await sync(conn, docext=d, embedder=e, **{"page_size": 2, **kw})
 
 
 async def _state(conn) -> dict[str, str]:
@@ -645,8 +645,8 @@ async def test_incremental_budget_is_per_run(vkb_dsn):
 
 
 def _is_page_key(value: str) -> bool:
-    """The breaker keys a page by a sha256 of its items, not by its first id."""
-    return re.fullmatch(r"[0-9a-f]{64}", value) is not None
+    """The breaker keys a page as ``n:<sha256 of its first n items>``, not by its first id."""
+    return re.fullmatch(r"[1-9][0-9]*:[0-9a-f]{64}", value) is not None
 
 
 def _failing_write(monkeypatch):
@@ -1051,5 +1051,119 @@ async def test_a_failed_token_write_after_an_abort_keeps_the_reservation(vkb_dsn
         assert any("could not record the abort" in r.getMessage() for r in caplog.records)
         assert await _lock_free(vkb_dsn)
         await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
+
+
+N = [uuid.UUID(int=n) for n in range(100, 110)]  # articles arriving between runs
+
+
+def _poison_write(monkeypatch, doc_id):
+    real = sync_mod.write_document
+
+    async def boom(conn, meta, *args, **kwargs):
+        if meta.doc_id == doc_id:
+            raise RuntimeError("bug in the write path")
+        return await real(conn, meta, *args, **kwargs)
+
+    monkeypatch.setattr(sync_mod, "write_document", boom)
+
+
+async def _seed_incremental(conn) -> None:
+    await _run(conn, FakeDocExt([[_start("S0"), _rec(A[4]), _cursor("S9", 1)]]),
+               FakeEmbedder())
+
+
+async def test_a_growing_tail_page_still_trips_the_breaker(vkb_dsn, monkeypatch):
+    # the poisoned article is on the partial last page; one new article joins that page
+    # before each run, so the page changes every time but its first item does not
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison_write(monkeypatch, A[0])
+        fd = FakeDocExt([[_rec(A[0]), *(_rec(n) for n in N[:k]), _cursor("S10", k + 1)]
+                         for k in range(4)])
+        for n in (1, 2, 3):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb, page_size=10)
+            assert not report.complete and emb.calls == 1
+            assert (await _state(conn))["abort_count"] == str(n)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 0
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_a_tail_page_that_overflows_still_trips_the_breaker(vkb_dsn, monkeypatch):
+    # page_size 2: [P] grows to the full page [P, N0]; later arrivals spill onto the next
+    # page. The poisoned page keeps its prefix, so it still trips.
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison_write(monkeypatch, A[0])
+        fd = FakeDocExt([[_rec(A[0]), *(_rec(n) for n in N[:k]), _cursor("S10", k + 1)]
+                         for k in range(4)])
+        for n in (1, 2, 3):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb)
+            assert not report.complete and emb.calls == 1
+            assert (await _state(conn))["abort_count"] == str(n)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert not report.complete and emb.calls == 0
+        assert N[2] not in await _doc_ids(conn)  # nothing past the refused page is written
+    finally:
+        await conn.close()
+
+
+async def _healthy_run_with_breaker(conn, position: str):
+    await conn.execute("INSERT INTO sync_state(key, value) VALUES ('abort_position', %s),"
+                       " ('abort_count', '3')", (position,))
+    emb = FakeEmbedder()
+    report = await _run(conn, FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]),
+                                           _cursor("S9", 2)]]), emb)
+    return report, emb
+
+
+async def test_a_stored_prefix_that_differs_does_not_refuse_the_page(vkb_dsn):
+    # "1:<hash>" of some other first item, at the limit: the healthy page still runs
+    conn = await _fresh(vkb_dsn)
+    try:
+        report, emb = await _healthy_run_with_breaker(conn, "1:" + "ab" * 32)
+        assert report.complete and emb.calls == 1
+        assert "abort_count" not in await _state(conn)  # finish cleared it
+    finally:
+        await conn.close()
+
+
+async def test_an_old_format_breaker_value_never_matches(vkb_dsn):
+    for position in ("ab" * 32, str(A[0]), "x:y", "0:" + "ab" * 32, ":"):
+        conn = await _fresh(vkb_dsn)
+        try:
+            report, emb = await _healthy_run_with_breaker(conn, position)
+            assert report.complete and emb.calls == 1, position
+        finally:
+            await conn.close()
+
+
+async def test_an_update_inside_the_stored_prefix_gets_a_fresh_try(vkb_dsn, monkeypatch):
+    # [A0 v1] trips the breaker; upstream then updates A0 (new content): same first id,
+    # different prefix hash, so the page is embedded again rather than refused
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(A[0], body="v1"), _cursor("S10", 1)]] * 3
+                        + [[_rec(A[0], body="v2"), _rec(N[0]), _cursor("S11", 2)]])
+        with monkeypatch.context() as m:
+            _poison_write(m, A[0])
+            for _ in range(3):
+                await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert (await _state(conn))["abort_count"] == "3"
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert report.complete and emb.calls == 1
+        assert "abort_count" not in await _state(conn)
     finally:
         await conn.close()
