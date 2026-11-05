@@ -656,7 +656,10 @@ def _failing_write(monkeypatch):
     monkeypatch.setattr(sync_mod, "write_document", boom)
 
 
-async def test_three_post_embed_aborts_trip_the_breaker(vkb_dsn, monkeypatch, caplog):
+async def test_three_post_embed_aborts_trip_the_breaker_into_quarantine(vkb_dsn, monkeypatch,
+                                                                       caplog):
+    # run 4 runs the page in quarantine mode (one embed call per record); every write
+    # still fails, so that is systemic: the page aborts and the breaker stays tripped
     _failing_write(monkeypatch)
     page = [_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]
     conn = await _fresh(vkb_dsn)
@@ -671,10 +674,13 @@ async def test_three_post_embed_aborts_trip_the_breaker(vkb_dsn, monkeypatch, ca
         emb = FakeEmbedder()
         with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
             report = await _run(conn, fd, emb)
-        assert not report.complete and emb.calls == 0
+        assert not report.complete and emb.calls == 2
+        assert (await _state(conn))["abort_count"] == "4"
+        assert await _doc_ids(conn) == set() and await _failures(conn) == {}
         assert await _lock_free(vkb_dsn)
-        msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
-        assert any(str(A[0]) in m and "abort_count" in m for m in msgs)
+        assert any("quarantine: every record" in r.getMessage() or
+                   (r.exc_info and "quarantine: every record" in str(r.exc_info[1]))
+                   for r in caplog.records if r.levelno == logging.ERROR)
     finally:
         await conn.close()
 
@@ -716,7 +722,9 @@ async def test_replayed_pages_before_the_failing_page_keep_the_breaker(vkb_dsn, 
             assert _is_page_key(state["abort_position"]) and state["abort_count"] == str(n)
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb)
-        assert not report.complete and emb.calls == 0
+        # quarantine mode (one call per record) proves page 2 still matched; every write
+        # fails, so it aborts
+        assert not report.complete and emb.calls == 2
         assert (await _state(conn))["cursor"] == "S0"
     finally:
         await conn.close()
@@ -961,14 +969,19 @@ async def test_pages_sharing_a_first_id_do_not_reset_each_others_breaker(vkb_dsn
         body = [_rec(A[0], body="v1"), _rec(A[0], body="v2"), _rec(A[2]), _cursor("S10", 3)]
         fd = FakeDocExt([body] * 4)
         calls, counts = [], []
-        for _ in range(4):
+        for _ in range(3):
             emb = FakeEmbedder()
             report = await _run(conn, fd, emb)
             assert not report.complete
             calls.append(emb.calls)
             counts.append((await _state(conn)).get("abort_count"))
-        assert counts[:3] == ["1", "2", "3"]
-        assert calls == [2, 1, 1, 0]  # run 1 also embeds [X v1]; run 4 is refused
+        assert counts == ["1", "2", "3"]
+        assert calls == [2, 1, 1]  # run 1 also embeds [X v1]
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        # quarantine of [X v2, Y]: one call per record, Y set aside, X v2 written
+        assert report.complete and emb.calls == 2 and report.quarantined == 1
+        assert list(await _failures(conn)) == [A[2]]
     finally:
         await conn.close()
 
@@ -1091,8 +1104,10 @@ async def test_a_growing_tail_page_still_trips_the_breaker(vkb_dsn, monkeypatch)
             assert (await _state(conn))["abort_count"] == str(n)
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb, page_size=10)
-        assert not report.complete and emb.calls == 0
-        assert (await _state(conn))["cursor"] == "S0"
+        # the grown page still matches: quarantine, one call per record
+        assert report.complete and emb.calls == 4 and report.quarantined == 1
+        assert set(N[:3]) <= await _doc_ids(conn)
+        assert (await _state(conn))["cursor"] == "S10"
     finally:
         await conn.close()
 
@@ -1113,8 +1128,9 @@ async def test_a_tail_page_that_overflows_still_trips_the_breaker(vkb_dsn, monke
             assert (await _state(conn))["abort_count"] == str(n)
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb)
-        assert not report.complete and emb.calls == 0
-        assert N[2] not in await _doc_ids(conn)  # nothing past the refused page is written
+        # [A0, N0] quarantined (2 calls), then [N1, N2] as a normal page (1 call)
+        assert report.complete and emb.calls == 3 and report.quarantined == 1
+        assert set(N[:3]) <= await _doc_ids(conn)
     finally:
         await conn.close()
 
@@ -1223,12 +1239,14 @@ async def test_a_near_miss_prefix_does_not_refuse_the_page(vkb_dsn):
             await conn.close()
 
 
-async def test_the_exact_prefix_refuses_the_page(vkb_dsn):
+async def test_the_exact_prefix_selects_quarantine_mode(vkb_dsn):
     # the positive control for the near misses: the same helper with the matching prefix
+    # runs the page in quarantine mode (one embed call per record, not one per page)
     conn = await _fresh(vkb_dsn)
     try:
         report, emb = await _healthy_run_with_breaker(conn, f"1:{_key(_rec(A[0]))}")
-        assert not report.complete and emb.calls == 0
+        assert report.complete and emb.calls == 2 and report.quarantined == 0
+        assert "abort_count" not in await _state(conn)
     finally:
         await conn.close()
 
@@ -1250,6 +1268,171 @@ async def test_a_replayed_full_page_does_not_reset_a_growing_tail(vkb_dsn, monke
             assert (await _state(conn))["abort_count"] == str(n)
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb)
-        assert not report.complete and emb.calls == 0
+        # [A0, A1] unchanged, [A2, N0] quarantined (2 calls), [N1, N2] normal (1 call)
+        assert report.complete and emb.calls == 3 and report.quarantined == 1
+    finally:
+        await conn.close()
+
+
+# --- quarantine: a tripped breaker sets records aside instead of blocking the feed ---
+
+def _poison(monkeypatch, doc_id, exc=None):
+    """write_document raises for ``doc_id`` (a RuntimeError unless ``exc`` is given)."""
+    real = sync_mod.write_document
+
+    async def boom(conn, meta, *args, **kwargs):
+        if meta.doc_id == doc_id:
+            raise exc or RuntimeError("bug in the write path")
+        return await real(conn, meta, *args, **kwargs)
+
+    monkeypatch.setattr(sync_mod, "write_document", boom)
+
+
+async def _trip(conn, fd, **kw) -> None:
+    """Three runs that abort after embedding the same page: the breaker trips."""
+    for n in (1, 2, 3):
+        report = await _run(conn, fd, FakeEmbedder(), **kw)
+        assert not report.complete
+        assert (await _state(conn))["abort_count"] == str(n)
+
+
+async def test_quarantine_writes_the_healthy_records_and_sets_the_poisoned_one_aside(
+        vkb_dsn, monkeypatch, caplog):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison(monkeypatch, N[1])
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S10", 3)]] * 4)
+        await _trip(conn, fd, page_size=10)
+        emb = FakeEmbedder()
+        with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
+            report = await _run(conn, fd, emb, page_size=10)
+        assert report.complete and emb.calls == 3  # one embed call per record
+        assert (report.written, report.quarantined, report.failed) == (2, 1, 1)
+        assert {N[0], N[2]} <= await _doc_ids(conn) and N[1] not in await _doc_ids(conn)
+        fails = await _failures(conn)
+        assert list(fails) == [N[1]]
+        assert fails[N[1]].startswith("quarantined after 3 page aborts: ")
+        assert "bug in the write path" in fails[N[1]]
+        state = await _state(conn)
+        assert state["cursor"] == "S10"
+        assert "abort_position" not in state and "abort_count" not in state
+        msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+        assert any(str(N[1]) in m and "content changes" in m for m in msgs)
+    finally:
+        await conn.close()
+
+
+async def test_an_article_that_joined_the_tripped_tail_page_is_written(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison(monkeypatch, N[1])
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 3
+                        + [[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S11", 3)]])
+        await _trip(conn, fd, page_size=10)
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.quarantined == 1
+        assert {N[0], N[2]} <= await _doc_ids(conn)
+        assert (await _state(conn))["cursor"] == "S11"
+    finally:
+        await conn.close()
+
+
+async def test_pages_after_the_quarantined_page_are_written_in_the_same_run(vkb_dsn,
+                                                                            monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison(monkeypatch, N[1])
+        body = [_rec(N[0]), _rec(N[1]), _rec(N[2]), _rec(N[3]), _cursor("S10", 4)]
+        fd = FakeDocExt([body] * 4)
+        await _trip(conn, fd)  # page_size 2: [N0, N1] trips
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert report.complete and emb.calls == 3  # 2 quarantine calls + the next page's
+        assert {N[0], N[2], N[3]} <= await _doc_ids(conn)
+        assert list(await _failures(conn)) == [N[1]]
+    finally:
+        await conn.close()
+
+
+async def test_quarantine_aborts_when_every_record_fails(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _failing_write(monkeypatch)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 4)
+        await _trip(conn, fd, page_size=10)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 2
+        assert report.quarantined == 0
+        assert not ({N[0], N[1]} & await _doc_ids(conn))
+        assert await _failures(conn) == {}
+        state = await _state(conn)
+        assert state["cursor"] == "S0" and int(state["abort_count"]) >= 3
+    finally:
+        await conn.close()
+
+
+async def test_a_connection_error_during_quarantine_aborts_the_page(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S10", 3)]] * 4)
+        with monkeypatch.context() as m:
+            _poison(m, N[1])
+            await _trip(conn, fd, page_size=10)
+        _poison(monkeypatch, N[1], psycopg.OperationalError("server closed the connection"))
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert not report.complete and report.quarantined == 0
+        assert not ({N[0], N[1], N[2]} & await _doc_ids(conn))
+        assert await _failures(conn) == {}
+        assert (await _state(conn))["cursor"] == "S0"
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
+
+
+async def test_a_quarantined_article_is_written_once_its_content_changes(vkb_dsn,
+                                                                         monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 4
+                        + [[_rec(N[1], change="updated", body="fixed"), _cursor("S11", 1)]])
+        with monkeypatch.context() as m:
+            _poison(m, N[1])
+            await _trip(conn, fd, page_size=10)
+            report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+            assert report.complete and report.quarantined == 1
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.written == 1
+        assert N[1] in await _doc_ids(conn)
+        assert await _failures(conn) == {}
+    finally:
+        await conn.close()
+
+
+async def test_bootstrap_quarantine_commits_the_page_and_counts_every_token(vkb_dsn,
+                                                                           monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        _poison(monkeypatch, N[1])
+        # no cursor line: page 1 is [N0, N1, N2], N3 is left pending when the stream ends
+        fd = FakeDocExt([[_start("S0"), *(_rec(n) for n in N[:4])]] * 4)
+        spent = 0
+        for n in (1, 2, 3):
+            report = await _run(conn, fd, FakeEmbedder(), page_size=3)
+            spent += report.tokens
+            assert (await _state(conn))["abort_count"] == str(n)
+        report = await _run(conn, fd, FakeEmbedder(), page_size=3)
+        spent += report.tokens
+        assert report.quarantined == 1 and report.written == 2
+        state = await _state(conn)
+        assert state["bootstrap_after"] == str(N[2])
+        assert "abort_count" not in state
+        assert int(state["bootstrap_tokens"]) >= spent
     finally:
         await conn.close()
