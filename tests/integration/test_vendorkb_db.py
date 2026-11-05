@@ -6,8 +6,8 @@ from vendorkb.db import connect, init_schema
 async def test_init_schema_is_idempotent_and_creates_tables(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
+        await init_schema(conn, embed_dim=768)
         cur = await conn.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
         )

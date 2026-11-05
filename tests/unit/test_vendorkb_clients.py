@@ -8,9 +8,13 @@ from vendorkb.config import VendorkbSettings
 
 
 def _settings(**kw):
+    """An OpenAI-compatible endpoint with no Voyage options (the shape of the homelab TEI);
+    Voyage-specific tests turn them on explicitly."""
+    base = {"embed_dim": 768, "embed_max_batch": 8, "embed_input_type": False,
+            "embed_output_dimension": None}
     return VendorkbSettings(
         _env_file=None, embed_base_url="http://e/v1", rerank_base_url="http://r/v1",
-        rerank_api_key="k", **kw)
+        rerank_api_key="k", **{**base, **kw})
 
 
 async def test_embedder_batches_at_the_cap():

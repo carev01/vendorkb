@@ -47,15 +47,17 @@ async def test_reembed_fills_candidate_resumably_then_promote_swaps(vkb_dsn):
         rest = await reembed(conn, emb, dim=4, batch=2, concurrency=2)
         assert (rest.chunks, rest.remaining) == (4, 0)
         assert {t for _, t in emb.calls} == {"document"}
+        await conn.execute("CREATE INDEX chunks_embedding_next_idx ON chunks "
+                           "USING hnsw (embedding_next vector_cosine_ops)")
         assert max(len(texts) for texts, _ in emb.calls) == 2
         assert await promote(conn) == "vector(4)"
         cur = await conn.execute("SELECT format_type(atttypid, atttypmod), attnotnull "
                                  "FROM pg_attribute WHERE attrelid='chunks'::regclass "
                                  "AND attname='embedding'")
         assert await cur.fetchone() == ("vector(4)", True)
-        cur = await conn.execute("SELECT count(*) FROM pg_indexes "
-                                 "WHERE indexname='chunks_embedding_idx'")
-        assert (await cur.fetchone())[0] == 1
+        cur = await conn.execute("SELECT indexname FROM pg_indexes WHERE tablename='chunks' "
+                                 "AND indexdef LIKE '%%hnsw%%'")
+        assert [r[0] for r in await cur.fetchall()] == ["chunks_embedding_idx"]
     finally:
         await conn.close()
 

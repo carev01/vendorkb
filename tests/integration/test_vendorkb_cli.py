@@ -11,7 +11,7 @@ from vendorkb.db import connect, init_schema
 async def test_stats_reports_counts_and_percentiles(vkb_dsn, monkeypatch, capsys):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         await conn.execute("DELETE FROM documents")
         did = str(uuid.uuid4())
         await conn.execute(

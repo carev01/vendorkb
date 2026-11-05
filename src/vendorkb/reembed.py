@@ -94,7 +94,16 @@ async def promote(conn: psycopg.AsyncConnection) -> str:
     missing = await _remaining(conn)
     if missing:
         raise RuntimeError(f"{missing} chunks have no {CANDIDATE} yet: finish reembed first")
+    cur = await conn.execute(
+        "SELECT i.indexrelid::regclass::text FROM pg_index i JOIN pg_attribute a "
+        "ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
+        "WHERE i.indrelid = 'chunks'::regclass AND a.attname = %s", (CANDIDATE,))
+    candidate_indexes = [r[0] for r in await cur.fetchall()]
     async with conn.transaction():
+        # An index built on the candidate for the A/B would follow the rename and leave
+        # two HNSW indexes on `embedding`: drop it, the canonical one is rebuilt below.
+        for name in candidate_indexes:
+            await conn.execute(f'DROP INDEX "{name}"')
         await conn.execute("DROP INDEX IF EXISTS chunks_embedding_idx")
         await conn.execute("ALTER TABLE chunks DROP COLUMN embedding")
         await conn.execute(f"ALTER TABLE chunks RENAME COLUMN {CANDIDATE} TO embedding")

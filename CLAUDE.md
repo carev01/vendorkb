@@ -51,8 +51,11 @@ CI (`.github/workflows/ci.yml`) runs exactly: ruff, mypy, pytest.
 
 - **Cite or abstain.** Every factual statement traces to a stored chunk. The LLM emits chunk markers
   only, never URLs. Citations resolve deterministically to document URLs.
-- **One embedding space.** Queries and chunks must use the same model and dimension. `embed_dim` is
-  checked on every reply.
+- **One embedding space.** voyage-4 at 1,024 dimensions since 2026-11-04
+  (`docs/superpowers/voyage-4-embedding-ab-2026-11-04.md`). Queries and chunks must use the same model
+  and dimension; `embed_dim` is checked on every reply. Change models only with `vendorkb reembed`
+  followed by `promote-embedding`. The 200M free Voyage tokens cover the full corpus about once, so
+  never re-embed unchanged chunks.
 - **Settings come from `VendorkbSettings` (`config.py`)**, loaded from `.env`. Tests never read `.env`
   (`tests/conftest.py`).
 - **Ingest is idempotent.** It is keyed on the article id and gated on `content_hash`. A failed article

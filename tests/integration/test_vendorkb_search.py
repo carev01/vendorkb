@@ -62,7 +62,7 @@ async def _chunk(conn, doc, ordinal, text, vec_i, path=("A",)):
 async def test_search_merges_fts_and_vector_and_reranks(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         fts_only = await _chunk(conn, ids["V1"], 0, "zebra stripes unique keyword", 5)
         vec_only = await _chunk(conn, ids["V1"], 1, "completely other words", 0)
@@ -93,7 +93,7 @@ async def test_search_merges_fts_and_vector_and_reranks(vkb_dsn):
 async def test_filtered_vector_search_is_not_starved_by_hnsw(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         for n in range(2000):
             v = _vec(0)
@@ -130,7 +130,7 @@ async def test_filtered_vector_search_is_not_starved_by_hnsw(vkb_dsn):
 async def test_empty_rerank_reply_falls_back(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
 
@@ -148,7 +148,7 @@ async def test_empty_rerank_reply_falls_back(vkb_dsn):
 async def test_vendor_filter_restricts_hits(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
         await _chunk(conn, ids["V2"], 0, "alpha text", 0)
@@ -169,7 +169,7 @@ async def test_vendor_filter_restricts_hits(vkb_dsn):
 async def test_use_rerank_false_makes_no_reranker_call(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
         rr = FakeReranker(lambda t: 0.5)
@@ -184,7 +184,7 @@ async def test_use_rerank_false_makes_no_reranker_call(vkb_dsn):
 async def test_rerank_outage_falls_back_to_rrf_order(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         for i in range(5):
             await _chunk(conn, ids["V1"], i, f"alpha item {i}", i)
@@ -202,7 +202,7 @@ async def test_rerank_outage_falls_back_to_rrf_order(vkb_dsn):
 async def test_read_section_expand_modes(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         c = [await _chunk(conn, ids["V1"], 0, "zero", 0, ("A",)),
              await _chunk(conn, ids["V1"], 1, "one", 1, ("B",)),
@@ -225,7 +225,7 @@ async def test_scope_index_from_db_fills_source_products(vkb_dsn):
     from vendorkb.scope import scope_index_from_db
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         await _seed(conn)
         idx = await scope_index_from_db(conn)
         assert idx.vendors == ["V1", "V2"]
@@ -241,7 +241,7 @@ async def test_vendor_and_product_filters_are_ored(vkb_dsn):
     """answer-api scopes with OR: vendor named OR product named (I1)."""
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
         await _chunk(conn, ids["V2"], 0, "alpha text", 0)
@@ -263,7 +263,7 @@ async def test_fts_matches_a_question_sharing_only_some_terms(vkb_dsn):
     """A natural question ANDs to nothing; FTS must OR its terms (C1)."""
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         kw = await _chunk(conn, ids["V1"], 0,
                           "Exchange mailbox retention is configured per database.", 5)
@@ -287,7 +287,7 @@ async def test_stopword_only_query_matches_nothing_by_fts(vkb_dsn):
     """An empty tsquery must not error and must match no chunk (C1 guard)."""
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "the and of", 3)
         res = await search_docs(conn, "the of and", embedder=FakeEmbedder(_vec(0)),

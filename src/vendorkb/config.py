@@ -8,15 +8,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class VendorkbSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     vendorkb_dsn: str = "postgresql://postgres:@127.0.0.1:55442/vendorkb"
-    embed_base_url: str = "http://srv-llm.home.lan:8082/v1"
-    embed_model: str = "jinaai/jina-embeddings-v5-text-nano-retrieval"
-    embed_dim: int = 768
-    embed_max_batch: int = 8  # 32 x 1,200-token chunks needs ~120 s on the CPU-bound TEI: timeouts
-    embed_api_key: str = ""  # sent as a Bearer token when set (Voyage); the homelab TEI needs none
-    # Voyage only: send input_type ("document" for chunks, "query" for questions) and
-    # output_dimension. The homelab TEI accepts neither, so both stay off by default.
-    embed_input_type: bool = False
-    embed_output_dimension: int | None = None
+    # voyage-4 since 2026-11-04: it beat jina-embeddings-v5-text-nano on the retrieval A/B
+    # (gold article in the rerank pool for 95% of questions vs 78%;
+    # docs/superpowers/voyage-4-embedding-ab-2026-11-04.md). Queries and chunks must share
+    # one model and dimension: change them only with `reembed` + `promote-embedding`.
+    embed_base_url: str = "https://api.voyageai.com/v1"
+    embed_model: str = "voyage-4"
+    embed_dim: int = 1024
+    embed_max_batch: int = 128  # Voyage: <= 1,000 texts and 320K tokens per request
+    embed_api_key: str = ""  # sent as a Bearer token when set (Voyage needs it)
+    # Voyage options: input_type ("document" for chunks, "query" for questions) and
+    # output_dimension. Turn both off for an OpenAI-compatible endpoint that rejects them
+    # (the homelab TEI).
+    embed_input_type: bool = True
+    embed_output_dimension: int | None = 1024
     embed_concurrency: int = 4  # concurrent batches in `vendorkb reembed`
     rerank_base_url: str = ""
     rerank_model: str = "rerank-3"

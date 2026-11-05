@@ -16,7 +16,8 @@ def _h(md):
 
 
 def _clients(articles):
-    s = VendorkbSettings(_env_file=None, docext_base_url="http://d", docext_read_key="k",
+    s = VendorkbSettings(_env_file=None, embed_dim=768, embed_input_type=False,
+                         embed_output_dimension=None, docext_base_url="http://d", docext_read_key="k",
                          embed_base_url="http://e/v1")
 
     def dx(req: httpx.Request) -> httpx.Response:
@@ -47,7 +48,7 @@ async def _wipe(conn):
 async def test_ingest_writes_chunks_and_resumes(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         await _wipe(conn)
         a, b = str(uuid.uuid4()), str(uuid.uuid4())
         dx, em = _clients({a: MD, b: MD})
@@ -71,7 +72,7 @@ async def test_ingest_writes_chunks_and_resumes(vkb_dsn):
 async def test_ingest_flags_changed_since_graph_and_records_failures(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=768)
         await _wipe(conn)
         a, bad, empty = (str(uuid.uuid4()) for _ in range(3))
         dx, em = _clients({a: MD, empty: ""})
