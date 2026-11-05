@@ -60,7 +60,7 @@ async def ingest(conn: psycopg.AsyncConnection, corpus: list[CorpusEntry], *,
                     row = await cur.fetchone()
                 if row is not None and row[0] == content_hash:
                     return _Outcome("skipped", changed=changed)
-                vectors = await embedder.embed([c.text for c in chunks])
+                vectors = await embedder.embed([c.text for c in chunks], input_type="document")
             async with db_lock:
                 await _replace(conn, entry, content_hash, chunks, vectors)
             return _Outcome("written", chunks=len(chunks), changed=changed)

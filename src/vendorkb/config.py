@@ -12,6 +12,12 @@ class VendorkbSettings(BaseSettings):
     embed_model: str = "jinaai/jina-embeddings-v5-text-nano-retrieval"
     embed_dim: int = 768
     embed_max_batch: int = 8  # 32 x 1,200-token chunks needs ~120 s on the CPU-bound TEI: timeouts
+    embed_api_key: str = ""  # sent as a Bearer token when set (Voyage); the homelab TEI needs none
+    # Voyage only: send input_type ("document" for chunks, "query" for questions) and
+    # output_dimension. The homelab TEI accepts neither, so both stay off by default.
+    embed_input_type: bool = False
+    embed_output_dimension: int | None = None
+    embed_concurrency: int = 4  # concurrent batches in `vendorkb reembed`
     rerank_base_url: str = ""
     rerank_model: str = "rerank-3"
     rerank_api_key: str = ""

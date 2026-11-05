@@ -22,6 +22,8 @@ async def connect(dsn: str) -> psycopg.AsyncConnection:
     return conn
 
 
-async def init_schema(conn: psycopg.AsyncConnection) -> None:
+async def init_schema(conn: psycopg.AsyncConnection, *, embed_dim: int = 768) -> None:
+    """Create the schema; ``embed_dim`` sizes ``chunks.embedding`` on a fresh database
+    (an existing table keeps its type: change it with ``vendorkb promote-embedding``)."""
     sql = resources.files("vendorkb").joinpath("schema.sql").read_text(encoding="utf-8")
-    await conn.execute(sql)
+    await conn.execute(sql.replace("{embed_dim}", str(int(embed_dim))))

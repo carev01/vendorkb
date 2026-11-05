@@ -72,3 +72,72 @@ async def test_reranker_drops_out_of_range_indices():
     assert out == [(1, 0.9), (0, 0.1)]
     assert seen["auth"] == "Bearer k"
     assert seen["body"]["top_k"] == 2
+
+
+async def test_embedder_sends_voyage_options_and_counts_tokens():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.headers.get("authorization"), json.loads(req.content)))
+        n = len(json.loads(req.content)["input"])
+        return httpx.Response(200, json={
+            "data": [{"index": i, "embedding": [0.0] * 1024} for i in range(n)],
+            "usage": {"total_tokens": 7 * n}})
+
+    s = _settings(embed_api_key="vk", embed_input_type=True, embed_output_dimension=1024,
+                  embed_dim=1024, embed_max_batch=2)
+    async with Embedder(s, transport=httpx.MockTransport(handler)) as emb:
+        await emb.embed(["a", "b", "c"])
+        await emb.embed(["q"], input_type="query")
+        assert emb.tokens_used == 28
+    assert [a for a, _ in seen] == ["Bearer vk"] * 3
+    assert [b["input_type"] for _, b in seen] == ["document", "document", "query"]
+    assert all(b["output_dimension"] == 1024 for _, b in seen)
+
+
+async def test_embedder_omits_voyage_options_by_default():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.headers.get("authorization"), json.loads(req.content)))
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.0] * 768}]})
+
+    async with Embedder(_settings(), transport=httpx.MockTransport(handler)) as emb:
+        await emb.embed(["a"], input_type="query")
+        assert emb.tokens_used == 0
+    auth, body = seen[0]
+    assert auth is None and "input_type" not in body and "output_dimension" not in body
+
+
+async def test_embedder_retries_rate_limits_then_succeeds():
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, headers={"retry-after": "0"})
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.0] * 768}]})
+
+    async with Embedder(_settings(), transport=httpx.MockTransport(handler),
+                        retry_base_delay=0) as emb:
+        assert len(await emb.embed(["a"])) == 1
+    assert len(calls) == 3
+
+
+async def test_embedder_gives_up_after_retries_and_does_not_retry_client_errors():
+    calls = []
+
+    def h429(req):
+        calls.append("429")
+        return httpx.Response(429)
+
+    def h400(req):
+        calls.append("400")
+        return httpx.Response(400, text="bad")
+
+    for h in (h429, h400):
+        emb = Embedder(_settings(), transport=httpx.MockTransport(h), retry_base_delay=0)
+        with pytest.raises(httpx.HTTPStatusError):
+            await emb.embed(["a"])
+        await emb.aclose()
+    assert calls.count("429") == 6 and calls.count("400") == 1

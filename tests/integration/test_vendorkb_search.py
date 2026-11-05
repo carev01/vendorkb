@@ -17,8 +17,8 @@ class FakeEmbedder:
         self.vec = vec
         self.calls = []
 
-    async def embed(self, texts):
-        self.calls.append(texts)
+    async def embed(self, texts, *, input_type="document"):
+        self.calls.append((texts, input_type))
         return [self.vec for _ in texts]
 
 

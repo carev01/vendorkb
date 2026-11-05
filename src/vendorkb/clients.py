@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Literal, Self
 
 import httpx
 
@@ -30,25 +31,50 @@ class _Client:
         await self.aclose()
 
 
+InputType = Literal["document", "query"]
+EMBED_RETRIES = 6
+_RETRY_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
+
+
 class Embedder(_Client):
     def __init__(self, settings: VendorkbSettings, *,
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
+                 transport: httpx.AsyncBaseTransport | None = None,
+                 retry_base_delay: float = 2.0) -> None:
         self._s = settings
         self._http = httpx.AsyncClient(timeout=120.0, transport=transport)
+        self._retry_base_delay = retry_base_delay
+        self.tokens_used = 0  # from the provider's usage.total_tokens, when it reports one
 
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    async def embed(self, texts: list[str], *,
+                    input_type: InputType = "document") -> list[list[float]]:
         out: list[list[float]] = []
         step = max(1, self._s.embed_max_batch)
         for i in range(0, len(texts), step):
-            out.extend(await self._embed_batch(texts[i:i + step]))
+            out.extend(await self._embed_batch(texts[i:i + step], input_type))
         return out
 
-    async def _embed_batch(self, batch: list[str]) -> list[list[float]]:
-        resp = await self._http.post(
-            self._s.embed_base_url.rstrip("/") + "/embeddings",
-            json={"model": self._s.embed_model, "input": batch})
+    async def _embed_batch(self, batch: list[str], input_type: InputType) -> list[list[float]]:
+        payload: dict = {"model": self._s.embed_model, "input": batch}
+        if self._s.embed_input_type:
+            payload["input_type"] = input_type
+        if self._s.embed_output_dimension is not None:
+            payload["output_dimension"] = self._s.embed_output_dimension
+        headers = ({"Authorization": f"Bearer {self._s.embed_api_key}"}
+                   if self._s.embed_api_key else {})
+        url = self._s.embed_base_url.rstrip("/") + "/embeddings"
+        for attempt in range(EMBED_RETRIES):
+            resp = await self._http.post(url, json=payload, headers=headers)
+            if resp.status_code not in _RETRY_STATUS or attempt == EMBED_RETRIES - 1:
+                break
+            retry_after = resp.headers.get("retry-after", "")
+            delay = (float(retry_after) if retry_after.replace(".", "", 1).isdigit()
+                     else self._retry_base_delay * 2 ** attempt)
+            logger.warning("embedder HTTP %s, retrying in %.1fs", resp.status_code, delay)
+            await asyncio.sleep(delay)
         resp.raise_for_status()
-        rows = sorted(resp.json()["data"], key=lambda r: r["index"])
+        body = resp.json()
+        self.tokens_used += int((body.get("usage") or {}).get("total_tokens") or 0)
+        rows = sorted(body["data"], key=lambda r: r["index"])
         if len(rows) != len(batch):
             raise RuntimeError(f"embedder returned {len(rows)} vectors for {len(batch)} inputs")
         vectors = [[float(x) for x in r["embedding"]] for r in rows]

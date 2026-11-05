@@ -1,4 +1,4 @@
-"""``python -m vendorkb.cli`` -- ingest / search / answer / stats."""
+"""``python -m vendorkb.cli`` -- ingest / search / answer / stats / reembed / promote-embedding."""
 from __future__ import annotations
 
 import argparse
@@ -15,6 +15,7 @@ from vendorkb.clients import DocExtractor, Embedder, Reranker, load_corpus
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
 from vendorkb.ingest import ingest
+from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
 
@@ -31,7 +32,7 @@ async def _ingest(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     corpus = load_corpus(Path(args.corpus))
     conn = await connect(settings.vendorkb_dsn)
     try:
-        await init_schema(conn)
+        await init_schema(conn, embed_dim=settings.embed_dim)
         async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
             report = await ingest(conn, corpus, docext=docext, embedder=embedder,
                                   concurrency=args.concurrency)
@@ -109,6 +110,34 @@ async def _stats(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
+async def _reembed(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        async with Embedder(settings) as embedder:
+            report = await reembed(conn, embedder, dim=settings.embed_dim,
+                                   batch=settings.embed_max_batch,
+                                   concurrency=settings.embed_concurrency, limit=args.limit)
+    finally:
+        await conn.close()
+    print(json.dumps({"model": settings.embed_model, "dim": settings.embed_dim,
+                      **dataclasses.asdict(report)}))
+    return 0
+
+
+async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("promote-embedding replaces chunks.embedding with chunks.embedding_next; "
+              "pass --yes", file=sys.stderr)
+        return 2
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        column_type = await promote(conn)
+    finally:
+        await conn.close()
+    print(f"chunks.embedding is now {column_type}; set EMBED_* in .env to the new model")
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -125,10 +154,17 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("answer")
     s.add_argument("question")
     sub.add_parser("stats")
+    s = sub.add_parser("reembed", help="embed every chunk into chunks.embedding_next "
+                                       "with the configured EMBED_* model (resumable)")
+    s.add_argument("--limit", type=int, default=None, help="stop after N chunks (smoke)")
+    s = sub.add_parser("promote-embedding",
+                       help="replace chunks.embedding with chunks.embedding_next")
+    s.add_argument("--yes", action="store_true")
     return p
 
 
-_COMMANDS = {"ingest": _ingest, "search": _search, "answer": _answer, "stats": _stats}
+_COMMANDS = {"ingest": _ingest, "search": _search, "answer": _answer, "stats": _stats,
+             "reembed": _reembed, "promote-embedding": _promote}
 
 
 def main(argv: list[str] | None = None) -> int:

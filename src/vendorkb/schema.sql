@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     text text NOT NULL,
     token_count int NOT NULL,
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
-    embedding vector(768) NOT NULL,
+    embedding vector({embed_dim}) NOT NULL,
     UNIQUE (doc_id, ordinal)
 );
 

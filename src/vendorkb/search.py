@@ -12,6 +12,8 @@ FTS_LIMIT = 50
 VEC_LIMIT = 50
 RRF_K = 60
 RERANK_CANDIDATES = 40
+# The live column, and the candidate column `vendorkb reembed` fills for an embedding A/B.
+VECTOR_COLUMNS = ("embedding", "embedding_next")
 
 _COLS = ("c.chunk_id::text, c.doc_id::text, c.text, c.section_path, d.vendor, d.product, "
          "d.title, d.url")
@@ -91,9 +93,14 @@ async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) ->
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                       reranker: Reranker | None, vendor: list[str] | None = None,
                       product: list[str] | None = None, k: int = 10,
-                      use_rerank: bool = True) -> SearchResult:
+                      use_rerank: bool = True,
+                      vector_column: str = "embedding") -> SearchResult:
+    """``vector_column`` names the chunks column to search (an embedding A/B reads a
+    candidate column); only names in ``VECTOR_COLUMNS`` are accepted."""
+    if vector_column not in VECTOR_COLUMNS:
+        raise ValueError(f"unknown vector column {vector_column!r}")
     # An embedder failure propagates: the caller records it.
-    qvec = (await embedder.embed([query]))[0]
+    qvec = (await embedder.embed([query], input_type="query"))[0]
     where, fparams = _filters(vendor, product)
     fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id), "
                f"(SELECT {_TSQUERY} AS tsq) q "
@@ -101,9 +108,9 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
                " ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id LIMIT %s")
     # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
     # there forces an exact scan); the outer sort makes the order of equal distances stable.
-    vec_sql = (f"SELECT * FROM (SELECT {_COLS}, c.embedding <=> %s AS dist "
+    vec_sql = (f"SELECT * FROM (SELECT {_COLS}, c.{vector_column} <=> %s AS dist "
                f"FROM chunks c JOIN documents d USING (doc_id) WHERE true{where} "
-               "ORDER BY c.embedding <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
+               f"ORDER BY c.{vector_column} <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
     cur = await conn.execute(fts_sql, [query, *fparams, FTS_LIMIT])
     fts_rows = await cur.fetchall()
     vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
