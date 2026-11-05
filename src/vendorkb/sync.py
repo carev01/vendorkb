@@ -332,12 +332,11 @@ class _Run:
         in bootstrap mode the actual token total replaces the reservation either way."""
         bootstrap = self.report.mode == "bootstrap"
         first = str(page[0].doc_id)
-        if self._matches_breaker(page):  # the same page, possibly grown: keep its prefix
-            position = self.state["abort_position"]
-            count = int(self.state.get("abort_count", 0)) + 1
-        else:
-            position = f"{len(page)}:{_page_key(page)}"
-            count = 1
+        # The same page, possibly grown, counts on; store the whole aborted page as the new
+        # prefix so later growth still matches and a fix to any of its items gets a fresh try.
+        count = (int(self.state.get("abort_count", 0)) + 1
+                 if self._matches_breaker(page) else 1)
+        position = f"{len(page)}:{_page_key(page)}"
         try:
             async with self.conn.transaction():
                 if embedded:

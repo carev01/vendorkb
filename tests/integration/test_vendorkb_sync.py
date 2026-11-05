@@ -12,6 +12,7 @@ from vendorkb.chunker import chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
+from vendorkb.feed import parse_line
 from vendorkb.sync import LOCK_KEY, sync
 
 A = [uuid.UUID(int=n) for n in range(1, 6)]  # stream order == id order
@@ -1165,5 +1166,90 @@ async def test_an_update_inside_the_stored_prefix_gets_a_fresh_try(vkb_dsn, monk
         report = await _run(conn, fd, emb, page_size=10)
         assert report.complete and emb.calls == 1
         assert "abort_count" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
+async def test_a_fix_to_an_article_that_joined_after_the_first_abort_gets_a_fresh_try(
+        vkb_dsn, monkeypatch):
+    # run 1: tail [H] aborts once (a one-off write error); P (poisoned) then joins: [H, P]
+    # aborts in runs 2 and 3 (count 3). Upstream fixes P: [H, P'] is embedded again.
+    bad = _rec(N[1], body="BAD")
+    fixed = _rec(N[1], body="fixed")
+    one_off = [True]
+    real = sync_mod.write_document
+
+    async def boom(conn, meta, h, *args, **kwargs):
+        if meta.doc_id == N[0] and one_off:
+            one_off.clear()
+            raise RuntimeError("connection dropped")
+        if h == bad["content_hash"]:
+            raise RuntimeError("bug in the write path")
+        return await real(conn, meta, h, *args, **kwargs)
+
+    monkeypatch.setattr(sync_mod, "write_document", boom)
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _cursor("S10", 1)],
+                         [_rec(N[0]), bad, _cursor("S10", 2)],
+                         [_rec(N[0]), bad, _cursor("S10", 2)],
+                         [_rec(N[0]), fixed, _cursor("S11", 2)]])
+        for n in (1, 2, 3):
+            report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+            assert not report.complete
+            assert (await _state(conn))["abort_count"] == str(n)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert report.complete and emb.calls == 1
+        assert {N[0], N[1]} <= await _doc_ids(conn)
+    finally:
+        await conn.close()
+
+
+def _key(*recs) -> str:
+    return sync_mod._page_key([parse_line(json.dumps(r)) for r in recs])
+
+
+async def test_a_near_miss_prefix_does_not_refuse_the_page(vkb_dsn):
+    # same first item, different second item; and a stored prefix longer than the page
+    for position in (f"2:{_key(_rec(A[0]), _rec(A[3]))}",
+                     f"3:{_key(_rec(A[0]), _rec(A[1]), _rec(A[2]))}"):
+        conn = await _fresh(vkb_dsn)
+        try:
+            report, emb = await _healthy_run_with_breaker(conn, position)
+            assert report.complete and emb.calls == 1, position
+        finally:
+            await conn.close()
+
+
+async def test_the_exact_prefix_refuses_the_page(vkb_dsn):
+    # the positive control for the near misses: the same helper with the matching prefix
+    conn = await _fresh(vkb_dsn)
+    try:
+        report, emb = await _healthy_run_with_breaker(conn, f"1:{_key(_rec(A[0]))}")
+        assert not report.complete and emb.calls == 0
+    finally:
+        await conn.close()
+
+
+async def test_a_replayed_full_page_does_not_reset_a_growing_tail(vkb_dsn, monkeypatch):
+    # page_size 2: [A0, A1] is replayed unchanged each run and commits; the poisoned tail
+    # [P] grows with arrivals. The replayed commit must not reset the tail's count.
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _run(conn, FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]),
+                                      _cursor("S9", 2)]]), FakeEmbedder())
+        _poison_write(monkeypatch, A[2])
+        fd = FakeDocExt([[_rec(A[0]), _rec(A[1]), _rec(A[2]), *(_rec(n) for n in N[:k]),
+                          _cursor("S10", k + 3)] for k in range(4)])
+        for n in (1, 2, 3):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb)
+            assert not report.complete and emb.calls == 1
+            assert (await _state(conn))["abort_count"] == str(n)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert not report.complete and emb.calls == 0
     finally:
         await conn.close()
