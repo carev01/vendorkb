@@ -59,9 +59,10 @@ kubectl -n vendorkb rollout status statefulset/vendorkb-postgres
 ```
 
 The sync CronJob is created with `suspend: true`; nothing talks to DocExtractor yet.
-Later upgrades use `--reuse-values` so earlier `--set`s persist. When the chart's
-`values.yaml` gained keys, use `--reset-then-reuse-values` instead (Helm 3.14 or newer), or
-the new keys render empty.
+Later upgrades use `--reset-then-reuse-values` (Helm 3.14 or newer), which keeps earlier
+`--set`s on top of the current chart's defaults. Plain `--reuse-values` replays the values
+stored with an older chart, so keys the chart has since gained render empty (a missing
+`sync.maxTokens` would drop the CronJob's cap; the chart now refuses to render without it).
 
 ## 4. Restore the local database
 
@@ -123,7 +124,7 @@ deleted when the bootstrap finishes. In incremental mode the cap is per run.
 
 1. Smoke test at a small cap:
    ```
-   helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
+   helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
      --set bootstrap.enabled=true,bootstrap.maxTokens=50000
    kubectl -n vendorkb logs -f job/vendorkb-bootstrap
    ```
@@ -140,7 +141,7 @@ deleted when the bootstrap finishes. In incremental mode the cap is per run.
    the full cap (default 85,000,000, cumulative, so it includes the smoke run's tokens; this
    is the paid step):
    ```
-   helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
+   helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
      --set bootstrap.enabled=true,bootstrap.maxTokens=85000000
    ```
    If Helm reports the Job already exists, delete it first (it is immutable).
@@ -163,7 +164,7 @@ is refused again. Check N against what you expect deleted upstream since the loc
 investigate the feed. If it is right, delete the Job and re-run with the override:
 ```
 kubectl -n vendorkb delete job vendorkb-bootstrap
-helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
+helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
   --set bootstrap.enabled=true,bootstrap.allowPrune=N
 ```
 Afterwards set `bootstrap.allowPrune=null` again.
@@ -178,7 +179,7 @@ psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
   "DELETE FROM sync_state WHERE key IN ('abort_position','abort_count');"
 ```
 
-When the bootstrap has completed, disable the Job: `helm upgrade ... --reuse-values --set bootstrap.enabled=false`.
+When the bootstrap has completed, disable the Job: `helm upgrade ... --reset-then-reuse-values --set bootstrap.enabled=false`.
 
 ## 7. Enable incremental sync
 
@@ -187,7 +188,7 @@ show `sync.mode` = `"incremental"` and `sync.cursor_set` = `true`. If it still s
 `bootstrap`, do **not** unsuspend: go back to step 6.
 
 ```
-helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values --set sync.suspend=false
+helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values --set sync.suspend=false
 kubectl -n vendorkb get cronjob vendorkb-sync
 ```
 

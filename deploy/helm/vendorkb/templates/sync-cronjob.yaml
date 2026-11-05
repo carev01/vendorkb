@@ -27,10 +27,8 @@ spec:
               image: {{ include "vendorkb.image" . }}
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: {{- toYaml .Values.sync.command | nindent 16 }}
-                {{- if .Values.sync.maxTokens }}
                 - "--max-tokens"
-                - {{ .Values.sync.maxTokens | int64 | toString | quote }}
-                {{- end }}
+                - {{ required "sync.maxTokens is required: the CronJob must never run uncapped" .Values.sync.maxTokens | int64 | toString | quote }}
               {{- include "vendorkb.env" . | nindent 14 }}
               {{- include "vendorkb.envFrom" . | nindent 14 }}
               {{- include "vendorkb.containerSecurity" . | nindent 14 }}

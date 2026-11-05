@@ -41,7 +41,7 @@ sync:
   startingDeadlineSeconds: 600
   # --max-tokens per run. In incremental mode it caps this run's embedding tokens; if the
   # bootstrap has not finished it caps the bootstrap's running total instead, so the
-  # CronJob can never continue a bootstrap past it. Empty removes the cap.
+  # CronJob can never continue a bootstrap past it. Required: rendering fails when empty.
   maxTokens: 5000000
   activeDeadlineSeconds: 21600
   backoffLimit: 0
