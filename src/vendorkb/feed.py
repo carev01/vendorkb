@@ -1,0 +1,105 @@
+"""DocExtractor delta-feed line types and parsing."""
+
+from __future__ import annotations
+
+import json
+import uuid
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class BootstrapStart:
+    next_since: str
+
+
+@dataclass(frozen=True)
+class CursorLine:
+    next_since: str
+    count: int
+
+
+@dataclass(frozen=True)
+class Content:
+    doc_id: uuid.UUID
+    change_type: str
+    source_id: uuid.UUID | None
+    vendor: str
+    product: str | None
+    title: str | None
+    url: str | None
+    content_hash: str | None
+    markdown: str | None
+
+
+@dataclass(frozen=True)
+class Tombstone:
+    doc_id: uuid.UUID
+
+
+class MalformedRecord(ValueError):
+    """A change record whose id parses but whose other fields do not. The caller records
+    it as a per-article failure and keeps streaming; a line without a usable id is a
+    plain ValueError (the stream is dropped)."""
+
+    def __init__(self, doc_id: uuid.UUID, reason: str) -> None:
+        super().__init__(f"malformed feed record {doc_id}: {reason}")
+        self.doc_id = doc_id
+        self.reason = reason
+
+
+FeedItem = BootstrapStart | CursorLine | Content | Tombstone | MalformedRecord
+_OPTIONAL_STR = ("product", "title", "source_url", "content_hash", "content_markdown")
+
+
+def _uuid(value: object) -> uuid.UUID:
+    try:
+        return uuid.UUID(str(value))
+    except ValueError as exc:
+        raise ValueError(f"invalid uuid in feed line: {value!r}") from exc
+
+
+def parse_line(line: str) -> FeedItem | None:
+    """Parse one NDJSON line; None for control/change types we do not act on."""
+    try:
+        rec = json.loads(line)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"feed line is not JSON: {exc}") from exc
+    if not isinstance(rec, dict):
+        raise ValueError("feed line is not a JSON object")
+    control = rec.get("control")
+    if control in ("bootstrap_start", "cursor"):
+        since = rec.get("next_since")
+        if not isinstance(since, str) or not since:
+            raise ValueError(f"{control} line needs a non-empty string next_since")
+        if control == "bootstrap_start":
+            return BootstrapStart(since)
+        count = rec.get("count")
+        if not isinstance(count, int) or isinstance(count, bool):
+            raise ValueError("cursor line needs an integer count")
+        return CursorLine(since, count)
+    if control is not None:
+        return None
+    change = rec.get("change_type")
+    if change not in ("added", "updated", "removed"):
+        return None
+    if rec.get("id") is None:
+        raise ValueError("feed record has no id")
+    doc_id = _uuid(rec["id"])
+    if change == "removed":
+        return Tombstone(doc_id)
+    vendor = rec.get("vendor")
+    if not isinstance(vendor, str) or not vendor:
+        raise MalformedRecord(doc_id, f"vendor must be a non-empty string, got {vendor!r}")
+    for key in _OPTIONAL_STR:
+        if rec.get(key) is not None and not isinstance(rec[key], str):
+            raise MalformedRecord(doc_id, f"{key} must be a string or null")
+    sid = rec.get("source_id")
+    try:
+        source_id = _uuid(sid) if sid else None
+    except ValueError as exc:
+        raise MalformedRecord(doc_id, str(exc)) from exc
+    return Content(
+        doc_id=doc_id, change_type=change, source_id=source_id,
+        vendor=rec["vendor"], product=rec.get("product"), title=rec.get("title"),
+        url=rec.get("source_url"), content_hash=rec.get("content_hash"),
+        markdown=rec.get("content_markdown"))

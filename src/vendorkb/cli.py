@@ -1,23 +1,24 @@
-"""``python -m vendorkb.cli`` -- ingest / search / answer / stats / reembed / promote-embedding."""
+"""``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding."""
 from __future__ import annotations
 
 import argparse
 import asyncio
 import dataclasses
 import json
+import logging
 import sys
-from pathlib import Path
 
+import psycopg
 from openai import AsyncOpenAI
 
 from vendorkb.answer import answer
-from vendorkb.clients import DocExtractor, Embedder, Reranker, load_corpus
+from vendorkb.clients import DocExtractor, Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
-from vendorkb.ingest import ingest
 from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
+from vendorkb.sync import sync
 
 MAX_TOKENS = 1200
 
@@ -26,24 +27,6 @@ def _snippet(text: str) -> str:
     """First 200 chars of the chunk body, after the 'title / trail' prefix."""
     head, sep, body = text.partition("\n\n")
     return (body if sep else head)[:200]
-
-
-async def _ingest(settings: VendorkbSettings, args: argparse.Namespace) -> int:
-    corpus = load_corpus(Path(args.corpus))
-    conn = await connect(settings.vendorkb_dsn)
-    try:
-        await init_schema(conn, embed_dim=settings.embed_dim)
-        async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
-            report = await ingest(conn, corpus, docext=docext, embedder=embedder,
-                                  concurrency=args.concurrency)
-    finally:
-        await conn.close()
-    Path(args.report).write_text(
-        json.dumps(dataclasses.asdict(report), indent=2), encoding="utf-8")
-    print(f"fetched={report.fetched} skipped={report.skipped_unchanged} "
-          f"failed={len(report.failed)} changed_since_graph={len(report.changed_since_graph)} "
-          f"chunks_written={report.chunks_written}")
-    return 0
 
 
 async def _search(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -100,14 +83,45 @@ async def _stats(settings: VendorkbSettings, args: argparse.Namespace) -> int:
             "SELECT d.vendor, count(*) FROM chunks c JOIN documents d USING (doc_id) "
             "GROUP BY d.vendor ORDER BY d.vendor")
         per_vendor = {v: n for v, n in await cur.fetchall()}
+        sync_info = await _sync_stats(conn)
     finally:
         await conn.close()
     p50, p90, p99 = pcts if pcts else (None, None, None)
     print(json.dumps({
         "documents": documents, "chunks": chunks, "chunks_per_vendor": per_vendor,
         "token_percentiles": {"p50": p50, "p90": p90, "p99": p99, "max": tmax},
-        "token_counting": "approximate tokens (chars/4)", "over_max_tokens": over}, indent=2))
+        "token_counting": "approximate tokens (chars/4)", "over_max_tokens": over,
+        "sync": sync_info}, indent=2))
     return 0
+
+
+async def _sync_stats(conn: psycopg.AsyncConnection) -> dict | None:
+    """Sync progress, or None on a database that predates the sync tables."""
+    cur = await conn.execute("SELECT to_regclass('sync_state'), to_regclass('sync_failures')")
+    if None in (await cur.fetchone() or (None,)):
+        return None
+    cur = await conn.execute("SELECT key, value FROM sync_state")
+    state = {k: v for k, v in await cur.fetchall()}
+    cur = await conn.execute("SELECT count(*) FROM sync_failures")
+    failures = (await cur.fetchone())[0]  # type: ignore[index]
+    return {"mode": state.get("mode"), "cursor_set": "cursor" in state,
+            "bootstrap_after": state.get("bootstrap_after"), "failures": failures,
+            "abort_count": int(state.get("abort_count", 0))}
+
+
+async def _sync(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
+            report = await sync(conn, docext=docext, embedder=embedder,
+                                page_size=settings.sync_page_size, max_tokens=args.max_tokens,
+                                allow_prune=args.allow_prune)
+    finally:
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    # A held lock or a budget stop is a clean exit; a dropped stream or error resumes next run.
+    return 0 if report.complete or report.stopped_by_budget or report.locked else 1
 
 
 async def _reembed(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -141,10 +155,6 @@ async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("ingest")
-    s.add_argument("--corpus", required=True)
-    s.add_argument("--concurrency", type=int, default=8)
-    s.add_argument("--report", default="vendorkb-ingest-report.json")
     s = sub.add_parser("search")
     s.add_argument("query")
     s.add_argument("--vendor", action="append", default=[])
@@ -154,6 +164,14 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("answer")
     s.add_argument("question")
     sub.add_parser("stats")
+    s = sub.add_parser("sync", help="pull the DocExtractor delta feed (bootstrap, then "
+                                    "incremental; resumable)")
+    s.add_argument("--max-tokens", type=int, default=None,
+                   help="stop after the page on which embedding tokens reach N (bootstrap: "
+                        "the total across attempts; incremental: this run)")
+    s.add_argument("--allow-prune", type=int, default=None, metavar="N",
+                   help="let the bootstrap's end prune up to N documents the stream never "
+                        "served, above the safety ceiling (use the count a refusal logged)")
     s = sub.add_parser("reembed", help="embed every chunk into chunks.embedding_next "
                                        "with the configured EMBED_* model (resumable)")
     s.add_argument("--limit", type=int, default=None, help="stop after N chunks (smoke)")
@@ -163,12 +181,16 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-_COMMANDS = {"ingest": _ingest, "search": _search, "answer": _answer, "stats": _stats,
+_COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
              "reembed": _reembed, "promote-embedding": _promote}
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    for name in ("httpx", "httpcore"):  # they log every request at INFO
+        logging.getLogger(name).setLevel(logging.WARNING)
     settings = VendorkbSettings()  # fresh each call: never a cached copy of another env
     return asyncio.run(_COMMANDS[args.cmd](settings, args))
 

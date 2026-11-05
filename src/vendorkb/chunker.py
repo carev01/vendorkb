@@ -12,6 +12,7 @@ from dataclasses import dataclass
 _ATX = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$")
 _SETEXT_H1 = re.compile(r"^ {0,3}={3,}[ \t]*$")
 _SETEXT_H2 = re.compile(r"^ {0,3}-{3,}[ \t]*$")
+_TABLE_SEPARATOR = re.compile(r"^\s*\|?\s*:?-{3,}")
 
 
 @dataclass(frozen=True)
@@ -129,10 +130,50 @@ def _hard_split(text: str, budget_chars: int) -> list[str]:
     return [text[i : i + budget_chars] for i in range(0, len(text), budget_chars)]
 
 
+def _split_table(text: str, budget_chars: int) -> list[_Block]:
+    """Pack a table's rows into groups that each repeat the header (header + separator rows).
+
+    A table with no separator line has no header to repeat. A row too big for one group even
+    alone is hard-split by characters, each piece carrying the header.
+    """
+    lines = text.split("\n")
+    header = ""
+    if len(lines) > 1 and _TABLE_SEPARATOR.match(lines[1]):
+        header = "\n".join(lines[:2])
+        lines = lines[2:]
+    if header and len(header) + 1 >= budget_chars:
+        # a header that leaves no room for rows cannot be repeated; keep it as ordinary rows
+        lines = [*header.split("\n"), *lines]
+        header = ""
+    lead = header + "\n" if header else ""
+    room = budget_chars - len(lead)
+    out: list[_Block] = []
+    group: list[str] = []
+    size = 0
+    for row in lines:
+        if len(row) > room:
+            if group:
+                out.append(_Block(lead + "\n".join(group), True))
+                group, size = [], 0
+            out.extend(_Block(lead + piece, True) for piece in _hard_split(row, room))
+            continue
+        if group and size + len(row) + 1 > room:
+            out.append(_Block(lead + "\n".join(group), True))
+            group, size = [], 0
+        group.append(row)
+        size += len(row) + 1
+    if group:
+        out.append(_Block(lead + "\n".join(group), True))
+    return out
+
+
 def _split_block(block: _Block, budget_chars: int) -> list[_Block]:
-    """A paragraph too big for one chunk falls back to lines; tables are never split."""
-    if block.is_table or len(block.text) <= budget_chars:
+    """A block too big for one chunk is split: tables into header-repeating row groups,
+    paragraphs by lines."""
+    if len(block.text) <= budget_chars:
         return [block]
+    if block.is_table:
+        return _split_table(block.text, budget_chars)
     out: list[_Block] = []
     group: list[str] = []
     size = 0

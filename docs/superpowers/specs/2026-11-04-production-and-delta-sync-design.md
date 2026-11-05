@@ -70,13 +70,62 @@ dropped (head-to-head only). The corpus-file `ingest` command is removed once `s
 loaded production.
 
 **Guards**
-- `--max-tokens N`: stop cleanly (after the current page) once the run's embedding tokens
-  reach N. The bootstrap Job runs with a cap just above the projection.
-- A record whose markdown yields 0 chunks or whose embed fails after retries is recorded
-  in a `sync_failures` table (article id, reason, time) and skipped; the page still
-  commits. Repeated failures are visible in `vendorkb stats`.
+- `--max-tokens N`: stop cleanly (after the current page) once embedding tokens reach N.
+  In bootstrap mode N caps the **cumulative** total across attempts (`sync_state`
+  `bootstrap_tokens`, written in each page transaction, deleted at the bootstrap's end), so
+  Job retries cannot spend it twice; in incremental mode it is per run. The bootstrap Job
+  runs with a cap just above the projection; the sync CronJob with 5M (`sync.maxTokens`),
+  so it can never continue an unfinished bootstrap uncapped.
+- **Token reservation**: in bootstrap mode, immediately before a page's embed call, its own
+  short transaction commits `bootstrap_tokens = total + estimate` (chars/4 over the page's
+  texts, which overstates Voyage's count ~1.2x), and again before per-record isolation
+  (total so far + the records about to be re-embedded + the canary, since batches of the
+  rejected page call may be billed). The page transaction then writes the actual
+  total; on any abort after the reservation a best-effort write of the actual total replaces
+  it (embed failures included, without counting against the breaker). If that write fails the
+  reservation stands: an over-count of at most one page, never an under-count.
+- **Circuit breaker**: a page that aborts after it was embedded is recorded (autocommit)
+  as `abort_position` = `n:<key>`, where n is the page's length and key is a sha256 of its
+  items in order (id plus content hash, or its kind for a tombstone or malformed record),
+  and `abort_count`. A page with at least n items whose first n hash to the key matches, so
+  a partial last page that new arrivals grow (or push past page_size) still trips the
+  breaker, and two pages that share a first id never alias. Each matching abort counts on
+  and stores the whole aborted page as the new prefix, so new upstream content for any item
+  seen so far changes the key and gets a fresh try. Only the commit of a matching page, or
+  the run's terminal line (the cursor moved or the bootstrap finished), clears both: an
+  incremental run replays the unchanged pages before it, and their commits must not reset
+  the count. At 3 the page is refused before any embed call (exit 1) until an operator
+  deletes the two keys. `vendorkb stats` shows `abort_count`.
+- **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
+  deletes documents the bootstrap never served (deleted upstream after the local ingest),
+  reported as `pruned`. A fresh bootstrap clears `sync_seen`; a dropped one never prunes.
+- **Prune ceiling**: the bootstrap's end refuses to prune more than
+  `max(PRUNE_FLOOR=500, ceil(PRUNE_SHARE=0.02 * documents))` unless `--allow-prune N`
+  (chart `bootstrap.allowPrune`) covers the count: the finish transaction rolls back (cursor
+  unset, `sync_seen` and bootstrap state kept), one ERROR names the count, ceiling and
+  override, the report sets `prune_refused`, and the run exits 1. A re-run streams nothing
+  (`bootstrap_after` is at the end), so it embeds nothing before it is refused again.
+- **Embed canary**: when isolation rejects any record, the fixed text `CANARY_TEXT`
+  ("backup") is embedded once. A deterministic rejection of the canary means the 4xx is
+  systemic (wrong model name, bad `output_dimension`/`input_type`), so the page aborts with
+  nothing written, even for a single to-embed record; a transient canary failure aborts too;
+  only a canary success records the rejections in `sync_failures`.
+- A malformed record whose id parses is a per-record failure (`malformed: ...`).
+- Failures are split by class. **Deterministic** per-record failures are recorded in a
+  `sync_failures` table (article id, reason, time) and skipped; the page still commits and
+  the watermark moves. These are: missing markdown, markdown that yields 0 chunks, an embed
+  4xx other than 401/403/404/408/409/425/429 (the page embed is retried record by record to
+  isolate the offender; reason `embed: <status> <message>`; if isolation rejects every one
+  of 2+ to-embed records the page aborts as transient instead), and a `psycopg.DataError` (the page is
+  re-applied with a savepoint per record, reusing the vectors; reason `db: <message>`). NUL
+  characters are stripped from markdown before chunking so the common DataError never
+  happens. **Transient** failures (embed 401/403/404 — a bad key or endpoint — and
+  5xx/408/409/425/429 after the client's retries,
+  transport errors, `OperationalError`, anything unexpected) abort the page: nothing is
+  written, the watermark stays, and the run exits non-zero to resume next time. Repeated
+  failures are visible in `vendorkb stats`.
 - Run report (stdout, one JSON line): mode, records seen, written, skipped-unchanged,
-  removed, failed, tokens, seconds.
+  removed, failed, pruned, tokens (this run), seconds.
 
 ## 4. Production deployment
 

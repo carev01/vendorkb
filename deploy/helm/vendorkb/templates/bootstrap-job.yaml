@@ -1,0 +1,35 @@
+{{- if .Values.bootstrap.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vendorkb-bootstrap
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.bootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      restartPolicy: Never
+      {{- include "vendorkb.pullSecrets" . | nindent 6 }}
+      {{- include "vendorkb.podSecurity" . | nindent 6 }}
+      containers:
+        - name: bootstrap
+          image: {{ include "vendorkb.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - vendorkb
+            - sync
+            - "--max-tokens"
+            - {{ .Values.bootstrap.maxTokens | int64 | toString | quote }}
+            {{- if not (kindIs "invalid" .Values.bootstrap.allowPrune) }}
+            - "--allow-prune"
+            - {{ .Values.bootstrap.allowPrune | int64 | toString | quote }}
+            {{- end }}
+          {{- include "vendorkb.env" . | nindent 10 }}
+          {{- include "vendorkb.envFrom" . | nindent 10 }}
+          {{- include "vendorkb.containerSecurity" . | nindent 10 }}
+          resources: {{- toYaml .Values.bootstrap.resources | nindent 12 }}
+{{- end }}
