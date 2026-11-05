@@ -1,8 +1,9 @@
 """``vendorkb sync``: bootstrap, then incremental pulls, from the DocExtractor delta feed.
 
-The stream is consumed in order, in pages. Each page is embedded in one call and written in
-one transaction together with the bootstrap watermark, so ``bootstrap_after`` always means
-"every id up to here is applied". The cursor moves only on the terminal cursor line.
+The stream is consumed in order, in pages. Each page is embedded in one call (record by record
+in quarantine mode, below) and written in one transaction together with the bootstrap
+watermark, so ``bootstrap_after`` always means "every id up to here is applied". The cursor
+moves only on the terminal cursor line.
 
 Two guards protect the one-shot embedding budget: during a bootstrap ``--max-tokens`` caps
 the running total across attempts (``bootstrap_tokens``), and a page that aborts after
@@ -10,6 +11,8 @@ embedding ``BREAKER_LIMIT`` times in a row (matched by its first n items, so a p
 page that grows with new arrivals still matches) runs once in quarantine mode: each record is
 embedded and written on its own, failing records go to ``sync_failures`` (with the content
 hash they failed with, so a replay of that content is skipped unembedded) and the rest commit.
+If every record (two or more) fails in quarantine the page is refused, unembedded, until it
+changes upstream or an operator clears the breaker.
 
 The bootstrap's end prunes documents the stream never served, but refuses (rolls back,
 exits non-complete) to prune more than ``max(PRUNE_FLOOR, PRUNE_SHARE * documents)`` unless
@@ -38,7 +41,7 @@ from vendorkb.store import DocMeta, delete_document, stored_hashes, update_metad
 logger = logging.getLogger(__name__)
 
 LOCK_KEY = 0x766B62  # "vkb": single-flight across sync runs
-BREAKER_LIMIT = 3  # post-embed aborts of one page before it is refused
+BREAKER_LIMIT = 3  # post-embed aborts of one page before it runs in quarantine mode
 PRUNE_FLOOR = 500  # the bootstrap prunes at most max(PRUNE_FLOOR, PRUNE_SHARE * documents)
 PRUNE_SHARE = 0.02
 CANARY_TEXT = "backup"  # embedded once after a per-record rejection: systemic or not?
@@ -72,15 +75,30 @@ _FAILED = object()
 _TRANSIENT_4XX = {401, 403, 404, 408, 409, 425, 429}
 
 
-# Never quarantined: the connection or the provider is at fault, not the record.
-_CONNECTION_ERRORS = (psycopg.OperationalError, psycopg.InterfaceError, httpx.TransportError)
-_CLEAR_BREAKER = "DELETE FROM sync_state WHERE key IN ('abort_position', 'abort_count')"
+_BREAKER_KEYS = ("abort_position", "abort_count", "abort_quarantine_failed")
+_CLEAR_BREAKER = ("DELETE FROM sync_state WHERE key IN"
+                  " ('abort_position', 'abort_count', 'abort_quarantine_failed')")
+
+
+def _connection_lost(conn: psycopg.AsyncConnection, exc: BaseException) -> bool:
+    """Never quarantined: the session is gone, not the record at fault. Other psycopg
+    errors (an OperationalError such as ProgramLimitExceeded included) are per-record."""
+    return isinstance(exc, psycopg.InterfaceError) or (
+        isinstance(exc, psycopg.Error) and (conn.broken or conn.closed))
 
 
 def _deterministic(exc: httpx.HTTPStatusError) -> bool:
     """A 4xx the provider will repeat for the same input (bad request, too long, ...)."""
     status = exc.response.status_code
     return 400 <= status < 500 and status not in _TRANSIENT_4XX
+
+
+class _BreakerOpen(Exception):
+    """The page's quarantine run failed for every record; it is refused until it changes."""
+
+
+class _QuarantineFailed(RuntimeError):
+    """Every to-write record of a quarantined page (two or more) failed: systemic."""
 
 
 class _PruneRefused(Exception):
@@ -222,14 +240,7 @@ class _Run:
             raise RuntimeError(f"embed rejected all {len(writes)} records on the page "
                                f"({failures[0][1]})")
         if failures:
-            try:  # a transient failure propagates: the page aborts
-                await self.embedder.embed([CANARY_TEXT], input_type="document")
-            except httpx.HTTPStatusError as exc:
-                if _deterministic(exc):
-                    raise RuntimeError(
-                        f"embed rejected the canary text too ({exc.response.status_code} "
-                        f"{_short(exc.response.text)}): systemic, not per-record") from exc
-                raise
+            await self._canary()
         return kept, vectors, failures
 
     async def flush(self, page: list[Item]) -> None:
@@ -239,8 +250,16 @@ class _Run:
         if not page:
             return
         aborts = int(self.state.get("abort_count", 0))
+        matches = self._matches_breaker(page)
+        if matches and self.state.get("abort_quarantine_failed"):
+            raise _BreakerOpen(
+                f"page starting at {page[0].doc_id} failed for every record in quarantine "
+                f"mode after {aborts} aborts; refusing to embed it again until it changes "
+                "upstream. Inspect the errors logged by the earlier runs, fix the cause, then "
+                "clear the breaker: DELETE FROM sync_state WHERE key IN ('abort_position',"
+                "'abort_count','abort_quarantine_failed')")
         # A tripped page runs once in quarantine mode instead of blocking the feed.
-        quarantine = aborts >= BREAKER_LIMIT and self._matches_breaker(page)
+        quarantine = aborts >= BREAKER_LIMIT and matches
         ids = [it.doc_id for it in page]
         stored = await stored_hashes(self.conn, ids)
         cur = await self.conn.execute(
@@ -295,9 +314,10 @@ class _Run:
                 failures += embed_failures
                 counts = await self._apply_page(page, deletes, unchanged, writes, vectors,
                                                 failures)
-        except Exception:
-            if vectors or reserved:
-                await self._record_abort(page, embedded=bool(vectors))
+        except Exception as exc:
+            failed = isinstance(exc, _QuarantineFailed)
+            if vectors or reserved or failed:
+                await self._record_abort(page, embedded=bool(vectors), quarantine_failed=failed)
             raise
         if self._matches_breaker(page):
             self._clear_breaker()
@@ -342,8 +362,9 @@ class _Run:
     async def _embed_each(self, writes: list[_Write], vectors: list[list[float]],
                           aborts: int) -> tuple[list[_Write], list[tuple[uuid.UUID, str]]]:
         """Quarantine mode: one embed call per record, appending to ``vectors`` as it goes
-        (so a later abort still counts as post-embed). A record whose embed raises is set
-        aside, unless the provider or the connection is at fault (that aborts the page)."""
+        (so a later abort still counts as post-embed). Only a deterministic 4xx sets a
+        record aside, and only once the canary shows it is per-record; anything else
+        propagates (the page aborts, nothing quarantined)."""
         kept: list[_Write] = []
         failures: list[tuple[uuid.UUID, str]] = []
         for w in writes:
@@ -355,31 +376,43 @@ class _Run:
                 failures.append((w[0].doc_id, _quarantined(
                     aborts, f"embed: {exc.response.status_code} {_short(exc.response.text)}")))
                 continue
-            except _CONNECTION_ERRORS:
-                raise
-            except Exception as exc:
-                failures.append((w[0].doc_id, _quarantined(aborts, f"embed: {_error(exc)}")))
-                continue
             kept.append(w)
             vectors.extend(vecs)
-        if writes and not kept:
-            # Systemic, not per-record: write nothing and keep the breaker tripped.
-            raise RuntimeError(f"quarantine: every record on the page failed to embed "
-                               f"({failures[0][1]})")
+        if not kept and len(writes) >= 2:
+            # Systemic, not per-record: write nothing; the page is refused until it changes.
+            raise _QuarantineFailed(f"quarantine: every record on the page failed to embed "
+                                    f"({failures[0][1]})")
+        if failures:
+            await self._canary()
         return kept, failures
+
+    async def _canary(self) -> None:
+        """After a per-record rejection: a deterministic rejection of the canary text too
+        means the 4xx is systemic (the page aborts); a transient failure propagates."""
+        try:
+            await self.embedder.embed([CANARY_TEXT], input_type="document")
+        except httpx.HTTPStatusError as exc:
+            if _deterministic(exc):
+                raise RuntimeError(
+                    f"embed rejected the canary text too ({exc.response.status_code} "
+                    f"{_short(exc.response.text)}): systemic, not per-record") from exc
+            raise
 
     def _matches_breaker(self, page: list[Item]) -> bool:
         """``abort_position`` is ``n:<page key of the first n items>``: a page matches when
         its first n items hash the same, so a partial last page that new arrivals grow (or
-        push past page_size) is still the same page. Any other value never matches."""
+        push past page_size) is still the same page. Any other value never matches. Once the
+        page's quarantine has failed only the exact page matches: growth is a fresh try."""
         n_text, sep, stored = self.state.get("abort_position", "").partition(":")
         if not sep or not n_text.isdigit() or int(n_text) < 1 or len(page) < int(n_text):
+            return False
+        if self.state.get("abort_quarantine_failed") and len(page) != int(n_text):
             return False
         return _page_key(page[:int(n_text)]) == stored
 
     def _clear_breaker(self) -> None:
-        self.state.pop("abort_position", None)
-        self.state.pop("abort_count", None)
+        for key in _BREAKER_KEYS:
+            self.state.pop(key, None)
 
     async def _reserve_tokens(self, texts: list[str]) -> bool:
         """Bootstrap only: commit ``bootstrap_tokens`` plus a chars/4 estimate of the texts
@@ -393,10 +426,12 @@ class _Run:
                              str(self.budget_tokens() + estimate))
         return True
 
-    async def _record_abort(self, page: list[Item], *, embedded: bool) -> None:
+    async def _record_abort(self, page: list[Item], *, embedded: bool,
+                            quarantine_failed: bool = False) -> None:
         """Outside the rolled-back page transaction, so it survives the abort. Only a page
         that was embedded counts against the breaker (an embed outage must not trip it);
-        in bootstrap mode the actual token total replaces the reservation either way."""
+        in bootstrap mode the actual token total replaces the reservation either way. A
+        failed quarantine marks the breaker so the page is refused until it changes."""
         bootstrap = self.report.mode == "bootstrap"
         first = str(page[0].doc_id)
         # The same page, possibly grown, counts on; store the whole aborted page as the new
@@ -409,6 +444,11 @@ class _Run:
                 if embedded:
                     await _set_state(self.conn, "abort_position", position)
                     await _set_state(self.conn, "abort_count", str(count))
+                if quarantine_failed:
+                    await _set_state(self.conn, "abort_quarantine_failed", "1")
+                elif embedded:  # a different page (or a fresh try) starts unmarked
+                    await self.conn.execute(
+                        "DELETE FROM sync_state WHERE key = 'abort_quarantine_failed'")
                 if bootstrap:  # the tokens were spent all the same
                     await _set_state(self.conn, "bootstrap_tokens", str(self.budget_tokens()))
         except psycopg.Error:
@@ -417,6 +457,10 @@ class _Run:
             return
         if embedded:
             self.state.update(abort_position=position, abort_count=str(count))
+        if quarantine_failed:
+            self.state["abort_quarantine_failed"] = "1"
+        elif embedded:
+            self.state.pop("abort_quarantine_failed", None)
 
     async def _keep_stored_source(self, unchanged: list[DocMeta]) -> list[DocMeta]:
         """An unresolved source name must not blank a stored one for the same source."""
@@ -457,20 +501,16 @@ class _Run:
                 try:
                     async with conn.transaction():  # a savepoint
                         result = await op()
-                except psycopg.DataError as exc:
-                    reason = f"db: {_short(str(exc))}"
+                except Exception as exc:
+                    data_error = isinstance(exc, psycopg.DataError)
+                    if _connection_lost(conn, exc) or not (data_error or (
+                            set_aside and quarantine)):
+                        raise
+                    reason = f"db: {_short(str(exc))}" if data_error else _error(exc)
                     if set_aside and quarantine:
                         reason = _quarantined(quarantine[0], reason)
                         quarantine[1].append(doc_id)
                     failures.append((doc_id, reason))
-                    return _FAILED
-                except _CONNECTION_ERRORS:
-                    raise
-                except Exception as exc:
-                    if not (set_aside and quarantine):
-                        raise
-                    failures.append((doc_id, _quarantined(quarantine[0], _error(exc))))
-                    quarantine[1].append(doc_id)
                     return _FAILED
             settled.append(doc_id)
             return result
@@ -492,10 +532,10 @@ class _Run:
                             set_aside=True)
             if res is not _FAILED:
                 counts["written"] += 1
-        if quarantine and writes and not counts["written"]:
-            # Systemic, not per-record: roll the page back and keep the breaker tripped.
-            raise RuntimeError(f"quarantine: every record on the page failed to write "
-                               f"({failures[-1][1]})")
+        if quarantine and len(quarantine[2]) >= 2 and not counts["written"]:
+            # Systemic, not per-record: roll the page back; it is refused until it changes.
+            raise _QuarantineFailed(f"quarantine: every record on the page failed "
+                                    f"({failures[-1][1]})")
         await conn.execute("DELETE FROM sync_failures WHERE doc_id = ANY(%s)", (settled,))
         held = {}  # quarantined records keep the hash they failed with
         if quarantine:
@@ -632,6 +672,8 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
         if not report.complete and not report.stopped_by_budget:
             logger.warning("delta stream ended without a cursor line; %d record(s) not "
                            "written, resume next run", len(page))
+    except _BreakerOpen as exc:
+        logger.error("sync refused: %s", exc)
     except _PruneRefused as exc:
         report.prune_refused = exc.count
         logger.error("bootstrap finish refused: it would prune %d documents the stream never "

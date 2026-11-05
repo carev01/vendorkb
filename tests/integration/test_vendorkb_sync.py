@@ -82,13 +82,14 @@ class FakeEmbedder:
 
     def __init__(self, status: int = 200, reject: str | None = None,
                  canary_status: int = 200, *, max_batch: int = 128,
-                 fail_after: int | None = None, on_call=None):
+                 fail_after: int | None = None, on_call=None, garble: str | None = None):
         self.status = status
         self.reject = reject
         self.canary_status = canary_status
         self.max_batch = max_batch
         self.fail_after = fail_after  # requests after this many return 503
         self.on_call = on_call
+        self.garble = garble  # a 200 reply with no "data" for requests containing it
         self.calls = 0
         self.texts: list[str] = []
 
@@ -105,6 +106,8 @@ class FakeEmbedder:
             return httpx.Response(self.canary_status, text="canary failed")
         if self.reject and any(self.reject in t for t in inputs):
             return httpx.Response(400, text="input too long")
+        if self.garble and any(self.garble in t for t in inputs):
+            return httpx.Response(200, json={"oops": True})
         self.texts.extend(inputs)
         return httpx.Response(200, json={
             "data": [{"index": i, "embedding": [0.0] * 767 + [1.0]} for i in range(len(inputs))],
@@ -1376,7 +1379,9 @@ async def test_quarantine_aborts_when_every_record_fails(vkb_dsn, monkeypatch):
         await conn.close()
 
 
-async def test_a_connection_error_during_quarantine_aborts_the_page(vkb_dsn, monkeypatch):
+async def test_a_connection_loss_during_quarantine_aborts_the_page(vkb_dsn, monkeypatch):
+    # P's write kills the session's backend: the connection is broken, so the page aborts
+    # with nothing quarantined and no quarantine-failed mark
     conn = await _fresh(vkb_dsn)
     try:
         await _seed_incremental(conn)
@@ -1384,13 +1389,28 @@ async def test_a_connection_error_during_quarantine_aborts_the_page(vkb_dsn, mon
         with monkeypatch.context() as m:
             _poison(m, N[1])
             await _trip(conn, fd, page_size=10)
-        _poison(monkeypatch, N[1], psycopg.OperationalError("server closed the connection"))
+        real = sync_mod.write_document
+
+        async def kill(conn_, meta, *args, **kwargs):
+            if meta.doc_id == N[1]:
+                with psycopg.connect(vkb_dsn) as other:
+                    other.execute("SELECT pg_terminate_backend(%s)",
+                                  (conn_.info.backend_pid,))
+            return await real(conn_, meta, *args, **kwargs)
+
+        monkeypatch.setattr(sync_mod, "write_document", kill)
         report = await _run(conn, fd, FakeEmbedder(), page_size=10)
         assert not report.complete and report.quarantined == 0
+        assert conn.broken or conn.closed
+    finally:
+        await conn.close()
+    conn = await connect(vkb_dsn)
+    try:
         assert not ({N[0], N[1], N[2]} & await _doc_ids(conn))
         assert await _failures(conn) == {}
-        assert (await _state(conn))["cursor"] == "S0"
-        await conn.execute("SELECT 1")
+        state = await _state(conn)
+        assert state["cursor"] == "S0" and "abort_quarantine_failed" not in state
+        assert await _lock_free(vkb_dsn)
     finally:
         await conn.close()
 
@@ -1433,7 +1453,7 @@ async def test_bootstrap_quarantine_commits_the_page_and_counts_every_token(vkb_
         state = await _state(conn)
         assert state["bootstrap_after"] == str(N[2])
         assert "abort_count" not in state
-        assert int(state["bootstrap_tokens"]) >= spent
+        assert int(state["bootstrap_tokens"]) == spent  # the actual total, not the estimate
     finally:
         await conn.close()
 
@@ -1502,5 +1522,189 @@ async def test_a_quarantined_article_with_a_new_hash_is_embedded_again(vkb_dsn, 
         assert report.complete and report.skipped_quarantined == 0
         assert any("fixed" in t for t in emb.texts)
         assert N[1] in await _doc_ids(conn) and await _failures(conn) == {}
+    finally:
+        await conn.close()
+
+
+async def test_a_lone_poisoned_record_on_a_full_page_is_quarantined(vkb_dsn, monkeypatch):
+    # page_size 2: [tombstone A4, P] has a single to-write record. Its write failure is
+    # per-record, not systemic: run 4 quarantines it, applies the tombstone, and the
+    # healthy N2 on the next page is written.
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison(monkeypatch, N[1])
+        fd = FakeDocExt([[_tomb(A[4]), _rec(N[1]), _rec(N[2]), _cursor("S10", 3)]] * 4)
+        await _trip(conn, fd)
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and report.quarantined == 1
+        assert await _doc_ids(conn) == {N[2]}
+        assert list(await _failures(conn)) == [N[1]]
+        assert (await _state(conn))["cursor"] == "S10"
+    finally:
+        await conn.close()
+
+
+async def _trip_then_quarantine_with(conn, fd, emb, monkeypatch, *, poison=N[1], **kw):
+    with monkeypatch.context() as m:
+        _poison(m, poison)
+        await _trip(conn, fd, **kw)
+    return await _run(conn, fd, emb, **kw)
+
+
+async def test_a_lone_record_rejected_at_embed_is_quarantined_when_the_canary_passes(
+        vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        p = _rec(N[1], body="REJECT me")
+        fd = FakeDocExt([[_tomb(A[4]), p, _cursor("S10", 2)]] * 4)
+        emb = FakeEmbedder(reject="REJECT")
+        report = await _trip_then_quarantine_with(conn, fd, emb, monkeypatch)
+        assert report.complete and report.quarantined == 1
+        assert emb.texts == [sync_mod.CANARY_TEXT]  # the record was rejected, the canary not
+        row = await _failure_row(conn, N[1])
+        assert row[0].startswith("quarantined after 3 page aborts: embed: 400")
+        assert row[1] == p["content_hash"]
+    finally:
+        await conn.close()
+
+
+async def test_a_lone_record_rejected_with_the_canary_aborts_as_systemic(vkb_dsn,
+                                                                        monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_tomb(A[4]), _rec(N[1]), _cursor("S10", 2)]] * 4)
+        emb = FakeEmbedder(status=400)
+        report = await _trip_then_quarantine_with(conn, fd, emb, monkeypatch)
+        assert not report.complete and report.quarantined == 0
+        assert emb.calls == 2  # the record, then the canary
+        assert await _failures(conn) == {}
+        assert A[4] in await _doc_ids(conn)  # the tombstone rolled back with the page
+    finally:
+        await conn.close()
+
+
+async def test_embed_stage_quarantine_among_healthy_records_keeps_the_hash(vkb_dsn,
+                                                                          monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        p = _rec(N[1], body="REJECT me")
+        fd = FakeDocExt([[_rec(N[0]), p, _rec(N[2]), _cursor("S10", 3)]] * 4)
+        emb = FakeEmbedder(reject="REJECT")
+        report = await _trip_then_quarantine_with(conn, fd, emb, monkeypatch, page_size=10)
+        assert report.complete and report.quarantined == 1
+        assert emb.texts.count(sync_mod.CANARY_TEXT) == 1
+        assert {N[0], N[2]} <= await _doc_ids(conn)
+        assert (await _failure_row(conn, N[1]))[1] == p["content_hash"]
+    finally:
+        await conn.close()
+
+
+async def test_every_record_rejected_at_embed_in_quarantine_aborts_and_marks(vkb_dsn,
+                                                                           monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 5)
+        emb = FakeEmbedder(status=400)
+        report = await _trip_then_quarantine_with(conn, fd, emb, monkeypatch, page_size=10)
+        assert not report.complete and emb.calls == 2  # one per record, no canary
+        assert await _failures(conn) == {}
+        assert (await _state(conn))["abort_quarantine_failed"] == "1"
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 0
+    finally:
+        await conn.close()
+
+
+async def test_a_non_http_embed_error_in_quarantine_aborts_without_quarantining(
+        vkb_dsn, monkeypatch):
+    # a garbled 200 reply for one record is not a per-record rejection: the page aborts
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1], body="GARBLE me"), _rec(N[2]),
+                          _cursor("S10", 3)]] * 4)
+        emb = FakeEmbedder(garble="GARBLE")
+        report = await _trip_then_quarantine_with(conn, fd, emb, monkeypatch, page_size=10)
+        assert not report.complete and report.quarantined == 0
+        assert await _failures(conn) == {}
+        assert not ({N[0], N[2]} & await _doc_ids(conn))
+        assert "abort_quarantine_failed" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
+async def test_a_per_record_operational_error_is_quarantined(vkb_dsn, monkeypatch):
+    # ProgramLimitExceeded is an OperationalError subclass, but the connection is fine
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S10", 3)]] * 4)
+        with monkeypatch.context() as m:
+            _poison(m, N[1])
+            await _trip(conn, fd, page_size=10)
+        _poison(monkeypatch, N[1],
+                psycopg.errors.ProgramLimitExceeded("string is too long for tsvector"))
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.quarantined == 1
+        assert "ProgramLimitExceeded" in (await _failures(conn))[N[1]]
+        assert {N[0], N[2]} <= await _doc_ids(conn)
+    finally:
+        await conn.close()
+
+
+async def test_a_failed_quarantine_is_refused_until_its_page_changes(vkb_dsn, monkeypatch,
+                                                                    caplog):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _failing_write(monkeypatch)
+        page = [_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]
+        fd = FakeDocExt([page] * 6
+                        + [[_rec(N[0]), _rec(N[1], body="new"), _cursor("S10", 2)]])
+        await _trip(conn, fd, page_size=10)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)  # quarantine: every write fails
+        assert not report.complete and emb.calls == 2
+        state = await _state(conn)
+        assert state["abort_quarantine_failed"] == "1" and state["abort_count"] == "4"
+        for _ in range(2):
+            emb = FakeEmbedder()
+            with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
+                report = await _run(conn, fd, emb, page_size=10)
+            assert not report.complete and emb.calls == 0
+        msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+        assert any(str(N[0]) in m and "abort_quarantine_failed" in m for m in msgs)
+        assert (await _state(conn))["abort_count"] == "4"
+        # an upstream update to one of its records: a fresh try (a normal page embed)
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 1
+        state = await _state(conn)
+        assert state["abort_count"] == "1" and "abort_quarantine_failed" not in state
+    finally:
+        await conn.close()
+
+
+async def test_a_failed_quarantine_page_that_grows_gets_a_fresh_try(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _failing_write(monkeypatch)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 4
+                        + [[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S10", 3)]])
+        await _trip(conn, fd, page_size=10)
+        await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert (await _state(conn))["abort_quarantine_failed"] == "1"
+        emb = FakeEmbedder()
+        await _run(conn, fd, emb, page_size=10)
+        assert emb.calls == 1  # a normal page embed, not refused, not quarantine
+        state = await _state(conn)
+        assert state["abort_count"] == "1" and "abort_quarantine_failed" not in state
     finally:
         await conn.close()
