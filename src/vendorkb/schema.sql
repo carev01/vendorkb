@@ -49,3 +49,8 @@ CREATE TABLE IF NOT EXISTS sync_failures (
     reason text NOT NULL,
     failed_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Article ids the current bootstrap has seen; at its end every other document is pruned.
+CREATE TABLE IF NOT EXISTS sync_seen (
+    doc_id uuid PRIMARY KEY
+);

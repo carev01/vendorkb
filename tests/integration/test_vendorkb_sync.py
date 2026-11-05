@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import uuid
 
 import httpx
@@ -102,7 +103,8 @@ class FakeEmbedder:
 async def _fresh(dsn):
     conn = await connect(dsn)
     await init_schema(conn, embed_dim=768)
-    await conn.execute("TRUNCATE documents, chunks, sync_state, sources, sync_failures CASCADE")
+    await conn.execute("TRUNCATE documents, chunks, sync_state, sources, sync_failures,"
+                       " sync_seen CASCADE")
     return conn
 
 
@@ -499,5 +501,199 @@ async def test_full_bootstrap_clears_bootstrap_next_since(vkb_dsn):
         fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]])
         await _run(conn, fd, FakeEmbedder())
         assert await _state(conn) == {"cursor": "S0", "mode": "incremental"}
+    finally:
+        await conn.close()
+
+
+async def _seed_doc(conn, doc_id, content_hash="h-old") -> None:
+    await conn.execute(
+        "INSERT INTO documents(doc_id, vendor, content_hash, fetched_at)"
+        " VALUES (%s, 'V', %s, now())", (doc_id, content_hash))
+
+
+async def test_malformed_record_goes_to_sync_failures_and_the_stream_continues(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        bad = {**_rec(A[1]), "vendor": None}
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), bad, _rec(A[2]), _cursor("S9", 3)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete
+        assert (report.records, report.written, report.failed) == (3, 2, 1)
+        assert await _doc_ids(conn) == {A[0], A[2]}
+        fails = await _failures(conn)
+        assert list(fails) == [A[1]] and fails[A[1]].startswith("malformed: ")
+    finally:
+        await conn.close()
+
+
+async def test_held_lock_logs_a_warning(vkb_dsn, caplog):
+    conn = await _fresh(vkb_dsn)
+    holder = await connect(vkb_dsn)
+    try:
+        await holder.execute("SELECT pg_advisory_lock(%s)", (LOCK_KEY,))
+        with caplog.at_level(logging.WARNING, logger="vendorkb.sync"):
+            report = await _run(conn, FakeDocExt([]), FakeEmbedder())
+        assert report.locked
+        assert any(r.levelno == logging.WARNING and "lock" in r.getMessage()
+                   for r in caplog.records)
+    finally:
+        await holder.close()
+        await conn.close()
+
+
+async def test_each_committed_page_logs_progress(vkb_dsn, caplog):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), *(_rec(a) for a in A[:3]), _cursor("S9", 3)]])
+        with caplog.at_level(logging.INFO, logger="vendorkb.sync"):
+            await _run(conn, fd, FakeEmbedder())
+        pages = [r.getMessage() for r in caplog.records
+                 if r.levelno == logging.INFO and "committed" in r.getMessage()]
+        assert len(pages) == 2
+        assert str(A[0]) in pages[0] and str(A[1]) in pages[0] and "written=2" in pages[0]
+        assert str(A[2]) in pages[1] and "tokens=" in pages[1]
+    finally:
+        await conn.close()
+
+
+async def test_bootstrap_budget_is_cumulative_across_runs(vkb_dsn):
+    # run 1 stops on budget after one page; run 2 with the same cap stops before any
+    # embed call because the stored total already reaches it. report.tokens is per run.
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), *(_rec(a) for a in A[:4]), _cursor("S9", 4)],
+                         [_start("S1"), _rec(A[2]), _rec(A[3]), _cursor("S9", 2)]])
+        first = await _run(conn, fd, FakeEmbedder(), max_tokens=1)
+        assert first.stopped_by_budget and first.tokens >= 1
+        assert int((await _state(conn))["bootstrap_tokens"]) == first.tokens
+        emb = FakeEmbedder()
+        second = await _run(conn, fd, emb, max_tokens=1)
+        assert second.stopped_by_budget and not second.complete
+        assert emb.calls == 0 and second.tokens == 0
+        assert await _doc_ids(conn) == set(A[:2])
+        # a higher cap carries on; finishing the bootstrap deletes the running total
+        third = await _run(conn, fd, FakeEmbedder(), max_tokens=first.tokens + 100)
+        assert third.complete and third.tokens >= 1
+        assert "bootstrap_tokens" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
+async def test_incremental_budget_is_per_run(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)],
+                         [_rec(A[1]), _rec(A[2]), _rec(A[3]), _cursor("S10", 3)],
+                         [_rec(A[3]), _cursor("S11", 1)]])
+        await _run(conn, fd, FakeEmbedder())
+        first = await _run(conn, fd, FakeEmbedder(), max_tokens=1)
+        assert first.stopped_by_budget and await _doc_ids(conn) == set(A[:3])
+        second = await _run(conn, fd, FakeEmbedder(), max_tokens=1)
+        assert second.complete and A[3] in await _doc_ids(conn)
+    finally:
+        await conn.close()
+
+
+def _failing_write(monkeypatch):
+    async def boom(*args, **kwargs):
+        raise RuntimeError("bug in the write path")
+    monkeypatch.setattr(sync_mod, "write_document", boom)
+
+
+async def test_three_post_embed_aborts_trip_the_breaker(vkb_dsn, monkeypatch, caplog):
+    _failing_write(monkeypatch)
+    page = [_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([page] * 4)
+        for n in (1, 2, 3):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb)
+            assert not report.complete and emb.calls == 1
+            state = await _state(conn)
+            assert (state["abort_position"], state["abort_count"]) == (str(A[0]), str(n))
+        emb = FakeEmbedder()
+        with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
+            report = await _run(conn, fd, emb)
+        assert not report.complete and emb.calls == 0
+        assert await _lock_free(vkb_dsn)
+        msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+        assert any(str(A[0]) in m and "abort_count" in m for m in msgs)
+    finally:
+        await conn.close()
+
+
+async def test_a_committed_page_resets_the_breaker(vkb_dsn, monkeypatch):
+    page = [_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([page, page])
+        with monkeypatch.context() as m:
+            _failing_write(m)
+            await _run(conn, fd, FakeEmbedder())
+        assert (await _state(conn))["abort_count"] == "1"
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete
+        state = await _state(conn)
+        assert "abort_position" not in state and "abort_count" not in state
+    finally:
+        await conn.close()
+
+
+async def test_abort_before_embedding_does_not_count(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]])
+        await _run(conn, fd, FakeEmbedder(status=503))
+        assert "abort_count" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
+async def test_bootstrap_finish_prunes_documents_not_in_the_stream(vkb_dsn):
+    gone, kept = uuid.uuid4(), A[0]
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_doc(conn, gone)
+        await _seed_doc(conn, kept, content_hash=_rec(kept)["content_hash"])
+        # a stale id from an earlier bootstrap must not protect anything
+        await conn.execute("INSERT INTO sync_seen(doc_id) VALUES (%s)", (gone,))
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and report.pruned == 1
+        assert await _doc_ids(conn) == {A[0], A[1]}
+        cur = await conn.execute("SELECT count(*) FROM sync_seen")
+        assert (await cur.fetchone())[0] == 0
+    finally:
+        await conn.close()
+
+
+async def test_dropped_bootstrap_does_not_prune(vkb_dsn):
+    gone = uuid.uuid4()
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_doc(conn, gone)
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _rec(A[2])],
+                         [_start("S1"), _rec(A[2]), _cursor("S9", 1)]])
+        first = await _run(conn, fd, FakeEmbedder())
+        assert not first.complete and first.pruned == 0
+        assert gone in await _doc_ids(conn)
+        # the resumed attempt keeps what the first one saw: A[0], A[1] are not pruned
+        second = await _run(conn, fd, FakeEmbedder())
+        assert second.complete and second.pruned == 1
+        assert await _doc_ids(conn) == set(A[:3])
+    finally:
+        await conn.close()
+
+
+async def test_incremental_never_prunes(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)],
+                         [_rec(A[1]), _cursor("S10", 1)]])
+        await _run(conn, fd, FakeEmbedder())
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and report.pruned == 0
+        assert await _doc_ids(conn) == set(A[:2])
     finally:
         await conn.close()

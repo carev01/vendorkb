@@ -15,7 +15,7 @@ async def test_stats_reports_counts_and_percentiles(vkb_dsn, monkeypatch, capsys
         await conn.execute("DELETE FROM documents")
         await conn.execute("TRUNCATE sync_state, sync_failures")
         await conn.execute("INSERT INTO sync_state(key, value) VALUES ('mode', 'bootstrap'),"
-                           " ('bootstrap_after', 'a2')")
+                           " ('bootstrap_after', 'a2'), ('abort_count', '2')")
         await conn.execute("INSERT INTO sync_failures(doc_id, reason) VALUES (%s, 'x')",
                            (str(uuid.uuid4()),))
         did = str(uuid.uuid4())
@@ -42,4 +42,4 @@ async def test_stats_reports_counts_and_percentiles(vkb_dsn, monkeypatch, capsys
     assert out["over_max_tokens"] == 1
     assert out["token_counting"] == "approximate tokens (chars/4)"
     assert out["sync"] == {"mode": "bootstrap", "cursor_set": False,
-                           "bootstrap_after": "a2", "failures": 1}
+                           "bootstrap_after": "a2", "failures": 1, "abort_count": 2}

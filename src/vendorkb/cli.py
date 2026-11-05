@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import dataclasses
 import json
+import logging
 import sys
 
 import psycopg
@@ -104,7 +105,8 @@ async def _sync_stats(conn: psycopg.AsyncConnection) -> dict | None:
     cur = await conn.execute("SELECT count(*) FROM sync_failures")
     failures = (await cur.fetchone())[0]  # type: ignore[index]
     return {"mode": state.get("mode"), "cursor_set": "cursor" in state,
-            "bootstrap_after": state.get("bootstrap_after"), "failures": failures}
+            "bootstrap_after": state.get("bootstrap_after"), "failures": failures,
+            "abort_count": int(state.get("abort_count", 0))}
 
 
 async def _sync(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -164,7 +166,8 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("sync", help="pull the DocExtractor delta feed (bootstrap, then "
                                     "incremental; resumable)")
     s.add_argument("--max-tokens", type=int, default=None,
-                   help="stop after the page on which embedding tokens reach N")
+                   help="stop after the page on which embedding tokens reach N (bootstrap: "
+                        "the total across attempts; incremental: this run)")
     s = sub.add_parser("reembed", help="embed every chunk into chunks.embedding_next "
                                        "with the configured EMBED_* model (resumable)")
     s.add_argument("--limit", type=int, default=None, help="stop after N chunks (smoke)")
@@ -180,6 +183,8 @@ _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _syn
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     settings = VendorkbSettings()  # fresh each call: never a cached copy of another env
     return asyncio.run(_COMMANDS[args.cmd](settings, args))
 

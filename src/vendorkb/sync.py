@@ -3,6 +3,10 @@
 The stream is consumed in order, in pages. Each page is embedded in one call and written in
 one transaction together with the bootstrap watermark, so ``bootstrap_after`` always means
 "every id up to here is applied". The cursor moves only on the terminal cursor line.
+
+Two guards protect the one-shot embedding budget: during a bootstrap ``--max-tokens`` caps
+the running total across attempts (``bootstrap_tokens``), and a page that aborts after
+embedding ``BREAKER_LIMIT`` times in a row is refused before it is embedded again.
 """
 from __future__ import annotations
 
@@ -20,12 +24,13 @@ import psycopg
 
 from vendorkb.chunker import Chunk, chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
-from vendorkb.feed import BootstrapStart, Content, CursorLine, Tombstone
+from vendorkb.feed import BootstrapStart, Content, CursorLine, MalformedRecord, Tombstone
 from vendorkb.store import DocMeta, delete_document, stored_hashes, update_metadata, write_document
 
 logger = logging.getLogger(__name__)
 
 LOCK_KEY = 0x766B62  # "vkb": single-flight across sync runs
+BREAKER_LIMIT = 3  # post-embed aborts of one page before it is refused
 
 
 @dataclass
@@ -37,6 +42,7 @@ class SyncReport:
     metadata_updated: int = 0
     removed: int = 0
     failed: int = 0
+    pruned: int = 0
     tokens: int = 0
     seconds: float = 0.0
     complete: bool = False
@@ -44,7 +50,7 @@ class SyncReport:
     locked: bool = False
 
 
-Item = Content | Tombstone
+Item = Content | Tombstone | MalformedRecord
 _Write = tuple[DocMeta, str, list[Chunk]]
 _FAILED = object()
 # Never per-record: 408/409/425/429 are retried by the Embedder, and 401/403/404 mean a
@@ -56,6 +62,10 @@ def _deterministic(exc: httpx.HTTPStatusError) -> bool:
     """A 4xx the provider will repeat for the same input (bad request, too long, ...)."""
     status = exc.response.status_code
     return 400 <= status < 500 and status not in _TRANSIENT_4XX
+
+
+class _BreakerOpen(Exception):
+    """The page at ``abort_position`` keeps aborting after it was embedded."""
 
 
 def _short(text: str) -> str:
@@ -91,6 +101,19 @@ class _Run:
         self.state = state
         self.names: dict[str, str] = {}
         self.refreshed = False
+        self.tokens0 = embedder.tokens_used
+        # Bootstrap tokens committed by earlier attempts (the cap is cumulative there).
+        self.base_tokens = int(state.get("bootstrap_tokens", 0))
+
+    def run_tokens(self) -> int:
+        return self.embedder.tokens_used - self.tokens0
+
+    def budget_tokens(self) -> int:
+        """What ``--max-tokens`` compares against: the bootstrap's running total across
+        attempts, or this run's tokens in incremental mode."""
+        if self.report.mode == "bootstrap":
+            return self.base_tokens + self.run_tokens()
+        return self.run_tokens()
 
     async def load_names(self) -> None:
         cur = await self.conn.execute("SELECT source_id, name FROM sources")
@@ -153,6 +176,14 @@ class _Run:
         still commits."""
         if not page:
             return
+        first = str(page[0].doc_id)
+        aborts = int(self.state.get("abort_count", 0))
+        if self.state.get("abort_position") == first and aborts >= BREAKER_LIMIT:
+            raise _BreakerOpen(
+                f"page starting at {first} aborted after embedding {aborts} times "
+                f"(abort_count={aborts}); refusing to embed it again. Inspect that article "
+                "and the errors logged by the earlier runs, then run: DELETE FROM sync_state "
+                "WHERE key IN ('abort_position','abort_count')")
         ids = [it.doc_id for it in page]
         stored = await stored_hashes(self.conn, ids)
         deletes: list[uuid.UUID] = []
@@ -162,6 +193,9 @@ class _Run:
         for it in page:
             if isinstance(it, Tombstone):
                 deletes.append(it.doc_id)
+                continue
+            if isinstance(it, MalformedRecord):
+                failures.append((it.doc_id, f"malformed: {_short(it.reason)}"))
                 continue
             meta = DocMeta(doc_id=it.doc_id, vendor=it.vendor, product=it.product,
                            source=await self._source_name(it.source_id),
@@ -182,23 +216,49 @@ class _Run:
         writes, vectors, embed_failures = await self._embed(writes)
         failures += embed_failures
         try:
-            async with self.conn.transaction():
-                counts = await self._apply(page, deletes, unchanged, writes, vectors,
-                                           failures, isolate=False)
-        except psycopg.DataError as exc:
-            # The transaction rolled back. Redo it with a savepoint per item, reusing the
-            # vectors, so only the offending records are set aside.
-            logger.warning("page %s..%s hit a data error (%s); applying records one by one",
-                           page[0].doc_id, page[-1].doc_id, _short(str(exc)))
-            async with self.conn.transaction():
-                counts = await self._apply(page, deletes, unchanged, writes, vectors,
-                                           failures, isolate=True)
+            try:
+                async with self.conn.transaction():
+                    counts = await self._apply(page, deletes, unchanged, writes, vectors,
+                                               failures, isolate=False)
+            except psycopg.DataError as exc:
+                # The transaction rolled back. Redo it with a savepoint per item, reusing
+                # the vectors, so only the offending records are set aside.
+                logger.warning("page %s..%s hit a data error (%s); applying records one by "
+                               "one", page[0].doc_id, page[-1].doc_id, _short(str(exc)))
+                async with self.conn.transaction():
+                    counts = await self._apply(page, deletes, unchanged, writes, vectors,
+                                               failures, isolate=True)
+        except Exception:
+            if vectors:  # the embedding was paid for: count the abort against this page
+                await self._record_abort(first)
+            raise
+        self.state.pop("abort_position", None)
+        self.state.pop("abort_count", None)
         r = self.report
         r.removed += counts["removed"]
         r.unchanged += counts["unchanged"]
         r.metadata_updated += counts["metadata_updated"]
         r.failed += counts["failed"]
         r.written += counts["written"]
+        logger.info("%s page %s..%s committed: written=%d unchanged=%d removed=%d failed=%d "
+                    "tokens=%d", r.mode, page[0].doc_id, page[-1].doc_id, counts["written"],
+                    counts["unchanged"], counts["removed"], counts["failed"],
+                    self.budget_tokens())
+
+    async def _record_abort(self, first: str) -> None:
+        """Outside the rolled-back page transaction, so it survives the abort."""
+        count = (int(self.state.get("abort_count", 0)) + 1
+                 if self.state.get("abort_position") == first else 1)
+        try:
+            async with self.conn.transaction():
+                await _set_state(self.conn, "abort_position", first)
+                await _set_state(self.conn, "abort_count", str(count))
+                if self.report.mode == "bootstrap":  # the tokens were spent all the same
+                    await _set_state(self.conn, "bootstrap_tokens", str(self.budget_tokens()))
+        except psycopg.Error:
+            logger.warning("could not record the abort of page %s", first, exc_info=True)
+            return
+        self.state.update(abort_position=first, abort_count=str(count))
 
     async def _keep_stored_source(self, unchanged: list[DocMeta]) -> list[DocMeta]:
         """An unresolved source name must not blank a stored one for the same source."""
@@ -262,9 +322,14 @@ class _Run:
                 " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
                 (doc_id, reason))
         counts["failed"] = len(failures)
+        await conn.execute("DELETE FROM sync_state WHERE key IN"
+                           " ('abort_position', 'abort_count')")
         if self.report.mode == "bootstrap":
             # Same transaction as the data: the watermark can never run ahead of it.
+            await conn.execute("INSERT INTO sync_seen(doc_id) SELECT unnest(%s::uuid[])"
+                               " ON CONFLICT DO NOTHING", ([it.doc_id for it in page],))
             await _set_state(conn, "bootstrap_after", str(page[-1].doc_id))
+            await _set_state(conn, "bootstrap_tokens", str(self.budget_tokens()))
         return counts
 
     async def finish(self, line: CursorLine) -> None:
@@ -274,10 +339,18 @@ class _Run:
                 since = self.state.get("bootstrap_next_since")
                 if since is None:
                     raise RuntimeError("bootstrap ended with no stored bootstrap_start")
+                # Documents the bootstrap never served were deleted upstream after the
+                # local ingest; their tombstones predate the watermark, so prune them here.
+                cur = await self.conn.execute(
+                    "DELETE FROM documents d WHERE NOT EXISTS"
+                    " (SELECT 1 FROM sync_seen s WHERE s.doc_id = d.doc_id)")
+                self.report.pruned = cur.rowcount
+                await self.conn.execute("TRUNCATE sync_seen")
                 await _set_state(self.conn, "cursor", since)
                 await _set_state(self.conn, "mode", "incremental")
-                await self.conn.execute("DELETE FROM sync_state WHERE key IN"
-                                        " ('bootstrap_after', 'bootstrap_next_since')")
+                await self.conn.execute(
+                    "DELETE FROM sync_state WHERE key IN"
+                    " ('bootstrap_after', 'bootstrap_next_since', 'bootstrap_tokens')")
             else:
                 await _set_state(self.conn, "cursor", line.next_since)
 
@@ -293,6 +366,7 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
         if "cursor" in await _load_state(conn):
             report.mode = "incremental"
         report.locked = True
+        logger.warning("sync advisory lock is held by another run; nothing done")
         return report
     page: list[Item] = []
     try:  # everything after the lock is acquired, so every path releases it
@@ -300,22 +374,29 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
         if "cursor" in state:
             report.mode = "incremental"
         run = _Run(conn, docext, embedder, report, state)
+
+        def over_budget() -> bool:
+            return max_tokens is not None and run.budget_tokens() >= max_tokens
+
+        if report.mode == "bootstrap" and over_budget():
+            # Earlier attempts already spent the cap: stop before any feed or embed call.
+            logger.warning("bootstrap has spent %d embedding tokens, at or over the cap of "
+                           "%s; nothing done", run.budget_tokens(), max_tokens)
+            report.stopped_by_budget = True
+            return report
         await run.load_names()
         if report.mode == "bootstrap":
             stream = docext.delta(bootstrap_after=state.get("bootstrap_after"))
         else:
             stream = docext.delta(since=state["cursor"])
-
-        def over_budget() -> bool:
-            return (max_tokens is not None
-                    and embedder.tokens_used - tokens0 >= max_tokens)
-
         async with aclosing(stream) as items:
             async for item in items:
                 if isinstance(item, BootstrapStart):
                     if report.mode == "bootstrap" and "bootstrap_next_since" not in state:
-                        await _set_state(conn, "bootstrap_next_since", item.next_since)
-                        await _set_state(conn, "mode", "bootstrap")
+                        async with conn.transaction():  # a fresh bootstrap: forget old ids
+                            await conn.execute("TRUNCATE sync_seen")
+                            await _set_state(conn, "bootstrap_next_since", item.next_since)
+                            await _set_state(conn, "mode", "bootstrap")
                         state["bootstrap_next_since"] = item.next_since
                     continue
                 if isinstance(item, CursorLine):
@@ -346,6 +427,8 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
         if not report.complete and not report.stopped_by_budget:
             logger.warning("delta stream ended without a cursor line; %d record(s) not "
                            "written, resume next run", len(page))
+    except _BreakerOpen as exc:
+        logger.error("sync refused: %s", exc)
     except Exception:
         logger.exception("sync aborted; page %s..%s not written",
                          page[0].doc_id if page else None, page[-1].doc_id if page else None)
