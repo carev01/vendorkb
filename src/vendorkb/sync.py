@@ -7,11 +7,16 @@ one transaction together with the bootstrap watermark, so ``bootstrap_after`` al
 Two guards protect the one-shot embedding budget: during a bootstrap ``--max-tokens`` caps
 the running total across attempts (``bootstrap_tokens``), and a page that aborts after
 embedding ``BREAKER_LIMIT`` times in a row is refused before it is embedded again.
+
+The bootstrap's end prunes documents the stream never served, but refuses (rolls back,
+exits non-complete) to prune more than ``max(PRUNE_FLOOR, PRUNE_SHARE * documents)`` unless
+``--allow-prune`` covers the count: an empty or partial stream must not wipe the corpus.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -31,6 +36,8 @@ logger = logging.getLogger(__name__)
 
 LOCK_KEY = 0x766B62  # "vkb": single-flight across sync runs
 BREAKER_LIMIT = 3  # post-embed aborts of one page before it is refused
+PRUNE_FLOOR = 500  # the bootstrap prunes at most max(PRUNE_FLOOR, PRUNE_SHARE * documents)
+PRUNE_SHARE = 0.02
 
 
 @dataclass
@@ -43,6 +50,7 @@ class SyncReport:
     removed: int = 0
     failed: int = 0
     pruned: int = 0
+    prune_refused: int = 0
     tokens: int = 0
     seconds: float = 0.0
     complete: bool = False
@@ -71,6 +79,15 @@ class _BreakerOpen(Exception):
     """The page at ``abort_position`` keeps aborting after it was embedded."""
 
 
+class _PruneRefused(Exception):
+    """The bootstrap's end would prune more documents than the ceiling allows."""
+
+    def __init__(self, count: int, ceiling: int) -> None:
+        super().__init__(count, ceiling)
+        self.count = count
+        self.ceiling = ceiling
+
+
 def _short(text: str) -> str:
     return " ".join(text.replace("\x00", "").split())[:200]
 
@@ -96,8 +113,10 @@ def _hash(item: Content) -> str | None:
 
 class _Run:
     def __init__(self, conn: psycopg.AsyncConnection, docext: DocExtractor,
-                 embedder: Embedder, report: SyncReport, state: dict[str, str]) -> None:
+                 embedder: Embedder, report: SyncReport, state: dict[str, str],
+                 allow_prune: int | None = None) -> None:
         self.conn = conn
+        self.allow_prune = allow_prune
         self.docext = docext
         self.embedder = embedder
         self.report = report
@@ -350,6 +369,7 @@ class _Run:
                     raise RuntimeError("bootstrap ended with no stored bootstrap_start")
                 # Documents the bootstrap never served were deleted upstream after the
                 # local ingest; their tombstones predate the watermark, so prune them here.
+                await self._check_prune()
                 cur = await self.conn.execute(
                     "DELETE FROM documents d WHERE NOT EXISTS"
                     " (SELECT 1 FROM sync_seen s WHERE s.doc_id = d.doc_id)")
@@ -366,8 +386,23 @@ class _Run:
         self._clear_breaker()
 
 
+    async def _check_prune(self) -> None:
+        """Raise (rolling the finish back) when the prune exceeds the ceiling and the
+        ``allow_prune`` override does not cover it."""
+        cur = await self.conn.execute(
+            "SELECT count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM sync_seen s"
+            " WHERE s.doc_id = d.doc_id)), count(*) FROM documents d")
+        row = await cur.fetchone()
+        assert row is not None
+        count, total = row
+        ceiling = max(PRUNE_FLOOR, math.ceil(PRUNE_SHARE * total))
+        if count > ceiling and (self.allow_prune is None or count > self.allow_prune):
+            raise _PruneRefused(count, ceiling)
+
+
 async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder: Embedder,
-               page_size: int = 200, max_tokens: int | None = None) -> SyncReport:
+               page_size: int = 200, max_tokens: int | None = None,
+               allow_prune: int | None = None) -> SyncReport:
     started = time.monotonic()
     tokens0 = embedder.tokens_used
     report = SyncReport(mode="bootstrap")
@@ -384,7 +419,7 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
         state = await _load_state(conn)
         if "cursor" in state:
             report.mode = "incremental"
-        run = _Run(conn, docext, embedder, report, state)
+        run = _Run(conn, docext, embedder, report, state, allow_prune)
 
         def over_budget() -> bool:
             return max_tokens is not None and run.budget_tokens() >= max_tokens
@@ -440,6 +475,12 @@ async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder:
                            "written, resume next run", len(page))
     except _BreakerOpen as exc:
         logger.error("sync refused: %s", exc)
+    except _PruneRefused as exc:
+        report.prune_refused = exc.count
+        logger.error("bootstrap finish refused: it would prune %d documents the stream never "
+                     "served, over the ceiling of %d; nothing pruned, cursor not set. If the "
+                     "count is expected, re-run with: vendorkb sync --allow-prune %d",
+                     exc.count, exc.ceiling, exc.count)
     except Exception:
         logger.exception("sync aborted; page %s..%s not written",
                          page[0].doc_id if page else None, page[-1].doc_id if page else None)

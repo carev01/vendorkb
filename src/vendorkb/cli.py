@@ -115,7 +115,8 @@ async def _sync(settings: VendorkbSettings, args: argparse.Namespace) -> int:
         await init_schema(conn, embed_dim=settings.embed_dim)
         async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
             report = await sync(conn, docext=docext, embedder=embedder,
-                                page_size=settings.sync_page_size, max_tokens=args.max_tokens)
+                                page_size=settings.sync_page_size, max_tokens=args.max_tokens,
+                                allow_prune=args.allow_prune)
     finally:
         await conn.close()
     print(json.dumps(dataclasses.asdict(report)))
@@ -168,6 +169,9 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--max-tokens", type=int, default=None,
                    help="stop after the page on which embedding tokens reach N (bootstrap: "
                         "the total across attempts; incremental: this run)")
+    s.add_argument("--allow-prune", type=int, default=None, metavar="N",
+                   help="let the bootstrap's end prune up to N documents the stream never "
+                        "served, above the safety ceiling (use the count a refusal logged)")
     s = sub.add_parser("reembed", help="embed every chunk into chunks.embedding_next "
                                        "with the configured EMBED_* model (resumable)")
     s.add_argument("--limit", type=int, default=None, help="stop after N chunks (smoke)")

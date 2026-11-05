@@ -86,6 +86,12 @@ loaded production.
 - **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
   deletes documents the bootstrap never served (deleted upstream after the local ingest),
   reported as `pruned`. A fresh bootstrap clears `sync_seen`; a dropped one never prunes.
+- **Prune ceiling**: the bootstrap's end refuses to prune more than
+  `max(PRUNE_FLOOR=500, ceil(PRUNE_SHARE=0.02 * documents))` unless `--allow-prune N`
+  (chart `bootstrap.allowPrune`) covers the count: the finish transaction rolls back (cursor
+  unset, `sync_seen` and bootstrap state kept), one ERROR names the count, ceiling and
+  override, the report sets `prune_refused`, and the run exits 1. A re-run streams nothing
+  (`bootstrap_after` is at the end), so it embeds nothing before it is refused again.
 - A malformed record whose id parses is a per-record failure (`malformed: ...`).
 - Failures are split by class. **Deterministic** per-record failures are recorded in a
   `sync_failures` table (article id, reason, time) and skipped; the page still commits and

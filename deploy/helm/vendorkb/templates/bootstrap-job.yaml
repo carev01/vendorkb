@@ -19,7 +19,15 @@ spec:
         - name: bootstrap
           image: {{ include "vendorkb.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["vendorkb", "sync", "--max-tokens", {{ .Values.bootstrap.maxTokens | int64 | toString | quote }}]
+          command:
+            - vendorkb
+            - sync
+            - "--max-tokens"
+            - {{ .Values.bootstrap.maxTokens | int64 | toString | quote }}
+            {{- if not (kindIs "invalid" .Values.bootstrap.allowPrune) }}
+            - "--allow-prune"
+            - {{ .Values.bootstrap.allowPrune | int64 | toString | quote }}
+            {{- end }}
           {{- include "vendorkb.env" . | nindent 10 }}
           {{- include "vendorkb.envFrom" . | nindent 10 }}
           {{- include "vendorkb.containerSecurity" . | nindent 10 }}

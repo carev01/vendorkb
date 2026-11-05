@@ -57,6 +57,10 @@ bootstrap:
   # Cumulative across every attempt, retry and Job of this bootstrap (sync_state
   # bootstrap_tokens), smoke run included; not per pod.
   maxTokens: 85000000
+  # --allow-prune N: lets the bootstrap's end prune up to N documents above the safety
+  # ceiling (max(500, 2% of documents)). Set only after checking the refused count in the
+  # Job log.
+  allowPrune: null
   activeDeadlineSeconds: 43200
   backoffLimit: 6
   resources:

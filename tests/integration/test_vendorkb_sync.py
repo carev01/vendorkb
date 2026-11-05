@@ -745,3 +745,84 @@ async def test_incremental_never_prunes(vkb_dsn):
         assert await _doc_ids(conn) == set(A[:2])
     finally:
         await conn.close()
+
+
+async def _seed_many(conn, n: int) -> None:
+    await conn.execute(
+        "INSERT INTO documents(doc_id, vendor, content_hash, fetched_at)"
+        " SELECT gen_random_uuid(), 'V', 'h-old', now() FROM generate_series(1, %s)", (n,))
+
+
+async def _doc_count(conn) -> int:
+    cur = await conn.execute("SELECT count(*) FROM documents")
+    return (await cur.fetchone())[0]
+
+
+async def test_bootstrap_prune_over_the_ceiling_is_refused(vkb_dsn, caplog):
+    # an empty bootstrap stream that still ends with a cursor line would prune all 600
+    # restored documents: refused, everything rolled back
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_many(conn, 600)
+        fd = FakeDocExt([[_start("S0"), _cursor("S9", 0)]])
+        with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
+            report = await _run(conn, fd, FakeEmbedder())
+        assert not report.complete
+        assert (report.prune_refused, report.pruned) == (600, 0)
+        assert await _doc_count(conn) == 600
+        state = await _state(conn)
+        assert "cursor" not in state and state["bootstrap_next_since"] == "S0"
+        msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
+        assert any("600" in m and "500" in m and "--allow-prune" in m for m in msgs)
+        assert await _lock_free(vkb_dsn)
+    finally:
+        await conn.close()
+
+
+async def test_allow_prune_overrides_the_ceiling(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_many(conn, 600)
+        fd = FakeDocExt([[_start("S0"), _cursor("S9", 0)]])
+        report = await _run(conn, fd, FakeEmbedder(), allow_prune=600)
+        assert report.complete
+        assert (report.pruned, report.prune_refused) == (600, 0)
+        assert await _doc_count(conn) == 0
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_allow_prune_below_the_count_still_refuses(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_many(conn, 600)
+        fd = FakeDocExt([[_start("S0"), _cursor("S9", 0)]])
+        report = await _run(conn, fd, FakeEmbedder(), allow_prune=599)
+        assert not report.complete and report.prune_refused == 600
+        assert await _doc_count(conn) == 600
+    finally:
+        await conn.close()
+
+
+async def test_rerun_after_a_prune_refusal_embeds_nothing(vkb_dsn):
+    # run 1 writes one new article then is refused at the end; the re-run resumes after
+    # it, streams nothing, embeds nothing, and is refused again until overridden
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_many(conn, 600)
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)],
+                         [_start("S1"), _cursor("S9", 0)],
+                         [_start("S1"), _cursor("S9", 0)]])
+        first = await _run(conn, fd, FakeEmbedder())
+        assert first.written == 1 and first.prune_refused == 600
+        emb = FakeEmbedder()
+        second = await _run(conn, fd, emb)
+        assert fd.params[1] == {"bootstrap_after": str(A[0])}
+        assert emb.calls == 0 and second.prune_refused == 600 and not second.complete
+        third = await _run(conn, fd, FakeEmbedder(), allow_prune=600)
+        assert third.complete and third.pruned == 600
+        assert await _doc_ids(conn) == {A[0]}
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()

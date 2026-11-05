@@ -152,6 +152,22 @@ deleted when the bootstrap finishes. In incremental mode the cap is per run.
 At the end of the bootstrap, documents the feed no longer serves (deleted upstream after
 the local ingest) are deleted; the report's `pruned` counts them.
 
+**Prune refusal.** The bootstrap's end refuses to prune more than max(500, 2% of
+documents): an empty or partial stream (a key scoped differently, an RBAC change, an
+upstream bug) would otherwise delete the restored corpus. A refusal logs one ERROR line,
+`bootstrap finish refused: it would prune N documents ... over the ceiling of C`, rolls the
+finish back (cursor not set, `sync.mode` still `bootstrap`), reports `prune_refused: N` and
+exits 1, so the Job retries; every retry resumes at the end of the stream, embeds nothing and
+is refused again. Check N against what you expect deleted upstream since the local ingest
+(e.g. DocExtractor's article count against `vendorkb stats`). If N is wrong, stop and
+investigate the feed. If it is right, delete the Job and re-run with the override:
+```
+kubectl -n vendorkb delete job vendorkb-bootstrap
+helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
+  --set bootstrap.enabled=true,bootstrap.allowPrune=N
+```
+Afterwards set `bootstrap.allowPrune=null` again.
+
 **Stuck page.** `vendorkb stats` shows `sync.failures` and `sync.abort_count`. A page that
 aborts after it was embedded is counted in `sync_state` (`abort_position`, `abort_count`);
 after 3 aborts in a row the sync refuses that page before embedding it again and exits 1,
