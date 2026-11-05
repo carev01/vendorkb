@@ -56,6 +56,9 @@ def test_main_configures_info_logging(fake_sync, monkeypatch):
     fake_sync["report"] = SyncReport(mode="incremental", complete=True)
     assert cli.main(["sync"]) == 0
     assert seen["level"] == logging.INFO and "format" in seen
+    for name in ("httpx", "httpcore"):  # one INFO line per request otherwise
+        assert logging.getLogger(name).level == logging.WARNING
+        logging.getLogger(name).setLevel(logging.NOTSET)
 
 
 def test_sync_passes_allow_prune(fake_sync):

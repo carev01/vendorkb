@@ -189,6 +189,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    for name in ("httpx", "httpcore"):  # they log every request at INFO
+        logging.getLogger(name).setLevel(logging.WARNING)
     settings = VendorkbSettings()  # fresh each call: never a cached copy of another env
     return asyncio.run(_COMMANDS[args.cmd](settings, args))
 
