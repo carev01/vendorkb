@@ -1436,3 +1436,71 @@ async def test_bootstrap_quarantine_commits_the_page_and_counts_every_token(vkb_
         assert int(state["bootstrap_tokens"]) >= spent
     finally:
         await conn.close()
+
+
+def _poison_ids(monkeypatch, doc_ids):
+    real = sync_mod.write_document
+
+    async def boom(conn, meta, *args, **kwargs):
+        if meta.doc_id in doc_ids:
+            raise RuntimeError("bug in the write path")
+        return await real(conn, meta, *args, **kwargs)
+
+    monkeypatch.setattr(sync_mod, "write_document", boom)
+
+
+async def _failure_row(conn, doc_id):
+    cur = await conn.execute(
+        "SELECT reason, content_hash, failed_at FROM sync_failures WHERE doc_id=%s", (doc_id,))
+    return await cur.fetchone()
+
+
+async def test_a_replayed_quarantined_article_is_skipped_without_embedding(vkb_dsn,
+                                                                           monkeypatch):
+    # run 4 quarantines P on page 1 and commits it, then page 2 aborts (N3's write fails),
+    # so the cursor does not move. Run 5 replays page 1: P is skipped, not embedded.
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        _poison_ids(monkeypatch, {N[1], N[3]})
+        p = _rec(N[1])
+        body = [_rec(N[0]), p, _rec(N[2]), _rec(N[3]), _cursor("S10", 4)]
+        fd = FakeDocExt([body] * 5)
+        await _trip(conn, fd)  # page_size 2: [N0, P] trips
+        report = await _run(conn, fd, FakeEmbedder())
+        assert not report.complete and report.quarantined == 1
+        row = await _failure_row(conn, N[1])
+        assert row[0].startswith("quarantined after 3 page aborts: ")
+        assert row[1] == p["content_hash"]
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert not report.complete and report.skipped_quarantined == 1
+        assert emb.calls == 1  # page 2 only: page 1 has N0 unchanged and P skipped
+        assert not any(f"body of {N[1]}" in t for t in emb.texts)
+        assert (report.failed, report.quarantined) == (0, 0)
+        assert N[1] not in await _doc_ids(conn)
+        assert await _failure_row(conn, N[1]) == row  # untouched
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_a_quarantined_article_with_a_new_hash_is_embedded_again(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        body = [_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]
+        fd = FakeDocExt([body] * 4
+                        + [[_rec(N[0]), _rec(N[1], body="fixed"), _cursor("S10", 2)]])
+        with monkeypatch.context() as m:
+            _poison(m, N[1])
+            await _trip(conn, fd, page_size=10)
+            report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+            assert report.quarantined == 1
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb, page_size=10)
+        assert report.complete and report.skipped_quarantined == 0
+        assert any("fixed" in t for t in emb.texts)
+        assert N[1] in await _doc_ids(conn) and await _failures(conn) == {}
+    finally:
+        await conn.close()

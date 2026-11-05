@@ -8,7 +8,8 @@ Two guards protect the one-shot embedding budget: during a bootstrap ``--max-tok
 the running total across attempts (``bootstrap_tokens``), and a page that aborts after
 embedding ``BREAKER_LIMIT`` times in a row (matched by its first n items, so a partial tail
 page that grows with new arrivals still matches) runs once in quarantine mode: each record is
-embedded and written on its own, failing records go to ``sync_failures`` and the rest commit.
+embedded and written on its own, failing records go to ``sync_failures`` (with the content
+hash they failed with, so a replay of that content is skipped unembedded) and the rest commit.
 
 The bootstrap's end prunes documents the stream never served, but refuses (rolls back,
 exits non-complete) to prune more than ``max(PRUNE_FLOOR, PRUNE_SHARE * documents)`` unless
@@ -54,6 +55,7 @@ class SyncReport:
     failed: int = 0
     pruned: int = 0
     quarantined: int = 0  # also counted in ``failed``
+    skipped_quarantined: int = 0  # same content as when quarantined: not embedded again
     prune_refused: int = 0
     tokens: int = 0
     seconds: float = 0.0
@@ -241,6 +243,11 @@ class _Run:
         quarantine = aborts >= BREAKER_LIMIT and self._matches_breaker(page)
         ids = [it.doc_id for it in page]
         stored = await stored_hashes(self.conn, ids)
+        cur = await self.conn.execute(
+            "SELECT doc_id, content_hash FROM sync_failures WHERE doc_id = ANY(%s)"
+            " AND content_hash IS NOT NULL", (ids,))
+        held = {doc_id: h for doc_id, h in await cur.fetchall()}
+        skipped = 0
         deletes: list[uuid.UUID] = []
         unchanged: list[DocMeta] = []
         failures: list[tuple[uuid.UUID, str]] = []
@@ -260,6 +267,8 @@ class _Run:
             markdown = it.markdown.replace("\x00", "") if it.markdown is not None else None
             if h is not None and stored.get(it.doc_id) == h:
                 unchanged.append(meta)
+            elif h is not None and held.get(it.doc_id) == h:
+                skipped += 1  # quarantined with this content: its sync_failures row stays
             elif markdown is None or not markdown.strip():
                 failures.append((it.doc_id, "missing markdown"))
             elif not (chunks := chunk_markdown(it.title or "", markdown)):
@@ -273,13 +282,14 @@ class _Run:
         quarantined: list[uuid.UUID] = []
         try:
             if quarantine:
+                to_write = writes
                 writes, embed_failures = await self._embed_each(writes, vectors, aborts)
                 failures += embed_failures
                 quarantined += [doc_id for doc_id, _ in embed_failures]
                 async with self.conn.transaction():
                     counts = await self._apply(page, deletes, unchanged, writes, vectors,
                                                failures, isolate=True,
-                                               quarantine=(aborts, quarantined))
+                                               quarantine=(aborts, quarantined, to_write))
             else:
                 writes, vectors, embed_failures = await self._embed(writes)
                 failures += embed_failures
@@ -300,6 +310,7 @@ class _Run:
                          page[-1].doc_id, aborts, len(quarantined), shown, more)
         r = self.report
         r.quarantined += len(quarantined)
+        r.skipped_quarantined += skipped
         r.removed += counts["removed"]
         r.unchanged += counts["unchanged"]
         r.metadata_updated += counts["metadata_updated"]
@@ -427,9 +438,11 @@ class _Run:
                      unchanged: list[DocMeta], writes: list[_Write],
                      vectors: list[list[float]], failures: list[tuple[uuid.UUID, str]], *,
                      isolate: bool,
-                     quarantine: tuple[int, list[uuid.UUID]] | None = None) -> dict[str, int]:
-        """``quarantine`` = (aborts, out-list): a record whose write raises anything but a
-        connection error is set aside (its id appended to the list) rather than aborting."""
+                     quarantine: tuple[int, list[uuid.UUID], list[_Write]] | None = None
+                     ) -> dict[str, int]:
+        """``quarantine`` = (aborts, out-list, every to-write record): a record whose write
+        raises anything but a connection error is set aside (its id appended to the list,
+        its content hash kept in ``sync_failures``) rather than aborting."""
         conn = self.conn
         failures = list(failures)
         settled: list[uuid.UUID] = []
@@ -484,11 +497,16 @@ class _Run:
             raise RuntimeError(f"quarantine: every record on the page failed to write "
                                f"({failures[-1][1]})")
         await conn.execute("DELETE FROM sync_failures WHERE doc_id = ANY(%s)", (settled,))
+        held = {}  # quarantined records keep the hash they failed with
+        if quarantine:
+            hashes = {meta.doc_id: h for meta, h, _ in quarantine[2]}
+            held = {d: hashes.get(d) for d in quarantine[1]}
         for doc_id, reason in failures:
             await conn.execute(
-                "INSERT INTO sync_failures(doc_id, reason) VALUES (%s, %s) ON CONFLICT"
-                " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
-                (doc_id, reason))
+                "INSERT INTO sync_failures(doc_id, reason, content_hash) VALUES (%s, %s, %s)"
+                " ON CONFLICT (doc_id) DO UPDATE SET reason=EXCLUDED.reason,"
+                " content_hash=EXCLUDED.content_hash, failed_at=now()",
+                (doc_id, reason, held.get(doc_id)))
         counts["failed"] = len(failures)
         if self._matches_breaker(page):
             # Only the page that aborted resets the breaker: an incremental run replays

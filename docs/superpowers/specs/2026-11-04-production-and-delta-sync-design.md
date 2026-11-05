@@ -102,8 +102,11 @@ loaded production.
   an `httpx` transport error, a transient embed status), which aborts the page. If every
   to-write record fails, that is systemic: the page aborts with nothing written and the
   breaker stays tripped. Otherwise the page commits (clearing the breaker), one ERROR line
-  names the quarantined ids, and the stream continues. A quarantined article is retried when
-  its content changes upstream; its `sync_failures` row clears on that successful write.
+  names the quarantined ids, and the stream continues. A quarantined record's row keeps the
+  content hash it failed with (`sync_failures.content_hash`, NULL for other failures); a
+  replay of that same content (an incremental window replayed because a later page aborted)
+  is skipped without embedding and counted in `skipped_quarantined`, its row untouched. A
+  changed hash is a fresh try; its `sync_failures` row clears on a successful write.
   The report counts them in `quarantined` (also included in `failed`). Quarantine re-embeds
   the page once more, under the bootstrap token reservation. `vendorkb stats` shows
   `abort_count`.

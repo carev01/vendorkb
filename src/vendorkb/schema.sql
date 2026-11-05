@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS sync_failures (
     reason text NOT NULL,
     failed_at timestamptz NOT NULL DEFAULT now()
 );
+-- The content hash a quarantined record failed with: a replay of that same content is
+-- skipped without embedding. NULL for every other failure.
+ALTER TABLE sync_failures ADD COLUMN IF NOT EXISTS content_hash text;
 
 -- Article ids the current bootstrap has seen; at its end every other document is pruned.
 CREATE TABLE IF NOT EXISTS sync_seen (

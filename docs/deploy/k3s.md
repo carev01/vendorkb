@@ -178,7 +178,8 @@ quarantined into `sync_failures` (reason `quarantined after 3 page aborts: ...`)
 commit and the sync carries on. The run logs one ERROR line naming the quarantined ids; the
 report's `quarantined` counts them. No operator action is needed for the feed to keep
 moving. Inspect the quarantined articles and fix the cause; an article is retried when its
-content changes upstream. If every record on the page fails, the page aborts as before (exit
+content changes upstream. Until then a replay of the same content is skipped without
+embedding (the report's `skipped_quarantined`). If every record on the page fails, the page aborts as before (exit
 1) and the next run tries quarantine again: that is systemic (the write path, the database),
 so look at the errors logged by the runs.
 
