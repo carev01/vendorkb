@@ -96,19 +96,28 @@ loaded production.
   incremental run replays the unchanged pages before it, and their commits must not reset
   the count. At 3 the page runs once in **quarantine mode** instead of blocking the feed:
   tombstones, metadata updates and per-record failures as usual; each to-write record is
-  embedded (one call per record) and written (one savepoint per record) on its own, and any
-  exception sets that record aside in `sync_failures` (`quarantined after <n> page aborts:
-  <error>`), except a connection-level error (`psycopg.OperationalError`/`InterfaceError`,
-  an `httpx` transport error, a transient embed status), which aborts the page. If every
-  to-write record fails, that is systemic: the page aborts with nothing written and the
-  breaker stays tripped. Otherwise the page commits (clearing the breaker), one ERROR line
-  names the quarantined ids, and the stream continues. A quarantined record's row keeps the
+  embedded (one call per record) and written (one savepoint per record) on its own. At the
+  embed stage only a deterministic 4xx sets a record aside, and only if the canary text is
+  then accepted (a rejected canary aborts the page as systemic); any other embed error
+  aborts the page. At the write stage any exception sets the record aside, except a lost
+  connection (`psycopg.InterfaceError`, or any psycopg error after which the connection is
+  broken or closed), which aborts the page; an `OperationalError` such as
+  `ProgramLimitExceeded` on a live connection is per-record. Set-aside records go to
+  `sync_failures` (`quarantined after <n> page aborts: <error>`). If two or more to-write
+  records all fail, that is systemic: the page aborts with nothing written and the breaker
+  is marked (`abort_quarantine_failed`); a lone to-write record that fails is quarantined.
+  A marked page is refused before any embed call (exit 1, with the operator's reset
+  instruction) until it changes: then only the exact page matches, so growth or an update
+  is a fresh count, or until an operator deletes the breaker keys. A lost connection never
+  marks. Otherwise the page commits (clearing the breaker), one ERROR line names the
+  quarantined ids, and the stream continues. A quarantined record's row keeps the
   content hash it failed with (`sync_failures.content_hash`, NULL for other failures); a
   replay of that same content (an incremental window replayed because a later page aborted)
   is skipped without embedding and counted in `skipped_quarantined`, its row untouched. A
   changed hash is a fresh try; its `sync_failures` row clears on a successful write.
-  The report counts them in `quarantined` (also included in `failed`). Quarantine re-embeds
-  the page once more, under the bootstrap token reservation. `vendorkb stats` shows
+  The report counts them in `quarantined` (also included in `failed`). A quarantine run
+  re-embeds the page record by record once per tripped page key, under the bootstrap token
+  reservation; a failed one is not repeated (the mark). `vendorkb stats` shows
   `abort_count`.
 - **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
   deletes documents the bootstrap never served (deleted upstream after the local ingest),

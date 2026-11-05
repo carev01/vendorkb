@@ -177,11 +177,36 @@ next run embeds and writes that page record by record: records that still fail a
 quarantined into `sync_failures` (reason `quarantined after 3 page aborts: ...`), the rest
 commit and the sync carries on. The run logs one ERROR line naming the quarantined ids; the
 report's `quarantined` counts them. No operator action is needed for the feed to keep
-moving. Inspect the quarantined articles and fix the cause; an article is retried when its
-content changes upstream. Until then a replay of the same content is skipped without
-embedding (the report's `skipped_quarantined`). If every record on the page fails, the page aborts as before (exit
-1) and the next run tries quarantine again: that is systemic (the write path, the database),
-so look at the errors logged by the runs.
+moving. Inspect the quarantined articles and fix the cause. A replay of the same content is
+skipped without embedding (the report's `skipped_quarantined`).
+
+If two or more records on the page all fail in quarantine, that is systemic (the write path,
+the database, the embedding provider): the page aborts with nothing written, `sync_state`
+gets `abort_quarantine_failed`, and later runs refuse that page before embedding it and exit
+1, logging `sync refused: page starting at <id> failed for every record in quarantine mode`.
+Fix the cause from the errors the runs logged, then clear the breaker:
+```
+psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
+  "DELETE FROM sync_state WHERE key IN ('abort_position','abort_count','abort_quarantine_failed');"
+```
+An upstream change to the page (an update, or a new article joining it) also gives it a
+fresh try without operator action.
+
+**Recovering a quarantined article.** It is retried automatically when its content changes
+upstream. To retry it sooner (the cause was on our side and is fixed), deleting its
+`sync_failures` row alone is not enough: the cursor has moved past it, so the feed never
+serves it again. Delete its row **and** re-bootstrap:
+```
+psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
+  "DELETE FROM sync_failures WHERE doc_id = '<id>';
+   DELETE FROM sync_state WHERE key IN ('cursor','mode');"
+```
+then run the bootstrap Job (step 6, with the CronJob suspended meanwhile). The hash gate
+skips every stored unchanged document, so the re-bootstrap embeds only what is missing or
+changed (the article(s) whose rows you deleted; quarantined articles whose rows you kept are
+skipped again): its token cost is a few articles, but it downloads the whole feed. The cap
+is cumulative as for any bootstrap, and the prune ceiling applies at its end (documents the
+feed no longer serves are pruned; a large count is refused).
 
 When the bootstrap has completed, disable the Job: `helm upgrade ... --reset-then-reuse-values --set bootstrap.enabled=false`.
 
