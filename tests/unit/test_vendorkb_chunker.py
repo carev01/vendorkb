@@ -54,16 +54,42 @@ def test_oversized_section_splits_on_paragraphs():
     assert all(c.section_path == ("T", "Big") for c in chunks)
 
 
-def test_table_is_never_split():
-    rows = [f"| row{i} | " + "x" * 90 + " |" for i in range(80)]
-    table = "\n".join(["| a | b |", "|---|---|", *rows])
-    assert approx_tokens(table) > 1200
-    md = "## Data\n\n" + para(400) + "\n\n" + table + "\n\n" + para(400) + "\n"
+def _table(n_rows: int, cell: str = "x" * 90, header=("| a | b |", "|---|---|")) -> str:
+    return "\n".join([*header, *[f"| row{i} | {cell} |" for i in range(n_rows)]])
+
+
+def test_large_table_splits_into_row_groups_with_header_repeated():
+    md = "## Data\n\n" + _table(400) + "\n"
     chunks = chunk_markdown("T", md)
-    holders = [c for c in chunks if "| row0 |" in c.text]
-    assert len(holders) == 1
-    assert all(f"| row{i} |" in holders[0].text for i in range(80))
-    assert sum(c.text.count("| row") for c in chunks) == 80
+    assert len(chunks) > 1
+    for c in chunks:
+        assert approx_tokens(c.text) <= 1200
+        body = c.text.split("\n\n", 1)[1]
+        assert body.startswith("| a | b |\n|---|---|\n| row")
+    rows = [line for c in chunks for line in c.text.splitlines() if line.startswith("| row")]
+    assert rows == [f"| row{i} | {'x' * 90} |" for i in range(400)]
+
+
+def test_small_table_stays_whole_with_its_section():
+    md = "## Data\n\n" + para(100) + "\n\n" + _table(5) + "\n"
+    chunks = chunk_markdown("T", md)
+    assert len(chunks) == 1
+    assert chunks[0].text.count("| a | b |") == 1
+
+
+def test_table_without_separator_line_splits_without_repeating_a_header():
+    md = "## Data\n\n" + _table(400, header=()) + "\n"
+    chunks = chunk_markdown("T", md)
+    assert len(chunks) > 1
+    assert all(approx_tokens(c.text) <= 1200 for c in chunks)
+    assert sum(c.text.count("| row") for c in chunks) == 400
+
+
+def test_single_table_row_over_budget_is_hard_split():
+    md = "## Data\n\n" + _table(3, cell="y" * 20000) + "\n"
+    chunks = chunk_markdown("T", md)
+    assert all(approx_tokens(c.text) <= 1200 for c in chunks)
+    assert sum(c.text.count("y") for c in chunks) == 3 * 20000
 
 
 def test_headings_inside_code_fences_are_ignored():
