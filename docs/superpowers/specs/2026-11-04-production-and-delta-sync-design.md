@@ -78,7 +78,9 @@ loaded production.
   so it can never continue an unfinished bootstrap uncapped.
 - **Token reservation**: in bootstrap mode, immediately before a page's embed call, its own
   short transaction commits `bootstrap_tokens = total + estimate` (chars/4 over the page's
-  texts, which overstates Voyage's count ~1.2x). The page transaction then writes the actual
+  texts, which overstates Voyage's count ~1.2x), and again before per-record isolation
+  (total so far + the records about to be re-embedded + the canary, since batches of the
+  rejected page call may be billed). The page transaction then writes the actual
   total; on any abort after the reservation a best-effort write of the actual total replaces
   it (embed failures included, without counting against the breaker). If that write fails the
   reservation stands: an over-count of at most one page, never an under-count.

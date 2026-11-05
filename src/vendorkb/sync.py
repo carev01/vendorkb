@@ -189,6 +189,8 @@ class _Run:
                 raise
             logger.warning("page embed rejected (%s); embedding its records one by one",
                            exc.response.status_code)
+        # Earlier batches of the page call may be billed: reserve the re-embed and canary too.
+        await self._reserve_tokens([*texts, CANARY_TEXT])
         kept: list[_Write] = []
         vectors: list[list[float]] = []
         failures: list[tuple[uuid.UUID, str]] = []
@@ -264,7 +266,7 @@ class _Run:
                 assert h is not None  # markdown is present
                 writes.append((meta, h, chunks))
         unchanged = await self._keep_stored_source(unchanged)
-        reserved = await self._reserve_tokens(writes)
+        reserved = await self._reserve_tokens([c.text for _, _, cs in writes for c in cs])
         vectors: list[list[float]] = []
         try:
             writes, vectors, embed_failures = await self._embed(writes)
@@ -302,12 +304,13 @@ class _Run:
         self.state.pop("abort_position", None)
         self.state.pop("abort_count", None)
 
-    async def _reserve_tokens(self, writes: list[_Write]) -> bool:
-        """Bootstrap only: commit ``bootstrap_tokens`` plus a chars/4 estimate of the page
-        (Voyage counts ~0.84x that) before embedding, so an abort can never under-count."""
-        if self.report.mode != "bootstrap" or not writes:
+    async def _reserve_tokens(self, texts: list[str]) -> bool:
+        """Bootstrap only: commit ``bootstrap_tokens`` plus a chars/4 estimate of the texts
+        (Voyage counts ~0.84x that) before embedding them, so an abort can never
+        under-count."""
+        if self.report.mode != "bootstrap" or not texts:
             return False
-        estimate = sum(len(c.text) // 4 for _, _, chunks in writes for c in chunks)
+        estimate = sum(len(t) // 4 for t in texts)
         async with self.conn.transaction():
             await _set_state(self.conn, "bootstrap_tokens",
                              str(self.budget_tokens() + estimate))

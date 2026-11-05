@@ -986,3 +986,65 @@ async def test_a_stale_breaker_key_does_not_refuse_a_different_page(vkb_dsn, mon
         assert "abort_count" not in await _state(conn)
     finally:
         await conn.close()
+
+
+async def test_bootstrap_tokens_are_reserved_again_before_isolation(vkb_dsn):
+    # batch size 1: A0's batch is billed (1 token), A1's is rejected, so isolation
+    # re-embeds both records plus the canary. Before the first isolation call the
+    # reservation covers what was spent plus everything about to be re-embedded.
+    seen: list[int] = []
+
+    def observe():
+        with psycopg.connect(vkb_dsn) as other:
+            row = other.execute(
+                "SELECT value FROM sync_state WHERE key='bootstrap_tokens'").fetchone()
+            seen.append(int(row[0]))
+
+    conn = await _fresh(vkb_dsn)
+    try:
+        recs = [_rec(A[0]), _rec(A[1], body="POISON text")]
+        estimate = sum(len(c.text) // 4 for r in recs
+                       for c in chunk_markdown(r["title"], r["content_markdown"]))
+        fd = FakeDocExt([[_start("S0"), *recs]])
+        report = await _run(conn, fd, FakeEmbedder(reject="POISON", max_batch=1,
+                                                   on_call=observe))
+        assert report.failed == 1
+        # calls: page A0 (ok), page A1 (400), isolation A0, isolation A1, canary
+        assert len(seen) == 5
+        assert seen[2] >= 1 + estimate + 1
+        assert (await _state(conn))["bootstrap_tokens"] == str(report.tokens)
+    finally:
+        await conn.close()
+
+
+async def test_a_failed_token_write_after_an_abort_keeps_the_reservation(vkb_dsn, monkeypatch,
+                                                                         caplog):
+    # the embed fails after one billed batch, and the best-effort write of the actual total
+    # fails too: the run still aborts cleanly and the (larger) reservation stands
+    real = sync_mod._set_state
+    armed = []
+
+    async def flaky(conn, key, value):
+        if armed and key == "bootstrap_tokens":
+            raise psycopg.OperationalError("connection lost")
+        await real(conn, key, value)
+
+    monkeypatch.setattr(sync_mod, "_set_state", flaky)
+    conn = await _fresh(vkb_dsn)
+    try:
+        recs = [_rec(A[0]), _rec(A[1])]
+        estimate = sum(len(c.text) // 4 for r in recs
+                       for c in chunk_markdown(r["title"], r["content_markdown"]))
+        fd = FakeDocExt([[_start("S0"), *recs, _cursor("S9", 2)]])
+        emb = FakeEmbedder(max_batch=1, fail_after=1, on_call=lambda: armed.append(1))
+        with caplog.at_level(logging.WARNING, logger="vendorkb.sync"):
+            report = await _run(conn, fd, emb)
+        assert not report.complete and report.tokens == 1
+        state = await _state(conn)
+        assert state["bootstrap_tokens"] == str(estimate) and estimate > report.tokens
+        assert "abort_count" not in state
+        assert any("could not record the abort" in r.getMessage() for r in caplog.records)
+        assert await _lock_free(vkb_dsn)
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
