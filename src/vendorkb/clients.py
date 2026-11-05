@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from types import TracebackType
 from typing import Literal, Self
 
 import httpx
 
 from vendorkb.config import VendorkbSettings
+from vendorkb.feed import FeedItem, parse_line
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +132,49 @@ class DocExtractor(_Client):
         resp.raise_for_status()
         return resp.json()
 
+
+    async def delta(self, *, since: str | None = None,
+                    bootstrap_after: str | None = None) -> AsyncIterator[FeedItem]:
+        """Stream the delta feed. A malformed line raises ValueError and a transport
+        error propagates; either way the caller must treat the stream as dropped."""
+        params = {k: v for k, v in (("since", since), ("bootstrap_after", bootstrap_after))
+                  if v is not None}
+        async with self._http.stream(
+                "GET", f"{self._s.docext_base_url.rstrip('/')}/api/articles/delta",
+                params=params, headers={"X-API-Key": self._s.docext_read_key},
+                timeout=httpx.Timeout(60.0, read=300.0)) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line.strip():
+                    continue
+                item = parse_line(line)
+                if item is not None:
+                    yield item
+
+    async def source_names(self) -> dict[str, str]:
+        """source_id -> name. /api/sources caps at 200 and ignores paging, so ask per product."""
+        base = self._s.docext_base_url.rstrip("/")
+        headers = {"X-API-Key": self._s.docext_read_key}
+        resp = await self._http.get(f"{base}/api/products", params={"limit": 200},
+                                    headers=headers)
+        resp.raise_for_status()
+        product_ids = [p["id"] for p in resp.json()["products"]]
+        sem = asyncio.Semaphore(8)
+
+        async def one(pid: str) -> list[dict]:
+            async with sem:
+                r = await self._http.get(f"{base}/api/sources",
+                                         params={"product_id": pid, "limit": 200},
+                                         headers=headers)
+                r.raise_for_status()
+                sources = r.json()["sources"]
+            if len(sources) >= 200:
+                logger.warning("product %s returned %d sources (API cap 200); list may be "
+                               "truncated", pid, len(sources))
+            return sources
+
+        out: dict[str, str] = {}
+        for sources in await asyncio.gather(*(one(p) for p in product_ids)):
+            for s in sources:
+                out[str(s["id"])] = s["name"]
+        return out
