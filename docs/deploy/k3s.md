@@ -59,8 +59,9 @@ kubectl -n vendorkb rollout status statefulset/vendorkb-postgres
 ```
 
 The sync CronJob is created with `suspend: true`; nothing talks to DocExtractor yet.
-Later upgrades use `--reuse-values` (or `--reset-then-reuse-values` on Helm 4 when the
-chart's `values.yaml` gained keys) so earlier `--set`s persist.
+Later upgrades use `--reuse-values` so earlier `--set`s persist. When the chart's
+`values.yaml` gained keys, use `--reset-then-reuse-values` instead (Helm 3.14 or newer), or
+the new keys render empty.
 
 ## 4. Restore the local database
 
@@ -115,38 +116,68 @@ psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
 
 The bootstrap Job is a disabled chart template, so enable it through Helm.
 
+**The bootstrap cap is cumulative.** `--max-tokens` in bootstrap mode compares against
+`sync_state.bootstrap_tokens`, the running total of every attempt, retry and Job of this
+bootstrap (the smoke run included), so a Job retry can never spend the cap twice. The key is
+deleted when the bootstrap finishes. In incremental mode the cap is per run.
+
 1. Smoke test at a small cap:
    ```
    helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
      --set bootstrap.enabled=true,bootstrap.maxTokens=50000
    kubectl -n vendorkb logs -f job/vendorkb-bootstrap
    ```
-2. Check rows and tokens: `vendorkb stats` through the port-forward (chunk and document
-   counts grew, the token total is near 50,000, and `sync.failures` is empty or understood).
+2. Gate on the run report, the last JSON line of the log:
+   ```
+   kubectl -n vendorkb logs job/vendorkb-bootstrap | grep '^{' | tail -1
+   ```
+   Go on only if **`tokens` > 0** (the provider reports usage; at 0 the cap would never
+   engage) **and `unchanged` > 0** (the hash gate skipped restored articles instead of
+   re-embedding them). `stopped_by_budget` is true. `tokens` may exceed 50,000 by up to one
+   page (200 articles): the cap is checked after each page commits. Check `sync.failures`
+   in `vendorkb stats` is empty or understood.
 3. Delete the Job (`kubectl -n vendorkb delete job vendorkb-bootstrap`), then re-run with
-   the full cap (default 85,000,000; this is the paid step):
+   the full cap (default 85,000,000, cumulative, so it includes the smoke run's tokens; this
+   is the paid step):
    ```
    helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values \
      --set bootstrap.enabled=true,bootstrap.maxTokens=85000000
    ```
    If Helm reports the Job already exists, delete it first (it is immutable).
-4. Watch with `kubectl -n vendorkb logs -f job/vendorkb-bootstrap`. A dropped feed
-   exits 1 and the Job retries (`backoffLimit: 6`), each retry resuming from
-   `bootstrap_after`. A budget stop or a held lock exits 0.
+4. Watch with `kubectl -n vendorkb logs -f job/vendorkb-bootstrap` (one line per committed
+   page). A dropped feed exits 1 and the Job retries (`backoffLimit: 6`), each retry
+   resuming from `bootstrap_after`. A budget stop or a held lock exits 0, so a **Complete
+   Job does not mean a finished bootstrap**: check `vendorkb stats` (step 7).
 
-`vendorkb stats` shows `sync.failures`. A run that exits 1 every time with the same page
-ids logged means a stuck page: look at those documents before retrying further.
+At the end of the bootstrap, documents the feed no longer serves (deleted upstream after
+the local ingest) are deleted; the report's `pruned` counts them.
+
+**Stuck page.** `vendorkb stats` shows `sync.failures` and `sync.abort_count`. A page that
+aborts after it was embedded is counted in `sync_state` (`abort_position`, `abort_count`);
+after 3 aborts in a row the sync refuses that page before embedding it again and exits 1,
+logging the page's first article id. Inspect that article and the earlier runs' errors, fix
+the cause, then reset the breaker:
+```
+psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
+  "DELETE FROM sync_state WHERE key IN ('abort_position','abort_count');"
+```
 
 When the bootstrap has completed, disable the Job: `helm upgrade ... --reuse-values --set bootstrap.enabled=false`.
 
 ## 7. Enable incremental sync
+
+First confirm the bootstrap finished: through the port-forward, `uv run vendorkb stats` must
+show `sync.mode` = `"incremental"` and `sync.cursor_set` = `true`. If it still says
+`bootstrap`, do **not** unsuspend: go back to step 6.
 
 ```
 helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reuse-values --set sync.suspend=false
 kubectl -n vendorkb get cronjob vendorkb-sync
 ```
 
-The CronJob runs every 30 minutes with `concurrencyPolicy: Forbid`.
+The CronJob runs every 30 minutes with `concurrencyPolicy: Forbid` and
+`--max-tokens 5000000` (`sync.maxTokens`, per run), which also bounds a large wave of
+`updated` articles such as a VLM image-enrichment run.
 
 ## 8. Verify
 

@@ -70,8 +70,20 @@ dropped (head-to-head only). The corpus-file `ingest` command is removed once `s
 loaded production.
 
 **Guards**
-- `--max-tokens N`: stop cleanly (after the current page) once the run's embedding tokens
-  reach N. The bootstrap Job runs with a cap just above the projection.
+- `--max-tokens N`: stop cleanly (after the current page) once embedding tokens reach N.
+  In bootstrap mode N caps the **cumulative** total across attempts (`sync_state`
+  `bootstrap_tokens`, written in each page transaction, deleted at the bootstrap's end), so
+  Job retries cannot spend it twice; in incremental mode it is per run. The bootstrap Job
+  runs with a cap just above the projection; the sync CronJob with 5M (`sync.maxTokens`),
+  so it can never continue an unfinished bootstrap uncapped.
+- **Circuit breaker**: a page that aborts after it was embedded is recorded (autocommit)
+  as `abort_position` (its first id) and `abort_count`; a commit clears both. At 3 the
+  page is refused before any embed call (exit 1) until an operator deletes the two keys.
+  `vendorkb stats` shows `abort_count`.
+- **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
+  deletes documents the bootstrap never served (deleted upstream after the local ingest),
+  reported as `pruned`. A fresh bootstrap clears `sync_seen`; a dropped one never prunes.
+- A malformed record whose id parses is a per-record failure (`malformed: ...`).
 - Failures are split by class. **Deterministic** per-record failures are recorded in a
   `sync_failures` table (article id, reason, time) and skipped; the page still commits and
   the watermark moves. These are: missing markdown, markdown that yields 0 chunks, an embed
@@ -86,7 +98,7 @@ loaded production.
   written, the watermark stays, and the run exits non-zero to resume next time. Repeated
   failures are visible in `vendorkb stats`.
 - Run report (stdout, one JSON line): mode, records seen, written, skipped-unchanged,
-  removed, failed, tokens, seconds.
+  removed, failed, pruned, tokens (this run), seconds.
 
 ## 4. Production deployment
 

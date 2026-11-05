@@ -19,7 +19,11 @@ stack.
 - section chunking (`chunker.py`);
 - the shared document store (`store.py`) and the sync tables in `schema.sql`;
 - `vendorkb sync` (`sync.py`): bootstrap then incremental pulls of the DocExtractor delta feed, in
-  pages (one embed call + one transaction each), single-flight via an advisory lock;
+  pages (one embed call + one transaction each), single-flight via an advisory lock. Budget guards:
+  in bootstrap mode `--max-tokens` caps the cumulative total across attempts
+  (`sync_state.bootstrap_tokens`); a page that aborts after embedding 3 times is refused until
+  `abort_position`/`abort_count` are deleted; the bootstrap's end prunes documents it never served
+  (`sync_seen`). The Helm sync CronJob runs with `--max-tokens 5000000`;
 - hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
   reciprocal rank fusion (k=60), then a Voyage rerank of the top 40;
 - question scope detection (`scope.py`, aliases in `scope_aliases.json`);
