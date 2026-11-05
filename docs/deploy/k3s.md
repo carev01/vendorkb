@@ -173,8 +173,8 @@ Afterwards set `bootstrap.allowPrune=null` again.
 **Failing page (quarantine).** `vendorkb stats` shows `sync.failures` and
 `sync.abort_count`. A page that aborts after it was embedded is counted in `sync_state`
 (`abort_position`, a hash of the page's items, and `abort_count`). After 3 aborts in a row the
-next run embeds and writes that page record by record: records that still fail are
-quarantined into `sync_failures` (reason `quarantined after 3 page aborts: ...`), the rest
+next run embeds and writes that page record by record (tombstones and metadata updates
+included): records that still fail are quarantined into `sync_failures` (reason `quarantined after 3 page aborts: ...`), the rest
 commit and the sync carries on. The run logs one ERROR line naming the quarantined ids; the
 report's `quarantined` counts them. No operator action is needed for the feed to keep
 moving. Inspect the quarantined articles and fix the cause. A replay of the same content is

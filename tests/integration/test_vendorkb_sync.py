@@ -1708,3 +1708,85 @@ async def test_a_failed_quarantine_page_that_grows_gets_a_fresh_try(vkb_dsn, mon
         assert state["abort_count"] == "1" and "abort_quarantine_failed" not in state
     finally:
         await conn.close()
+
+
+async def test_a_metadata_update_error_in_quarantine_is_per_record(vkb_dsn, monkeypatch):
+    # [A4 renamed (unchanged content), N0, N1], tripped by N0's write; on the quarantine
+    # run A4's metadata update raises: it is set aside with its hash, the page commits
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        a4 = _rec(A[4], title="New")
+        fd = FakeDocExt([[a4, _rec(N[0]), _rec(N[1]), _cursor("S10", 3)]] * 4
+                        + [[a4, _cursor("S11", 1)]])
+        with monkeypatch.context() as m:
+            _poison(m, N[0])
+            await _trip(conn, fd, page_size=10)
+        real = sync_mod.update_metadata
+
+        async def bad(conn_, meta):
+            if meta.doc_id == A[4]:
+                raise psycopg.errors.ProgramLimitExceeded("index row too big")
+            return await real(conn_, meta)
+
+        monkeypatch.setattr(sync_mod, "update_metadata", bad)
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.quarantined == 1 and report.written == 2
+        row = await _failure_row(conn, A[4])
+        assert row[0].startswith("quarantined after 3 page aborts: ProgramLimitExceeded")
+        assert row[1] == a4["content_hash"]
+        assert "abort_count" not in await _state(conn)
+        # a replay of the same content is skipped (no metadata update attempted again)
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.skipped_quarantined == 1 and report.unchanged == 0
+        assert await _failure_row(conn, A[4]) == row
+    finally:
+        await conn.close()
+
+
+async def test_a_tombstone_error_in_quarantine_is_per_record(vkb_dsn, monkeypatch):
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        fd = FakeDocExt([[_tomb(A[4]), _rec(N[0]), _rec(N[1]), _cursor("S10", 3)]] * 4)
+        with monkeypatch.context() as m:
+            _poison(m, N[0])
+            await _trip(conn, fd, page_size=10)
+
+        async def bad(conn_, doc_id):
+            raise RuntimeError("delete failed")
+
+        monkeypatch.setattr(sync_mod, "delete_document", bad)
+        report = await _run(conn, fd, FakeEmbedder(), page_size=10)
+        assert report.complete and report.quarantined == 1
+        row = await _failure_row(conn, A[4])
+        assert row[0].startswith("quarantined after 3 page aborts: RuntimeError")
+        assert row[1] is None
+        assert {A[4], N[0], N[1]} <= await _doc_ids(conn)
+    finally:
+        await conn.close()
+
+
+async def test_a_grown_page_whose_quarantine_fails_at_embed_is_refused_next(vkb_dsn,
+                                                                           monkeypatch):
+    # trips at n=2, grows to 3, every record 400s in quarantine (nothing embedded): the
+    # mark and the grown page's own key are stored, so the next run refuses it
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _seed_incremental(conn)
+        small = FakeDocExt([[_rec(N[0]), _rec(N[1]), _cursor("S10", 2)]] * 3)
+        with monkeypatch.context() as m:
+            _poison_ids(m, {N[0], N[1]})
+            await _trip(conn, small, page_size=10)
+        fd = FakeDocExt([[_rec(N[0]), _rec(N[1]), _rec(N[2]), _cursor("S11", 3)]] * 2)
+        emb = FakeEmbedder(status=400)
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 3
+        state = await _state(conn)
+        assert state["abort_quarantine_failed"] == "1"
+        assert state["abort_position"].startswith("3:") and state["abort_count"] == "4"
+        emb = FakeEmbedder(status=400)
+        report = await _run(conn, fd, emb, page_size=10)
+        assert not report.complete and emb.calls == 0
+    finally:
+        await conn.close()

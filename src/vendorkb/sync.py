@@ -27,7 +27,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import aclosing
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import partial
 
 import httpx
@@ -91,6 +91,15 @@ def _deterministic(exc: httpx.HTTPStatusError) -> bool:
     """A 4xx the provider will repeat for the same input (bad request, too long, ...)."""
     status = exc.response.status_code
     return 400 <= status < 500 and status not in _TRANSIENT_4XX
+
+
+@dataclass
+class _Quarantine:
+    """One quarantine run of a tripped page."""
+    aborts: int
+    to_write: int  # the all-fail guard's denominator: to-write records only
+    hashes: dict[uuid.UUID, str]  # kept in sync_failures for a set-aside record (skip key)
+    ids: list[uuid.UUID] = field(default_factory=list)  # the records set aside
 
 
 class _BreakerOpen(Exception):
@@ -267,6 +276,7 @@ class _Run:
             " AND content_hash IS NOT NULL", (ids,))
         held = {doc_id: h for doc_id, h in await cur.fetchall()}
         skipped = 0
+        hashes: dict[uuid.UUID, str] = {}  # unchanged records' hashes (quarantine skip key)
         deletes: list[uuid.UUID] = []
         unchanged: list[DocMeta] = []
         failures: list[tuple[uuid.UUID, str]] = []
@@ -284,10 +294,11 @@ class _Run:
             h = _hash(it)
             # Postgres text rejects NUL; strip it so it never becomes a DataError.
             markdown = it.markdown.replace("\x00", "") if it.markdown is not None else None
-            if h is not None and stored.get(it.doc_id) == h:
-                unchanged.append(meta)
-            elif h is not None and held.get(it.doc_id) == h:
+            if h is not None and held.get(it.doc_id) == h:
                 skipped += 1  # quarantined with this content: its sync_failures row stays
+            elif h is not None and stored.get(it.doc_id) == h:
+                unchanged.append(meta)
+                hashes[it.doc_id] = h
             elif markdown is None or not markdown.strip():
                 failures.append((it.doc_id, "missing markdown"))
             elif not (chunks := chunk_markdown(it.title or "", markdown)):
@@ -298,17 +309,17 @@ class _Run:
         unchanged = await self._keep_stored_source(unchanged)
         reserved = await self._reserve_tokens([c.text for _, _, cs in writes for c in cs])
         vectors: list[list[float]] = []
-        quarantined: list[uuid.UUID] = []
+        q = _Quarantine(aborts, len(writes),
+                        hashes | {meta.doc_id: h for meta, h, _ in writes})
+        quarantined = q.ids
         try:
             if quarantine:
-                to_write = writes
                 writes, embed_failures = await self._embed_each(writes, vectors, aborts)
                 failures += embed_failures
                 quarantined += [doc_id for doc_id, _ in embed_failures]
                 async with self.conn.transaction():
                     counts = await self._apply(page, deletes, unchanged, writes, vectors,
-                                               failures, isolate=True,
-                                               quarantine=(aborts, quarantined, to_write))
+                                               failures, isolate=True, quarantine=q)
             else:
                 writes, vectors, embed_failures = await self._embed(writes)
                 failures += embed_failures
@@ -441,7 +452,9 @@ class _Run:
         position = f"{len(page)}:{_page_key(page)}"
         try:
             async with self.conn.transaction():
-                if embedded:
+                # A failed quarantine records this page even if nothing was embedded, so the
+                # exact-page refusal fires on the next run.
+                if embedded or quarantine_failed:
                     await _set_state(self.conn, "abort_position", position)
                     await _set_state(self.conn, "abort_count", str(count))
                 if quarantine_failed:
@@ -455,7 +468,7 @@ class _Run:
             # The reservation stands: an over-count of at most one page, never an under-count.
             logger.warning("could not record the abort of page %s", first, exc_info=True)
             return
-        if embedded:
+        if embedded or quarantine_failed:
             self.state.update(abort_position=position, abort_count=str(count))
         if quarantine_failed:
             self.state["abort_quarantine_failed"] = "1"
@@ -482,19 +495,17 @@ class _Run:
                      unchanged: list[DocMeta], writes: list[_Write],
                      vectors: list[list[float]], failures: list[tuple[uuid.UUID, str]], *,
                      isolate: bool,
-                     quarantine: tuple[int, list[uuid.UUID], list[_Write]] | None = None
-                     ) -> dict[str, int]:
-        """``quarantine`` = (aborts, out-list, every to-write record): a record whose write
-        raises anything but a connection error is set aside (its id appended to the list,
-        its content hash kept in ``sync_failures``) rather than aborting."""
+                     quarantine: _Quarantine | None = None) -> dict[str, int]:
+        """In quarantine mode any record (delete, metadata update or write) whose operation
+        raises anything but a lost connection is set aside (``quarantine.ids``; its content
+        hash, if any, kept in ``sync_failures``) rather than aborting the page."""
         conn = self.conn
         failures = list(failures)
         settled: list[uuid.UUID] = []
         counts = dict.fromkeys(
             ("removed", "unchanged", "metadata_updated", "written"), 0)
 
-        async def one(doc_id: uuid.UUID, op: Callable[[], Awaitable[object]], *,
-                      set_aside: bool = False) -> object:
+        async def one(doc_id: uuid.UUID, op: Callable[[], Awaitable[object]]) -> object:
             if not isolate:
                 result = await op()
             else:
@@ -503,13 +514,12 @@ class _Run:
                         result = await op()
                 except Exception as exc:
                     data_error = isinstance(exc, psycopg.DataError)
-                    if _connection_lost(conn, exc) or not (data_error or (
-                            set_aside and quarantine)):
+                    if _connection_lost(conn, exc) or not (data_error or quarantine):
                         raise
                     reason = f"db: {_short(str(exc))}" if data_error else _error(exc)
-                    if set_aside and quarantine:
-                        reason = _quarantined(quarantine[0], reason)
-                        quarantine[1].append(doc_id)
+                    if quarantine:
+                        reason = _quarantined(quarantine.aborts, reason)
+                        quarantine.ids.append(doc_id)
                     failures.append((doc_id, reason))
                     return _FAILED
             settled.append(doc_id)
@@ -528,19 +538,16 @@ class _Run:
         for meta, h, chunks in writes:
             vecs = vectors[at:at + len(chunks)]
             at += len(chunks)
-            res = await one(meta.doc_id, partial(write_document, conn, meta, h, chunks, vecs),
-                            set_aside=True)
+            res = await one(meta.doc_id, partial(write_document, conn, meta, h, chunks, vecs))
             if res is not _FAILED:
                 counts["written"] += 1
-        if quarantine and len(quarantine[2]) >= 2 and not counts["written"]:
+        if quarantine and quarantine.to_write >= 2 and not counts["written"]:
             # Systemic, not per-record: roll the page back; it is refused until it changes.
             raise _QuarantineFailed(f"quarantine: every record on the page failed "
                                     f"({failures[-1][1]})")
         await conn.execute("DELETE FROM sync_failures WHERE doc_id = ANY(%s)", (settled,))
-        held = {}  # quarantined records keep the hash they failed with
-        if quarantine:
-            hashes = {meta.doc_id: h for meta, h, _ in quarantine[2]}
-            held = {d: hashes.get(d) for d in quarantine[1]}
+        # Quarantined records keep the hash they failed with (none for a tombstone).
+        held = ({d: quarantine.hashes.get(d) for d in quarantine.ids} if quarantine else {})
         for doc_id, reason in failures:
             await conn.execute(
                 "INSERT INTO sync_failures(doc_id, reason, content_hash) VALUES (%s, %s, %s)"
