@@ -1,0 +1,6 @@
+apiVersion: v2
+name: vendorkb
+description: vendorkb -- Postgres + pgvector retrieval over DocExtractor vendor docs, with delta sync
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

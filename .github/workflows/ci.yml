@@ -27,3 +27,19 @@ jobs:
       # Integration tests start pgvector via testcontainers (Docker on the runner).
       - name: Pytest (non-live)
         run: uv run pytest -m "not live"
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Helm lint
+        run: helm lint deploy/helm/vendorkb --set image.tag=sha-0000000
+
+      - name: Helm template
+        run: helm template v deploy/helm/vendorkb --set image.tag=sha-0000000

@@ -1,0 +1,56 @@
+# No credential belongs in this file. Credentials live in the out-of-band secret
+# named below (see docs/deploy/k3s.md).
+image:
+  repository: ghcr.io/carev01/vendorkb
+  tag: ""            # required: sha-<7-char commit>
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []   # e.g. [{name: ghcr-pull}] when the GHCR package is private
+
+# Secret keys: POSTGRES_PASSWORD (hex), EMBED_API_KEY, RERANK_API_KEY, JUDGE_API_KEY,
+# DOCEXT_READ_KEY.
+secretName: vendorkb-secret
+
+# Non-secret settings (VendorkbSettings env vars); applied AFTER the secret, so these win.
+config:
+  DOCEXT_BASE_URL: http://docextractor-backend.docextractor.svc:8000
+  DOCEXT_VERIFY_TLS: "false"
+  EMBED_BASE_URL: https://api.voyageai.com/v1
+  EMBED_MODEL: voyage-4
+  EMBED_DIM: "1024"
+  RERANK_BASE_URL: https://api.voyageai.com/v1
+  RERANK_MODEL: rerank-3
+  JUDGE_BASE_URL: https://openrouter.ai/api/v1
+
+postgres:
+  image: pgvector/pgvector:pg16
+  storageClass: vsphere-csi-silver-sc
+  size: 20Gi
+  database: vendorkb
+  user: vendorkb
+  fsGroup: 999   # the Debian postgres uid (alpine's is 70)
+  resources:     # HNSW index builds need memory
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "2", memory: 4Gi}
+
+sync:
+  schedule: "*/30 * * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  activeDeadlineSeconds: 21600
+  backoffLimit: 0
+  command: ["vendorkb", "sync"]
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: "1", memory: 1Gi}
+
+# One-off bootstrap Job. Each retry resumes from bootstrap_after, so backoffLimit is how
+# a dropped feed recovers (sync exits 1 on a dropped stream).
+bootstrap:
+  enabled: false
+  maxTokens: 85000000
+  activeDeadlineSeconds: 43200
+  backoffLimit: 6
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: "1", memory: 1Gi}

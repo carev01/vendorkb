@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vendorkb-sync
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.sync.schedule | quote }}
+  suspend: {{ .Values.sync.suspend }}
+  concurrencyPolicy: {{ .Values.sync.concurrencyPolicy }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.sync.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.sync.activeDeadlineSeconds }}
+      template:
+        metadata:
+          annotations:
+            checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        spec:
+          restartPolicy: Never
+          {{- include "vendorkb.pullSecrets" . | nindent 10 }}
+          {{- include "vendorkb.podSecurity" . | nindent 10 }}
+          containers:
+            - name: sync
+              image: {{ include "vendorkb.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: {{- toYaml .Values.sync.command | nindent 16 }}
+              {{- include "vendorkb.env" . | nindent 14 }}
+              {{- include "vendorkb.envFrom" . | nindent 14 }}
+              {{- include "vendorkb.containerSecurity" . | nindent 14 }}
+              resources: {{- toYaml .Values.sync.resources | nindent 16 }}
