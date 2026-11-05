@@ -170,15 +170,17 @@ helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values
 ```
 Afterwards set `bootstrap.allowPrune=null` again.
 
-**Stuck page.** `vendorkb stats` shows `sync.failures` and `sync.abort_count`. A page that
-aborts after it was embedded is counted in `sync_state` (`abort_position`, a hash of the
-page's items, and `abort_count`); after 3 aborts in a row the sync refuses that page before
-embedding it again and exits 1, logging the page's first article id. Inspect that article and the earlier runs' errors, fix
-the cause, then reset the breaker:
-```
-psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
-  "DELETE FROM sync_state WHERE key IN ('abort_position','abort_count');"
-```
+**Failing page (quarantine).** `vendorkb stats` shows `sync.failures` and
+`sync.abort_count`. A page that aborts after it was embedded is counted in `sync_state`
+(`abort_position`, a hash of the page's items, and `abort_count`). After 3 aborts in a row the
+next run embeds and writes that page record by record: records that still fail are
+quarantined into `sync_failures` (reason `quarantined after 3 page aborts: ...`), the rest
+commit and the sync carries on. The run logs one ERROR line naming the quarantined ids; the
+report's `quarantined` counts them. No operator action is needed for the feed to keep
+moving. Inspect the quarantined articles and fix the cause; an article is retried when its
+content changes upstream. If every record on the page fails, the page aborts as before (exit
+1) and the next run tries quarantine again: that is systemic (the write path, the database),
+so look at the errors logged by the runs.
 
 When the bootstrap has completed, disable the Job: `helm upgrade ... --reset-then-reuse-values --set bootstrap.enabled=false`.
 

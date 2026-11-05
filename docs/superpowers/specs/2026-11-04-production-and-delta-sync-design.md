@@ -94,8 +94,19 @@ loaded production.
   seen so far changes the key and gets a fresh try. Only the commit of a matching page, or
   the run's terminal line (the cursor moved or the bootstrap finished), clears both: an
   incremental run replays the unchanged pages before it, and their commits must not reset
-  the count. At 3 the page is refused before any embed call (exit 1) until an operator
-  deletes the two keys. `vendorkb stats` shows `abort_count`.
+  the count. At 3 the page runs once in **quarantine mode** instead of blocking the feed:
+  tombstones, metadata updates and per-record failures as usual; each to-write record is
+  embedded (one call per record) and written (one savepoint per record) on its own, and any
+  exception sets that record aside in `sync_failures` (`quarantined after <n> page aborts:
+  <error>`), except a connection-level error (`psycopg.OperationalError`/`InterfaceError`,
+  an `httpx` transport error, a transient embed status), which aborts the page. If every
+  to-write record fails, that is systemic: the page aborts with nothing written and the
+  breaker stays tripped. Otherwise the page commits (clearing the breaker), one ERROR line
+  names the quarantined ids, and the stream continues. A quarantined article is retried when
+  its content changes upstream; its `sync_failures` row clears on that successful write.
+  The report counts them in `quarantined` (also included in `failed`). Quarantine re-embeds
+  the page once more, under the bootstrap token reservation. `vendorkb stats` shows
+  `abort_count`.
 - **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
   deletes documents the bootstrap never served (deleted upstream after the local ingest),
   reported as `pruned`. A fresh bootstrap clears `sync_seen`; a dropped one never prunes.
