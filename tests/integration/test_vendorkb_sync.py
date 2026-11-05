@@ -827,6 +827,7 @@ async def test_bootstrap_prune_over_the_ceiling_is_refused(vkb_dsn, caplog):
         assert await _doc_count(conn) == 600
         state = await _state(conn)
         assert "cursor" not in state and state["bootstrap_next_since"] == "S0"
+        assert state["mode"] == "bootstrap"  # sync_seen kept: see the re-run test
         msgs = [r.getMessage() for r in caplog.records if r.levelno == logging.ERROR]
         assert any("600" in m and "500" in m and "--allow-prune" in m for m in msgs)
         assert await _lock_free(vkb_dsn)
@@ -871,6 +872,10 @@ async def test_rerun_after_a_prune_refusal_embeds_nothing(vkb_dsn):
                          [_start("S1"), _cursor("S9", 0)]])
         first = await _run(conn, fd, FakeEmbedder())
         assert first.written == 1 and first.prune_refused == 600
+        state = await _state(conn)
+        assert state["mode"] == "bootstrap" and "cursor" not in state
+        cur = await conn.execute("SELECT doc_id FROM sync_seen")
+        assert [r[0] for r in await cur.fetchall()] == [A[0]]  # the finish's TRUNCATE rolled back
         emb = FakeEmbedder()
         second = await _run(conn, fd, emb)
         assert fd.params[1] == {"bootstrap_after": str(A[0])}

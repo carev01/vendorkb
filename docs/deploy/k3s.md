@@ -158,8 +158,9 @@ documents): an empty or partial stream (a key scoped differently, an RBAC change
 upstream bug) would otherwise delete the restored corpus. A refusal logs one ERROR line,
 `bootstrap finish refused: it would prune N documents ... over the ceiling of C`, rolls the
 finish back (cursor not set, `sync.mode` still `bootstrap`), reports `prune_refused: N` and
-exits 1, so the Job retries; every retry resumes at the end of the stream, embeds nothing and
-is refused again. Check N against what you expect deleted upstream since the local ingest
+exits 1, so the Job retries. Each retry resumes after the last applied id (or from the start
+of the feed if no page committed, a full download), the hash gate embeds nothing unchanged,
+and it is refused again unless the feed has recovered (then it completes normally). Check N against what you expect deleted upstream since the local ingest
 (e.g. DocExtractor's article count against `vendorkb stats`). If N is wrong, stop and
 investigate the feed. If it is right, delete the Job and re-run with the override:
 ```

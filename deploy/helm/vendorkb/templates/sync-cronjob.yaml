@@ -28,7 +28,11 @@ spec:
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: {{- toYaml .Values.sync.command | nindent 16 }}
                 - "--max-tokens"
-                - {{ required "sync.maxTokens is required: the CronJob must never run uncapped" .Values.sync.maxTokens | int64 | toString | quote }}
+                {{- $maxTokens := required "sync.maxTokens is required: the CronJob must never run uncapped" .Values.sync.maxTokens | int64 }}
+                {{- if le $maxTokens 0 }}
+                {{- fail (printf "sync.maxTokens must be a positive integer, got %v" .Values.sync.maxTokens) }}
+                {{- end }}
+                - {{ $maxTokens | toString | quote }}
               {{- include "vendorkb.env" . | nindent 14 }}
               {{- include "vendorkb.envFrom" . | nindent 14 }}
               {{- include "vendorkb.containerSecurity" . | nindent 14 }}
