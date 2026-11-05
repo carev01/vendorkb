@@ -77,7 +77,10 @@ loaded production.
   runs with a cap just above the projection; the sync CronJob with 5M (`sync.maxTokens`),
   so it can never continue an unfinished bootstrap uncapped.
 - **Circuit breaker**: a page that aborts after it was embedded is recorded (autocommit)
-  as `abort_position` (its first id) and `abort_count`; a commit clears both. At 3 the
+  as `abort_position` (its first id) and `abort_count`. Only the commit of that same page,
+  or the run's terminal line (the cursor moved or the bootstrap finished), clears both: an
+  incremental run replays the unchanged pages before it, and their commits must not reset
+  the count. At 3 the
   page is refused before any embed call (exit 1) until an operator deletes the two keys.
   `vendorkb stats` shows `abort_count`.
 - **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line

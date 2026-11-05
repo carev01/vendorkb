@@ -624,10 +624,57 @@ async def test_three_post_embed_aborts_trip_the_breaker(vkb_dsn, monkeypatch, ca
 
 
 async def test_a_committed_page_resets_the_breaker(vkb_dsn, monkeypatch):
-    page = [_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]
+    # the page that aborted is the page that commits; the stream then drops, so only the
+    # page commit (not finish) can have cleared the keys
     conn = await _fresh(vkb_dsn)
     try:
-        fd = FakeDocExt([page, page])
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)],
+                         [_start("S0"), _rec(A[0]), _rec(A[1])]])
+        with monkeypatch.context() as m:
+            _failing_write(m)
+            await _run(conn, fd, FakeEmbedder())
+        assert (await _state(conn))["abort_count"] == "1"
+        report = await _run(conn, fd, FakeEmbedder())
+        assert not report.complete and report.written == 2
+        state = await _state(conn)
+        assert "abort_position" not in state and "abort_count" not in state
+    finally:
+        await conn.close()
+
+
+async def test_replayed_pages_before_the_failing_page_keep_the_breaker(vkb_dsn, monkeypatch):
+    # incremental replay: page 1 (unchanged) commits on every run, page 2 aborts after
+    # embedding. The page-1 commits must not reset page 2's count.
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _run(conn, FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]),
+                                      _cursor("S9", 2)]]), FakeEmbedder())
+        _failing_write(monkeypatch)
+        body = [_rec(A[0]), _rec(A[1]), _rec(A[2]), _rec(A[3]), _cursor("S10", 4)]
+        fd = FakeDocExt([body] * 4)
+        for n in (1, 2, 3):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb)
+            assert not report.complete and emb.calls == 1
+            state = await _state(conn)
+            assert (state["abort_position"], state["abort_count"]) == (str(A[2]), str(n))
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert not report.complete and emb.calls == 0
+        assert (await _state(conn))["cursor"] == "S0"
+    finally:
+        await conn.close()
+
+
+async def test_finish_clears_the_breaker(vkb_dsn, monkeypatch):
+    # the aborted page is no longer served (the stream changed upstream): the cursor
+    # moving past it clears the keys
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _run(conn, FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]]),
+                   FakeEmbedder())
+        fd = FakeDocExt([[_rec(A[1]), _rec(A[2]), _cursor("S10", 2)],
+                         [_rec(A[0]), _cursor("S11", 1)]])
         with monkeypatch.context() as m:
             _failing_write(m)
             await _run(conn, fd, FakeEmbedder())
@@ -636,6 +683,7 @@ async def test_a_committed_page_resets_the_breaker(vkb_dsn, monkeypatch):
         assert report.complete
         state = await _state(conn)
         assert "abort_position" not in state and "abort_count" not in state
+        assert state["cursor"] == "S11"
     finally:
         await conn.close()
 

@@ -58,6 +58,9 @@ _FAILED = object()
 _TRANSIENT_4XX = {401, 403, 404, 408, 409, 425, 429}
 
 
+_CLEAR_BREAKER = "DELETE FROM sync_state WHERE key IN ('abort_position', 'abort_count')"
+
+
 def _deterministic(exc: httpx.HTTPStatusError) -> bool:
     """A 4xx the provider will repeat for the same input (bad request, too long, ...)."""
     status = exc.response.status_code
@@ -232,8 +235,8 @@ class _Run:
             if vectors:  # the embedding was paid for: count the abort against this page
                 await self._record_abort(first)
             raise
-        self.state.pop("abort_position", None)
-        self.state.pop("abort_count", None)
+        if self.state.get("abort_position") == first:
+            self._clear_breaker()
         r = self.report
         r.removed += counts["removed"]
         r.unchanged += counts["unchanged"]
@@ -244,6 +247,10 @@ class _Run:
                     "tokens=%d", r.mode, page[0].doc_id, page[-1].doc_id, counts["written"],
                     counts["unchanged"], counts["removed"], counts["failed"],
                     self.budget_tokens())
+
+    def _clear_breaker(self) -> None:
+        self.state.pop("abort_position", None)
+        self.state.pop("abort_count", None)
 
     async def _record_abort(self, first: str) -> None:
         """Outside the rolled-back page transaction, so it survives the abort."""
@@ -322,8 +329,10 @@ class _Run:
                 " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
                 (doc_id, reason))
         counts["failed"] = len(failures)
-        await conn.execute("DELETE FROM sync_state WHERE key IN"
-                           " ('abort_position', 'abort_count')")
+        if self.state.get("abort_position") == str(page[0].doc_id):
+            # Only the page that aborted resets the breaker: an incremental run replays
+            # the unchanged pages before it, and their commits must not reset its count.
+            await conn.execute(_CLEAR_BREAKER)
         if self.report.mode == "bootstrap":
             # Same transaction as the data: the watermark can never run ahead of it.
             await conn.execute("INSERT INTO sync_seen(doc_id) SELECT unnest(%s::uuid[])"
@@ -353,6 +362,8 @@ class _Run:
                     " ('bootstrap_after', 'bootstrap_next_since', 'bootstrap_tokens')")
             else:
                 await _set_state(self.conn, "cursor", line.next_since)
+            await self.conn.execute(_CLEAR_BREAKER)  # the stream has moved past every page
+        self._clear_breaker()
 
 
 async def sync(conn: psycopg.AsyncConnection, *, docext: DocExtractor, embedder: Embedder,
