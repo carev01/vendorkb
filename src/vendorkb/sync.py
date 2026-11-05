@@ -89,6 +89,21 @@ class _PruneRefused(Exception):
         self.ceiling = ceiling
 
 
+def _page_key(page: list[Item]) -> str:
+    """The breaker's page identity: every item in order (id plus content hash, or its
+    kind), so pages that merely share a first id never alias; new content gets a fresh try."""
+    parts = []
+    for it in page:
+        if isinstance(it, Tombstone):
+            tag = "removed"
+        elif isinstance(it, MalformedRecord):
+            tag = "malformed"
+        else:
+            tag = _hash(it) or "no-content"
+        parts.append(f"{it.doc_id}:{tag}")
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+
+
 def _short(text: str) -> str:
     return " ".join(text.replace("\x00", "").split())[:200]
 
@@ -211,10 +226,12 @@ class _Run:
         if not page:
             return
         first = str(page[0].doc_id)
+        key = _page_key(page)
         aborts = int(self.state.get("abort_count", 0))
-        if self.state.get("abort_position") == first and aborts >= BREAKER_LIMIT:
+        if self.state.get("abort_position") == key and aborts >= BREAKER_LIMIT:
             raise _BreakerOpen(
-                f"page starting at {first} aborted after embedding {aborts} times "
+                f"page starting at {first} (key {key[:12]}) aborted after embedding {aborts} "
+                "times "
                 f"(abort_count={aborts}); refusing to embed it again. Inspect that article "
                 "and the errors logged by the earlier runs, then run: DELETE FROM sync_state "
                 "WHERE key IN ('abort_position','abort_count')")
@@ -254,21 +271,21 @@ class _Run:
             failures += embed_failures
             try:
                 async with self.conn.transaction():
-                    counts = await self._apply(page, deletes, unchanged, writes, vectors,
-                                               failures, isolate=False)
+                    counts = await self._apply(page, key, deletes, unchanged, writes,
+                                               vectors, failures, isolate=False)
             except psycopg.DataError as exc:
                 # The transaction rolled back. Redo it with a savepoint per item, reusing
                 # the vectors, so only the offending records are set aside.
                 logger.warning("page %s..%s hit a data error (%s); applying records one by "
                                "one", page[0].doc_id, page[-1].doc_id, _short(str(exc)))
                 async with self.conn.transaction():
-                    counts = await self._apply(page, deletes, unchanged, writes, vectors,
-                                               failures, isolate=True)
+                    counts = await self._apply(page, key, deletes, unchanged, writes,
+                                               vectors, failures, isolate=True)
         except Exception:
             if vectors or reserved:
-                await self._record_abort(first, embedded=bool(vectors))
+                await self._record_abort(first, key, embedded=bool(vectors))
             raise
-        if self.state.get("abort_position") == first:
+        if self.state.get("abort_position") == key:
             self._clear_breaker()
         r = self.report
         r.removed += counts["removed"]
@@ -296,17 +313,17 @@ class _Run:
                              str(self.budget_tokens() + estimate))
         return True
 
-    async def _record_abort(self, first: str, *, embedded: bool) -> None:
+    async def _record_abort(self, first: str, key: str, *, embedded: bool) -> None:
         """Outside the rolled-back page transaction, so it survives the abort. Only a page
         that was embedded counts against the breaker (an embed outage must not trip it);
         in bootstrap mode the actual token total replaces the reservation either way."""
         bootstrap = self.report.mode == "bootstrap"
         count = (int(self.state.get("abort_count", 0)) + 1
-                 if self.state.get("abort_position") == first else 1)
+                 if self.state.get("abort_position") == key else 1)
         try:
             async with self.conn.transaction():
                 if embedded:
-                    await _set_state(self.conn, "abort_position", first)
+                    await _set_state(self.conn, "abort_position", key)
                     await _set_state(self.conn, "abort_count", str(count))
                 if bootstrap:  # the tokens were spent all the same
                     await _set_state(self.conn, "bootstrap_tokens", str(self.budget_tokens()))
@@ -315,7 +332,7 @@ class _Run:
             logger.warning("could not record the abort of page %s", first, exc_info=True)
             return
         if embedded:
-            self.state.update(abort_position=first, abort_count=str(count))
+            self.state.update(abort_position=key, abort_count=str(count))
 
     async def _keep_stored_source(self, unchanged: list[DocMeta]) -> list[DocMeta]:
         """An unresolved source name must not blank a stored one for the same source."""
@@ -333,7 +350,7 @@ class _Run:
                        and src is not None else m)
         return out
 
-    async def _apply(self, page: list[Item], deletes: list[uuid.UUID],
+    async def _apply(self, page: list[Item], key: str, deletes: list[uuid.UUID],
                      unchanged: list[DocMeta], writes: list[_Write],
                      vectors: list[list[float]], failures: list[tuple[uuid.UUID, str]], *,
                      isolate: bool) -> dict[str, int]:
@@ -379,7 +396,7 @@ class _Run:
                 " (doc_id) DO UPDATE SET reason=EXCLUDED.reason, failed_at=now()",
                 (doc_id, reason))
         counts["failed"] = len(failures)
-        if self.state.get("abort_position") == str(page[0].doc_id):
+        if self.state.get("abort_position") == key:
             # Only the page that aborted resets the breaker: an incremental run replays
             # the unchanged pages before it, and their commits must not reset its count.
             await conn.execute(_CLEAR_BREAKER)
@@ -415,7 +432,6 @@ class _Run:
                 await _set_state(self.conn, "cursor", line.next_since)
             await self.conn.execute(_CLEAR_BREAKER)  # the stream has moved past every page
         self._clear_breaker()
-
 
     async def _check_prune(self) -> None:
         """Raise (rolling the finish back) when the prune exceeds the ceiling and the

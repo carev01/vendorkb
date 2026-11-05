@@ -83,11 +83,13 @@ loaded production.
   it (embed failures included, without counting against the breaker). If that write fails the
   reservation stands: an over-count of at most one page, never an under-count.
 - **Circuit breaker**: a page that aborts after it was embedded is recorded (autocommit)
-  as `abort_position` (its first id) and `abort_count`. Only the commit of that same page,
-  or the run's terminal line (the cursor moved or the bootstrap finished), clears both: an
-  incremental run replays the unchanged pages before it, and their commits must not reset
-  the count. At 3 the
-  page is refused before any embed call (exit 1) until an operator deletes the two keys.
+  as `abort_position` (a page key: sha256 of the page's items in order, each as id plus
+  content hash, or its kind for a tombstone or malformed record, so two pages that share a
+  first id never alias; new upstream content changes the key and gets a fresh try) and
+  `abort_count`. Only the commit of that same page, or the run's terminal line (the cursor
+  moved or the bootstrap finished), clears both: an incremental run replays the unchanged
+  pages before it, and their commits must not reset the count. At 3 the page is refused
+  before any embed call (exit 1) until an operator deletes the two keys.
   `vendorkb stats` shows `abort_count`.
 - **Bootstrap pruning**: each page records its ids in `sync_seen`; the terminal line
   deletes documents the bootstrap never served (deleted upstream after the local ingest),

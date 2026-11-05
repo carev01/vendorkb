@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import re
 import uuid
 
 import httpx
@@ -643,6 +644,11 @@ async def test_incremental_budget_is_per_run(vkb_dsn):
         await conn.close()
 
 
+def _is_page_key(value: str) -> bool:
+    """The breaker keys a page by a sha256 of its items, not by its first id."""
+    return re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
 def _failing_write(monkeypatch):
     async def boom(*args, **kwargs):
         raise RuntimeError("bug in the write path")
@@ -660,7 +666,7 @@ async def test_three_post_embed_aborts_trip_the_breaker(vkb_dsn, monkeypatch, ca
             report = await _run(conn, fd, emb)
             assert not report.complete and emb.calls == 1
             state = await _state(conn)
-            assert (state["abort_position"], state["abort_count"]) == (str(A[0]), str(n))
+            assert _is_page_key(state["abort_position"]) and state["abort_count"] == str(n)
         emb = FakeEmbedder()
         with caplog.at_level(logging.ERROR, logger="vendorkb.sync"):
             report = await _run(conn, fd, emb)
@@ -706,7 +712,7 @@ async def test_replayed_pages_before_the_failing_page_keep_the_breaker(vkb_dsn, 
             report = await _run(conn, fd, emb)
             assert not report.complete and emb.calls == 1
             state = await _state(conn)
-            assert (state["abort_position"], state["abort_count"]) == (str(A[2]), str(n))
+            assert _is_page_key(state["abort_position"]) and state["abort_count"] == str(n)
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb)
         assert not report.complete and emb.calls == 0
@@ -926,5 +932,57 @@ async def test_incremental_makes_no_reservation(vkb_dsn):
         report = await _run(conn, fd, FakeEmbedder(fail_after=0))
         assert not report.complete
         assert "bootstrap_tokens" not in await _state(conn)
+    finally:
+        await conn.close()
+
+
+async def test_pages_sharing_a_first_id_do_not_reset_each_others_breaker(vkb_dsn, monkeypatch):
+    # incremental: X appears twice (created, then updated); the duplicate-id rule flushes
+    # [X v1] and starts the next page with X v2, so both pages start with X. Replaying the
+    # unchanged [X v1] must not reset the count of the failing [X v2, Y].
+    conn = await _fresh(vkb_dsn)
+    try:
+        await _run(conn, FakeDocExt([[_start("S0"), _rec(A[4]), _cursor("S9", 1)]]),
+                   FakeEmbedder())
+        real = sync_mod.write_document
+
+        async def boom(conn_, meta, *args, **kwargs):
+            if meta.doc_id == A[2]:
+                raise RuntimeError("bug in the write path")
+            return await real(conn_, meta, *args, **kwargs)
+
+        monkeypatch.setattr(sync_mod, "write_document", boom)
+        body = [_rec(A[0], body="v1"), _rec(A[0], body="v2"), _rec(A[2]), _cursor("S10", 3)]
+        fd = FakeDocExt([body] * 4)
+        calls, counts = [], []
+        for _ in range(4):
+            emb = FakeEmbedder()
+            report = await _run(conn, fd, emb)
+            assert not report.complete
+            calls.append(emb.calls)
+            counts.append((await _state(conn)).get("abort_count"))
+        assert counts[:3] == ["1", "2", "3"]
+        assert calls == [2, 1, 1, 0]  # run 1 also embeds [X v1]; run 4 is refused
+    finally:
+        await conn.close()
+
+
+async def test_a_stale_breaker_key_does_not_refuse_a_different_page(vkb_dsn, monkeypatch):
+    # [A0, A1] trips the breaker; upstream then drops A1, so the page is [A0, A2]: same
+    # first id, different page. It is embedded and committed, and finish clears the keys.
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]] * 3
+                        + [[_start("S0"), _rec(A[0]), _rec(A[2]), _cursor("S9", 2)]])
+        with monkeypatch.context() as m:
+            _failing_write(m)
+            for _ in range(3):
+                await _run(conn, fd, FakeEmbedder())
+        assert (await _state(conn))["abort_count"] == "3"
+        emb = FakeEmbedder()
+        report = await _run(conn, fd, emb)
+        assert report.complete and emb.calls == 1
+        assert await _doc_ids(conn) == {A[0], A[2]}
+        assert "abort_count" not in await _state(conn)
     finally:
         await conn.close()

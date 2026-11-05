@@ -170,9 +170,9 @@ helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values
 Afterwards set `bootstrap.allowPrune=null` again.
 
 **Stuck page.** `vendorkb stats` shows `sync.failures` and `sync.abort_count`. A page that
-aborts after it was embedded is counted in `sync_state` (`abort_position`, `abort_count`);
-after 3 aborts in a row the sync refuses that page before embedding it again and exits 1,
-logging the page's first article id. Inspect that article and the earlier runs' errors, fix
+aborts after it was embedded is counted in `sync_state` (`abort_position`, a hash of the
+page's items, and `abort_count`); after 3 aborts in a row the sync refuses that page before
+embedding it again and exits 1, logging the page's first article id. Inspect that article and the earlier runs' errors, fix
 the cause, then reset the breaker:
 ```
 psql -h 127.0.0.1 -p 55443 -U vendorkb -d vendorkb -c \
