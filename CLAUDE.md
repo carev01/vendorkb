@@ -17,19 +17,19 @@ stack.
 
 **Built (M1/M2 retrieval core):**
 - section chunking (`chunker.py`);
-- resumable ingest from DocExtractor (`ingest.py`, `clients.py`);
+- the shared document store (`store.py`) and the sync tables in `schema.sql`;
 - hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
   reciprocal rank fusion (k=60), then a Voyage rerank of the top 40;
 - question scope detection (`scope.py`, aliases in `scope_aliases.json`);
 - a cite-or-abstain answer step (`answer.py`);
-- the CLI: `ingest | search | answer | stats`.
+- the CLI: `search | answer | stats | reembed | promote-embedding`.
 
 **Not built yet:**
 - the MCP server;
 - claim extraction (M3);
 - the taxonomy and capability table (M4);
 - the production deployment;
-- delta-feed ingest. Ingest still reads a frozen article list.
+- `vendorkb sync`, the delta-feed ingest (Task 4); the corpus-file `ingest` is gone.
 
 ## Commands
 
@@ -58,8 +58,8 @@ CI (`.github/workflows/ci.yml`) runs exactly: ruff, mypy, pytest.
   never re-embed unchanged chunks.
 - **Settings come from `VendorkbSettings` (`config.py`)**, loaded from `.env`. Tests never read `.env`
   (`tests/conftest.py`).
-- **Ingest is idempotent.** It is keyed on the article id and gated on `content_hash`. A failed article
-  is recorded in the report and never aborts the run.
+- **Writes are idempotent.** Documents are keyed on the article id and gated on `content_hash`
+  (`store.py`); callers wrap a page of writes in one transaction.
 
 ## Rules
 

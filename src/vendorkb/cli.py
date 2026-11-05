@@ -1,4 +1,4 @@
-"""``python -m vendorkb.cli`` -- ingest / search / answer / stats / reembed / promote-embedding."""
+"""``python -m vendorkb.cli`` -- search / answer / stats / reembed / promote-embedding."""
 from __future__ import annotations
 
 import argparse
@@ -6,15 +6,13 @@ import asyncio
 import dataclasses
 import json
 import sys
-from pathlib import Path
 
 from openai import AsyncOpenAI
 
 from vendorkb.answer import answer
-from vendorkb.clients import DocExtractor, Embedder, Reranker, load_corpus
+from vendorkb.clients import Embedder, Reranker
 from vendorkb.config import VendorkbSettings
-from vendorkb.db import connect, init_schema
-from vendorkb.ingest import ingest
+from vendorkb.db import connect
 from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
@@ -26,24 +24,6 @@ def _snippet(text: str) -> str:
     """First 200 chars of the chunk body, after the 'title / trail' prefix."""
     head, sep, body = text.partition("\n\n")
     return (body if sep else head)[:200]
-
-
-async def _ingest(settings: VendorkbSettings, args: argparse.Namespace) -> int:
-    corpus = load_corpus(Path(args.corpus))
-    conn = await connect(settings.vendorkb_dsn)
-    try:
-        await init_schema(conn, embed_dim=settings.embed_dim)
-        async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
-            report = await ingest(conn, corpus, docext=docext, embedder=embedder,
-                                  concurrency=args.concurrency)
-    finally:
-        await conn.close()
-    Path(args.report).write_text(
-        json.dumps(dataclasses.asdict(report), indent=2), encoding="utf-8")
-    print(f"fetched={report.fetched} skipped={report.skipped_unchanged} "
-          f"failed={len(report.failed)} changed_since_graph={len(report.changed_since_graph)} "
-          f"chunks_written={report.chunks_written}")
-    return 0
 
 
 async def _search(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -141,10 +121,6 @@ async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("ingest")
-    s.add_argument("--corpus", required=True)
-    s.add_argument("--concurrency", type=int, default=8)
-    s.add_argument("--report", default="vendorkb-ingest-report.json")
     s = sub.add_parser("search")
     s.add_argument("query")
     s.add_argument("--vendor", action="append", default=[])
@@ -163,7 +139,7 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-_COMMANDS = {"ingest": _ingest, "search": _search, "answer": _answer, "stats": _stats,
+_COMMANDS = {"search": _search, "answer": _answer, "stats": _stats,
              "reembed": _reembed, "promote-embedding": _promote}
 
 

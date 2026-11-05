@@ -28,3 +28,27 @@ async def test_init_schema_is_idempotent_and_creates_tables(vkb_dsn):
         assert (await cur.fetchone())[0] == 1
     finally:
         await conn.close()
+
+
+async def test_init_schema_upgrades_a_pre_sync_database(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await conn.execute("DROP TABLE IF EXISTS chunks, documents, sync_state, sources, "
+                           "sync_failures CASCADE")
+        await conn.execute(
+            "CREATE TABLE documents (doc_id uuid PRIMARY KEY, vendor text NOT NULL, "
+            "product text, source text, title text, url text, content_hash text NOT NULL, "
+            "graph_content_hash text, fetched_at timestamptz NOT NULL)")
+        await init_schema(conn, embed_dim=768)
+        await init_schema(conn, embed_dim=768)
+        cur = await conn.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='documents'")
+        columns = {r[0] for r in await cur.fetchall()}
+        assert "graph_content_hash" not in columns
+        assert "source_id" in columns
+        cur = await conn.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+        tables = {r[0] for r in await cur.fetchall()}
+        assert {"sync_state", "sources", "sync_failures"} <= tables
+    finally:
+        await conn.close()

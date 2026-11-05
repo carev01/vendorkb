@@ -1,12 +1,9 @@
-"""HTTP clients: embedder, reranker (Voyage), DocExtractor, plus the corpus manifest."""
+"""HTTP clients: embedder, reranker (Voyage), DocExtractor."""
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from dataclasses import dataclass
-from pathlib import Path
 from types import TracebackType
 from typing import Literal, Self
 
@@ -133,18 +130,3 @@ class DocExtractor(_Client):
         resp.raise_for_status()
         return resp.json()
 
-
-@dataclass
-class CorpusEntry:
-    article_id: str
-    vendor: str
-    product: str | None
-    source: str | None
-    title: str
-    url: str | None
-    graph_content_hash: str | None
-
-
-def load_corpus(path: Path) -> list[CorpusEntry]:
-    rows = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [CorpusEntry(**row) for row in rows]
