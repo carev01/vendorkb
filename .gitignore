@@ -11,3 +11,5 @@ build/
 
 # Raw eval run output (answers, judge tasks with full source text): large, kept out of git.
 eval/runs/
+.worktrees/
+.superpowers/
