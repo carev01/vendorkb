@@ -18,18 +18,19 @@ stack.
 **Built (M1/M2 retrieval core):**
 - section chunking (`chunker.py`);
 - the shared document store (`store.py`) and the sync tables in `schema.sql`;
+- `vendorkb sync` (`sync.py`): bootstrap then incremental pulls of the DocExtractor delta feed, in
+  pages (one embed call + one transaction each), single-flight via an advisory lock;
 - hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
   reciprocal rank fusion (k=60), then a Voyage rerank of the top 40;
 - question scope detection (`scope.py`, aliases in `scope_aliases.json`);
 - a cite-or-abstain answer step (`answer.py`);
-- the CLI: `search | answer | stats | reembed | promote-embedding`.
+- the CLI: `search | answer | stats | sync | reembed | promote-embedding`.
 
 **Not built yet:**
 - the MCP server;
 - claim extraction (M3);
 - the taxonomy and capability table (M4);
 - the production deployment;
-- `vendorkb sync`, the delta-feed ingest (Task 4); the corpus-file `ingest` is gone.
 
 ## Commands
 

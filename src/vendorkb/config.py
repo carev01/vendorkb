@@ -33,6 +33,7 @@ class VendorkbSettings(BaseSettings):
     docext_base_url: str = ""
     docext_read_key: str = ""
     docext_verify_tls: bool = True
+    sync_page_size: int = 200  # feed records per embed call + transaction in `vendorkb sync`
 
 
 @lru_cache

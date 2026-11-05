@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from types import TracebackType
 from typing import Literal, Self
 
@@ -133,7 +133,7 @@ class DocExtractor(_Client):
         return resp.json()
 
     async def delta(self, *, since: str | None = None,
-                    bootstrap_after: str | None = None) -> AsyncIterator[FeedItem]:
+                    bootstrap_after: str | None = None) -> AsyncGenerator[FeedItem, None]:
         """Stream the delta feed. A malformed line raises ValueError and a transport
         error propagates; either way the caller must treat the stream as dropped."""
         params = {k: v for k, v in (("since", since), ("bootstrap_after", bootstrap_after))
