@@ -36,7 +36,19 @@ class Tombstone:
     doc_id: uuid.UUID
 
 
-FeedItem = BootstrapStart | CursorLine | Content | Tombstone
+class MalformedRecord(ValueError):
+    """A change record whose id parses but whose other fields do not. The caller records
+    it as a per-article failure and keeps streaming; a line without a usable id is a
+    plain ValueError (the stream is dropped)."""
+
+    def __init__(self, doc_id: uuid.UUID, reason: str) -> None:
+        super().__init__(f"malformed feed record {doc_id}: {reason}")
+        self.doc_id = doc_id
+        self.reason = reason
+
+
+FeedItem = BootstrapStart | CursorLine | Content | Tombstone | MalformedRecord
+_OPTIONAL_STR = ("product", "title", "source_url", "content_hash", "content_markdown")
 
 
 def _uuid(value: object) -> uuid.UUID:
@@ -75,12 +87,19 @@ def parse_line(line: str) -> FeedItem | None:
     doc_id = _uuid(rec["id"])
     if change == "removed":
         return Tombstone(doc_id)
-    if not rec.get("vendor"):
-        raise ValueError("feed content record has no vendor")
+    vendor = rec.get("vendor")
+    if not isinstance(vendor, str) or not vendor:
+        raise MalformedRecord(doc_id, f"vendor must be a non-empty string, got {vendor!r}")
+    for key in _OPTIONAL_STR:
+        if rec.get(key) is not None and not isinstance(rec[key], str):
+            raise MalformedRecord(doc_id, f"{key} must be a string or null")
     sid = rec.get("source_id")
+    try:
+        source_id = _uuid(sid) if sid else None
+    except ValueError as exc:
+        raise MalformedRecord(doc_id, str(exc)) from exc
     return Content(
-        doc_id=doc_id, change_type=change,
-        source_id=_uuid(sid) if sid else None,
+        doc_id=doc_id, change_type=change, source_id=source_id,
         vendor=rec["vendor"], product=rec.get("product"), title=rec.get("title"),
         url=rec.get("source_url"), content_hash=rec.get("content_hash"),
         markdown=rec.get("content_markdown"))

@@ -6,7 +6,14 @@ import pytest
 
 from vendorkb.clients import DocExtractor
 from vendorkb.config import VendorkbSettings
-from vendorkb.feed import BootstrapStart, Content, CursorLine, Tombstone, parse_line
+from vendorkb.feed import (
+    BootstrapStart,
+    Content,
+    CursorLine,
+    MalformedRecord,
+    Tombstone,
+    parse_line,
+)
 
 ID = "11111111-1111-1111-1111-111111111111"
 SID = "22222222-2222-2222-2222-222222222222"
@@ -41,6 +48,36 @@ def test_parse_line_shapes():
         parse_line(json.dumps({"change_type": "added", "id": "zzz", "vendor": "V"}))
     with pytest.raises(ValueError):
         parse_line(json.dumps({"change_type": "added", "id": ID}))
+
+
+def test_malformed_record_with_a_valid_id_names_it():
+    base = {"change_type": "added", "id": ID, "vendor": "V", "content_markdown": "md"}
+    for bad in ({"vendor": None}, {"vendor": ""}, {"vendor": 7}, {"source_id": "nope"},
+                {"product": 3}, {"title": ["t"]}, {"source_url": {}},
+                {"content_hash": 1}, {"content_markdown": 2}):
+        with pytest.raises(MalformedRecord) as info:
+            parse_line(json.dumps({**base, **bad}))
+        assert info.value.doc_id == uuid.UUID(ID) and info.value.reason
+        assert isinstance(info.value, ValueError)
+    # an id that does not parse is not a MalformedRecord: the line is unusable
+    for rec in ({"change_type": "added", "id": "zzz", "vendor": "V"},
+                {"change_type": "added", "vendor": "V"}):
+        with pytest.raises(ValueError) as info:
+            parse_line(json.dumps(rec))
+        assert not isinstance(info.value, MalformedRecord)
+
+
+async def test_delta_yields_a_malformed_record_and_keeps_streaming():
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="\n".join([
+            json.dumps({"change_type": "added", "id": ID, "vendor": None}),
+            json.dumps({"change_type": "removed", "id": SID}),
+            json.dumps({"control": "cursor", "next_since": "c1", "count": 2})]))
+
+    async with DocExtractor(_settings(), transport=httpx.MockTransport(handler)) as dx:
+        items = [i async for i in dx.delta(since="a")]
+    assert isinstance(items[0], MalformedRecord) and items[0].doc_id == uuid.UUID(ID)
+    assert items[1:] == [Tombstone(uuid.UUID(SID)), CursorLine("c1", 2)]
 
 
 async def test_delta_streams_items_and_passes_params():

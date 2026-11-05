@@ -11,7 +11,7 @@ from typing import Literal, Self
 import httpx
 
 from vendorkb.config import VendorkbSettings
-from vendorkb.feed import FeedItem, parse_line
+from vendorkb.feed import FeedItem, MalformedRecord, parse_line
 
 logger = logging.getLogger(__name__)
 
@@ -134,8 +134,9 @@ class DocExtractor(_Client):
 
     async def delta(self, *, since: str | None = None,
                     bootstrap_after: str | None = None) -> AsyncGenerator[FeedItem, None]:
-        """Stream the delta feed. A malformed line raises ValueError and a transport
-        error propagates; either way the caller must treat the stream as dropped."""
+        """Stream the delta feed. A malformed record with a usable id is yielded as a
+        ``MalformedRecord`` (the stream goes on); any other malformed line raises ValueError
+        and a transport error propagates, and the caller must treat the stream as dropped."""
         params = {k: v for k, v in (("since", since), ("bootstrap_after", bootstrap_after))
                   if v is not None}
         async with self._http.stream(
@@ -146,7 +147,10 @@ class DocExtractor(_Client):
             async for line in resp.aiter_lines():
                 if not line.strip():
                     continue
-                item = parse_line(line)
+                try:
+                    item = parse_line(line)
+                except MalformedRecord as exc:
+                    item = exc
                 if item is not None:
                     yield item
 
