@@ -142,7 +142,9 @@ def _split_table(text: str, budget_chars: int) -> list[_Block]:
         header = "\n".join(lines[:2])
         lines = lines[2:]
     if header and len(header) + 1 >= budget_chars:
-        header = ""  # a header that leaves no room for rows cannot be repeated
+        # a header that leaves no room for rows cannot be repeated; keep it as ordinary rows
+        lines = [*header.split("\n"), *lines]
+        header = ""
     lead = header + "\n" if header else ""
     room = budget_chars - len(lead)
     out: list[_Block] = []

@@ -82,14 +82,26 @@ def test_table_without_separator_line_splits_without_repeating_a_header():
     chunks = chunk_markdown("T", md)
     assert len(chunks) > 1
     assert all(approx_tokens(c.text) <= 1200 for c in chunks)
-    assert sum(c.text.count("| row") for c in chunks) == 400
+    rows = [line for c in chunks for line in c.text.splitlines() if line.startswith("| row")]
+    assert rows == [f"| row{i} | {'x' * 90} |" for i in range(400)]
 
 
 def test_single_table_row_over_budget_is_hard_split():
     md = "## Data\n\n" + _table(3, cell="y" * 20000) + "\n"
     chunks = chunk_markdown("T", md)
     assert all(approx_tokens(c.text) <= 1200 for c in chunks)
+    assert all(c.text.split("\n\n", 1)[1].startswith("| a | b |") for c in chunks)
     assert sum(c.text.count("y") for c in chunks) == 3 * 20000
+
+
+def test_header_row_over_budget_is_kept_as_content_not_dropped():
+    header = ("| " + "h" * 6000 + " |", "|---|---|")
+    md = "## Data\n\n" + _table(50, header=header) + "\n"
+    chunks = chunk_markdown("T", md)
+    assert all(approx_tokens(c.text) <= 1200 for c in chunks)
+    assert sum(c.text.count("h") for c in chunks) == 6000
+    assert sum(c.text.count("|---|---|") for c in chunks) == 1
+    assert sum(c.text.count("| row") for c in chunks) == 50
 
 
 def test_headings_inside_code_fences_are_ignored():
