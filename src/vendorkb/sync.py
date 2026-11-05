@@ -47,7 +47,9 @@ class SyncReport:
 Item = Content | Tombstone
 _Write = tuple[DocMeta, str, list[Chunk]]
 _FAILED = object()
-_TRANSIENT_4XX = {408, 409, 425, 429}  # retried by the Embedder; never per-record
+# Never per-record: 408/409/425/429 are retried by the Embedder, and 401/403/404 mean a
+# bad key or endpoint, which would otherwise mark every record on the page as failed.
+_TRANSIENT_4XX = {401, 403, 404, 408, 409, 425, 429}
 
 
 def _deterministic(exc: httpx.HTTPStatusError) -> bool:
@@ -57,7 +59,7 @@ def _deterministic(exc: httpx.HTTPStatusError) -> bool:
 
 
 def _short(text: str) -> str:
-    return " ".join(text.split())[:200]
+    return " ".join(text.replace("\x00", "").split())[:200]
 
 
 async def _load_state(conn: psycopg.AsyncConnection) -> dict[str, str]:
@@ -138,6 +140,11 @@ class _Run:
                 continue
             kept.append(w)
             vectors.extend(vecs)
+        if not kept and len(writes) >= 2:
+            # Every record rejected looks systemic, not per-article: abort the page rather
+            # than mark it all failed and move the watermark past it.
+            raise RuntimeError(f"embed rejected all {len(writes)} records on the page "
+                               f"({failures[0][1]})")
         return kept, vectors, failures
 
     async def flush(self, page: list[Item]) -> None:

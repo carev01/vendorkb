@@ -256,19 +256,34 @@ async def test_transient_embed_failure_aborts_without_moving_watermark(vkb_dsn):
         await conn.close()
 
 
-async def test_embed_4xx_for_every_record_goes_to_sync_failures_and_page_commits(vkb_dsn):
-    # every request 400s: each record lands in sync_failures, the page commits, the
-    # watermark moves and the run completes
+async def test_embed_400_for_every_record_aborts_the_page(vkb_dsn):
+    # every record on a 2-record page 400s: that looks systemic, so the page aborts --
+    # nothing written, no sync_failures rows, watermark unmoved
     conn = await _fresh(vkb_dsn)
     try:
         fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _cursor("S9", 2)]])
         report = await _run(conn, fd, FakeEmbedder(status=400))
-        assert report.complete and report.failed == 2
+        assert not report.complete
         assert await _doc_ids(conn) == set()
-        fails = await _failures(conn)
-        assert set(fails) == {A[0], A[1]}
-        assert all(r.startswith("embed: 400") for r in fails.values())
-        assert (await _state(conn))["cursor"] == "S0"
+        assert await _failures(conn) == {}
+        state = await _state(conn)
+        assert "bootstrap_after" not in state and "cursor" not in state
+    finally:
+        await conn.close()
+
+
+async def test_embed_401_aborts_the_page(vkb_dsn):
+    # an expired key: transient, so nothing is written and nothing is marked failed
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _cursor("S9", 1)]])
+        emb = FakeEmbedder(status=401)
+        report = await _run(conn, fd, emb)
+        assert not report.complete
+        assert emb.calls == 1  # not retried, not isolated
+        assert await _doc_ids(conn) == set()
+        assert await _failures(conn) == {}
+        assert "bootstrap_after" not in await _state(conn)
     finally:
         await conn.close()
 
