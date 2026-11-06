@@ -1,14 +1,25 @@
 """Claim extraction: one Claude Haiku 5.5 call per chunk, every claim gated by its quote.
 
-``run`` loads the chunks, skips those already done for (model, prompt version), checks the
-budget, then extracts either synchronously (``client.messages.create``, the smoke-test path)
-or through the Message Batches API (half price; results matched by ``custom_id`` = chunk_id).
-Each chunk's result is written in one transaction: its ``extractions`` row plus the claims
-the evidence gate accepted (``raw_claims``) or refused (``rejected_claims``).
+``run`` takes a session advisory lock (one run at a time; a second exits with
+``locked=True``), loads the chunks, skips those done or failed for (model, prompt version),
+checks the budget, then extracts either synchronously (``client.messages.create``, the
+smoke-test path) or through the Message Batches API (half price; results matched by
+``custom_id`` = chunk_id). Each chunk's result is written in one transaction: its
+``extractions`` row plus the claims the evidence gate accepted (``raw_claims``, with the
+matched chunk span as ``evidence_quote``) or refused (``rejected_claims``).
+
+Paid work is ledgered in ``extract_batches`` (no foreign key to chunks, so sync deleting
+chunks mid-run never erases spend): a batch row is written right after
+``batches.create`` succeeds, before polling, and a batch-mode run first resumes every batch
+not yet ``processed``. Sync-mode spend goes on a ``sync-<uuid>`` row. The budget's spend so
+far is the ledger's sum; the pre-submit estimate reserves ``MAX_TOKENS`` of output per
+request, so it bounds the worst case.
 
 A chunk whose call fails, is refused, is cut off at ``max_tokens``, returns unusable JSON, or
 errors or expires inside a batch is recorded ``errored`` with the reason and retried by the
-next run; it is never counted as done with zero claims.
+next run; after ``MAX_ATTEMPTS`` it is ``failed`` and skipped. It is never counted as done
+with zero claims. A result for a chunk that sync has since deleted is skipped
+(``skipped_deleted``).
 
 ``client`` is an ``anthropic.AsyncAnthropic`` or a fake with the same surface:
 ``messages.create(**params)``, ``messages.batches.create(requests=)``,
@@ -36,17 +47,24 @@ log = logging.getLogger(__name__)
 
 PROMPT_VERSION = "claims-v1"
 MAX_TOKENS = 2000
+MAX_ATTEMPTS = 3  # an errored chunk is 'failed' (never retried) after this many attempts
 SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
+LOCK_KEY = 0x766B63  # single-flight across extract runs (sync uses 0x766B62)
+SYNC_LEDGER_PREFIX = "sync-"
 
 # Haiku 5.5 list prices (USD per million tokens); the Batches API halves both.
 PRICE_IN_PER_MTOK = 0.10
 PRICE_OUT_PER_MTOK = 0.50
 BATCH_DISCOUNT = 0.5
-# The pre-submit estimate: prompt characters / 4, plus this allowance for the reply.
-EXPECTED_OUTPUT_TOKENS = 400
+# The pre-submit estimate: prompt characters / 3 (generous for the tokenizer) in, and the
+# full MAX_TOKENS out (thinking is billed as output), so the cap holds in the worst case.
+CHARS_PER_TOKEN = 3
 # Batches API caps: 100,000 requests and 256 MB per batch (bytes kept well under).
 MAX_BATCH_REQUESTS = 100_000
 MAX_BATCH_BYTES = 200 * 1024 * 1024
+# Polling a batch survives transient errors (connection, 429, 5xx) with backoff.
+MAX_POLL_FAILURES = 20
+MAX_POLL_BACKOFF_SECONDS = 600.0
 
 _NULLABLE_STRING = {"anyOf": [{"type": "string"}, {"type": "null"}]}
 
@@ -80,7 +98,8 @@ You extract capability claims from one chunk of a backup vendor's product docume
 A capability is something the product can do: a feature, a supported workload or platform, a \
 storage target, a limit, or a security control. Each claim has:
 - capability: a short, normalized phrase for the capability, e.g. "immutable backups", \
-"instant VM recovery", "object lock", "file-level restore". Lowercase, no product names.
+"instant VM recovery", "object lock", "file-level restore", "maximum retention period". \
+Lowercase, no product names.
 - target: the workload, platform or storage the capability applies to, as a short phrase \
 (e.g. "Amazon RDS", "Microsoft 365", "VMware vSphere", "S3-compatible storage"), or null when \
 the capability is general.
@@ -90,15 +109,19 @@ explicitly says it is not supported or not possible; "unclear" when the text men
 capability but does not settle whether it is supported. Never infer "not_supported" from \
 silence.
 - conditions: prerequisites, limits, editions, versions or licensing the text attaches to the \
-claim, as a short phrase, or null.
-- evidence_quote: a verbatim span copied exactly from the chunk text that supports the \
-claim, at most about 300 characters. Copy it character for character; do not paraphrase, \
-shorten with ellipses, or join separate sentences.
+claim, as a short phrase, or null. Put numeric limits here: "maximum retention period" with \
+conditions "up to 7 years".
+- evidence_quote: the full sentence, or the full table row including its row label, copied \
+exactly from the chunk text, that states the capability; it must contain the words naming the \
+capability and the target. Never quote a bare cell such as "Yes" or "Supported". At most \
+about 300 characters. Copy it character for character; do not paraphrase, shorten with \
+ellipses, or join separate sentences.
 
-The claims are about the vendor and product named before the chunk. Extract only what the \
-chunk states, one claim per distinct capability and target. Skip navigation text, \
-boilerplate, and steps that do not state a capability. If the chunk states no capability, \
-return {"claims": []}.\
+The Vendor, Product and Version lines before the chunk are context, not chunk text: never \
+quote them. The claims are about that vendor and product. Extract only what the chunk \
+states, one claim per distinct capability and target. Skip navigation text, boilerplate, and \
+steps that do not state a capability. If the chunk states no capability, return \
+{"claims": []}.\
 """
 
 
@@ -118,14 +141,19 @@ class ChunkRow:
 class ExtractReport:
     chunks: int = 0
     done: int = 0
-    skipped: int = 0
-    errored: int = 0
+    skipped: int = 0          # already done
+    skipped_failed: int = 0   # already failed MAX_ATTEMPTS times
+    skipped_deleted: int = 0  # not (or no longer) in chunks
+    errored: int = 0          # errored this run (includes those that became failed)
+    failed: int = 0           # reached MAX_ATTEMPTS this run
     claims_accepted: int = 0
     claims_rejected: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
-    est_cost_usd: float = 0.0
+    est_cost_usd: float = 0.0  # cost of the results this run stored (incl. resumed batches)
+    resumed_batches: int = 0
     stopped_by_budget: bool = False
+    locked: bool = False
 
 
 @dataclass
@@ -160,7 +188,7 @@ def build_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]
 
 def _estimate(request: dict[str, Any], *, batch: bool) -> float:
     chars = len(request["system"]) + sum(len(m["content"]) for m in request["messages"])
-    return cost_usd(chars // 4, EXPECTED_OUTPUT_TOKENS, batch=batch)
+    return cost_usd(chars // CHARS_PER_TOKEN + 1, request["max_tokens"], batch=batch)
 
 
 def _usage(message: Any) -> tuple[int, int]:
@@ -186,19 +214,19 @@ def _parse(message: Any) -> _Outcome:
     return _Outcome("done", claims=data["claims"], input_tokens=tin, output_tokens=tout)
 
 
-def _judge(claim: Any, text: str) -> tuple[bool, str]:
+def _judge(claim: Any, text: str) -> gate.GateResult:
     """Validate one claim's fields, then gate its evidence quote against the chunk."""
     if not isinstance(claim, dict):
-        return False, "invalid-claim"
+        return gate.GateResult(False, "invalid-claim")
     if not isinstance(claim.get("capability"), str) or not claim["capability"].strip():
-        return False, "invalid-claim:capability"
+        return gate.GateResult(False, "invalid-claim:capability")
     if claim.get("support") not in SUPPORT_VALUES:
-        return False, "invalid-claim:support"
+        return gate.GateResult(False, "invalid-claim:support")
     for key in ("target", "conditions"):
         if claim.get(key) is not None and not isinstance(claim[key], str):
-            return False, f"invalid-claim:{key}"
+            return gate.GateResult(False, f"invalid-claim:{key}")
     quote = claim.get("evidence_quote")
-    return gate.check(quote if isinstance(quote, str) else "", text)
+    return gate.match(quote if isinstance(quote, str) else "", text)
 
 
 def _field(claim: Any, key: str) -> str | None:
@@ -206,66 +234,90 @@ def _field(claim: Any, key: str) -> str | None:
     return value if isinstance(value, str) else (None if value is None else str(value))
 
 
-async def _record(conn: psycopg.AsyncConnection, chunk: ChunkRow, outcome: _Outcome, *,
-                  model: str, batch: bool, report: ExtractReport) -> float:
-    """Write one chunk's result in one transaction; returns its cost.
+async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow | None,
+                  outcome: _Outcome, *, model: str, ledger_id: str, batch: bool,
+                  report: ExtractReport) -> None:
+    """Write one chunk's result in one transaction.
 
-    Tokens and cost accumulate across attempts, so a retried chunk keeps what its failed
-    attempts spent (the budget counts it).
+    The result's tokens and cost always count (they were paid for); in sync mode they are
+    added to the run's ledger row in the same transaction. The chunk row is locked against
+    deletion (FOR KEY SHARE) for the write; a chunk that is gone is skipped. Only a new or
+    'errored' extraction row is (re)written, and never twice by the same batch, so a resumed
+    batch is idempotent and 'done' / 'failed' rows are final.
     """
     cost = cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch)
-    judged = [(c, *_judge(c, chunk.text)) for c in outcome.claims]
-    accepted = [(c, why) for c, ok, why in judged if ok]
-    rejected = [(c, why) for c, ok, why in judged if not ok]
+    report.input_tokens += outcome.input_tokens
+    report.output_tokens += outcome.output_tokens
+    report.est_cost_usd += cost
     async with conn.transaction():
+        if not batch:
+            await conn.execute(
+                "UPDATE extract_batches SET actual_cost_usd = coalesce(actual_cost_usd, 0) + %s,"
+                " chunk_ids = array_append(chunk_ids, %s) WHERE batch_id=%s",
+                (cost, chunk_id, ledger_id))
+        cur = await conn.execute(
+            "SELECT 1 FROM chunks WHERE chunk_id=%s FOR KEY SHARE", (chunk_id,))
+        if chunk is None or await cur.fetchone() is None:
+            report.skipped_deleted += 1
+            log.warning("extract: chunk %s no longer exists; result skipped", chunk_id)
+            return
+        judged = [(c, _judge(c, chunk.text)) for c in outcome.claims]
+        accepted = [(c, r) for c, r in judged if r.ok]
+        rejected = [(c, r) for c, r in judged if not r.ok]
         cur = await conn.execute(
             "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
-            " status, error, n_claims, input_tokens, output_tokens, cost_usd)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+            " status, error, attempts, last_batch_id, n_claims, input_tokens, output_tokens,"
+            " cost_usd) VALUES (%s,%s,%s,%s,%s,%s,1,%s,%s,%s,%s,%s)"
             " ON CONFLICT (chunk_id, extractor_model, prompt_version) DO UPDATE SET"
-            " status=EXCLUDED.status, error=EXCLUDED.error, n_claims=EXCLUDED.n_claims,"
+            " status = CASE WHEN EXCLUDED.status = 'errored'"
+            "   AND extractions.attempts + 1 >= %s THEN 'failed' ELSE EXCLUDED.status END,"
+            " error=EXCLUDED.error, n_claims=EXCLUDED.n_claims,"
+            " attempts=extractions.attempts + 1, last_batch_id=EXCLUDED.last_batch_id,"
             " input_tokens=extractions.input_tokens + EXCLUDED.input_tokens,"
             " output_tokens=extractions.output_tokens + EXCLUDED.output_tokens,"
             " cost_usd=extractions.cost_usd + EXCLUDED.cost_usd, created_at=now()"
-            " RETURNING extraction_id",
-            (uuid.uuid4(), chunk.chunk_id, model, PROMPT_VERSION, outcome.status,
-             outcome.error, len(accepted), outcome.input_tokens, outcome.output_tokens, cost))
-        extraction_id = (await cur.fetchone())[0]  # type: ignore[index]
-        await conn.execute("DELETE FROM raw_claims WHERE extraction_id=%s", (extraction_id,))
-        await conn.execute("DELETE FROM rejected_claims WHERE extraction_id=%s",
-                           (extraction_id,))
+            " WHERE extractions.status = 'errored'"
+            "   AND extractions.last_batch_id IS DISTINCT FROM EXCLUDED.last_batch_id"
+            " RETURNING extraction_id, status",
+            (uuid.uuid4(), chunk_id, model, PROMPT_VERSION, outcome.status, outcome.error,
+             ledger_id, len(accepted), outcome.input_tokens, outcome.output_tokens, cost,
+             MAX_ATTEMPTS))
+        row = await cur.fetchone()
+        if row is None:  # already applied by this batch, or final ('done' / 'failed')
+            log.info("extract: chunk %s already recorded; result not reapplied", chunk_id)
+            return
+        extraction_id, status = row
         meta = (extraction_id, chunk.chunk_id, chunk.vendor, chunk.product, chunk.version)
         async with conn.cursor() as c:
             if accepted:
                 await c.executemany(
                     "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor, product,"
                     " version, capability_raw, target_raw, support, conditions, evidence_quote,"
-                    " gate, extractor_model, prompt_version)"
-                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    " model_quote, gate, extractor_model, prompt_version)"
+                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, cl["capability"].strip(), _field(cl, "target"),
-                      cl["support"], _field(cl, "conditions"), cl["evidence_quote"], why,
-                      model, PROMPT_VERSION) for cl, why in accepted])
+                      cl["support"], _field(cl, "conditions"), r.span,
+                      cl["evidence_quote"], r.reason, model, PROMPT_VERSION)
+                     for cl, r in accepted])
             if rejected:
                 await c.executemany(
                     "INSERT INTO rejected_claims (claim_id, extraction_id, chunk_id, vendor,"
                     " product, version, capability_raw, target_raw, support, conditions,"
-                    " evidence_quote, reason, extractor_model, prompt_version)"
-                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    " evidence_quote, model_quote, reason, extractor_model, prompt_version)"
+                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, _field(cl, "capability"), _field(cl, "target"),
-                      _field(cl, "support"), _field(cl, "conditions"),
-                      _field(cl, "evidence_quote"), why, model, PROMPT_VERSION)
-                     for cl, why in rejected])
-    report.input_tokens += outcome.input_tokens
-    report.output_tokens += outcome.output_tokens
-    report.est_cost_usd += cost
-    if outcome.status == "done":
+                      _field(cl, "support"), _field(cl, "conditions"), None,
+                      _field(cl, "evidence_quote"), r.reason, model, PROMPT_VERSION)
+                     for cl, r in rejected])
+    if status == "done":
         report.done += 1
         report.claims_accepted += len(accepted)
         report.claims_rejected += len(rejected)
     else:
         report.errored += 1
-        log.warning("extract: chunk %s errored: %s", chunk.chunk_id, outcome.error)
-    return cost
+        if status == "failed":
+            report.failed += 1
+        log.warning("extract: chunk %s %s: %s", chunk_id, status, outcome.error)
 
 
 async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[str, ChunkRow]:
@@ -276,44 +328,60 @@ async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[st
     return {row[0]: ChunkRow(*row) for row in await cur.fetchall()}
 
 
-async def _done_ids(conn: psycopg.AsyncConnection, ids: list[str], model: str) -> set[str]:
+async def _final_ids(conn: psycopg.AsyncConnection, ids: list[str],
+                     model: str) -> dict[str, str]:
+    """chunk_id -> 'done' | 'failed' for the chunks that must not be submitted again."""
     cur = await conn.execute(
-        "SELECT chunk_id::text FROM extractions WHERE chunk_id = ANY(%s::uuid[])"
-        " AND extractor_model=%s AND prompt_version=%s AND status='done'",
+        "SELECT chunk_id::text, status FROM extractions WHERE chunk_id = ANY(%s::uuid[])"
+        " AND extractor_model=%s AND prompt_version=%s AND status IN ('done', 'failed')",
         (ids, model, PROMPT_VERSION))
-    return {row[0] for row in await cur.fetchall()}
+    return {cid: status for cid, status in await cur.fetchall()}
 
 
 async def _spent(conn: psycopg.AsyncConnection) -> float:
-    cur = await conn.execute("SELECT coalesce(sum(cost_usd), 0) FROM extractions")
+    cur = await conn.execute(
+        "SELECT coalesce(sum(coalesce(actual_cost_usd, est_cost_usd)), 0) FROM extract_batches")
     return float((await cur.fetchone())[0])  # type: ignore[index]
-
-
-def _api_error(e: Exception) -> _Outcome:
-    return _Outcome("errored", f"{type(e).__name__}: {e}"[:500])
 
 
 async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
                     settings: VendorkbSettings, spent: float, report: ExtractReport) -> None:
-    for chunk in pending:
-        request = build_request(chunk, settings)
-        if spent + _estimate(request, batch=False) > settings.extract_budget_usd:
-            report.stopped_by_budget = True
-            log.warning("extract: budget $%.2f reached (spent $%.4f); stopping",
-                        settings.extract_budget_usd, spent)
-            return
-        try:
-            message = await client.messages.create(**request)
-        except anthropic.RateLimitError as e:
-            outcome = _api_error(e)
-        except anthropic.APIStatusError as e:
-            outcome = _api_error(e)
-        except anthropic.APIConnectionError as e:
-            outcome = _api_error(e)
-        else:
-            outcome = _parse(message)
-        spent += await _record(conn, chunk, outcome, model=settings.extract_model, batch=False,
-                               report=report)
+    ledger_id = f"{SYNC_LEDGER_PREFIX}{uuid.uuid4()}"
+    await conn.execute(
+        "INSERT INTO extract_batches (batch_id, extractor_model, prompt_version, chunk_ids,"
+        " est_cost_usd, actual_cost_usd, status) VALUES (%s,%s,%s,'{}',0,0,'submitted')",
+        (ledger_id, settings.extract_model, PROMPT_VERSION))
+    try:
+        for chunk in pending:
+            request = build_request(chunk, settings)
+            if spent + _estimate(request, batch=False) > settings.extract_budget_usd:
+                report.stopped_by_budget = True
+                log.warning("extract: budget $%.2f reached (spent $%.4f); stopping",
+                            settings.extract_budget_usd, spent)
+                return
+            fatal: Exception | None = None
+            try:
+                message = await client.messages.create(**request)
+            except anthropic.BadRequestError as e:
+                # a request-shape bug fails every chunk the same way: stop at the first
+                outcome, fatal = _api_error(e), e
+            except (anthropic.RateLimitError, anthropic.APIStatusError,
+                    anthropic.APIConnectionError) as e:
+                outcome = _api_error(e)
+            else:
+                outcome = _parse(message)
+            await _record(conn, chunk.chunk_id, chunk, outcome, model=settings.extract_model,
+                          ledger_id=ledger_id, batch=False, report=report)
+            spent += cost_usd(outcome.input_tokens, outcome.output_tokens, batch=False)
+            if fatal is not None:
+                raise fatal
+    finally:
+        await conn.execute("UPDATE extract_batches SET status='processed', ended_at=now()"
+                           " WHERE batch_id=%s", (ledger_id,))
+
+
+def _api_error(e: Exception) -> _Outcome:
+    return _Outcome("errored", f"{type(e).__name__}: {e}"[:500])
 
 
 def _groups(items: list[tuple[ChunkRow, dict[str, Any]]]
@@ -331,6 +399,88 @@ def _groups(items: list[tuple[ChunkRow, dict[str, Any]]]
     return [g for g in groups if g]
 
 
+def _transient(e: Exception) -> bool:
+    if isinstance(e, anthropic.APIConnectionError):
+        return True
+    return isinstance(e, anthropic.APIStatusError) and (
+        e.status_code == 429 or e.status_code >= 500)
+
+
+async def _wait_ended(client: Any, batch_id: str, poll_seconds: float) -> None:
+    """Poll until the batch has ended, riding out transient errors with backoff."""
+    failures = 0
+    while True:
+        try:
+            status = (await client.messages.batches.retrieve(batch_id)).processing_status
+        except (anthropic.APIStatusError, anthropic.APIConnectionError) as e:
+            if not _transient(e) or failures >= MAX_POLL_FAILURES:
+                raise
+            failures += 1
+            delay = min(poll_seconds * 2 ** failures, MAX_POLL_BACKOFF_SECONDS)
+            log.warning("extract: polling batch %s failed (%s); retry %d in %.0fs",
+                        batch_id, type(e).__name__, failures, delay)
+            await asyncio.sleep(delay)
+            continue
+        failures = 0
+        if status == "ended":
+            return
+        await asyncio.sleep(poll_seconds)
+
+
+def _batch_error(result: Any) -> str:
+    kind = result.type
+    if kind != "errored":
+        return f"batch:{kind}"
+    inner = getattr(getattr(result, "error", None), "error", None)
+    etype = inner.get("type") if isinstance(inner, dict) else getattr(inner, "type", None)
+    return f"batch:errored:{etype}" if etype else "batch:errored"
+
+
+async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids: list[str],
+                         *, client: Any, settings: VendorkbSettings, report: ExtractReport,
+                         poll_seconds: float) -> None:
+    """Wait for a batch, store every result, then mark it processed with its actual cost."""
+    await _wait_ended(client, batch_id, poll_seconds)
+    expected = set(chunk_ids)
+    rows = await _load_chunks(conn, chunk_ids)
+    seen: set[str] = set()
+    actual = 0.0
+    async for result in await client.messages.batches.results(batch_id):
+        cid = result.custom_id
+        if cid not in expected or cid in seen:
+            log.warning("extract: batch %s: unexpected custom_id %s", batch_id, cid)
+            continue
+        seen.add(cid)
+        outcome = (_parse(result.result.message) if result.result.type == "succeeded"
+                   else _Outcome("errored", _batch_error(result.result)))
+        actual += cost_usd(outcome.input_tokens, outcome.output_tokens, batch=True)
+        await _record(conn, cid, rows.get(cid), outcome, model=settings.extract_model,
+                      ledger_id=batch_id, batch=True, report=report)
+    for cid in sorted(expected - seen):
+        await _record(conn, cid, rows.get(cid), _Outcome("errored", "batch:no-result"),
+                      model=settings.extract_model, ledger_id=batch_id, batch=True,
+                      report=report)
+    await conn.execute(
+        "UPDATE extract_batches SET status='processed', actual_cost_usd=%s, ended_at=now()"
+        " WHERE batch_id=%s", (actual, batch_id))
+    log.info("extract: batch %s processed (%d results, $%.4f)", batch_id, len(seen), actual)
+
+
+async def _resume_batches(conn: psycopg.AsyncConnection, *, client: Any,
+                          settings: VendorkbSettings, report: ExtractReport,
+                          poll_seconds: float) -> None:
+    cur = await conn.execute(
+        "SELECT batch_id, chunk_ids FROM extract_batches WHERE status='submitted'"
+        " AND batch_id NOT LIKE %s AND extractor_model=%s AND prompt_version=%s"
+        " ORDER BY submitted_at", (SYNC_LEDGER_PREFIX + "%", settings.extract_model,
+                                   PROMPT_VERSION))
+    for batch_id, chunk_ids in await cur.fetchall():
+        log.info("extract: resuming batch %s (%d requests)", batch_id, len(chunk_ids))
+        await _process_batch(conn, batch_id, list(chunk_ids), client=client,
+                             settings=settings, report=report, poll_seconds=poll_seconds)
+        report.resumed_batches += 1
+
+
 async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
                      settings: VendorkbSettings, spent: float, report: ExtractReport,
                      poll_seconds: float) -> None:
@@ -346,54 +496,56 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
             break
         items.append((chunk, request))
     for group in _groups(items):
-        by_id = {chunk.chunk_id: chunk for chunk, _ in group}
         batch = await client.messages.batches.create(requests=[
             Request(custom_id=chunk.chunk_id,
                     params=cast(MessageCreateParamsNonStreaming, request))
             for chunk, request in group])
+        chunk_ids = [chunk.chunk_id for chunk, _ in group]
+        await conn.execute(
+            "INSERT INTO extract_batches (batch_id, extractor_model, prompt_version, chunk_ids,"
+            " est_cost_usd, status) VALUES (%s,%s,%s,%s,%s,'submitted')",
+            (batch.id, settings.extract_model, PROMPT_VERSION, chunk_ids,
+             sum(_estimate(r, batch=True) for _, r in group)))
         log.info("extract: submitted batch %s (%d requests)", batch.id, len(group))
-        while (await client.messages.batches.retrieve(batch.id)).processing_status != "ended":
-            await asyncio.sleep(poll_seconds)
-        seen: set[str] = set()
-        async for result in await client.messages.batches.results(batch.id):
-            row = by_id.get(result.custom_id)
-            if row is None or result.custom_id in seen:
-                log.warning("extract: batch %s: unexpected custom_id %s", batch.id,
-                            result.custom_id)
-                continue
-            seen.add(result.custom_id)
-            kind = result.result.type
-            outcome = (_parse(result.result.message) if kind == "succeeded"
-                       else _Outcome("errored", f"batch:{kind}"))
-            await _record(conn, row, outcome, model=settings.extract_model, batch=True,
-                          report=report)
-        for chunk_id in by_id.keys() - seen:
-            await _record(conn, by_id[chunk_id], _Outcome("errored", "batch:no-result"),
-                          model=settings.extract_model, batch=True, report=report)
+        await _process_batch(conn, batch.id, chunk_ids, client=client, settings=settings,
+                             report=report, poll_seconds=poll_seconds)
 
 
 async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: Any,
               settings: VendorkbSettings, mode: Literal["sync", "batch"],
               poll_seconds: float = 30) -> ExtractReport:
+    if mode not in ("sync", "batch"):
+        raise ValueError(f"unknown mode {mode!r}")
     ids = list(dict.fromkeys(str(uuid.UUID(str(i))) for i in chunk_ids))
     report = ExtractReport(chunks=len(ids))
-    chunks = await _load_chunks(conn, ids)
-    missing = [i for i in ids if i not in chunks]
-    if missing:
-        log.warning("extract: %d chunk ids not in the database (skipped), e.g. %s",
-                    len(missing), missing[0])
-    done = await _done_ids(conn, ids, settings.extract_model)
-    pending = [chunks[i] for i in ids if i in chunks and i not in done]
-    report.skipped = len(ids) - len(pending)
-    if not pending:
+    cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
+    if not (await cur.fetchone())[0]:  # type: ignore[index]
+        report.locked = True
+        log.warning("extract: another extract run holds the lock; nothing done")
         return report
-    spent = await _spent(conn)
-    if mode == "sync":
-        await _run_sync(conn, pending, client=client, settings=settings, spent=spent,
-                        report=report)
-    elif mode == "batch":
-        await _run_batch(conn, pending, client=client, settings=settings, spent=spent,
-                         report=report, poll_seconds=poll_seconds)
-    else:
-        raise ValueError(f"unknown mode {mode!r}")
+    try:
+        if mode == "batch":
+            await _resume_batches(conn, client=client, settings=settings, report=report,
+                                  poll_seconds=poll_seconds)
+        chunks = await _load_chunks(conn, ids)
+        final = await _final_ids(conn, ids, settings.extract_model)
+        missing = [i for i in ids if i not in chunks and i not in final]
+        if missing:
+            log.warning("extract: %d chunk ids not in the database (skipped), e.g. %s",
+                        len(missing), missing[0])
+        report.skipped_deleted += len(missing)
+        report.skipped = sum(1 for s in final.values() if s == "done")
+        report.skipped_failed = sum(1 for s in final.values() if s == "failed")
+        pending = [chunks[i] for i in ids if i in chunks and i not in final]
+        if not pending:
+            return report
+        spent = await _spent(conn)
+        if mode == "sync":
+            await _run_sync(conn, pending, client=client, settings=settings, spent=spent,
+                            report=report)
+        else:
+            await _run_batch(conn, pending, client=client, settings=settings, spent=spent,
+                             report=report, poll_seconds=poll_seconds)
+    finally:
+        await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
     return report

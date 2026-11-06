@@ -64,20 +64,47 @@ CREATE TABLE IF NOT EXISTS sync_seen (
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS version text;
 
 -- One row per (chunk, model, prompt version): the idempotency key. ``status`` is 'done'
--- (claims written, possibly zero) or 'errored' (retried by the next run).
+-- (claims written, possibly zero), 'errored' (retried by the next run) or 'failed' (errored
+-- ``attempts`` times; skipped from then on). ``last_batch_id`` is the batch (or sync run)
+-- whose result the row holds, so a resumed batch never applies a result twice. Its spend
+-- is also in ``extract_batches``, which survives chunk deletion and is what the budget sums.
 CREATE TABLE IF NOT EXISTS extractions (
     extraction_id uuid PRIMARY KEY,
     chunk_id uuid NOT NULL REFERENCES chunks ON DELETE CASCADE,
     extractor_model text NOT NULL,
     prompt_version text NOT NULL,
-    status text NOT NULL CHECK (status IN ('done', 'errored')),
+    status text NOT NULL,
     error text,
+    attempts int NOT NULL DEFAULT 0,
+    last_batch_id text,
     n_claims int NOT NULL DEFAULT 0,
     input_tokens int NOT NULL DEFAULT 0,
     output_tokens int NOT NULL DEFAULT 0,
     cost_usd double precision NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (chunk_id, extractor_model, prompt_version)
+);
+ALTER TABLE extractions ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;
+ALTER TABLE extractions ADD COLUMN IF NOT EXISTS last_batch_id text;
+ALTER TABLE extractions DROP CONSTRAINT IF EXISTS extractions_status_check;
+ALTER TABLE extractions ADD CONSTRAINT extractions_status_check
+    CHECK (status IN ('done', 'errored', 'failed'));
+
+-- Every paid submission: a Message Batch, or a sync-mode run ('sync-<uuid>'). No foreign key
+-- to chunks: sync re-chunks documents while a batch is in flight, and spent money must not
+-- vanish with them. The budget's spend so far is sum(coalesce(actual_cost_usd,
+-- est_cost_usd)). ``status`` is 'submitted' until every result is stored, then 'processed';
+-- a batch-mode run resumes any batch not yet processed before submitting new work.
+CREATE TABLE IF NOT EXISTS extract_batches (
+    batch_id text PRIMARY KEY,
+    extractor_model text NOT NULL,
+    prompt_version text NOT NULL,
+    chunk_ids text[] NOT NULL,
+    est_cost_usd double precision NOT NULL DEFAULT 0,
+    actual_cost_usd double precision,
+    status text NOT NULL CHECK (status IN ('submitted', 'processed')),
+    submitted_at timestamptz NOT NULL DEFAULT now(),
+    ended_at timestamptz
 );
 
 -- vendor / product / version are copied from the chunk's document, never extracted.
@@ -93,12 +120,14 @@ CREATE TABLE IF NOT EXISTS raw_claims (
     support text NOT NULL
         CHECK (support IN ('supported', 'partial', 'not_supported', 'unclear')),
     conditions text,
-    evidence_quote text NOT NULL,
+    evidence_quote text NOT NULL,  -- the matched chunk span, verbatim
+    model_quote text,              -- the quote as the model wrote it
     gate text NOT NULL,
     extractor_model text NOT NULL,
     prompt_version text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS model_quote text;
 CREATE INDEX IF NOT EXISTS raw_claims_chunk_idx ON raw_claims (chunk_id);
 CREATE INDEX IF NOT EXISTS raw_claims_vendor_idx ON raw_claims (vendor);
 
@@ -114,12 +143,15 @@ CREATE TABLE IF NOT EXISTS rejected_claims (
     target_raw text,
     support text,
     conditions text,
-    evidence_quote text,
+    evidence_quote text,  -- NULL: a rejected quote matched no chunk span
+    model_quote text,
     reason text NOT NULL,
     extractor_model text NOT NULL,
     prompt_version text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS model_quote text;
 
 -- Taxonomy, loaded from taxonomy/taxonomy.yaml (the source of truth is git).
 CREATE TABLE IF NOT EXISTS features (

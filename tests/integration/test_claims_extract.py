@@ -40,28 +40,41 @@ class FakeBatches:
         self.outcomes = outcomes  # chunk_id -> ("succeeded", message) | ("errored",) | ...
         self.created: list[list] = []
         self.retrieves = 0
+        self.retrieve_errors: list[Exception] = []  # raised, in order, before any status
+        self.on_retrieve = None  # optional async hook run on each successful retrieve
+        self.extra_results: list[tuple[str, str]] = []  # (custom_id, kind) appended
+        self.results_fail_after: int | None = None  # next results() dies after N items
 
     async def create(self, *, requests):
         self.created.append(list(requests))
         return SimpleNamespace(id=f"batch_{len(self.created)}", processing_status="in_progress")
 
     async def retrieve(self, message_batch_id):
+        if self.retrieve_errors:
+            raise self.retrieve_errors.pop(0)
+        if self.on_retrieve is not None:
+            await self.on_retrieve()
         self.retrieves += 1
         status = "ended" if self.retrieves % 2 == 0 else "in_progress"
         return SimpleNamespace(id=message_batch_id, processing_status=status)
 
     async def results(self, message_batch_id):
         requests = self.created[int(message_batch_id.split("_")[1]) - 1]
+        pairs = [(r["custom_id"], self.outcomes[r["custom_id"]]) for r in reversed(requests)]
+        pairs += [(cid, (kind,)) for cid, kind in self.extra_results]
+        fail_after, self.results_fail_after = self.results_fail_after, None
 
         async def gen():
-            for req in reversed(requests):  # any order: the runner keys by custom_id
-                kind, *rest = self.outcomes[req["custom_id"]]
+            for n, (custom_id, (kind, *rest)) in enumerate(pairs):  # any order: keyed by id
+                if n == fail_after:
+                    raise RuntimeError("connection dropped mid-results")
                 result = SimpleNamespace(type=kind)
                 if kind == "succeeded":
                     result.message = rest[0]
                 elif kind == "errored":
-                    result.error = SimpleNamespace(type="error", error={"type": "api_error"})
-                yield SimpleNamespace(custom_id=req["custom_id"], result=result)
+                    result.error = SimpleNamespace(
+                        type="error", error=SimpleNamespace(type="invalid_request_error"))
+                yield SimpleNamespace(custom_id=custom_id, result=result)
         return gen()
 
 
@@ -89,7 +102,7 @@ class FakeClient:
 
 async def _fresh(conn) -> None:
     await conn.execute("DROP TABLE IF EXISTS capabilities, raw_claims, rejected_claims, "
-                       "extractions, chunks, documents CASCADE")
+                       "extractions, extract_batches, chunks, documents CASCADE")
     await init_schema(conn, embed_dim=768)
 
 
@@ -161,6 +174,12 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
             ("rubrik", "Rubrik Security Cloud", None, "immutable snapshots",
              "Amazon RDS for PostgreSQL", "supported", None, "claude-haiku-5-5",
              "claims-v1")]
+        quotes = await _rows(conn, "SELECT evidence_quote, model_quote, gate FROM raw_claims"
+                                   " ORDER BY capability_raw")
+        assert quotes == [
+            ("Cross-region copy requires the Enterprise edition.", PARTIAL["evidence_quote"],
+             "exact"),
+            (GOOD["evidence_quote"], GOOD["evidence_quote"], "exact")]
         rejected = await _rows(conn, "SELECT capability_raw, vendor, reason"
                                      " FROM rejected_claims")
         assert len(rejected) == 1
@@ -274,6 +293,11 @@ async def test_batch_partial_failure_is_retried_next_run(vkb_dsn):
         assert requests[0]["params"]["model"] == "claude-haiku-5-5"
         status = dict(await _rows(conn, "SELECT chunk_id::text, status FROM extractions"))
         assert status == {ok: "done", bad: "errored", late: "errored"}
+        errors = dict(await _rows(conn, "SELECT chunk_id::text, error FROM extractions"))
+        assert errors[bad] == "batch:errored:invalid_request_error"
+        assert errors[late] == "batch:expired"
+        [ledger] = await _rows(conn, "SELECT status, actual_cost_usd FROM extract_batches")
+        assert ledger[0] == "processed" and abs(ledger[1] - report.est_cost_usd) < 1e-12
         assert await _rows(conn, "SELECT n_claims FROM extractions WHERE status='errored'") == [
             (0,), (0,)]
 
@@ -339,3 +363,222 @@ async def test_cli_extract_prints_report(vkb_dsn, monkeypatch, capsys, tmp_path)
     assert code == 0
     out = json.loads(capsys.readouterr().out)
     assert out["done"] == 1 and out["claims_accepted"] == 1
+
+
+def _conn_error():
+    return anthropic.APIConnectionError(
+        request=httpx.Request("GET", "https://api.anthropic.com/v1/messages/batches/x"))
+
+
+async def test_second_concurrent_run_is_locked_out(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    holder = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        await holder.execute("SELECT pg_advisory_lock(%s)", (extract.LOCK_KEY,))
+        client = FakeClient()
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert report.locked is True and report.done == 0 and client.messages.calls == []
+        await holder.execute("SELECT pg_advisory_unlock(%s)", (extract.LOCK_KEY,))
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert report.locked is False and report.done == 1
+    finally:
+        await holder.close()
+        await conn.close()
+
+
+async def test_crash_while_polling_resumes_the_paid_batch(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        a, b = await _doc(conn, texts=(TEXT, TEXT + " B"))
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]})),
+                               b: ("succeeded", _message({"claims": []}))})
+        batches.retrieve_errors = [RuntimeError("pod evicted")]
+        client = FakeClient(batches=batches)
+        try:
+            await extract.run(conn, [a, b], client=client, settings=_settings(), mode="batch",
+                              poll_seconds=0)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the poll failure should have ended the run")
+        [(bid, status, est)] = await _rows(
+            conn, "SELECT batch_id, status, est_cost_usd FROM extract_batches")
+        assert (bid, status) == ("batch_1", "submitted") and est > 0
+        assert await _rows(conn, "SELECT count(*) FROM extractions") == [(0,)]
+
+        report = await extract.run(conn, [a, b], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert report.resumed_batches == 1 and len(batches.created) == 1  # no resubmission
+        assert (report.done, report.claims_accepted) == (2, 1)
+        assert await _rows(conn, "SELECT status FROM extract_batches") == [("processed",)]
+        # a further run finds nothing to resume and nothing to do
+        again = await extract.run(conn, [a, b], client=client, settings=_settings(),
+                                  mode="batch", poll_seconds=0)
+        assert (again.resumed_batches, again.skipped, len(batches.created)) == (0, 2, 1)
+    finally:
+        await conn.close()
+
+
+async def test_transient_poll_errors_are_retried(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]}))})
+        batches.retrieve_errors = [_conn_error(), _conn_error()]
+        client = FakeClient(batches=batches)
+        report = await extract.run(conn, [a], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert report.done == 1 and batches.retrieve_errors == []
+    finally:
+        await conn.close()
+
+
+async def test_chunk_deleted_mid_batch_is_skipped_and_spend_kept(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        [gone] = await _doc(conn, texts=(TEXT + " doomed",))
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]})),
+                               gone: ("succeeded", _message({"claims": [GOOD]},
+                                                            tokens=(1_000_000, 0)))})
+
+        async def resync():  # sync re-chunks the document while the batch is in flight
+            await conn.execute("DELETE FROM documents WHERE doc_id ="
+                               " (SELECT doc_id FROM chunks WHERE chunk_id=%s)", (gone,))
+        batches.on_retrieve = resync
+        client = FakeClient(batches=batches)
+        report = await extract.run(conn, [a, gone], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert (report.done, report.skipped_deleted, report.errored) == (1, 1, 0)
+        # the deleted chunk's result was paid for: the ledger keeps it
+        [(actual,)] = await _rows(conn, "SELECT actual_cost_usd FROM extract_batches")
+        assert actual >= 0.05
+        assert await extract._spent(conn) == actual
+    finally:
+        await conn.close()
+
+
+async def test_spend_survives_chunk_deletion(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]},
+                                                            tokens=(1_000_000, 0))})
+        await extract.run(conn, [a], client=client, settings=_settings(), mode="sync")
+        await conn.execute("DELETE FROM documents")
+        assert await _rows(conn, "SELECT count(*) FROM extractions") == [(0,)]
+        assert abs(await extract._spent(conn) - 0.10) < 1e-9
+    finally:
+        await conn.close()
+
+
+async def test_chunk_errored_three_times_is_failed_and_skipped(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": []},
+                                                            stop_reason="max_tokens")})
+        for n in range(1, 4):
+            report = await extract.run(conn, [a], client=client, settings=_settings(),
+                                       mode="sync")
+            assert report.errored == 1 and report.failed == (1 if n == 3 else 0)
+        assert await _rows(conn, "SELECT status, attempts FROM extractions") == [("failed", 3)]
+        report = await extract.run(conn, [a], client=client, settings=_settings(), mode="sync")
+        assert report.skipped_failed == 1 and len(client.messages.calls) == 3
+    finally:
+        await conn.close()
+
+
+async def test_canceled_unknown_and_duplicate_results(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        a, c = await _doc(conn, texts=(TEXT, TEXT + " C"))
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]})),
+                               c: ("canceled",)})
+        batches.extra_results = [(str(uuid.uuid4()), "errored"), (a, "errored")]
+        client = FakeClient(batches=batches)
+        report = await extract.run(conn, [a, c], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert (report.done, report.errored) == (1, 1)
+        status = dict(await _rows(conn, "SELECT chunk_id::text, status FROM extractions"))
+        assert status == {a: "done", c: "errored"}  # the duplicate did not overwrite a
+    finally:
+        await conn.close()
+
+
+async def test_requests_split_across_batches(vkb_dsn, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ids = await _doc(conn, texts=(TEXT, TEXT + " 2", TEXT + " 3"))
+        monkeypatch.setattr(extract, "MAX_BATCH_REQUESTS", 2)
+        batches = FakeBatches({i: ("succeeded", _message({"claims": []})) for i in ids})
+        client = FakeClient(batches=batches)
+        report = await extract.run(conn, ids, client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert [len(b) for b in batches.created] == [2, 1] and report.done == 3
+        assert await _rows(conn, "SELECT count(*) FROM extract_batches"
+                                 " WHERE status='processed'") == [(2,)]
+    finally:
+        await conn.close()
+
+
+async def test_bad_request_stops_a_sync_run(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ids = await _doc(conn, texts=(TEXT, TEXT + " 2"))
+        request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        bad = anthropic.BadRequestError(
+            "bad schema", response=httpx.Response(400, request=request), body=None)
+        client = FakeClient(replies={"Amazon RDS": bad})
+        try:
+            await extract.run(conn, ids, client=client, settings=_settings(), mode="sync")
+        except anthropic.BadRequestError:
+            pass
+        else:
+            raise AssertionError("a 400 should stop the run")
+        assert len(client.messages.calls) == 1
+        assert await _rows(conn, "SELECT status FROM extractions") == [("errored",)]
+        assert await _rows(conn, "SELECT status FROM extract_batches") == [("processed",)]
+    finally:
+        await conn.close()
+
+
+async def test_resume_after_crash_mid_results_applies_each_result_once(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        a, b = await _doc(conn, texts=(TEXT, TEXT + " B"))
+        # results come in reverse request order: b (errored) first, then a
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]})),
+                               b: ("errored",)})
+        batches.results_fail_after = 1
+        client = FakeClient(batches=batches)
+        try:
+            await extract.run(conn, [a, b], client=client, settings=_settings(), mode="batch",
+                              poll_seconds=0)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the results failure should have ended the run")
+        assert await _rows(conn, "SELECT status, attempts FROM extractions") == [("errored", 1)]
+        report = await extract.run(conn, [a, b], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert report.resumed_batches == 1
+        rows = dict(await _rows(conn, "SELECT chunk_id::text, attempts FROM extractions"))
+        # batch_1's errored result for b counts once (not twice); the run then resubmits b
+        # in batch_2, which errors again: 2 attempts in all
+        assert rows == {a: 1, b: 2} and len(batches.created) == 2
+    finally:
+        await conn.close()

@@ -180,6 +180,10 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
             await close()
         await conn.close()
     print(json.dumps(dataclasses.asdict(report)))
+    if report.locked:
+        print("another `vendorkb extract` run holds the extract lock; nothing done",
+              file=sys.stderr)
+        return 0
     # Errored chunks are retried by the next run; a budget stop is a clean exit.
     return 0 if report.errored == 0 else 1
 
