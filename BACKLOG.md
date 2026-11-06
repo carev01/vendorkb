@@ -22,11 +22,11 @@ Items marked **$** spend money (OpenRouter, Anthropic or Voyage) and need a go-a
 3. **`vendorkb extract --unextracted [--vendor]`.** Claims cascade-delete with their chunks, and
    the pilot id files name chunk ids that a re-sync replaces. Nothing finds "chunks with no `done`
    extraction for the current model and prompt", so coverage decays with every sync (review M4).
-4. **$ Extraction beyond the pilot.** About 227k chunks remain: about $100 on OpenRouter Haiku at
-   full price, or about half with the Anthropic Batches API. Do it after item 1, so the corpus is
-   extracted once with the good prompt. Item 5 or item 18 may replace the API route.
+4. **Extraction beyond the pilot.** About 227k chunks remain. The plan is the Opus-distilled
+   local model on Vast (item 18), not an API model. Do it after item 1, so the corpus is
+   extracted with the good prompt.
 5. **A valid Anthropic API key.** The `sk-ant-usr` token in `.env` returns 401, so the pilot
-   ran through OpenRouter. The Batches path (`--mode batch --backend anthropic`) is tested only
+   ran through OpenRouter. The Opus teacher capture (item 18) needs it for Batches pricing. The Batches path (`--mode batch --backend anthropic`) is tested only
    with fakes and has never run live.
 
 ## Taxonomy and capabilities (M4)
@@ -85,16 +85,20 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     review whether every `init_schema` call needs the exclusive locks that
     `ADD COLUMN IF NOT EXISTS` takes.
 
-## Local extractor (DESIGN.md M5)
+## Local extractor (DESIGN.md M5, now 9B on Vast)
 
-18. **Fine-tune a local extractor (Qwen3.5) on the Haiku claims.** The goal is to make full
-    re-extractions free, so the prompt and schema can keep changing. See the assessment in the
-    2026-11-06 conversation, summarized here:
-    - Do it after item 1. Distilling the current 86%-precise output would teach the errors too.
-    - **Zero-cost first step:** run the base model with the v2 prompt on the spot-check chunks,
-      through the gate and Opus grading, and measure tokens per second on the P6000. That gives
-      the real full-corpus duration before any training.
-    - Train on a rented GPU (Vast/Colab), not the P6000: it is Pascal, so it has no bf16 and no
-      Unsloth support. Serve the result through llama.cpp.
-    - Adopt it only if it reaches ≥90% agreement with the teacher on a held-out set, and its
-      precision stays within a few points of the teacher's.
+18. **Fine-tune Qwen3.5-9B as the corpus extractor, distilled from Opus** (user decision,
+    2026-11-06). The project aims for near-perfect claims, so the teacher is Claude Opus 5.5,
+    not the Haiku pilot output. Training and the full-corpus run both happen on Vast.
+    - **Why distil:** running Opus over the whole corpus directly would cost an estimated
+      $1.5–3k. A 9B student on one rented GPU with vLLM should cost tens of dollars per full
+      run, so re-extractions after prompt or schema changes stay cheap.
+    - **$ Teacher capture:** build a stratified set of a few thousand chunks, covering all 43
+      vendors, empty chunks, tables and procedure-heavy pages. Extract it with the v2 prompt (item
+      1) on Opus through the Anthropic Batches API (needs item 5). Keep only claims that pass the
+      evidence gate. Pricing is $4/$20 per MTok and Opus thinking cannot be disabled, so smoke a
+      few chunks and measure real cost per chunk before sizing the set.
+    - **Teacher quality bar:** a ≥95% spot-check before any training. Opus must not grade its
+      own output alone: use a human-checked sample, or a grader that is not the teacher.
+    - **Student bar:** ≥90% agreement with Opus on a held-out set, and precision within a few
+      points of it. Then run the full corpus on Vast, replacing item 4's API route.
