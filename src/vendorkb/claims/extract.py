@@ -12,7 +12,7 @@ Paid work is ledgered in ``extract_batches`` (no foreign key to chunks, so sync 
 chunks mid-run never erases spend): a batch row is written right after
 ``batches.create`` succeeds, before polling, and a batch-mode run first resumes every batch
 not yet ``processed``. Sync-mode spend goes on a ``sync-<uuid>`` row. The budget's spend so
-far is the ledger's sum; the pre-submit estimate reserves ``MAX_TOKENS`` of output per
+far is the ledger's sum; the pre-submit estimate reserves ``extract_max_tokens`` of output per
 request, so it bounds the worst case.
 
 A chunk whose call fails, is refused, is cut off at ``max_tokens``, returns unusable JSON, or
@@ -54,7 +54,11 @@ from vendorkb.config import VendorkbSettings
 log = logging.getLogger(__name__)
 
 PROMPT_VERSION = "claims-v1"
-MAX_TOKENS = 2000
+MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
+# Errors that mean the reply was cut off at max_tokens ("length": OpenAI-compatible
+# finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets
+# such chunks so a re-run with a larger EXTRACT_MAX_TOKENS extracts them again.
+TRUNCATION_ERRORS = ("length", "max_tokens")
 MAX_ATTEMPTS = 3  # an errored chunk is 'failed' (never retried) after this many attempts
 SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
 LOCK_KEY = 0x766B63  # single-flight across extract runs (sync uses 0x766B62)
@@ -65,7 +69,7 @@ PRICE_IN_PER_MTOK = 0.10
 PRICE_OUT_PER_MTOK = 0.50
 BATCH_DISCOUNT = 0.5
 # The pre-submit estimate: prompt characters / 3 (generous for the tokenizer) in, and the
-# full MAX_TOKENS out (thinking is billed as output), so the cap holds in the worst case.
+# full extract_max_tokens out (thinking is billed as output), so the cap holds in the worst case.
 CHARS_PER_TOKEN = 3
 # Batches API caps: 100,000 requests and 256 MB per batch (bytes kept well under).
 MAX_BATCH_REQUESTS = 100_000
@@ -160,6 +164,7 @@ class ExtractReport:
     output_tokens: int = 0
     est_cost_usd: float = 0.0  # cost of the results this run stored (incl. resumed batches)
     resumed_batches: int = 0
+    reset_truncated: int = 0  # truncated chunks reset by retry_truncated
     stopped_by_budget: bool = False
     locked: bool = False
 
@@ -187,7 +192,7 @@ def build_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]
     content = "\n".join(header) + "\n\n<chunk>\n" + chunk.text + "\n</chunk>"
     return {
         "model": settings.extract_model,
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": settings.extract_max_tokens,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": "low",
@@ -206,7 +211,7 @@ def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[st
     req = build_request(chunk, settings)
     return {
         "model": settings.extract_model,
-        "max_tokens": MAX_TOKENS,
+        "max_tokens": settings.extract_max_tokens,
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *req["messages"]],
         "response_format": {"type": "json_schema", "json_schema": {
             "name": "claims", "strict": True, "schema": CLAIM_SCHEMA}},
@@ -399,6 +404,15 @@ async def _final_ids(conn: psycopg.AsyncConnection, ids: list[str],
         " AND extractor_model=%s AND prompt_version=%s AND status IN ('done', 'failed')",
         (ids, model, PROMPT_VERSION))
     return {cid: status for cid, status in await cur.fetchall()}
+
+
+async def _reset_truncated(conn: psycopg.AsyncConnection, ids: list[str], model: str) -> int:
+    cur = await conn.execute(
+        "UPDATE extractions SET status='errored', attempts=0 WHERE chunk_id = ANY(%s::uuid[])"
+        " AND extractor_model=%s AND prompt_version=%s AND status IN ('errored', 'failed')"
+        " AND error = ANY(%s)", (ids, model, PROMPT_VERSION, list(TRUNCATION_ERRORS)))
+    log.info("extract: reset %d truncated chunks for a retry", cur.rowcount)
+    return cur.rowcount
 
 
 async def _spent(conn: psycopg.AsyncConnection) -> float:
@@ -618,7 +632,10 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
 
 async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: Any,
               settings: VendorkbSettings, mode: Literal["sync", "batch"],
-              poll_seconds: float = 30) -> ExtractReport:
+              poll_seconds: float = 30, retry_truncated: bool = False) -> ExtractReport:
+    """Extract ``chunk_ids`` (see the module docstring). ``retry_truncated``: first, under the
+    lock, reset the attempt counter of those chunks whose last error was a truncation
+    (``TRUNCATION_ERRORS``; 'errored' or 'failed') so they are extracted again."""
     if mode not in ("sync", "batch"):
         raise ValueError(f"unknown mode {mode!r}")
     if mode == "batch" and settings.extract_backend != "anthropic":
@@ -632,6 +649,8 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         log.warning("extract: another extract run holds the lock; nothing done")
         return report
     try:
+        if retry_truncated:
+            report.reset_truncated = await _reset_truncated(conn, ids, settings.extract_model)
         if mode == "batch":
             await _resume_batches(conn, client=client, settings=settings, report=report,
                                   poll_seconds=poll_seconds)

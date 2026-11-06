@@ -807,3 +807,58 @@ def test_cli_builds_openai_client_from_settings():
     assert isinstance(client, AsyncOpenAI)
     assert str(client.base_url).startswith("https://openrouter.ai/api/v1")
     assert client.max_retries == cli.EXTRACT_MAX_RETRIES
+
+
+def test_max_tokens_follows_the_setting_on_both_backends():
+    chunk = extract.ChunkRow(chunk_id="c1", doc_id="d1", vendor="rubrik", product=None,
+                             version=None, title="T", section_path=["A"], text=TEXT)
+    assert _settings().extract_max_tokens == 2000
+    req = extract.build_request(chunk, _settings(extract_max_tokens=4000))
+    assert req["max_tokens"] == 4000
+    assert extract.build_openai_request(chunk, _oa(extract_max_tokens=4000))["max_tokens"] == 4000
+    small = extract._estimate(extract.build_request(chunk, _settings()), batch=False)
+    large = extract._estimate(req, batch=False)
+    assert abs((large - small) - 2000 * 0.50 / 1e6) < 1e-12  # reserves the larger output
+
+
+async def _extraction(conn, cid, *, status, error, model, attempts=3) -> None:
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status, error, attempts, last_batch_id) VALUES (%s,%s,%s,%s,%s,%s,%s,'sync-old')",
+        (uuid.uuid4(), cid, model, extract.PROMPT_VERSION, status, error, attempts))
+
+
+async def test_retry_truncated_resets_only_length_failures(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        cut, cut_anth, cut_errored, bad, other_model, outside = await _doc(
+            conn, texts=tuple(f"{TEXT} #{n}" for n in range(6)))
+        model = _oa().extract_model
+        await _extraction(conn, cut, status="failed", error="length", model=model)
+        await _extraction(conn, cut_anth, status="failed", error="max_tokens", model=model)
+        await _extraction(conn, cut_errored, status="errored", error="length", model=model,
+                          attempts=1)
+        await _extraction(conn, bad, status="failed", error="invalid-json: x", model=model)
+        await _extraction(conn, other_model, status="failed", error="length", model="other")
+        await _extraction(conn, outside, status="failed", error="length", model=model)
+        client = FakeOpenAI({"Amazon RDS": _chat({"claims": [GOOD]}, cost=0.001)})
+        ids = [cut, cut_anth, cut_errored, bad, other_model]
+        report = await extract.run(conn, ids, client=client, settings=_oa(), mode="sync",
+                                   retry_truncated=True)
+        assert report.reset_truncated == 3
+        assert (report.done, report.skipped_failed) == (4, 1)  # other_model: a fresh key
+        rows = dict(await _rows(conn, "SELECT chunk_id::text, status FROM extractions"
+                                      " WHERE extractor_model=%s", model))
+        assert rows[cut] == rows[cut_anth] == rows[cut_errored] == "done"
+        assert rows[bad] == "failed" and rows[outside] == "failed"  # not in the ids: untouched
+        attempts = await _rows(conn, "SELECT attempts FROM extractions WHERE chunk_id=%s",
+                               cut)
+        assert attempts == [(1,)]  # counter reset, then this run's attempt
+
+        # Without the flag nothing is reset.
+        report = await extract.run(conn, [outside], client=client, settings=_oa(),
+                                   mode="sync")
+        assert (report.reset_truncated, report.skipped_failed) == (0, 1)
+    finally:
+        await conn.close()

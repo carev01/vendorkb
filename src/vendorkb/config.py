@@ -48,6 +48,9 @@ class VendorkbSettings(BaseSettings):
     extract_base_url: str = ""
     extract_api_key: str = ""
     extract_concurrency: int = 16
+    # max_tokens per extraction request (both backends; thinking counts against it). Chunks
+    # cut off at it are retried with `vendorkb extract --retry-errored` after raising it.
+    extract_max_tokens: int = 2000
 
 
 @lru_cache

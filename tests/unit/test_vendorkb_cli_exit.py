@@ -65,3 +65,31 @@ def test_sync_passes_allow_prune(fake_sync):
     fake_sync["report"] = SyncReport(mode="bootstrap", complete=True)
     assert cli.main(["sync", "--allow-prune", "600"]) == 0
     assert fake_sync["allow_prune"] == 600
+
+
+def test_extract_passes_retry_errored(monkeypatch, tmp_path):
+    from vendorkb.claims import extract as extract_mod
+    from vendorkb.claims.extract import ExtractReport
+    seen = {}
+
+    async def connect(dsn):
+        return FakeConn()
+
+    async def init_schema(conn, *, embed_dim):
+        pass
+
+    async def run(conn, ids, *, client, settings, mode, retry_truncated=False):
+        seen.update(ids=ids, mode=mode, retry=retry_truncated)
+        return ExtractReport(chunks=len(ids))
+
+    monkeypatch.setattr(cli, "connect", connect)
+    monkeypatch.setattr(cli, "init_schema", init_schema)
+    monkeypatch.setattr(cli, "_extract_client", lambda settings: object())
+    monkeypatch.setattr(extract_mod, "run", run)
+    ids = tmp_path / "ids.txt"
+    ids.write_text("a\nb\n")
+    assert cli.main(["extract", "--ids-file", str(ids), "--mode", "sync",
+                     "--retry-errored"]) == 0
+    assert seen == {"ids": ["a", "b"], "mode": "sync", "retry": True}
+    assert cli.main(["extract", "--ids-file", str(ids), "--mode", "sync"]) == 0
+    assert seen["retry"] is False

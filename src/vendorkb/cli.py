@@ -187,7 +187,8 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     client = _extract_client(settings)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
-        report = await extract.run(conn, ids, client=client, settings=settings, mode=mode)
+        report = await extract.run(conn, ids, client=client, settings=settings, mode=mode,
+                                   retry_truncated=args.retry_errored)
     finally:
         close = getattr(client, "close", None)
         if close is not None:
@@ -290,6 +291,9 @@ def _parser() -> argparse.ArgumentParser:
                         "Message Batches API (anthropic only). Default: batch for anthropic, "
                         "sync for openai")
     s.add_argument("--limit", type=int, default=None, help="only the first N ids (smoke)")
+    s.add_argument("--retry-errored", action="store_true",
+                   help="first reset the chunks (of these ids) whose last error was a "
+                        "max_tokens truncation, so they run again (raise EXTRACT_MAX_TOKENS)")
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
     t = tax.add_parser("propose", help="cluster raw claim strings and propose entries with "
