@@ -151,46 +151,60 @@ async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
 
 async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
                             vendors: list[str], *, limit: int) -> dict[str, list[Hit]]:
-    """``hybrid_candidates`` for every vendor at once, keyed by vendor (vendors with no
-    candidates are absent), each list in its own RRF order cut to ``limit``.
+    """``hybrid_candidates(vendor=[v], limit=limit)`` for every vendor at once, keyed by vendor
+    (vendors with no candidates are absent): per vendor, RRF over its top ``FTS_LIMIT``
+    full-text and top ``VEC_LIMIT`` vector rows, cut to ``limit``.
 
     The statement count does not grow with the vendor count: ONE full-text query ranked once
-    and cut per vendor, ONE vector query over all the vendors (``ENUM_VEC_POOL`` rows), then a
-    scoped vector query only for each vendor short of ``limit`` rows in that pool (a small
-    vendor, so a cheap scan). Per-vendor scoped searches cost ~4 s each on the full corpus,
-    the OR'd full-text query being a parallel seq scan every time."""
+    and cut per vendor, ONE vector query over all the vendors (``ENUM_VEC_POOL`` rows), a
+    scoped vector query only for each vendor with fewer than ``limit`` rows in that pool (a
+    small vendor, so a cheap scan), then one fetch of the fused chunks' columns. The ranking
+    queries carry ids only, so the 2000-row pool does not ship chunk text. Per-vendor scoped
+    searches cost ~4 s each on the full corpus, the OR'd full-text query being a parallel seq
+    scan every time.
+
+    A vendor with ``limit`` to ``VEC_LIMIT - 1`` pooled rows fuses only those pooled rows,
+    where the scoped search would read up to ``VEC_LIMIT``: its vector list can be shorter
+    than the scoped one, a deliberate trade that keeps big vendors on the pool."""
     vendors = list(dict.fromkeys(vendors))
     if not vendors:
         return {}
-    fts_sql = (f"SELECT * FROM (SELECT {_COLS}, row_number() OVER (PARTITION BY d.vendor "
+    fts_sql = ("SELECT chunk_id::text, vendor FROM (SELECT c.chunk_id, d.vendor, "
+               "row_number() OVER (PARTITION BY d.vendor "
                "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
                f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q "
                "WHERE c.tsv @@ q.tsq AND d.vendor = ANY(%s)) t "
                "WHERE rn <= %s ORDER BY vendor, rn")
-    cur = await conn.execute(fts_sql, [query, list(vendors), limit])
-    fts: dict[str, list[tuple]] = {}
-    for r in await cur.fetchall():
-        fts.setdefault(r[4], []).append(r)
+    cur = await conn.execute(fts_sql, [query, vendors, FTS_LIMIT])
+    fts: dict[str, list[str]] = {}
+    for cid, v in await cur.fetchall():
+        fts.setdefault(v, []).append(cid)
 
-    vec: dict[str, list[tuple]] = {v: [] for v in vendors}
-    where = " AND d.vendor = ANY(%s)"
-    for r in await _vector_rows(conn, _vec_sql("embedding", where),
-                                [Vector(qvec), list(vendors), Vector(qvec), ENUM_VEC_POOL]):
-        if len(vec[r[4]]) < limit:
-            vec[r[4]].append(r)
+    # Same shape as _vec_sql (text chunk_id as the distance tiebreak), ids only.
+    vec_sql = ("SELECT chunk_id, vendor FROM (SELECT c.chunk_id::text AS chunk_id, d.vendor, "
+               "c.embedding <=> %s AS dist FROM chunks c JOIN documents d USING (doc_id) "
+               "WHERE d.vendor = ANY(%s) ORDER BY c.embedding <=> %s LIMIT %s) t "
+               "ORDER BY dist, chunk_id")
+    vec: dict[str, list[str]] = {v: [] for v in vendors}
+    for cid, v in await _vector_rows(conn, vec_sql,
+                                     [Vector(qvec), vendors, Vector(qvec), ENUM_VEC_POOL]):
+        if len(vec[v]) < VEC_LIMIT:
+            vec[v].append(cid)
     for v in vendors:
-        if len(vec[v]) < limit:
-            vec[v] = await _vector_rows(conn, _vec_sql("embedding", where),
-                                        [Vector(qvec), [v], Vector(qvec), limit])
+        if len(vec[v]) < limit:  # short in the pool: its own scoped query replaces its rows
+            vec[v] = [cid for cid, _ in await _vector_rows(
+                conn, vec_sql, [Vector(qvec), [v], Vector(qvec), VEC_LIMIT])]
 
-    out: dict[str, list[Hit]] = {}
-    for v in vendors:
-        rows = {r[0]: r for r in [*fts.get(v, []), *vec[v]]}
-        order = rrf([[r[0] for r in fts.get(v, [])], [r[0] for r in vec[v]]],
-                    weights=[FTS_WEIGHT, 1.0])
-        if order:
-            out[v] = [_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)]
-    return out
+    orders = {v: rrf([fts.get(v, []), vec[v]], weights=[FTS_WEIGHT, 1.0])[:limit]
+              for v in vendors}
+    ids = [cid for order in orders.values() for cid in order]
+    if not ids:
+        return {}
+    cur = await conn.execute(f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) "
+                             "WHERE c.chunk_id = ANY(%s::uuid[])", [ids])
+    rows = {r[0]: r for r in await cur.fetchall()}
+    return {v: [_hit(rows[c], n) for n, c in enumerate(order, start=1) if c in rows]
+            for v, order in orders.items() if order}
 
 
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,

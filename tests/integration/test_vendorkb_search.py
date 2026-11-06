@@ -5,7 +5,7 @@ from pgvector import Vector
 from vendorkb.db import connect, init_schema
 from vendorkb import search
 from vendorkb.modes import compare_facets, enumerate_vendors
-from vendorkb.search import hybrid_candidates, read_section, search_docs
+from vendorkb.search import hybrid_candidates, read_section, search_docs, vendor_candidates
 
 
 def _vec(i):
@@ -472,7 +472,8 @@ async def test_enumeration_statement_count_is_independent_of_vendor_count(vkb_ds
                                           reranker=rr, vendors=vs)
             assert res.kept == vs and len(res.hits) == 3 * len(vs)
             counts.append(cc.executes)
-        assert counts[0] == counts[1] == counts[2] <= 4
+        # FTS + (SET LOCAL + pool query) + text fetch, + extversion once per connection
+        assert counts[0] == counts[1] == counts[2] <= 5
     finally:
         await conn.close()
 
@@ -639,5 +640,119 @@ async def test_comparison_empty_facet(vkb_dsn):
                                    reranker=FakeReranker(fail=True),
                                    facets=[("vendor", "A"), ("vendor", "B")])
         assert res.rerank_ok is False and [h.rrf_rank for h in res.hits] == [1, 2, 3, 4, 5]
+    finally:
+        await conn.close()
+
+
+async def _raw_chunk(conn, doc, ordinal, text, vec):
+    cid = str(uuid.uuid4())
+    await conn.execute(
+        "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+        " embedding) VALUES (%s,%s,%s,%s,%s,1,%s)",
+        (cid, doc, ["A"], ordinal, text, Vector(vec)))
+    return cid
+
+
+def _fine(rank):
+    """Like _graded, with steps small enough for 60 distinct ranks."""
+    v = _vec(0)
+    v[1] = 0.02 * rank
+    return v
+
+
+async def _assert_matches_scoped(conn, query, vendors, limit=10):
+    batched = await vendor_candidates(conn, query, _vec(0), vendors, limit=limit)
+    for v in vendors:
+        scoped = await hybrid_candidates(conn, query, _vec(0), vendor=[v], limit=limit)
+        got = [(h.chunk_id, h.rrf_rank) for h in batched.get(v, [])]
+        assert got == [(h.chunk_id, h.rrf_rank) for h in scoped], v
+        assert all(h.vendor == v for h in batched.get(v, []))
+    return batched
+
+
+async def test_vendor_candidates_equal_scoped_hybrid_search(vkb_dsn, monkeypatch):
+    """Every vendor fits in the pool, so each vendor's batched list is exactly the scoped
+    hybrid search's: same 50 + 50 fusion, same ties, same cut."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        # full-text and vector orders disagree; BIG and MID exceed the per-list cut of 50
+        for vendor, n, mult in (("BIG", 60, 7), ("MID", 30, 11), ("SMALL", 6, 1)):
+            d = await _doc(conn, vendor, f"{vendor}-P")
+            for j in range(n):
+                text = " ".join(["alpha"] * max(1, (n - j) // 3) + ["filler"] * j)
+                await _raw_chunk(conn, d, j, f"{vendor} {j} {text}", _fine((j * mult) % n))
+        d = await _doc(conn, "NOKW", "NOKW-P")  # vector rows only
+        for j in range(12):
+            await _raw_chunk(conn, d, j, f"nokw {j}", _fine(j))
+        vendors = ["BIG", "MID", "SMALL", "NOKW", "ABSENT"]
+        for weight in (1.0, 0.5):
+            monkeypatch.setattr(search, "FTS_WEIGHT", weight)
+            batched = await _assert_matches_scoped(conn, "alpha", vendors)
+            assert "ABSENT" not in batched and all(len(batched[v]) == 10 for v in vendors[:4]
+                                                   if v != "SMALL")
+    finally:
+        await conn.close()
+
+
+async def test_vendor_candidates_partition_full_text_per_vendor(vkb_dsn):
+    """A vendor whose keyword matches all rank below another vendor's still gets its own
+    full-text rows: the cut is per vendor, not global."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d = await _doc(conn, "KW", "KW-P")
+        for j in range(80):
+            await _raw_chunk(conn, d, j, "alpha alpha alpha alpha " * 3, _fine(j % 40))
+        d = await _doc(conn, "LO", "LO-P")
+        weak = [await _raw_chunk(conn, d, j, "alpha " + "filler " * 40, _fine(45 + j))
+                for j in range(3)]  # far vectors: only full text can lift them
+        for j in range(12):
+            await _raw_chunk(conn, d, 3 + j, f"near {j}", _fine(j))
+        batched = await _assert_matches_scoped(conn, "alpha", ["KW", "LO"])
+        assert set(weak) <= {h.chunk_id for h in batched["LO"][:6]}
+    finally:
+        await conn.close()
+
+
+async def test_vendor_candidates_top_up_replaces_short_pool_rows(vkb_dsn, monkeypatch):
+    """A vendor with 1-9 rows in the pool is topped up by its own scoped query, which
+    replaces (never adds to) its pooled rows."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d = await _doc(conn, "BIG", "BIG-P")
+        for j in range(20):
+            await _raw_chunk(conn, d, j, f"big {j}", _fine(5 + j))
+        d = await _doc(conn, "SMALL", "SMALL-P")
+        near = [await _raw_chunk(conn, d, j, f"small near {j}", _fine(j)) for j in range(2)]
+        for j in range(12):
+            await _raw_chunk(conn, d, 2 + j, f"small mid {j}", _fine(20 + j))
+        for j in range(3):  # keyword matches at vector ranks 15-17: a top-up must reach them
+            await _raw_chunk(conn, d, 14 + j, f"small alpha {j}", _fine(40 + j))
+        monkeypatch.setattr(search, "ENUM_VEC_POOL", 10)
+        batched = await vendor_candidates(conn, "alpha", _vec(0), ["BIG", "SMALL"], limit=10)
+        assert set(near) <= {h.chunk_id for h in batched["SMALL"]}
+        await _assert_matches_scoped(conn, "alpha", ["BIG", "SMALL"])
+        assert len(batched["SMALL"]) == 10
+        assert [h.text for h in batched["SMALL"][:3]] == [
+            h.text for h in batched["SMALL"] if "alpha" in h.text]
+    finally:
+        await conn.close()
+
+
+async def test_vendor_candidates_fuse_fifty_rows_per_list(vkb_dsn):
+    """Each list is cut at 50 before fusion, as in the scoped search: a chunk ranked past 50
+    in one list adds nothing there (opposed full-text and vector orders over 60 chunks)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d = await _doc(conn, "LONG", "LONG-P")
+        for j in range(60):  # full-text rank j + 1, vector rank 60 - j
+            await _raw_chunk(conn, d, j, "alpha " * (60 - j) + "filler " * j, _fine(59 - j))
+        batched = await _assert_matches_scoped(conn, "alpha", ["LONG"])
+        texts = [h.text for h in batched["LONG"]]
+        # the head of each list scores 1/61 alone, below chunks both lists rank 11-50
+        assert texts[0] != "alpha " * 60 and len(texts) == 10
     finally:
         await conn.close()
