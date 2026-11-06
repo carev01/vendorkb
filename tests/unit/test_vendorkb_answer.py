@@ -426,7 +426,7 @@ async def test_enumeration_parenthesised_vendor_listed_end_to_end(monkeypatch):
     _patch_enum(monkeypatch, _H, _V)
     r = await _run_enum(FakeClient(["Hornetsecurity (Altaro) (VM Backup): X [3]"]), idx)
     assert r["vendors_listed"] == ["Hornetsecurity (Altaro)"] and r["lines_dropped"] == 0
-    assert "Hornetsecurity (Altaro)" not in r["answer"].rsplit("documented:", 1)[1]
+    assert "Hornetsecurity (Altaro)" not in r["answer"].rsplit("found for:", 1)[1]
     assert r["lines_naming_other_vendors"] == 0
 
 
