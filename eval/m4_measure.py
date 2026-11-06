@@ -57,15 +57,20 @@ class _Index:
         return out
 
 
-async def _table_vendors(conn, features: set[str], targets: set[str]) -> dict[str, list[str]]:
-    """vendor -> chunk ids of its supporting capability rows."""
+async def _table_vendors(conn, features: set[str], targets: set[str],
+                         alias_only: bool = False) -> dict[str, list[str]]:
+    """vendor -> chunk ids of its supporting capability rows (alias_only: count a row only
+    through a feature/target its claim was mapped to by exact alias, not nearest neighbour)."""
     if not features and not targets:
         return {}
     cur = await conn.execute(
         "SELECT c.vendor, r.chunk_id::text FROM capabilities c JOIN raw_claims r USING (claim_id)"
-        " WHERE c.support = ANY(%s) AND (c.feature_id = ANY(%s) OR c.target_id = ANY(%s)"
-        " OR EXISTS (SELECT 1 FROM unnest(%s::text[]) t WHERE starts_with(c.target_id, t || '.')))",
-        (list(SUPPORTED), sorted(features), sorted(targets), sorted(targets)))
+        " WHERE c.support = ANY(%s) AND ((c.feature_id = ANY(%s) AND (NOT %s OR"
+        " r.feature_method = 'alias')) OR ((c.target_id = ANY(%s) OR EXISTS (SELECT 1 FROM"
+        " unnest(%s::text[]) t WHERE starts_with(c.target_id, t || '.')))"
+        " AND (NOT %s OR r.target_method = 'alias')))",
+        (list(SUPPORTED), sorted(features), alias_only, sorted(targets), sorted(targets),
+         alias_only))
     out: dict[str, list[str]] = {}
     for vendor, chunk_id in await cur.fetchall():
         out.setdefault(vendor, []).append(chunk_id)
@@ -96,6 +101,7 @@ async def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--parts", default="eval/m3_pilot_ids.parts.json")
     ap.add_argument("--no-question", action="store_true",
                     help="resolve from key_terms only, not the question text")
+    ap.add_argument("--alias-only", action="store_true")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     settings = VendorkbSettings()
@@ -119,7 +125,7 @@ async def main(argv: list[str] | None = None) -> int:
                 feats = findex.resolve(phrases, pv, args.nn_threshold)
                 tgts = tindex.resolve(phrases, pv, args.nn_threshold)
                 table = await _table_vendors(conn, {v[0] for v in feats.values()},
-                                             {v[0] for v in tgts.values()})
+                                             {v[0] for v in tgts.values()}, args.alias_only)
                 expected = {e["vendor"] for e in q["expected_vendors"]}
                 unclear = set(q.get("unclear_vendors") or [])
                 best = rerank.get(q["id"], {}).get("vendor_best_scores") or {}
