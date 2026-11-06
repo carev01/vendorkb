@@ -225,7 +225,7 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 prep = await propose.propose(
                     conn, client=client, embedder=embedder, settings=settings,
                     kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
-                    max_usd=args.max_usd)
+                    max_usd=args.max_usd, limit=args.limit)
         finally:
             close = getattr(client, "close", None)
             if close is not None:
@@ -301,11 +301,14 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--kind", choices=("feature", "target"), required=True)
     t.add_argument("--threshold", type=float, default=0.25,
                    help="cosine distance threshold for clustering (default 0.25)")
-    t.add_argument("--out", default="taxonomy/taxonomy.yaml")
+    t.add_argument("--out", default="taxonomy/taxonomy.yaml",
+                   help="the taxonomy YAML; the long tail goes next to it (long_tail.yaml)")
     t.add_argument("--max-usd", type=float, default=2.0,
                    help="stop before the estimated spend exceeds this (default 2.0)")
     t.add_argument("--backend", choices=("anthropic", "openai"), default=None,
                    help="override EXTRACT_BACKEND")
+    t.add_argument("--limit", type=int, default=None,
+                   help="send at most N clusters, biggest first (smoke run)")
     t = tax.add_parser("load", help="load the reviewed YAML into features/targets/aliases")
     t.add_argument("path")
     t.set_defaults(backend=None)

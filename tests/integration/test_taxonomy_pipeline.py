@@ -134,10 +134,17 @@ async def _claim(conn, vendor, capability, target=None, *, support="supported",
 
 async def _seed_propose(conn) -> None:
     await _claim(conn, "rubrik", "Immutable  Backups", "Amazon RDS")
+    await _claim(conn, "rubrik", "immutable backups", "AWS RDS")
     await _claim(conn, "veeam", "immutable backup", "AWS RDS")
+    await _claim(conn, "veeam", "Immutable Backup", "Amazon RDS")
     await _claim(conn, "veeam", "Instant VM recovery", "VMware vSphere")
     await _claim(conn, "veeam", "instant vm recovery", None)
     await _claim(conn, "cohesity", "tape library export", None)
+
+
+def _ver(path) -> str:
+    doc = yaml.safe_load(path.read_text())
+    return f"{doc['version']}-{hashlib.sha256(path.read_bytes()).hexdigest()[:8]}"
 
 
 async def test_propose_features_writes_valid_yaml_and_merges(vkb_dsn, tmp_path):
@@ -146,35 +153,49 @@ async def test_propose_features_writes_valid_yaml_and_merges(vkb_dsn, tmp_path):
         await _fresh(conn)
         await _seed_propose(conn)
         out = tmp_path / "taxonomy.yaml"
+        # An old-format file: long_tail and unknown keys are dropped from the taxonomy.
+        out.write_text(yaml.safe_dump({"version": 1, "features": [], "targets": [],
+                                       "long_tail": {"feature": []}, "notes": "x"}))
         client = FakeOpenAI(PROPOSALS)
         embedder = FakeEmbedder(VECTORS)
         report = await propose.propose(conn, client=client, embedder=embedder,
                                        settings=_settings(), kind="feature",
                                        distance_threshold=0.2, out_path=out)
-        assert embedder.calls and all(t == "document" for _, t in embedder.calls)
-        assert (report.strings, report.clusters, report.proposed, report.long_tail) == (
-            4, 3, 2, 1)
+        embedded = [t for texts, _ in embedder.calls for t in texts]
+        assert "tape library export" not in embedded  # a singleton is never embedded
+        assert all(t == "document" for _, t in embedder.calls)
+        assert (report.strings, report.clustered, report.clusters, report.proposed) == (
+            4, 3, 2, 2)
+        assert (report.long_tail, report.long_tail_prefiltered, report.long_tail_capped) == (
+            1, 1, 0)
         assert not report.stopped_by_budget
         assert abs(report.spent_usd - 0.002) < 1e-9
         req = client.chat.completions.calls[0]
         assert req["model"] == "anthropic/claude-haiku-5.5"
+        assert req["max_tokens"] == propose.MAX_TOKENS == 2000
+        assert req["extra_body"]["reasoning"] == {"effort": "low"}
         assert req["response_format"]["json_schema"]["strict"] is True
         schema = req["response_format"]["json_schema"]["schema"]
         assert set(schema["required"]) == {"id", "name", "category", "definition", "aliases"}
         assert schema["properties"]["category"]["enum"] == list(propose.CATEGORIES)
 
         doc = yaml.safe_load(out.read_text())
+        assert list(doc) == ["version", "features", "targets"]
         assert doc["version"] == 1 and doc["targets"] == []
         feats = {f["id"]: f for f in doc["features"]}
         assert set(feats) == {"immutable_backups", "instant_vm_recovery"}
         imm = feats["immutable_backups"]
         assert imm["category"] == "Data protection"
-        assert (imm["support_count"], imm["vendor_count"]) == (2, 2)
+        assert (imm["support_count"], imm["vendor_count"]) == (4, 2)
         assert set(imm["aliases"]) == {"immutable backups", "immutable backup",
                                        "worm backups"}
         ivr = feats["instant_vm_recovery"]
         assert (ivr["support_count"], ivr["vendor_count"]) == (2, 1)  # 2 claims, 1 vendor
-        assert doc["long_tail"]["feature"] == [{"text": "tape library export", "count": 1}]
+        tail_path = tmp_path / "long_tail.yaml"
+        assert report.long_tail_path == str(tail_path)
+        tail = yaml.safe_load(tail_path.read_text())
+        assert tail["feature"] == [{"text": "tape library export", "count": 1,
+                                    "vendor_count": 1}]
 
         # A re-run proposes nothing new: every member is already an alias.
         again = FakeOpenAI(PROPOSALS)
@@ -194,12 +215,69 @@ async def test_propose_features_writes_valid_yaml_and_merges(vkb_dsn, tmp_path):
         tg = {t["id"]: t for t in doc2["targets"]}
         assert set(tg) == {"aws", "aws.rds"}
         assert tg["aws.rds"]["parent"] == "aws" and tg["aws"]["parent"] is None
+        assert tg["aws"]["category"] == "Platforms"  # a top-level ancestor
         assert set(tg["aws.rds"]["aliases"]) == {"amazon rds", "aws rds", "rds"}
-        assert doc2["long_tail"]["target"] == [{"text": "vmware vsphere", "count": 1}]
-        assert doc2["long_tail"]["feature"] == doc["long_tail"]["feature"]
+        tail2 = yaml.safe_load(tail_path.read_text())
+        assert tail2["target"] == [{"text": "vmware vsphere", "count": 1, "vendor_count": 1}]
+        assert tail2["feature"] == tail["feature"]
         # The file loads as-is.
         loaded = await load.load_taxonomy(conn, out)
         assert loaded["features"] == 2 and loaded["targets"] == 2
+    finally:
+        await conn.close()
+
+
+async def test_propose_cap_limit_and_failures(vkb_dsn, tmp_path, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_propose(conn)
+        # The cap keeps the top strings by (count, vendor_count); the rest are long tail.
+        monkeypatch.setattr(propose, "MAX_CLUSTER_STRINGS", 2)
+        embedder = FakeEmbedder(VECTORS)
+        report = await propose.propose(
+            conn, client=FakeOpenAI(PROPOSALS), embedder=embedder, settings=_settings(),
+            kind="feature", distance_threshold=0.2, out_path=tmp_path / "taxonomy.yaml",
+            limit=1)
+        assert (report.clustered, report.long_tail_capped, report.long_tail) == (2, 1, 2)
+        assert sum(len(texts) for texts, _ in embedder.calls) == 2
+        assert (report.proposed, report.skipped_by_limit) == (1, 0)  # one cluster of two
+        monkeypatch.setattr(propose, "MAX_CLUSTER_STRINGS", 15_000)
+
+        # --limit: only the first N clusters are sent.
+        client = FakeOpenAI(PROPOSALS)
+        report = await propose.propose(
+            conn, client=client, embedder=embedder, settings=_settings(), kind="feature",
+            distance_threshold=0.2, out_path=tmp_path / "l.yaml", limit=1)
+        assert (report.proposed, report.skipped_by_limit) == (1, 1)
+        assert len(client.chat.completions.calls) == 1 and not report.stopped_by_budget
+
+        # An unexpected exception on one cluster costs that cluster only.
+        broken = dict(PROPOSALS)
+        client = FakeOpenAI(broken)
+
+        async def flaky(**params):
+            if "instant vm recovery" in params["messages"][-1]["content"]:
+                raise RuntimeError("odd provider shape")
+            return _chat(PROPOSALS["immutable backup"])
+        client.chat.completions.create = flaky
+        report = await propose.propose(
+            conn, client=client, embedder=embedder, settings=_settings(), kind="feature",
+            distance_threshold=0.2, out_path=tmp_path / "f.yaml")
+        assert (report.proposed, report.invalid) == (1, 1)
+        assert "odd provider shape" in report.errors[0]
+        assert [f["id"] for f in yaml.safe_load((tmp_path / "f.yaml").read_text())[
+            "features"]] == ["immutable_backups"]
+
+        # A hand-broken file is refused before any call.
+        bad = tmp_path / "bad.yaml"
+        bad.write_text(yaml.safe_dump({"version": 1, "features": [{"name": "no id"}]}))
+        client = FakeOpenAI(PROPOSALS)
+        with pytest.raises(ValueError):
+            await propose.propose(conn, client=client, embedder=embedder,
+                                  settings=_settings(), kind="feature",
+                                  distance_threshold=0.2, out_path=bad)
+        assert client.chat.completions.calls == []
     finally:
         await conn.close()
 
@@ -245,7 +323,7 @@ async def test_propose_anthropic_backend_request_shape(vkb_dsn, tmp_path):
     try:
         await _fresh(conn)
         await _claim(conn, "rubrik", "immutable backups")
-        await _claim(conn, "veeam", "immutable backup")
+        await _claim(conn, "veeam", "immutable backups")
         settings = VendorkbSettings(_env_file=None)
         report = await propose.propose(
             conn, client=SimpleNamespace(messages=Messages()),
@@ -297,7 +375,8 @@ async def test_load_is_idempotent_and_replaces(vkb_dsn, tmp_path):
         _write(path, TAXONOMY)
         first = await load.load_taxonomy(conn, path)
         second = await load.load_taxonomy(conn, path)
-        assert first == second == {"version": "1", "features": 2, "targets": 3, "aliases": 5}
+        v1 = _ver(path)
+        assert first == second == {"version": v1, "features": 2, "targets": 3, "aliases": 5}
         assert await _rows(conn, "SELECT count(*) FROM features") == [(2,)]
         assert await _rows(conn, "SELECT target_id, parent_id, kind FROM targets"
                                  " ORDER BY target_id") == [
@@ -305,7 +384,7 @@ async def test_load_is_idempotent_and_replaces(vkb_dsn, tmp_path):
             ("aws.s3", "aws", "storage")]
         assert ("worm backups", "feature", "immutable_backups") in await _rows(
             conn, "SELECT alias, entity_type, entity_id FROM aliases")
-        assert await load.current_version(conn) == "1"
+        assert await load.current_version(conn) == v1 and v1.startswith("1-")
 
         doc = json.loads(json.dumps(TAXONOMY))
         doc["version"] = 2
@@ -313,9 +392,22 @@ async def test_load_is_idempotent_and_replaces(vkb_dsn, tmp_path):
         doc["targets"] = doc["targets"][:2]
         _write(path, doc)
         third = await load.load_taxonomy(conn, path)
-        assert third == {"version": "2", "features": 1, "targets": 2, "aliases": 4}
+        assert third == {"version": _ver(path), "features": 1, "targets": 2, "aliases": 4}
         assert await _rows(conn, "SELECT feature_id FROM features") == [("immutable_backups",)]
-        assert await load.current_version(conn) == "2"
+        assert await load.current_version(conn) == _ver(path)
+
+        # A hand edit without a version bump still changes the taxonomy version.
+        doc["features"][0]["aliases"].append("write-once backups")
+        _write(path, doc)
+        fourth = await load.load_taxonomy(conn, path)
+        assert fourth["version"].startswith("2-") and fourth["version"] != third["version"]
+
+        # YAML numbers as aliases are taken as text.
+        doc["features"][0]["aliases"].append(365)
+        _write(path, doc)
+        assert (await load.load_taxonomy(conn, path))["aliases"] == 6
+        assert ("365", "feature", "immutable_backups") in await _rows(
+            conn, "SELECT alias, entity_type, entity_id FROM aliases")
     finally:
         await conn.close()
 
@@ -326,6 +418,7 @@ async def test_load_is_idempotent_and_replaces(vkb_dsn, tmp_path):
     lambda d: d["features"][0].update(category="Licensing"),  # not a seed category
     lambda d: d["features"][0].update(id="Bad Id"),
     lambda d: d.update(version="one"),
+    lambda d: d["features"][0]["aliases"].append(True),  # `- yes` in YAML
 ])
 async def test_load_rejects_invalid_yaml(vkb_dsn, tmp_path, mutate):
     conn = await connect(vkb_dsn)
@@ -338,6 +431,19 @@ async def test_load_rejects_invalid_yaml(vkb_dsn, tmp_path, mutate):
         with pytest.raises(ValueError):
             await load.load_taxonomy(conn, path)
         assert await _rows(conn, "SELECT count(*) FROM features") == [(0,)]
+    finally:
+        await conn.close()
+
+
+async def test_load_rejects_duplicate_keys(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        path = tmp_path / "dup.yaml"
+        path.write_text("version: 1\nfeatures:\n- id: a\n  name: A\n  category: Security\n"
+                        "  aliases: [x]\n  aliases: [y]\ntargets: []\n")
+        with pytest.raises(ValueError, match="duplicate key"):
+            await load.load_taxonomy(conn, path)
     finally:
         await conn.close()
 
@@ -373,7 +479,7 @@ async def test_mapper_alias_nearest_neighbour_and_unmapped(vkb_dsn, tmp_path):
             conn, "SELECT claim_id::text, feature_id, feature_method, feature_conf,"
                   " target_id, target_method, mapped_version FROM raw_claims")}
         assert rows[ids["alias"]] == ("immutable_backups", "alias", 1.0, "aws.rds", "alias",
-                                      "1")
+                                      _ver(tmp_path / "taxonomy.yaml"))
         fid, method, conf, tid, tmethod, _ = rows[ids["nn"]]
         assert (fid, method, tid, tmethod) == ("immutable_backups", "nn", None, None)
         assert 0.8 <= conf < 1.0
@@ -404,6 +510,13 @@ async def test_build_replaces_rows_and_query_includes_descendants(vkb_dsn, tmp_p
             ("rubrik", "P", "supported", "cond", "http://docs/rubrik-rds")]
         assert rds[0].evidence_quote == "quote for Immutable  Backups" and rds[0].chunk_id
         assert await capabilities.query(conn, "immutable_backups", target="aws.r") == []
+        # A sibling sharing the prefix is not a descendant.
+        await conn.execute("INSERT INTO targets (target_id, name) VALUES ('awsx', 'AWSX')")
+        await conn.execute("UPDATE capabilities SET target_id='awsx' WHERE claim_id=%s",
+                           (ids["t_unmapped"],))
+        assert {r.target_id for r in await capabilities.query(
+            conn, "immutable_backups", target="aws")} == {"aws.rds", "aws.s3"}
+        assert len(await capabilities.query(conn, "immutable_backups", target="awsx")) == 1
         # Aliases resolve too; filters narrow.
         assert len(await capabilities.query(conn, "WORM backups", target="Amazon RDS")) == 1
         veeam = await capabilities.query(conn, "immutable_backups", vendor="Veeam")
@@ -421,7 +534,7 @@ async def test_build_replaces_rows_and_query_includes_descendants(vkb_dsn, tmp_p
         await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
         assert await capabilities.build(conn) == 4
         assert await _rows(conn, "SELECT DISTINCT taxonomy_version FROM capabilities") == [
-            ("2",)]
+            (_ver(tmp_path / "taxonomy.yaml"),)]
         assert {r.target_id for r in await capabilities.query(
             conn, "immutable_backups", target="aws")} == {"aws.rds"}
     finally:

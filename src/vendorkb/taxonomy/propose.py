@@ -5,16 +5,24 @@
 embeds them (input_type document), clusters them (agglomerative, cosine, average linkage),
 and asks the extraction model (``extract_backend`` / ``extract_model``, strict JSON schema)
 for one ``{id, name, category, definition, aliases}`` per cluster. Then it merges the result
-into the YAML at ``out_path`` (created when missing, ``version: 1``):
+into the YAML at ``out_path`` (created when missing, ``version: 1``; it holds only
+``version``, ``features`` and ``targets``):
 
-- Only clusters with >= 2 claims or >= 2 vendors are proposed; the rest go to
-  ``long_tail.<kind>`` as ``{text, count}`` (replaced on every run of that kind).
+- Only strings with >= 2 claims or >= 2 vendors are embedded and clustered, at most
+  ``MAX_CLUSTER_STRINGS`` of them (the top by claim count, then vendor count): clustering
+  memory is quadratic. Every other string goes to the long tail unembedded. The long tail
+  is written to a separate file next to ``out_path`` (``long_tail_path``), under the kind,
+  as ``{text, count, vendor_count}`` (replaced on every run of that kind); the mapper still
+  reaches those strings by nearest neighbour.
+- ``limit`` caps the clusters sent (biggest first), for a smoke run.
 - A cluster whose every string is already an alias or name in the file is not sent again.
 - Every cluster string becomes an alias of its entry (the mapper's exact match); an alias
   another entry already owns stays with that entry. A proposed id that already exists merges
   its aliases into that entry.
 - Target ids are dotted (``aws.rds``); ``parent`` is the id minus its last segment, and any
-  missing ancestor is added as a bare entry for the reviewer to fill in.
+  missing ancestor is added as a bare entry for the reviewer to fill in (category
+  Platforms at the top level, else its child's).
+- An existing file is validated first (``load.validate``); a hand-broken one is refused.
 - ``support_count`` / ``vendor_count`` are recomputed for every entry of the kind from the
   strings its aliases and name cover.
 
@@ -22,7 +30,8 @@ The budget guard stops dispatching before a call whose estimate (prompt chars / 
 full ``MAX_TOKENS`` out, at the Haiku price), added to the spend so far and the estimates in
 flight, would exceed ``max_usd``. Spend is the provider's ``usage.cost`` when reported, else
 the token price. Clusters not sent are counted in ``unproposed``; the file still gets what
-was proposed. A 400 stops dispatching and is raised after the file is written.
+was proposed. A 400 stops dispatching and is raised after the file is written; any other
+failure costs only its cluster (counted in ``invalid``).
 """
 from __future__ import annotations
 
@@ -36,6 +45,7 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 import anthropic
+import numpy as np
 import openai
 import psycopg
 import yaml
@@ -43,14 +53,17 @@ import yaml
 from vendorkb.claims.extract import _reported_cost, cost_usd
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
-from vendorkb.taxonomy.load import CATEGORIES, FEATURE_ID_RE, TARGET_ID_RE, read_doc
+from vendorkb.taxonomy.load import CATEGORIES, FEATURE_ID_RE, TARGET_ID_RE, read_doc, validate
 
 log = logging.getLogger(__name__)
 
-__all__ = ["CATEGORIES", "ProposeReport", "parent_of", "propose", "slug_id"]
+__all__ = ["CATEGORIES", "ProposeReport", "long_tail_path", "parent_of", "propose", "slug_id"]
 
 Kind = Literal["feature", "target"]
-MAX_TOKENS = 1000
+# OpenRouter turns reasoning effort into a thinking budget (>= 1024 tokens on Anthropic
+# models), so the reply needs headroom above it.
+MAX_TOKENS = 2000
+MAX_CLUSTER_STRINGS = 15_000  # ~1.8 GB of distance matrices
 CHARS_PER_TOKEN = 3
 MAX_MEMBERS_IN_PROMPT = 40
 MAX_VENDORS_IN_PROMPT = 10
@@ -114,11 +127,16 @@ class _Stat:
 class ProposeReport:
     kind: str = ""
     out_path: str = ""
+    long_tail_path: str = ""
     strings: int = 0
+    clustered: int = 0              # strings embedded and clustered
+    long_tail_prefiltered: int = 0  # 1 claim, 1 vendor: never embedded
+    long_tail_capped: int = 0       # clusterable but past MAX_CLUSTER_STRINGS
     clusters: int = 0
     eligible: int = 0
     already_covered: int = 0
     proposed: int = 0
+    skipped_by_limit: int = 0
     merged_into_existing: int = 0
     unproposed: int = 0  # eligible but not sent (budget stop or a 400)
     invalid: int = 0     # replies that failed validation or the call
@@ -252,18 +270,29 @@ def _parse(text: str | None, kind: Kind) -> dict[str, Any]:
             "aliases": [normalize(a) for a in aliases if isinstance(a, str) and normalize(a)]}
 
 
+def long_tail_path(out_path: str | Path) -> Path:
+    """``taxonomy/taxonomy.yaml`` -> ``taxonomy/long_tail.yaml``; ``x/t.yaml`` ->
+    ``x/t.long_tail.yaml``."""
+    out = Path(out_path)
+    return out.with_name("long_tail.yaml" if out.stem == "taxonomy"
+                         else f"{out.stem}.long_tail.yaml")
+
+
 def _load_doc(path: Path) -> dict[str, Any]:
-    """The YAML at ``path`` (or a fresh ``version: 1`` one), keys in the canonical order."""
-    old: dict[str, Any] = read_doc(path) if path.exists() else {}
-    long_tail: dict[str, Any] = old.get("long_tail") or {}
-    doc: dict[str, Any] = {
-        "version": old.get("version", 1),
-        "features": list(old.get("features") or []),
-        "targets": list(old.get("targets") or []),
-        "long_tail": {"feature": list(long_tail.get("feature") or []),
-                      "target": list(long_tail.get("target") or [])},
-    }
-    return doc | {k: v for k, v in old.items() if k not in doc}
+    """The taxonomy at ``path`` (validated), or a fresh ``version: 1`` one."""
+    if not path.exists():
+        return {"version": 1, "features": [], "targets": []}
+    old = read_doc(path)
+    old.setdefault("version", 1)
+    validate(old)
+    return {"version": old["version"], "features": list(old.get("features") or []),
+            "targets": list(old.get("targets") or [])}
+
+
+def _load_tail(path: Path) -> dict[str, Any]:
+    old = read_doc(path) if path.exists() else {}
+    return {"source": None, "feature": list(old.get("feature") or []),
+            "target": list(old.get("target") or [])}
 
 
 def _covered(entries: list[dict[str, Any]]) -> dict[str, str]:
@@ -311,7 +340,8 @@ def _merge(kind: Kind, entries: list[dict[str, Any]], proposals: list[tuple[list
         for e in list(entries):
             child, node = e, parent_of(e["id"])
             while node is not None and node not in by_id:
-                anc = _new_entry(kind, {"id": node, "name": node, "category": child["category"],
+                category = child["category"] if parent_of(node) else "Platforms"
+                anc = _new_entry(kind, {"id": node, "name": node, "category": category,
                                         "definition": "", "aliases": []}, [])
                 entries.append(anc)
                 by_id[node] = anc
@@ -339,35 +369,48 @@ def _write(path: Path, doc: dict[str, Any]) -> None:
 
 async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embedder,
                   settings: VendorkbSettings, kind: Kind, distance_threshold: float,
-                  out_path: str | Path, max_usd: float = 2.0) -> ProposeReport:
+                  out_path: str | Path, max_usd: float = 2.0,
+                  limit: int | None = None) -> ProposeReport:
     if kind not in ("feature", "target"):
         raise ValueError(f"kind must be 'feature' or 'target', got {kind!r}")
     path = Path(out_path)
-    report = ProposeReport(kind=kind, out_path=str(path))
+    tail_path = long_tail_path(path)
+    report = ProposeReport(kind=kind, out_path=str(path), long_tail_path=str(tail_path))
+    doc = _load_doc(path)  # before any paid work: a broken file is refused up front
     stats = await _strings(conn, kind)
     report.strings = len(stats)
-    vectors = (await embedder.embed([s.text for s in stats], input_type="document")
-               if stats else [])
-    groups = cluster_strings([s.text for s in stats], vectors,
-                             distance_threshold=distance_threshold)
+    clusterable = sorted((s for s in stats if s.count >= 2 or len(s.vendors) >= 2),
+                         key=lambda s: (-s.count, -len(s.vendors), s.text))
+    long_tail: list[_Stat] = [s for s in stats if s.count < 2 and len(s.vendors) < 2]
+    report.long_tail_prefiltered = len(long_tail)
+    if len(clusterable) > MAX_CLUSTER_STRINGS:
+        report.long_tail_capped = len(clusterable) - MAX_CLUSTER_STRINGS
+        log.warning("taxonomy propose: %d clusterable strings; clustering the top %d, the"
+                    " rest go to the long tail", len(clusterable), MAX_CLUSTER_STRINGS)
+        long_tail.extend(clusterable[MAX_CLUSTER_STRINGS:])
+        clusterable = clusterable[:MAX_CLUSTER_STRINGS]
+    del stats
+    report.clustered = len(clusterable)
+    texts = [s.text for s in clusterable]
+    vectors = (np.asarray(await embedder.embed(texts, input_type="document"), dtype=np.float32)
+               if texts else np.zeros((0, 0), dtype=np.float32))
+    groups = cluster_strings(texts, vectors, distance_threshold=distance_threshold)
+    del vectors, texts
     report.clusters = len(groups)
-    doc = _load_doc(path)
     entries: list[dict[str, Any]] = doc[f"{kind}s"]
     covered = _covered(entries)
-    long_tail: list[_Stat] = []
     todo: list[list[_Stat]] = []
     for g in groups:
-        members = [stats[i] for i in g]
-        claims = sum(m.count for m in members)
-        vendors = {v for m in members for v in m.vendors}
-        if claims < 2 and len(vendors) < 2:
-            long_tail.extend(members)
-        elif all(m.text in covered for m in members):
+        members = [clusterable[i] for i in g]
+        if all(m.text in covered for m in members):
             report.already_covered += 1
         else:
             todo.append(members)
     report.eligible = report.already_covered + len(todo)
     todo.sort(key=lambda ms: (-sum(m.count for m in ms), ms[0].text))
+    if limit is not None and len(todo) > limit:
+        report.skipped_by_limit = len(todo) - limit
+        todo = todo[:max(0, limit)]
 
     spent, in_flight, stop = 0.0, 0.0, False
     fatal: Exception | None = None
@@ -395,7 +438,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
                 report.invalid += 1
                 report.errors.append(f"{members[0].text}: {e}")
                 return None
-            except (anthropic.APIError, openai.APIError) as e:
+            except Exception as e:  # API errors and any odd provider shape: this cluster only
                 report.invalid += 1
                 report.errors.append(f"{members[0].text}: {type(e).__name__}: {e}")
                 log.warning("taxonomy propose: call failed for %r: %s", members[0].text, e)
@@ -416,12 +459,16 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
     replies = await asyncio.gather(*(one(ms) for ms in todo))
     report.spent_usd = spent
     _merge(kind, entries, [(ms, p) for ms, p in zip(todo, replies) if p is not None], report)
-    _recount(entries, stats)
+    _recount(entries, clusterable + long_tail)
     entries.sort(key=lambda e: e["id"])
-    tail = sorted(long_tail, key=lambda s: (-s.count, s.text))
-    doc["long_tail"][kind] = [{"text": s.text, "count": s.count} for s in tail]
+    tail = sorted(long_tail, key=lambda s: (-s.count, -len(s.vendors), s.text))
+    tail_doc = _load_tail(tail_path)
+    tail_doc["source"] = path.name
+    tail_doc[kind] = [{"text": s.text, "count": s.count, "vendor_count": len(s.vendors)}
+                      for s in tail]
     report.long_tail = len(tail)
     _write(path, doc)
+    _write(tail_path, tail_doc)
     log.info("taxonomy propose: %s", report)
     if fatal is not None:
         raise fatal

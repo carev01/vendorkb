@@ -1,7 +1,7 @@
 """Load ``taxonomy.yaml`` into ``features`` / ``targets`` / ``aliases``.
 
 The YAML (the source of truth, reviewed in git) has the top-level keys ``version`` (int),
-``features`` and ``targets`` (lists of entries) and ``long_tail`` (ignored here). An entry is
+``features`` and ``targets`` (lists of entries); other keys are ignored. An entry is
 ``{id, name, category, definition, aliases, [parent], [support_count], [vendor_count]}``.
 Feature ids are snake_case; target ids are dotted lowercase (``aws.rds``), and a target's
 ``parent`` must be another target in the file. ``category`` is one of ``CATEGORIES``; a
@@ -10,10 +10,13 @@ target's ``kind`` derives from it.
 Loading validates the whole file first (a ValueError names the problem and nothing is
 written), then replaces the tables' contents in one transaction: entries missing from the
 file are deleted (with any ``capabilities`` rows that point at them), the rest upserted,
-the aliases rewritten (normalized), and ``version`` recorded as the taxonomy version.
+the aliases rewritten (normalized), and the taxonomy version recorded: ``version`` plus
+the first 8 hex digits of the file's sha256 (``"1-ab12cd34"``). A mapping key given twice
+is refused; a bare YAML number used as an alias is taken as text.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,11 +45,39 @@ class Entry:
     aliases: tuple[str, ...]
 
 
-def read_doc(path: str | Path) -> dict[str, Any]:
-    doc = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """A safe loader that refuses a mapping with the same key twice (a careless edit)."""
+
+
+def _unique_mapping(loader: _UniqueKeyLoader, node: yaml.MappingNode) -> dict:
+    seen: set = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node)
+        if key in seen:
+            raise ValueError(f"duplicate key {key!r} at line {key_node.start_mark.line + 1}")
+        seen.add(key)
+    return loader.construct_mapping(node, deep=True)
+
+
+_UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+                                 _unique_mapping)
+
+
+def parse_doc(data: bytes, where: str | Path = "taxonomy") -> dict[str, Any]:
+    doc = yaml.load(data.decode("utf-8"), Loader=_UniqueKeyLoader)  # a SafeLoader subclass
     if not isinstance(doc, dict):
-        raise ValueError(f"{path}: not a YAML mapping")
+        raise ValueError(f"{where}: not a YAML mapping")
     return doc
+
+
+def read_doc(path: str | Path) -> dict[str, Any]:
+    return parse_doc(Path(path).read_bytes(), path)
+
+
+def version_string(version: int, data: bytes) -> str:
+    """The taxonomy version: the YAML ``version`` plus the file's hash, so a hand edit
+    without a version bump still invalidates mappings made under the old file."""
+    return f"{version}-{hashlib.sha256(data).hexdigest()[:8]}"
 
 
 def _entries(doc: dict[str, Any], kind: str) -> list[Entry]:
@@ -80,9 +111,14 @@ def _entries(doc: dict[str, Any], kind: str) -> list[Entry]:
         if parent is not None and not isinstance(parent, str):
             raise ValueError(f"{where} ({eid}): parent must be an id or null")
         aliases = item.get("aliases") or []
-        if not isinstance(aliases, list) or not all(isinstance(a, str) for a in aliases):
+        if not isinstance(aliases, list):
             raise ValueError(f"{where} ({eid}): aliases must be a list of strings")
-        normalized = tuple(dict.fromkeys(a for a in map(normalize, aliases) if a))
+        texts: list[str] = []
+        for a in aliases:
+            if isinstance(a, bool) or not isinstance(a, str | int | float):
+                raise ValueError(f"{where} ({eid}): alias {a!r} is not text (quote it)")
+            texts.append(str(a))  # a bare YAML number such as 365 is text here
+        normalized = tuple(dict.fromkeys(a for a in map(normalize, texts) if a))
         out.append(Entry(eid, name.strip(), item["category"], definition, parent, normalized))
     for e in out:
         if e.parent is not None and e.parent not in seen:
@@ -136,7 +172,9 @@ async def _replace(conn: psycopg.AsyncConnection, table: str, id_col: str,
 
 async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict:
     """Validate and load the YAML at ``path``; returns the version and the row counts."""
-    version, features, targets = validate(read_doc(path))
+    data = Path(path).read_bytes()
+    number, features, targets = validate(parse_doc(data, path))
+    version = version_string(number, data)
     feature_ids = [e.id for e in features]
     target_ids = [e.id for e in targets]
     aliases = ([(a, "feature", e.id) for e in features for a in e.aliases]
@@ -158,6 +196,6 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
         await conn.execute(
             "INSERT INTO taxonomy_meta (key, value) VALUES (%s,%s) ON CONFLICT (key)"
             " DO UPDATE SET value=EXCLUDED.value, updated_at=now()",
-            (VERSION_KEY, str(version)))
-    return {"version": str(version), "features": len(features), "targets": len(targets),
+            (VERSION_KEY, version))
+    return {"version": version, "features": len(features), "targets": len(targets),
             "aliases": len(aliases)}

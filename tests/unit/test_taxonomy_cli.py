@@ -31,16 +31,18 @@ def stubbed(monkeypatch):
                                                           (2, False, 1)])
 def test_taxonomy_propose_args_and_exit(stubbed, monkeypatch, capsys, invalid, budget, code):
     async def fake_propose(conn, *, client, embedder, settings, kind, distance_threshold,
-                           out_path, max_usd):
+                           out_path, max_usd, limit):
         stubbed.update(kind=kind, threshold=distance_threshold, out=out_path, max_usd=max_usd,
-                       backend=settings.extract_backend, model=settings.extract_model)
+                       backend=settings.extract_backend, model=settings.extract_model,
+                       limit=limit)
         return propose.ProposeReport(kind=kind, invalid=invalid, stopped_by_budget=budget)
 
     monkeypatch.setattr(propose, "propose", fake_propose)
     assert cli.main(["taxonomy", "propose", "--kind", "target", "--threshold", "0.3",
-                     "--out", "x.yaml", "--max-usd", "1.5", "--backend", "openai"]) == code
+                     "--out", "x.yaml", "--max-usd", "1.5", "--backend", "openai",
+                     "--limit", "3"]) == code
     assert (stubbed["kind"], stubbed["threshold"], stubbed["out"], stubbed["max_usd"],
-            stubbed["backend"]) == ("target", 0.3, "x.yaml", 1.5, "openai")
+            stubbed["backend"], stubbed["limit"]) == ("target", 0.3, "x.yaml", 1.5, "openai", 3)
     assert json.loads(capsys.readouterr().out)["kind"] == "target"
 
 
@@ -51,8 +53,8 @@ def test_taxonomy_propose_defaults(stubbed, monkeypatch, capsys):
 
     monkeypatch.setattr(propose, "propose", fake_propose)
     assert cli.main(["taxonomy", "propose", "--kind", "feature"]) == 0
-    assert (stubbed["distance_threshold"], stubbed["out_path"], stubbed["max_usd"]) == (
-        0.25, "taxonomy/taxonomy.yaml", 2.0)
+    assert (stubbed["distance_threshold"], stubbed["out_path"], stubbed["max_usd"],
+            stubbed["limit"]) == (0.25, "taxonomy/taxonomy.yaml", 2.0, None)
 
 
 def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):

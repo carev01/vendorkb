@@ -54,3 +54,15 @@ def test_slug_ids(kind, raw, expected):
 def test_parent_of():
     assert propose.parent_of("aws.rds.postgres") == "aws.rds"
     assert propose.parent_of("aws") is None
+
+
+def test_long_tail_path():
+    assert str(propose.long_tail_path("taxonomy/taxonomy.yaml")) == "taxonomy/long_tail.yaml"
+    assert str(propose.long_tail_path("x/t.yaml")) == "x/t.long_tail.yaml"
+
+
+def test_cluster_accepts_float32_arrays():
+    import numpy as np
+    vectors = np.asarray([_unit(1, 0.01), _unit(1, 0), _unit(0, 1)], dtype=np.float32)
+    assert cluster.cluster_strings(["a", "b", "c"], vectors, distance_threshold=0.2) == [
+        [0, 1], [2]]
