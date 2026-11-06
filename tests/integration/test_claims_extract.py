@@ -253,6 +253,38 @@ async def test_unit_and_bound_without_a_value_are_stored_null(vkb_dsn):
     finally:
         await conn.close()
 
+
+async def test_nul_bytes_in_model_strings_are_stripped_before_storage(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [ok, err] = await _doc(conn, texts=(TEXT, TEXT + " second"))
+        nul_good = {**GOOD, "capability": "immutable\x00 snapshots",
+                    "conditions": "\x00PostgreSQL only",
+                    "evidence_quote": "Backups of Amazon RDS for\x00 PostgreSQL instances are"
+                                      " supported"}
+        nul_invented = {**INVENTED, "target_scope": "\x00", "evidence_quote": "Tape\x00 backup is fully supported for LTO-9."}
+        request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+        client = FakeClient(replies={
+            "second": anthropic.APIConnectionError(message="conn\x00 lost", request=request),
+            "Amazon RDS": _message({"claims": [nul_good, nul_invented]})})
+        report = await extract.run(conn, [ok, err], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.done, report.errored) == (1, 1)
+        # the cleaned quote matches the chunk, so the claim passes the gate
+        assert await _rows(conn, "SELECT capability_raw, conditions, model_quote, evidence_quote,"
+                                 " gate FROM raw_claims") == [
+            ("immutable snapshots", "PostgreSQL only", GOOD["evidence_quote"],
+             GOOD["evidence_quote"], "exact")]
+        [(model_quote, scope, reason)] = await _rows(
+            conn, "SELECT model_quote, target_scope, reason FROM rejected_claims")
+        assert (model_quote, scope) == (INVENTED["evidence_quote"], "")
+        assert "\x00" not in reason and reason.startswith("no-match")
+        [(error,)] = await _rows(conn, "SELECT error FROM extractions WHERE chunk_id=%s", err)
+        assert error == "APIConnectionError: conn lost"
+    finally:
+        await conn.close()
+
 async def test_invalid_qualifier_rejects_only_that_claim(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

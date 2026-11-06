@@ -507,9 +507,21 @@ def _judge(claim: Any, text: str) -> gate.GateResult:
     return gate.match(claim["evidence_quote"], text)
 
 
+def _no_nul(text: str) -> str:
+    """``text`` without NUL bytes, which a Postgres text column cannot hold."""
+    return text.replace("\x00", "")
+
+
+def _clean(claim: Any) -> Any:
+    """A claim with NUL removed from every string value: validated, gated and stored clean."""
+    if not isinstance(claim, dict):
+        return claim
+    return {k: _no_nul(v) if isinstance(v, str) else v for k, v in claim.items()}
+
+
 def _field(claim: Any, key: str) -> str | None:
     value = claim.get(key) if isinstance(claim, dict) else None
-    return value if isinstance(value, str) else (None if value is None else str(value))
+    return None if value is None else _no_nul(value if isinstance(value, str) else str(value))
 
 
 def _number(claim: Any) -> float | None:
@@ -559,7 +571,7 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
             report.skipped_deleted += 1
             log.warning("extract: chunk %s no longer exists; result skipped", chunk_id)
             return
-        judged = [(c, _judge(c, chunk.text)) for c in outcome.claims]
+        judged = [(c, _judge(c, chunk.text)) for c in map(_clean, outcome.claims)]
         accepted = [(c, r) for c, r in judged if r.ok]
         rejected = [(c, r) for c, r in judged if not r.ok]
         cur = await conn.execute(
@@ -577,7 +589,8 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
             " WHERE extractions.status = 'errored'"
             "   AND extractions.last_batch_id IS DISTINCT FROM EXCLUDED.last_batch_id"
             " RETURNING extraction_id, status",
-            (uuid.uuid4(), chunk_id, model, PROMPT_VERSION, outcome.status, outcome.error,
+            (uuid.uuid4(), chunk_id, model, PROMPT_VERSION, outcome.status,
+             None if outcome.error is None else _no_nul(outcome.error),
              ledger_id, len(accepted), outcome.total_input_tokens, outcome.output_tokens, cost,
              MAX_ATTEMPTS))
         row = await cur.fetchone()
@@ -596,7 +609,8 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
                     " %s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, cl["capability"].strip(), _field(cl, "target"),
                       cl["support"], _field(cl, "conditions"), r.span,
-                      cl["evidence_quote"], r.reason, model, PROMPT_VERSION, *_v3_values(cl))
+                      cl["evidence_quote"], _no_nul(r.reason), model, PROMPT_VERSION,
+                      *_v3_values(cl))
                      for cl, r in accepted])
             if rejected:
                 await c.executemany(
@@ -608,7 +622,7 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
                     " %s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, _field(cl, "capability"), _field(cl, "target"),
                       _field(cl, "support"), _field(cl, "conditions"), None,
-                      _field(cl, "evidence_quote"), r.reason, model, PROMPT_VERSION,
+                      _field(cl, "evidence_quote"), _no_nul(r.reason), model, PROMPT_VERSION,
                       *_v3_values(cl))
                      for cl, r in rejected])
     if status == "done":
