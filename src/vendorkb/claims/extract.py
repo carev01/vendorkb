@@ -219,8 +219,9 @@ Text that explains how to configure, use, size, manage or monitor the capability
 it does: that is "supported".
 - offering: a separately named product, service or deployment form of the vendor that the \
 text says the claim applies to, only when narrower than the Product line, e.g. "Veeam Data \
-Cloud" (versus the self-managed software), "self-managed", "Express"; otherwise null. It is \
-never a feature or backup method (e.g. snapshots, IntelliSnap), a console or component (e.g. a \
+Cloud" (versus the self-managed software), "self-managed", "Express", or a hardware appliance \
+sold as its own deployment form (e.g. "Grid appliance"); otherwise null. It is never a \
+feature or backup method (e.g. snapshots, IntelliSnap), a console or component (e.g. a \
 management console, proxy, gateway), or a cloud, region or platform (those go in target or \
 conditions). Never the product on the Product line, an edition or a version.
 - edition: the edition or license tier the text attaches to this claim, e.g. "Premium", \
