@@ -64,7 +64,7 @@ def build_enumeration_prompt(question: str, hits: list[Hit], vendors: list[str])
 def closing_line(names: list[str]) -> str:
     if not names:
         return ""
-    return "Checked with nothing documented: " + ", ".join(sorted(names)) + "."
+    return "No supporting passage found for: " + ", ".join(sorted(names)) + "."
 
 
 _BULLET = re.compile(r"^(?:[-*\u2022]|\d+[.)])\s+")

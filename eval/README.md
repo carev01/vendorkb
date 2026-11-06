@@ -165,6 +165,10 @@ product) its document row belongs to.
     # paid: with the reranker (adds rerank tokens per question; --min-score, --fts-weight apply)
     uv run python eval/cross_vendor.py score --rerank --out eval/runs/xv-rerank.json
 
+Enumeration and comparison answers end with a deterministic closing line, `No supporting
+passage found for: <vendors>.` (runs before 2026-11-06 used `Checked with nothing documented:
+<vendors>.`; grading accepts both prefixes). `closing_line_wrong` counts expected vendors it lists.
+
 `candidates` writes `DIR/<qid>/<vendor>.json`. `score` writes per-question results plus a
 summary: enumeration vendor recall and noise, comparison facet recall, single-vendor and
 multi-article pool recall, rerank tokens per question, p50/p90 latency per shape. The pool

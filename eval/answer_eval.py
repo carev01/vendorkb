@@ -20,6 +20,8 @@ Grades JSONL (written by the grading step), one object per question::
      "refusal_correct": bool|null,      # unanswerable questions (and wrongly refused ones)
      "vendor_precision": float|null, "vendor_recall": float|null,   # enumeration
      "closing_line_wrong": int|null,    # enumeration: expected vendors the closing line lists
+                                        # (prefix "No supporting passage found for:"; the
+                                        # pre-2026-11-06 "Checked with nothing documented:" counts too)
      "facets_answered": bool|null}      # comparison
 
 ``summarize`` prints per-shape, per-holdout (holdout flag read from the answers file) and

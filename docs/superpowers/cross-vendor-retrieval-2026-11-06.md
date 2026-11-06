@@ -21,6 +21,7 @@ Implements `specs/2026-11-06-cross-vendor-retrieval-design.md` (plan
     chunk from its own vendor. Product groups are checked against that vendor's hits.
   - A line that cites another, non-workload vendor and names it is dropped.
   - The closing line is deterministic: "Checked with nothing documented: …".
+    (Wording changed after this run to "No supporting passage found for: …".)
 - **Eval.** 23 enumeration questions are labelled for all 43 vendors: 11 existing and 12 new
   held-out ones. Opus subagents did the labelling, and a 10% independent re-label agreed on
   87% of pairs. The 13 disagreements are marked unclear and excluded from scoring. The result

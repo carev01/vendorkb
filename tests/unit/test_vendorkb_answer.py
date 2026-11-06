@@ -285,7 +285,7 @@ async def test_enumeration_closing_line_lists_unlisted_vendors(monkeypatch):
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"], dropped=["C"], empty=["D"])
     r = await _run_enum(FakeClient(["A (VBR): does X [1]"]), idx)
     assert r["vendors_listed"] == ["A"]
-    assert r["answer"].endswith("Checked with nothing documented: B, C, D.")
+    assert r["answer"].endswith("No supporting passage found for: B, C, D.")
     assert r["citations"][0]["chunk_id"] == "c1"
 
 
@@ -295,7 +295,7 @@ async def test_enumeration_all_lines_dropped_refuses(monkeypatch):
     _patch_enum(monkeypatch, [_hit(1, "B")], ["A", "B"])
     r = await _run_enum(FakeClient(["A (VBR): does X [1]\nZ: nope [1]"]), idx)
     assert r["lines_dropped"] == 2
-    assert r["answer"] == REFUSAL + "\nChecked with nothing documented: A, B."
+    assert r["answer"] == REFUSAL + "\nNo supporting passage found for: A, B."
 
 
 @pytest.mark.asyncio
@@ -322,12 +322,12 @@ async def test_comparison_closing_line_for_empty_facet(monkeypatch):
                          embedder=None, reranker=None, scope_index=idx,
                          client=FakeClient(["Veeam does X [1]."]))
     assert r["shape"] == "comparison" and r["facets_empty"] == ["AWS Backup"]
-    assert r["answer"].endswith("Checked with nothing documented: AWS Backup.")
+    assert r["answer"].endswith("No supporting passage found for: AWS Backup.")
 
 
 def test_closing_line_and_check_lines_units():
     assert ans.closing_line([]) == ""
-    assert ans.closing_line(["b", "a"]) == "Checked with nothing documented: a, b."
+    assert ans.closing_line(["b", "a"]) == "No supporting passage found for: a, b."
     kept, listed, dropped = ans.check_enumeration_lines(
         "A: x [1]\n\nB (P): y [9]", [_hit(1, "A")], ["A", "B"])
     assert kept == "A: x [1]" and listed == ["A"] and dropped == 1
@@ -417,7 +417,7 @@ async def test_enumeration_bare_refusal_still_refuses(monkeypatch):
     idx = ScopeIndex(vendors=["A"], products=[], aliases={})
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
     r = await _run_enum(FakeClient([REFUSAL]), idx)
-    assert r["answer"] == REFUSAL + "\nChecked with nothing documented: A."
+    assert r["answer"] == REFUSAL + "\nNo supporting passage found for: A."
 
 
 @pytest.mark.asyncio
