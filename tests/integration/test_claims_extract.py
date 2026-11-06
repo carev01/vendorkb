@@ -34,11 +34,14 @@ def _settings(**kw) -> VendorkbSettings:
     return VendorkbSettings(_env_file=None, **kw)
 
 
-def _message(payload, *, stop_reason="end_turn", tokens=(1000, 200)):
+def _message(payload, *, stop_reason="end_turn", tokens=(1000, 200), cache=(0, 0)):
+    """``cache`` = (cache_creation_input_tokens, cache_read_input_tokens)."""
     text = payload if isinstance(payload, str) else json.dumps(payload)
     return SimpleNamespace(
         content=[SimpleNamespace(type="text", text=text)], stop_reason=stop_reason,
-        usage=SimpleNamespace(input_tokens=tokens[0], output_tokens=tokens[1]))
+        usage=SimpleNamespace(input_tokens=tokens[0], output_tokens=tokens[1],
+                              cache_creation_input_tokens=cache[0],
+                              cache_read_input_tokens=cache[1]))
 
 
 class FakeBatches:
@@ -147,7 +150,8 @@ def test_schema_and_request_shape():
                              version=None, title="T", section_path=["A"], text=TEXT)
     req = extract.build_request(chunk, _settings())
     assert req["model"] == "claude-haiku-5-5" and req["max_tokens"] == 2000
-    assert req["system"] == extract.SYSTEM_PROMPT
+    assert req["system"] == [{"type": "text", "text": extract.SYSTEM_PROMPT,
+                              "cache_control": {"type": "ephemeral"}}]
     assert req["output_config"] == {
         "effort": "low", "format": {"type": "json_schema", "schema": extract.CLAIM_SCHEMA}}
     assert "thinking" not in req and "temperature" not in req
@@ -264,6 +268,44 @@ async def test_invalid_qualifier_rejects_only_that_claim(vkb_dsn):
             " unit, bound, edition FROM rejected_claims") == [
             ("immutable snapshots", "schema:value", None, GOOD["evidence_quote"],
              "capability", None, "years", "max", "Premium")]
+    finally:
+        await conn.close()
+
+
+def test_cache_writes_and_reads_are_priced_per_model():
+    opus = _settings(extract_model="claude-opus-5-5")
+    write = extract._parse(_message({"claims": []}, tokens=(100, 200), cache=(2000, 0)))
+    read = extract._parse(_message({"claims": []}, tokens=(100, 200), cache=(0, 2000)))
+    assert (write.cache_write_tokens, write.cache_read_tokens) == (2000, 0)
+    assert (read.input_tokens, read.cache_read_tokens) == (100, 2000)
+    assert write.total_input_tokens == read.total_input_tokens == 2100
+    # opus-5-5 at $4 / $20: writes 1.25x input, reads 0.05x input
+    # write: (100*4 + 2000*4*1.25 + 200*20) / 1e6; read: (100*4 + 2000*4*0.05 + 200*20) / 1e6
+    assert extract._cost(write, batch=False, settings=opus) == pytest.approx(0.0144, abs=1e-12)
+    assert extract._cost(read, batch=False, settings=opus) == pytest.approx(0.0048, abs=1e-12)
+    assert extract._cost(read, batch=True, settings=opus) == pytest.approx(0.0024, abs=1e-12)
+    # haiku-5-5 at $0.10 / $0.50 reads at 0.1x; an unlisted model defaults to 0.1x
+    haiku = extract._cost(read, batch=False, settings=_settings())
+    assert haiku == pytest.approx((100 * 0.10 + 2000 * 0.10 * 0.1 + 200 * 0.50) / 1e6,
+                                  abs=1e-15)
+    assert extract.cache_read_multiplier("anthropic/claude-opus-5.5:batch") == 0.05
+    assert extract.cache_read_multiplier("some-other-model") == 0.1
+
+
+async def test_sync_run_counts_and_prices_cached_input(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ids = await _doc(conn, texts=(TEXT + " first", TEXT + " second"))
+        client = FakeClient(replies={
+            "first": _message({"claims": []}, tokens=(100, 200), cache=(2000, 0)),
+            "second": _message({"claims": []}, tokens=(100, 200), cache=(0, 2000))})
+        report = await extract.run(conn, ids, client=client, mode="sync",
+                                   settings=_settings(extract_model="claude-opus-5-5"))
+        assert report.done == 2
+        assert report.input_tokens == 4200  # uncached + cache writes + cache reads
+        assert report.est_cost_usd == pytest.approx(0.0144 + 0.0048, abs=1e-12)
+        assert await _rows(conn, "SELECT sum(input_tokens)::int FROM extractions") == [(4200,)]
     finally:
         await conn.close()
 

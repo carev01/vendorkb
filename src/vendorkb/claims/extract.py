@@ -79,6 +79,15 @@ PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-opus-5-5": (4.00, 20.00),
 }
 BATCH_DISCOUNT = 0.5
+# Prompt caching (the system prompt is a cache breakpoint): a cache write costs 1.25x the input
+# price (5-minute TTL) and a cache read a per-model fraction of it; the batch discount applies
+# on top. A model not listed reads at DEFAULT_CACHE_READ_MULTIPLIER.
+CACHE_WRITE_MULTIPLIER = 1.25
+CACHE_READ_MULTIPLIERS: dict[str, float] = {
+    "claude-haiku-5-5": 0.1,
+    "claude-opus-5-5": 0.05,
+}
+DEFAULT_CACHE_READ_MULTIPLIER = 0.1
 # The pre-submit estimate: prompt characters / 3 (generous for the tokenizer) in, and the
 # full extract_max_tokens out (thinking is billed as output), so the cap holds in the worst case.
 CHARS_PER_TOKEN = 3
@@ -312,9 +321,16 @@ class _Outcome:
     status: Literal["done", "errored"]
     error: str | None = None
     claims: list[Any] = field(default_factory=list)
-    input_tokens: int = 0
+    input_tokens: int = 0        # uncached input
     output_tokens: int = 0
     cost: float | None = None  # as the provider reported it; None: priced from the tokens
+    cache_write_tokens: int = 0  # Anthropic usage.cache_creation_input_tokens
+    cache_read_tokens: int = 0   # Anthropic usage.cache_read_input_tokens
+
+    @property
+    def total_input_tokens(self) -> int:
+        """Every input token: uncached, written to the cache and read from it."""
+        return self.input_tokens + self.cache_write_tokens + self.cache_read_tokens
 
 
 def _price_key(model: str) -> str:
@@ -334,9 +350,19 @@ def price_per_mtok(model: str, settings: VendorkbSettings | None = None) -> tupl
                          " and EXTRACT_PRICE_OUT_PER_MTOK") from None
 
 
+def cache_read_multiplier(model: str) -> float:
+    """The cache-read price as a fraction of the input price."""
+    return CACHE_READ_MULTIPLIERS.get(_price_key(model), DEFAULT_CACHE_READ_MULTIPLIER)
+
+
 def cost_usd(input_tokens: int, output_tokens: int, *, batch: bool,
-             price: tuple[float, float] = PRICES_PER_MTOK["claude-haiku-5-5"]) -> float:
-    cost = (input_tokens * price[0] + output_tokens * price[1]) / 1e6
+             price: tuple[float, float] = PRICES_PER_MTOK["claude-haiku-5-5"],
+             cache_write_tokens: int = 0, cache_read_tokens: int = 0,
+             cache_read_mult: float = DEFAULT_CACHE_READ_MULTIPLIER) -> float:
+    """USD for one call; ``input_tokens`` is the uncached input only."""
+    effective_in = (input_tokens + cache_write_tokens * CACHE_WRITE_MULTIPLIER
+                    + cache_read_tokens * cache_read_mult)
+    cost = (effective_in * price[0] + output_tokens * price[1]) / 1e6
     return cost * BATCH_DISCOUNT if batch else cost
 
 
@@ -349,7 +375,10 @@ def build_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]
     return {
         "model": settings.extract_model,
         "max_tokens": settings.extract_max_tokens,
-        "system": SYSTEM_PROMPT,
+        # One cache breakpoint on the (static) system prompt: every chunk after the first
+        # reads it from the cache.
+        "system": [{"type": "text", "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": content}],
         "output_config": {"effort": settings.extract_effort,
                           "format": {"type": "json_schema", "schema": CLAIM_SCHEMA}},
@@ -360,7 +389,10 @@ def _cost(outcome: _Outcome, *, batch: bool, settings: VendorkbSettings) -> floa
     if outcome.cost is not None:
         return outcome.cost
     return cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch,
-                    price=price_per_mtok(settings.extract_model, settings))
+                    price=price_per_mtok(settings.extract_model, settings),
+                    cache_write_tokens=outcome.cache_write_tokens,
+                    cache_read_tokens=outcome.cache_read_tokens,
+                    cache_read_mult=cache_read_multiplier(settings.extract_model))
 
 
 def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]:
@@ -377,24 +409,35 @@ def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[st
 
 
 def _estimate(request: dict[str, Any], *, batch: bool, settings: VendorkbSettings) -> float:
-    chars = len(request["system"]) + sum(len(m["content"]) for m in request["messages"])
+    """Worst case: the whole prompt priced as plain (uncached) input, full max_tokens out."""
+    system = request["system"]
+    chars = (len(system) if isinstance(system, str) else sum(len(b["text"]) for b in system)) \
+        + sum(len(m["content"]) for m in request["messages"])
     return cost_usd(chars // CHARS_PER_TOKEN + 1, request["max_tokens"], batch=batch,
                     price=price_per_mtok(request["model"], settings))
 
 
-def _usage(message: Any) -> tuple[int, int]:
+def _usage(message: Any) -> tuple[int, int, int, int]:
+    """(uncached input, output, cache write, cache read) tokens of an Anthropic message."""
     usage = getattr(message, "usage", None)
-    return (int(getattr(usage, "input_tokens", 0) or 0),
-            int(getattr(usage, "output_tokens", 0) or 0))
+
+    def tokens(key: str) -> int:
+        return int(getattr(usage, key, 0) or 0)
+    return (tokens("input_tokens"), tokens("output_tokens"),
+            tokens("cache_creation_input_tokens"), tokens("cache_read_input_tokens"))
 
 
 def _parse(message: Any) -> _Outcome:
-    tin, tout = _usage(message)
+    tin, tout, cache_write, cache_read = _usage(message)
     stop = getattr(message, "stop_reason", None)
     if stop in ("refusal", "max_tokens"):
-        return _Outcome("errored", stop, input_tokens=tin, output_tokens=tout)
-    text = next((b.text for b in message.content if getattr(b, "type", None) == "text"), None)
-    return _parse_text(text, tin, tout)
+        outcome = _Outcome("errored", stop, input_tokens=tin, output_tokens=tout)
+    else:
+        text = next((b.text for b in message.content
+                     if getattr(b, "type", None) == "text"), None)
+        outcome = _parse_text(text, tin, tout)
+    outcome.cache_write_tokens, outcome.cache_read_tokens = cache_write, cache_read
+    return outcome
 
 
 def _parse_text(text: str | None, tin: int, tout: int, cost: float | None = None) -> _Outcome:
@@ -487,7 +530,7 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
     """
     model = settings.extract_model
     cost = _cost(outcome, batch=batch, settings=settings)
-    report.input_tokens += outcome.input_tokens
+    report.input_tokens += outcome.total_input_tokens
     report.output_tokens += outcome.output_tokens
     report.est_cost_usd += cost
     async with conn.transaction():
@@ -521,7 +564,7 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
             "   AND extractions.last_batch_id IS DISTINCT FROM EXCLUDED.last_batch_id"
             " RETURNING extraction_id, status",
             (uuid.uuid4(), chunk_id, model, PROMPT_VERSION, outcome.status, outcome.error,
-             ledger_id, len(accepted), outcome.input_tokens, outcome.output_tokens, cost,
+             ledger_id, len(accepted), outcome.total_input_tokens, outcome.output_tokens, cost,
              MAX_ATTEMPTS))
         row = await cur.fetchone()
         if row is None:  # already applied by this batch, or final ('done' / 'failed')
