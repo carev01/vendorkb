@@ -46,11 +46,24 @@ stack.
   `docs/superpowers/cross-vendor-retrieval-2026-11-06.md`);
 - the CLI: `search | answer | stats | sync | reembed | promote-embedding`.
 
+**M3/M4 pilot (2026-11-06; `docs/superpowers/m3-m4-pilot-2026-11-06.md`):**
+- claim extraction (`claims/`, `vendorkb extract`):
+  - Claude Haiku 5.5 through the Anthropic SDK or any OpenAI-compatible endpoint, with a
+    spend ledger, a run lock and a budget cap;
+  - a verbatim evidence gate: word-bounded exact match, or fuzzy match that keeps every
+    number and negation; `vendorkb claims regate` re-applies it to stored claims.
+- the taxonomy pipeline (`taxonomy/`): `taxonomy propose|load|map` and
+  `capabilities build|query`.
+  - Taxonomy v1 is on a draft PR for review; nothing loads it as final.
+  - Nearest-neighbour mapping is unreliable (15–60% precise), so treat alias mappings as the
+    trustworthy ones.
+- Production holds 74,885 claims from a 21k-chunk pilot.
+
 **Not built yet:**
 - the MCP server;
-- claim extraction (M3);
-- the taxonomy and capability table (M4);
-- the production deployment;
+- mapper LLM adjudication;
+- extraction beyond the pilot;
+- capabilities in `answer()`;
 
 ## Commands
 
