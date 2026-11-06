@@ -15,8 +15,8 @@ zero-width characters and soft hyphens dropped, "…" spelled "..."). Then, in o
 Anything else is "no-match:<score>" (with the missing words, if the score passed). A quote
 under ``MIN_WORDS`` words *and* under ``MIN_CHARS`` characters is "too-short": a lone table
 cell such as "Yes" ties nothing to a capability. ``match`` also returns the matched chunk span
-as it stands in the original text, widened to whole words: that, not the model's quote, is
-the stored evidence.
+as it stands in the original text: that, not the model's quote, is the stored evidence. An
+exact match must start and end on word boundaries; the fuzzy span is widened to whole words.
 """
 from __future__ import annotations
 
@@ -91,11 +91,18 @@ def _widen(t: str, start: int, end: int) -> tuple[int, int]:
 
 
 def _find(q: str, t: str, idx: list[int], original: str) -> str | None:
-    """The original text of ``q``'s first occurrence in ``t``, widened to whole words."""
+    """The original text of the first occurrence of ``q`` in ``t`` that starts and ends on
+    word boundaries, or None. A hit inside a word ("supported" in "unsupported") is no exact
+    match: it falls through to the fuzzy path, which checks negations."""
     at = t.find(q)
-    if at < 0:
-        return None
-    return _span(original, idx, *_widen(t, at, at + len(q)))
+    while at >= 0:
+        end = at + len(q)
+        starts = at == 0 or not t[at - 1].isalnum() or not q[0].isalnum()
+        ends = end == len(t) or not t[end].isalnum() or not q[-1].isalnum()
+        if starts and ends:
+            return _span(original, idx, at, end)
+        at = t.find(q, at + 1)
+    return None
 
 
 def _coverage(q: str, span: str) -> str | None:

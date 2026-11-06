@@ -862,3 +862,119 @@ async def test_retry_truncated_resets_only_length_failures(vkb_dsn):
         assert (report.reset_truncated, report.skipped_failed) == (0, 1)
     finally:
         await conn.close()
+
+
+async def _status_check(conn):
+    cur = await conn.execute(
+        "SELECT oid, pg_get_constraintdef(oid) FROM pg_constraint"
+        " WHERE conname='extractions_status_check' AND conrelid='extractions'::regclass")
+    return await cur.fetchall()
+
+
+async def test_init_schema_keeps_the_status_check_and_indexes_the_cascades(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [(oid, definition)] = await _status_check(conn)
+        assert "failed" in definition
+        await init_schema(conn, embed_dim=768)
+        assert await _status_check(conn) == [(oid, definition)]  # not dropped and re-added
+        # a database from before the 'failed' status gets the new check
+        await conn.execute("ALTER TABLE extractions DROP CONSTRAINT extractions_status_check")
+        await conn.execute("ALTER TABLE extractions ADD CONSTRAINT extractions_status_check"
+                           " CHECK (status IN ('done', 'errored'))")
+        await init_schema(conn, embed_dim=768)
+        [(_, definition)] = await _status_check(conn)
+        assert "failed" in definition
+        cur = await conn.execute("SELECT tablename, indexdef FROM pg_indexes"
+                                 " WHERE tablename IN ('raw_claims', 'rejected_claims',"
+                                 " 'capabilities')")
+        defs = await cur.fetchall()
+        for table, column in (("raw_claims", "extraction_id"), ("raw_claims", "chunk_id"),
+                              ("rejected_claims", "extraction_id"),
+                              ("rejected_claims", "chunk_id"), ("capabilities", "claim_id")):
+            assert any(t == table and f"({column})" in d for t, d in defs), (table, column)
+    finally:
+        await conn.close()
+
+
+REGATE_TEXT = ("Agents\n\nInstant recovery is unsupported on Linux servers. Backups of Amazon "
+               "RDS for PostgreSQL instances are supported with immutable snapshots.")
+
+
+async def _seed_regate(conn) -> tuple[str, dict[str, str]]:
+    [cid] = await _doc(conn, texts=(REGATE_TEXT,))
+    ext = str(uuid.uuid4())
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status, n_claims) VALUES (%s,%s,'m','claims-v1','done',3)", (ext, cid))
+    claims = {
+        # accepted by the old gate: "supported" matched inside "unsupported", widened
+        "flip": ("instant recovery", "supported", "unsupported on Linux servers",
+                 "supported on Linux servers"),
+        # stored before evidence_quote held the chunk span: re-derived verbatim
+        "good": ("immutable snapshots", "supported",
+                 "backups of Amazon RDS for PostgreSQL instances are supported",
+                 "backups of Amazon RDS for PostgreSQL instances are supported"),
+        # from before model_quote: the evidence quote is the model's text
+        "legacy": ("instant recovery", "not_supported",
+                   "Instant recovery is unsupported on Linux servers", None),
+    }
+    ids = {}
+    for key, (cap, support, evidence, model_quote) in claims.items():
+        ids[key] = str(uuid.uuid4())
+        await conn.execute(
+            "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor, product,"
+            " capability_raw, support, evidence_quote, model_quote, gate, extractor_model,"
+            " prompt_version) VALUES (%s,%s,%s,'rubrik','RSC',%s,%s,%s,%s,'exact','m',"
+            "'claims-v1')", (ids[key], ext, cid, cap, support, evidence, model_quote))
+    return ext, ids
+
+
+async def test_regate_moves_claims_the_current_gate_rejects(vkb_dsn):
+    from vendorkb.claims import regate
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ext, ids = await _seed_regate(conn)
+        dry = await regate.regate(conn, batch_size=2, dry_run=True)
+        assert (dry.checked, dry.kept, dry.moved, dry.updated) == (3, 2, 1, 1)
+        assert await _rows(conn, "SELECT count(*) FROM raw_claims") == [(3,)]
+
+        report = await regate.regate(conn, batch_size=2)
+        assert (report.checked, report.kept, report.moved, report.updated) == (3, 2, 1, 1)
+        kept = dict(await _rows(conn, "SELECT claim_id::text, evidence_quote FROM raw_claims"))
+        assert set(kept) == {ids["good"], ids["legacy"]}
+        # the span is re-derived from the model's quote (verbatim chunk text)
+        assert kept[ids["good"]] == "Backups of Amazon RDS for PostgreSQL instances are supported"
+        [(cid, reason, evidence, model_quote, cap)] = await _rows(
+            conn, "SELECT claim_id::text, reason, evidence_quote, model_quote, capability_raw"
+                  " FROM rejected_claims")
+        assert cid == ids["flip"] and reason.startswith("regate:no-match")
+        assert (evidence, model_quote, cap) == (None, "supported on Linux servers",
+                                                "instant recovery")
+        assert await _rows(conn, "SELECT n_claims FROM extractions WHERE extraction_id=%s",
+                           ext) == [(2,)]
+        again = await regate.regate(conn)
+        assert (again.checked, again.moved, again.updated) == (2, 0, 0)
+    finally:
+        await conn.close()
+
+
+async def test_cli_claims_regate(vkb_dsn, monkeypatch, capsys):
+    import asyncio
+
+    from vendorkb import cli
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_regate(conn)
+    finally:
+        await conn.close()
+    monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
+    code = await asyncio.to_thread(cli.main, ["claims", "regate", "--batch-size", "1"])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["checked"], out["moved"]) == (3, 1)

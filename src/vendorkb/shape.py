@@ -95,6 +95,12 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
                 # "back up to AWS or Azure": a workload vendor is no side on a weak signal
                 sides = [f for f in facets
                          if not (f[0] == "vendor" and f[1] in WORKLOAD_VENDORS)]
+                if not sides:
+                    # every facet is a workload vendor: no subject to fall back on, so keep
+                    # them all ("Is Microsoft or Google better for email archiving?")
+                    if _COMPARISON_WORDING.search(question):
+                        return Shape("comparison", facets)
+                    return Shape("single", facets)
                 if len(sides) < 2:
                     return Shape("single", sides)
                 if len(sides) < len(facets):

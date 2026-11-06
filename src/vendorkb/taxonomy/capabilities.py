@@ -76,7 +76,12 @@ async def _resolve(conn: psycopg.AsyncConnection, kind: str, term: str) -> str |
 async def query(conn: psycopg.AsyncConnection, feature: str, target: str | None = None,
                 vendor: str | None = None, support: str | None = None) -> list[CapRow]:
     """Rows for ``feature`` (an id, alias or name); ``target`` matches itself and its
-    descendants (``aws`` matches ``aws.rds``); ``vendor`` is case-insensitive."""
+    descendants (``aws`` matches ``aws.rds``); ``vendor`` is case-insensitive. Only rows
+    built under the current taxonomy version are served: after a ``taxonomy load`` the old
+    rows wait for ``map`` and ``build``."""
+    version = await current_version(conn)
+    if version is None:
+        return []
     fid = await _resolve(conn, "feature", feature)
     tid = None if target is None else await _resolve(conn, "target", target)
     if fid is None or (target is not None and tid is None):
@@ -87,12 +92,12 @@ async def query(conn: psycopg.AsyncConnection, feature: str, target: str | None 
         " c.mapping_conf, c.mapping_method"
         " FROM capabilities c JOIN raw_claims r USING (claim_id)"
         " JOIN chunks ch ON ch.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = ch.doc_id"
-        " WHERE c.feature_id = %(f)s"
+        " WHERE c.feature_id = %(f)s AND c.taxonomy_version = %(ver)s"
         " AND (%(t)s::text IS NULL OR c.target_id = %(t)s"
         "      OR starts_with(c.target_id, %(t)s || '.'))"
         " AND (%(v)s::text IS NULL OR lower(c.vendor) = lower(%(v)s))"
         " AND (%(s)s::text IS NULL OR c.support = %(s)s)"
         " ORDER BY c.vendor, c.product NULLS LAST, c.target_id NULLS FIRST, c.support,"
         " r.chunk_id",
-        {"f": fid, "t": tid, "v": vendor, "s": support})
+        {"f": fid, "t": tid, "v": vendor, "s": support, "ver": version})
     return [CapRow(*row) for row in await cur.fetchall()]

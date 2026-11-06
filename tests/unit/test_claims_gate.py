@@ -154,8 +154,25 @@ def test_fuzzy_with_matching_numbers_and_negation_is_accepted():
     assert r.ok and r.reason.startswith("fuzzy:")
 
 
-def test_exact_span_is_widened_to_whole_words():
+def test_exact_match_inside_a_word_is_not_exact():
+    # "supported" inside "unsupported": no exact match; the fuzzy path sees the negation
+    chunk = "Agents\n\nInstant recovery is unsupported on Linux servers."
+    ok, reason = gate.check("supported on Linux servers", chunk)
+    assert not ok and not reason.startswith("exact")
     r = gate.match("mutable backups are supported for Amazon S3", PROBE)
-    assert r.ok and r.span == "Immutable backups are supported for Amazon S3"
-    r = gate.match("Object lock: Ye", TABLE)
-    assert r.ok and r.span == "Object lock** | Yes"
+    assert not r.ok
+    r = gate.match("recovery is unsupported on Linux servers", chunk)
+    assert (r.ok, r.reason, r.span) == (True, "exact", "recovery is unsupported on Linux servers")
+
+
+def test_nopunct_match_inside_a_word_is_not_exact():
+    chunk = "| Instant recovery | unsupported on Linux |"
+    ok, reason = gate.check("supported: on Linux", chunk)
+    assert not ok and not reason.startswith("exact")
+    assert gate.check("Instant recovery: unsupported on Linux", chunk) == (True, "exact-nopunct")
+
+
+def test_exact_match_may_start_or_end_on_punctuation():
+    r = gate.match('"retention lock" - once set', CHUNK)
+    assert r.ok and r.reason == "exact"
+    assert r.span == "\u201cretention lock\u201d \u2014 once set"

@@ -1,5 +1,5 @@
 """``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding /
-extract / taxonomy (propose, load, map) / capabilities (build, query)."""
+extract / claims (regate) / taxonomy (propose, load, map) / capabilities (build, query)."""
 from __future__ import annotations
 
 import argparse
@@ -8,14 +8,12 @@ import dataclasses
 import json
 import logging
 import sys
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-import anthropic
 import psycopg
 from openai import AsyncOpenAI
 
 from vendorkb.answer import answer
-from vendorkb.claims import extract
 from vendorkb.clients import DocExtractor, Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -23,7 +21,12 @@ from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
 from vendorkb.sync import sync
-from vendorkb.taxonomy import capabilities, load, mapper, propose
+
+if TYPE_CHECKING:
+    import anthropic
+
+# The claims and taxonomy stacks (anthropic, numpy, scipy, sklearn) are imported inside their
+# command handlers: `vendorkb sync` runs in a 1 Gi pod and never needs them.
 
 MAX_TOKENS = 1200
 
@@ -167,6 +170,8 @@ def _extract_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | As
         return AsyncOpenAI(base_url=settings.extract_base_url or None,
                            api_key=settings.extract_api_key or None,
                            max_retries=EXTRACT_MAX_RETRIES)
+    import anthropic
+
     return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None,
                                     max_retries=EXTRACT_MAX_RETRIES)
 
@@ -178,6 +183,8 @@ def _read_ids(path: str, limit: int | None) -> list[str]:
 
 
 async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.claims import extract
+
     if args.backend:
         settings = settings.model_copy(update={"extract_backend": args.backend})
     mode: Literal["sync", "batch"] = args.mode or (
@@ -203,7 +210,22 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0 if report.errored == 0 else 1
 
 
+async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.claims import regate
+
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        report = await regate.regate(conn, batch_size=args.batch_size, dry_run=args.dry_run)
+    finally:
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    return 0
+
+
 async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.taxonomy import load, mapper, propose
+
     if args.backend:
         settings = settings.model_copy(update={"extract_backend": args.backend})
     conn = await connect(settings.vendorkb_dsn)
@@ -238,6 +260,8 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
 
 
 async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.taxonomy import capabilities, load
+
     conn = await connect(settings.vendorkb_dsn)
     try:
         if args.capabilities_cmd == "build":
@@ -294,6 +318,12 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--retry-errored", action="store_true",
                    help="first reset the chunks (of these ids) whose last error was a "
                         "max_tokens truncation, so they run again (raise EXTRACT_MAX_TOKENS)")
+    s = sub.add_parser("claims", help="maintain stored claims")
+    cl = s.add_subparsers(dest="claims_cmd", required=True)
+    c = cl.add_parser("regate", help="re-run the current evidence gate over every raw claim; "
+                                     "claims that now fail move to rejected_claims")
+    c.add_argument("--batch-size", type=int, default=1000)
+    c.add_argument("--dry-run", action="store_true", help="count only; change nothing")
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
     t = tax.add_parser("propose", help="cluster raw claim strings and propose entries with "
@@ -330,7 +360,7 @@ def _parser() -> argparse.ArgumentParser:
 
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
              "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
-             "taxonomy": _taxonomy, "capabilities": _capabilities}
+             "claims": _claims, "taxonomy": _taxonomy, "capabilities": _capabilities}
 
 
 def main(argv: list[str] | None = None) -> int:

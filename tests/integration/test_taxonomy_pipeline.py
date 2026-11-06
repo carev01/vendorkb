@@ -539,3 +539,25 @@ async def test_build_replaces_rows_and_query_includes_descendants(vkb_dsn, tmp_p
             conn, "immutable_backups", target="aws")} == {"aws.rds"}
     finally:
         await conn.close()
+
+
+async def test_query_serves_only_the_current_taxonomy_version(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_mapped(conn, tmp_path)
+        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
+        assert await capabilities.build(conn) == 4
+        assert len(await capabilities.query(conn, "immutable_backups")) == 4
+        # load version 2, but do not re-map or re-build yet: the old rows must not be served
+        doc = json.loads(json.dumps(TAXONOMY))
+        doc["version"] = 2
+        _write(tmp_path / "taxonomy.yaml", doc)
+        await load.load_taxonomy(conn, tmp_path / "taxonomy.yaml")
+        assert await _rows(conn, "SELECT count(*) FROM capabilities") != [(0,)]
+        assert await capabilities.query(conn, "immutable_backups") == []
+        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
+        await capabilities.build(conn)
+        assert len(await capabilities.query(conn, "immutable_backups")) == 4
+    finally:
+        await conn.close()

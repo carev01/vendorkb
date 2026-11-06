@@ -220,3 +220,11 @@ def test_workload_vendors_with_explicit_comparison_wording_stay_a_comparison():
     s = detect_shape("Compare AWS and Google for backup", INDEX)
     assert s.kind == "comparison"
     assert detect_shape("Compare AWS Backup and Azure Backup", INDEX).kind == "comparison"
+
+
+def test_or_pair_of_two_workload_vendors_keeps_both_facets():
+    s = detect_shape("Is Microsoft or Google better for email archiving?", INDEX)
+    assert s == Shape("comparison", [("vendor", "Microsoft"), ("vendor", "Google")])
+    s = detect_shape("Can I back up to AWS or Google?", INDEX)
+    assert s.kind == "single"
+    assert sorted(s.facets) == [("vendor", "AWS"), ("vendor", "Google")]

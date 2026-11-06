@@ -86,9 +86,20 @@ CREATE TABLE IF NOT EXISTS extractions (
 );
 ALTER TABLE extractions ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;
 ALTER TABLE extractions ADD COLUMN IF NOT EXISTS last_batch_id text;
-ALTER TABLE extractions DROP CONSTRAINT IF EXISTS extractions_status_check;
-ALTER TABLE extractions ADD CONSTRAINT extractions_status_check
-    CHECK (status IN ('done', 'errored', 'failed'));
+-- The status check, added only when absent or from before 'failed' (never dropped and re-added
+-- on every init_schema: that took ACCESS EXCLUSIVE and re-validated the table each sync run).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                   WHERE conname = 'extractions_status_check'
+                     AND conrelid = 'extractions'::regclass
+                     AND pg_get_constraintdef(oid) LIKE '%failed%') THEN
+        ALTER TABLE extractions DROP CONSTRAINT IF EXISTS extractions_status_check;
+        ALTER TABLE extractions ADD CONSTRAINT extractions_status_check
+            CHECK (status IN ('done', 'errored', 'failed'));
+    END IF;
+END
+$$;
 
 -- Every paid submission: a Message Batch, or a sync-mode run ('sync-<uuid>'). No foreign key
 -- to chunks: sync re-chunks documents while a batch is in flight, and spent money must not
@@ -129,6 +140,9 @@ CREATE TABLE IF NOT EXISTS raw_claims (
 );
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS model_quote text;
 CREATE INDEX IF NOT EXISTS raw_claims_chunk_idx ON raw_claims (chunk_id);
+-- Indexes on the cascading foreign keys: a chunk deletion in sync cascades through
+-- extractions -> raw_claims / rejected_claims -> capabilities, a seq scan per row without them.
+CREATE INDEX IF NOT EXISTS raw_claims_extraction_idx ON raw_claims (extraction_id);
 CREATE INDEX IF NOT EXISTS raw_claims_vendor_idx ON raw_claims (vendor);
 
 -- Claims the evidence gate (or validation) refused, kept for analysis.
@@ -152,6 +166,8 @@ CREATE TABLE IF NOT EXISTS rejected_claims (
 );
 
 ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS model_quote text;
+CREATE INDEX IF NOT EXISTS rejected_claims_extraction_idx ON rejected_claims (extraction_id);
+CREATE INDEX IF NOT EXISTS rejected_claims_chunk_idx ON rejected_claims (chunk_id);
 
 -- Taxonomy, loaded from taxonomy/taxonomy.yaml (the source of truth is git).
 CREATE TABLE IF NOT EXISTS features (
@@ -193,6 +209,7 @@ CREATE TABLE IF NOT EXISTS capabilities (
 CREATE INDEX IF NOT EXISTS capabilities_feature_idx ON capabilities (feature_id);
 CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (vendor);
+CREATE INDEX IF NOT EXISTS capabilities_claim_idx ON capabilities (claim_id);
 
 -- M4 mapping (taxonomy map): each raw claim's feature and target under the taxonomy
 -- version it was mapped with. ``*_method`` is 'alias' (exact normalized alias or name),
