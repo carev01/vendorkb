@@ -54,7 +54,8 @@ from vendorkb.config import VendorkbSettings
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = "claims-v3"
+# Each prompt revision bumps the minor version (v3 = first precision round, v3.1 = after round 1).
+PROMPT_VERSION = "claims-v3.1"
 MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 # Errors that mean the reply was cut off at max_tokens ("length": OpenAI-compatible
 # finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets

@@ -157,7 +157,7 @@ def test_schema_and_request_shape():
     assert "thinking" not in req and "temperature" not in req
     assert req["messages"][0]["role"] == "user" and TEXT in req["messages"][0]["content"]
     assert "rubrik" in req["messages"][0]["content"]
-    assert extract.PROMPT_VERSION == "claims-v3"
+    assert extract.PROMPT_VERSION == "claims-v3.1"
 
 
 
@@ -232,7 +232,7 @@ async def test_v3_claim_fields_are_stored(vkb_dsn):
             conn, "SELECT kind, target_scope, offering, edition, availability, default_state,"
             " value, unit, bound, prompt_version FROM raw_claims")
         assert rows == [("licensing", "users", "self-managed", "Premium", "preview", "off",
-                         99.0, "years", "max", "claims-v3")]
+                         99.0, "years", "max", extract.PROMPT_VERSION)]
     finally:
         await conn.close()
 
@@ -294,6 +294,23 @@ def test_cache_writes_and_reads_are_priced_per_model():
     assert extract.cache_read_multiplier("anthropic/claude-opus-5.5:batch") == 0.05
     assert extract.cache_read_multiplier("some-other-model") == 0.1
 
+
+
+def test_usage_without_cache_fields_is_priced_as_plain_input():
+    opus = _settings(extract_model="claude-opus-5-5")
+    plain = (100 * 4.00 + 200 * 20.00) / 1e6
+    absent = SimpleNamespace(input_tokens=100, output_tokens=200)
+    none = SimpleNamespace(input_tokens=100, output_tokens=200,
+                           cache_creation_input_tokens=None, cache_read_input_tokens=None)
+    for usage in (absent, none):
+        msg = SimpleNamespace(content=[SimpleNamespace(type="text", text='{"claims": []}')],
+                              stop_reason="end_turn", usage=usage)
+        outcome = extract._parse(msg)
+        assert outcome.status == "done"
+        assert (outcome.cache_write_tokens, outcome.cache_read_tokens) == (0, 0)
+        assert outcome.total_input_tokens == 100
+        assert extract._cost(outcome, batch=False, settings=opus) == pytest.approx(plain,
+                                                                                    abs=1e-12)
 
 async def test_sync_run_counts_and_prices_cached_input(vkb_dsn):
     conn = await connect(vkb_dsn)
