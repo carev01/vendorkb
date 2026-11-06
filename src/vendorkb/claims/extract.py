@@ -199,8 +199,9 @@ gateway, console or a version number): name what they protect or connect to, or 
 - target_scope: the object type or variant within the target, e.g. "users", "conditional \
 access policies", "sandbox orgs", "FSx for Lustre", "RDS for Oracle", or null when the claim \
 covers the whole target. Give one claim per object type: a sentence that lists six object types \
-gives six claims, each with one target_scope and the same evidence_quote. Never a setting or \
-one of the product's own components.
+gives six claims, each with one target_scope and the same evidence_quote. Never an operation \
+or capability (e.g. "file-level restore"), a setting, one of the product's own components, or \
+a storage location of the product.
 - support: one of
   - "supported": the text says the product does it. A capability is still "supported" when \
 it needs prerequisites, setup steps, permissions, an API or service enabled, a license or a \
@@ -216,9 +217,12 @@ Never infer it from silence.
   - "unclear": the text names the capability but gives nothing showing the product does it. \
 Text that explains how to configure, use, size, manage or monitor the capability shows that \
 it does: that is "supported".
-- offering: the vendor's offering or deployment variant, only when the text names one \
-narrower than the Product line, e.g. "Veeam Data Cloud", "self-managed", "Grid appliance", \
-"Express"; otherwise null. Never the product on the Product line, an edition or a version.
+- offering: a separately named product, service or deployment form of the vendor that the \
+text says the claim applies to, only when narrower than the Product line, e.g. "Veeam Data \
+Cloud" (versus the self-managed software), "self-managed", "Express"; otherwise null. It is \
+never a feature or backup method (e.g. snapshots, IntelliSnap), a console or component (e.g. a \
+management console, proxy, gateway), or a cloud, region or platform (those go in target or \
+conditions). Never the product on the Product line, an edition or a version.
 - edition: the edition or license tier the text attaches to this claim, e.g. "Premium", \
 "Advanced and above", only when the text says so; otherwise null. A license metric such as \
 "per user" is not an edition.
@@ -251,6 +255,8 @@ paraphrase, shorten with ellipses, or join separate sentences.
 Never extract these:
 - procedures and steps: how to install, configure or troubleshoot, unless a sentence states \
 what the product can do;
+- installation and sizing requirements of the product's own components (disk space, memory, \
+CPU, ports), unless the sentence states a limit of what the product can protect or store;
 - actions the user performs in another system (a workaround in Salesforce, a setting in \
 Azure), even when they are needed for the product to work;
 - known issues, bugs, fixed defects and odd behaviour (data converted on restore, a job that \

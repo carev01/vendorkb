@@ -199,7 +199,8 @@ def test_validate_claim_names_the_first_invalid_field():
 def test_prompt_states_the_v3_rules():
     prompt = extract.SYSTEM_PROMPT
     for phrase in ("licensing", "service", "one claim per object type", "never a price",
-                   "neither makes a capability partial"):
+                   "neither makes a capability partial", "never a feature or backup method",
+                   "installation and sizing requirements"):
         assert phrase in prompt
     assert "requires" not in prompt
     for field in extract.CLAIM_SCHEMA["properties"]["claims"]["items"]["required"]:
