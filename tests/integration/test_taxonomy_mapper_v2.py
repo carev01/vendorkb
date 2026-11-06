@@ -90,6 +90,7 @@ REPLIES = {
     "hold off workflows during restore": _pick("recovery.automation_bypass"),
     "keep copies for ages": _pick("retention.maximum_period"),
     "the dashboard thing": lambda candidates: "none",
+    "mystery platform": lambda candidates: "none",
     "made up answer": lambda candidates: "not.a.candidate",
 }
 
@@ -120,13 +121,14 @@ class FakeOpenAI:
 
 
 def _settings(**kw) -> VendorkbSettings:
-    return VendorkbSettings(_env_file=None, map_backend="openai",
-                            map_model="anthropic/claude-haiku-5.5", **kw)
+    return VendorkbSettings(_env_file=None, **{"map_backend": "openai",
+                                               "map_model": "anthropic/claude-haiku-5.5"} | kw)
 
 
 def _extended(tmp_path) -> Path:
     """The fixture plus FSx (with variants), Azure and Azure SQL, and a second offering of
-    examplevendor that also has a Premium edition."""
+    examplevendor that also has a Premium edition (edition id ``premium`` in both offerings;
+    the alias "premium plus" only in the second)."""
     doc = yaml.safe_load(FIXTURE.read_text())
     doc["targets"] += [
         {"id": "aws.fsx", "name": "Amazon FSx", "class": "cloud", "aliases": ["FSx"],
@@ -140,7 +142,7 @@ def _extended(tmp_path) -> Path:
     doc["offerings"].append({
         "vendor": "examplevendor", "id": "examplevendor.onprem", "name": "Example On-Prem",
         "aliases": [], "editions": [{"id": "premium", "name": "Premium",
-                                     "aliases": ["premium edition"]}]})
+                                     "aliases": ["premium edition", "premium plus"]}]})
     out = tmp_path / "taxonomy.yaml"
     out.write_text(yaml.safe_dump(doc, sort_keys=False))
     return out
@@ -274,6 +276,9 @@ async def test_target_scope_resolution(vkb_dsn, tmp_path):
         unrelated = await _claim(conn, "longest retention", "AWS",
                                  target_scope="Azure SQL Database")
         same = await _claim(conn, "longest retention", "Salesforce", target_scope="SFDC")
+        # a target text that did not map: the scope is not taken as the target
+        unmapped_target = await _claim(conn, "longest retention", "Mystery Platform",
+                                       target_scope="RDS for Oracle")
         report = await _run(conn)
 
         def picked(m):
@@ -294,8 +299,10 @@ async def test_target_scope_resolution(vkb_dsn, tmp_path):
         assert picked(await _mapping(conn, unrelated)) == ("aws", "cloud", None, None)
         # the target itself again is not a child of itself
         assert picked(await _mapping(conn, same)) == ("salesforce", "saas.crm", None, None)
+        m = await _mapping(conn, unmapped_target)
+        assert picked(m) == (None, None, None, None) and m["target_method"] == "unmapped"
         assert (report.child_target, report.scope_target, report.variant,
-                report.object_type, report.scope_unmapped) == (2, 1, 1, 2, 2)
+                report.object_type, report.scope_unmapped) == (2, 1, 1, 2, 3)
     finally:
         await conn.close()
 
@@ -373,6 +380,12 @@ async def test_offering_and_edition_per_vendor(vkb_dsn, tmp_path):
                                edition="gold")
         onprem = await _claim(conn, "longest retention", offering="Example On-Prem",
                               edition="premium")
+        # an offering text that did not map: no vendor-wide edition search
+        unmapped_offering = await _claim(conn, "longest retention", offering="mystery cloud",
+                                         edition="standard edition")
+        # edition id "premium" is in both offerings, the alias in one: unique by (offering,
+        # edition), never ambiguous by edition id
+        shared_id = await _claim(conn, "longest retention", edition="premium plus")
         report = await _run(conn)
 
         async def pair(cid):
@@ -380,14 +393,16 @@ async def test_offering_and_edition_per_vendor(vkb_dsn, tmp_path):
             return m["offering_id"], m["edition_id"]
 
         assert await pair(both) == ("examplevendor.cloud_suite", "premium")
-        assert await pair(unique_edition) == (None, "standard")
+        assert await pair(unique_edition) == ("examplevendor.cloud_suite", "standard")
         assert await pair(ambiguous) == (None, None)
         assert await pair(other_case) == (None, None)  # vendor text matches exactly
         assert await pair(unknown) == (None, None)
         assert await pair(onprem) == ("examplevendor.onprem", "premium")
-        assert (report.offering_mapped, report.offering_unmapped, report.offering_none) == (
-            2, 2, 2)
-        assert (report.edition_mapped, report.edition_unmapped) == (3, 3)
+        assert await pair(unmapped_offering) == (None, None)
+        assert await pair(shared_id) == ("examplevendor.onprem", "premium")
+        assert (report.offering_mapped, report.offering_unmapped, report.offering_none,
+                report.offering_from_edition) == (2, 3, 3, 2)
+        assert (report.edition_mapped, report.edition_unmapped) == (4, 4)
     finally:
         await conn.close()
 
@@ -551,5 +566,56 @@ async def test_schema_checks_are_idempotent(vkb_dsn):
         assert "llm" in checks["raw_claims_target_method_check"]
         assert "nn" in checks["raw_claims_target_method_check"]
         assert "llm" in checks["raw_claims_dimension_method_check"]
+    finally:
+        await conn.close()
+
+
+async def test_map_price_ignores_an_extract_override_for_a_listed_model(vkb_dsn, tmp_path):
+    cheap = dict(extract_price_in_per_mtok=0.01, extract_price_out_per_mtok=0.02)
+    assert mapper.map_price(_settings(**cheap)) == (0.10, 0.50)  # Haiku's table price
+    unlisted = _settings(map_model="some/unlisted-model", **cheap)
+    assert mapper.map_price(unlisted) == (0.01, 0.02)  # the override, for an unlisted model
+    with pytest.raises(ValueError, match="no price"):
+        mapper.map_price(_settings(map_model="some/unlisted-model"))
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta")
+        client = FakeOpenAI(cost=0.0001)
+        # Haiku's estimate (~0.0006) passes 0.0003; the override's (~0.00002) would not
+        report = await _run(conn, client, max_usd=0.0003, **cheap)
+        assert client.calls == [] and report.skipped_by_budget == 1
+    finally:
+        await conn.close()
+
+
+async def test_blank_capability_is_unmapped_without_a_call(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "   ", "Okta")
+        client, embedder = FakeOpenAI(), FakeEmbedder()
+        report = await _run(conn, client, embedder)
+        assert client.calls == [] and embedder.calls == []
+        m = await _mapping(conn, cid)
+        assert (m["dimension_id"], m["dimension_method"], m["target_id"]) == (
+            None, "unmapped", "okta")
+        assert report.dimension_unmapped == 1
+    finally:
+        await conn.close()
+
+
+async def test_embedding_in_slices_gives_the_same_mapping(vkb_dsn, tmp_path, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        monkeypatch.setattr(mapper, "_EMBED_SLICE", 7)
+        embedder = FakeEmbedder()
+        report = await _run(conn, embedder=embedder)
+        assert len(embedder.calls) == math.ceil(report.embedded_strings / 7) > 1
+        assert all(len(texts) <= 7 for texts, _ in embedder.calls)
+        m = await _mapping(conn, cid)
+        assert (m["target_id"], m["dimension_id"]) == ("okta", "retention.maximum_period")
     finally:
         await conn.close()

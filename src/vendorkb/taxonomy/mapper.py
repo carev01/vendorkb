@@ -12,29 +12,30 @@ written; every other row keeps its values. Strings are compared normalized
 2. **target_scope**, given the resolved target T, tried in this order: a target alias whose
    target has T as a proper ancestor (the claim's target becomes that child); a variant alias
    of T; a ``target_object_type`` alias of T; an ``object_type`` alias of each class in T's
-   lineage, most specific first. With no T, the scope is tried as a target alias (an unrelated
-   target named in the scope is therefore never taken as a child of T). ``class_id`` is the
-   final target's class.
+   lineage, most specific first. A claim with no target text tries its scope as a target
+   alias; one whose target text did not map leaves the scope unresolved (an unrelated target
+   named in a scope is never taken as a child of T). ``class_id`` is the final target's class.
 3. **Dimension** (``capability_raw``): an exact dimension alias is ``alias``. Otherwise the
    candidates are the nearest dimensions among those that apply to the final target's class
    (``aspects.dimension_applies``; every dimension when there is no target), adjudicated the
    same way. A ``coverage.*`` dimension with no object type is kept (object type NULL) and
    counted in ``coverage_without_object_type``: it does not count as coverage.
 4. **Offering**: an offering alias within the claim's vendor (the raw vendor text, matched
-   exactly). **Edition**: an edition alias within that offering, or, with no offering, the one
-   edition among the vendor's offerings that has the alias (none when several do); the
-   offering is not inferred from the edition.
+   exactly). **Edition**: an edition alias within that offering. With no offering text, the one
+   (offering, edition) among the vendor's offerings whose edition has the alias sets both (none
+   when several do). An offering text that did not map leaves the edition unmapped.
 
 Nearest neighbour alone never maps. One adjudication is made per distinct (kind, string,
 candidate set) and cached for the run; it carries up to ``MAX_CONTEXTS`` of the claims using the
 string (capability, target, target scope, vendor) as context, and its strict JSON reply is
 ``{"choice": "<candidate id>" | "none"}``. Calls go to ``map_model`` on ``map_backend``,
 ``extract_concurrency`` at a time; each is estimated before it is sent (its prompt plus
-``MAP_MAX_TOKENS`` of output) and the run stops sending once spent plus in flight plus the next
+``MAP_MAX_TOKENS`` of output, priced by ``map_price``) and the run stops sending once spent plus in flight plus the next
 estimate would pass ``max_usd``: what is left is unmapped and counted in ``skipped_by_budget``.
 A rejected request (``BadRequestError``: a bad model or schema) stops the run and raises with
 nothing written. The alias and candidate keys and the strings to adjudicate are embedded in one
-call per run and kept as float32.
+pass per run (in slices) and kept as float32. A capability blank after normalization is
+unmapped without a call.
 
 Every v3 claim read is then (re)written in one transaction and stamped with the taxonomy
 version, so downstream builds use only mappings made under the current version.
@@ -69,6 +70,7 @@ Kind = Literal["target", "dimension"]
 MAP_MAX_TOKENS = 1024  # one short JSON reply; headroom for any thinking the effort allows
 MAX_CONTEXTS = 3  # example claims shown per adjudication
 _NN_BLOCK = 1024  # query rows per similarity matmul
+_EMBED_SLICE = 4096  # texts per embed call (the embedder batches further)
 _NO_CLASS = "(none)"
 
 
@@ -96,7 +98,8 @@ class MapReport:
     coverage_without_object_type: int = 0
     offering_mapped: int = 0
     offering_unmapped: int = 0
-    offering_none: int = 0
+    offering_none: int = 0  # no offering text (offering_from_edition among them)
+    offering_from_edition: int = 0  # no offering text; set from a unique edition
     edition_mapped: int = 0
     edition_unmapped: int = 0
     edition_none: int = 0
@@ -119,7 +122,7 @@ class _Claim:
     capability_raw: str
     target_raw: str | None
     target_scope_raw: str | None
-    capability: str
+    capability: str | None  # None: blank after normalization (never adjudicated)
     target: str | None
     target_scope: str | None
     offering: str | None
@@ -205,7 +208,7 @@ async def _claims(conn: psycopg.AsyncConnection) -> list[_Claim]:
     cur = await conn.execute(
         "SELECT claim_id, vendor, capability_raw, target_raw, target_scope, offering, edition"
         " FROM raw_claims WHERE prompt_version LIKE %s ORDER BY claim_id", (PROMPT_FAMILY,))
-    return [_Claim(cid, vendor, cap, tgt, scope, normalize(cap), _norm(tgt), _norm(scope),
+    return [_Claim(cid, vendor, cap, tgt, scope, _norm(cap), _norm(tgt), _norm(scope),
                    _norm(off), _norm(ed))
             for cid, vendor, cap, tgt, scope, off, ed in await cur.fetchall()]
 
@@ -217,6 +220,19 @@ def _unit(vectors: Any) -> np.ndarray:
     m = np.asarray(vectors, dtype=np.float32)
     norms = np.linalg.norm(m, axis=1, keepdims=True)
     return m / np.where(norms == 0, 1.0, norms)
+
+
+async def _embed_all(embedder: _Embedder, texts: list[str]) -> np.ndarray:
+    """Unit float32 vectors of ``texts``, embedded in ``_EMBED_SLICE`` slices into one
+    preallocated array (peak memory: the array plus one slice of Python floats)."""
+    out: np.ndarray | None = None
+    for start in range(0, len(texts), _EMBED_SLICE):
+        part = _unit(await embedder.embed(texts[start:start + _EMBED_SLICE],
+                                          input_type="document"))
+        if out is None:
+            out = np.empty((len(texts), part.shape[1]), dtype=np.float32)
+        out[start:start + len(part)] = part
+    return out if out is not None else np.zeros((0, 0), dtype=np.float32)
 
 
 class _Keys:
@@ -342,6 +358,16 @@ def _parse(text: str | None, candidates: tuple[str, ...]) -> str | None:
     return choice
 
 
+def map_price(settings: VendorkbSettings) -> tuple[float, float]:
+    """(input, output) USD per million tokens for ``map_model``: the price table when it lists
+    the model, else the EXTRACT_PRICE_* override (which is meant for the extraction model and
+    must not underprice a listed map model), else a ValueError."""
+    try:
+        return price_per_mtok(settings.map_model)
+    except ValueError:
+        return price_per_mtok(settings.map_model, settings)
+
+
 class _Adjudicator:
     """Sends adjudications under one budget for the whole run."""
 
@@ -349,7 +375,7 @@ class _Adjudicator:
                  report: MapReport) -> None:
         self.tax, self.client, self.settings = tax, client, settings
         self.max_usd, self.report = max_usd, report
-        self.price = price_per_mtok(settings.map_model, settings)
+        self.price = map_price(settings)
         self.spent = self.in_flight = 0.0
         self.stop = False
         self.fatal: Exception | None = None
@@ -432,7 +458,9 @@ class _Mapped:
 def _resolve_scope(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
     scope = c.target_scope
     if m.target_id is None:
-        hit = tax.lookup("target", "", scope)
+        # Only a claim with no target text takes its scope as the target: a target text that
+        # did not map leaves the scope unresolved.
+        hit = tax.lookup("target", "", scope) if c.target is None else None
         if hit is not None:
             m.target_id, m.target_method = hit, "alias"
             report.scope_target += 1
@@ -476,11 +504,12 @@ def _resolve_offering(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> No
         return
     if m.offering_id is not None:
         m.edition_id = tax.lookup("edition", m.offering_id, c.edition)
-    else:
-        hits = [e for oid in tax.vendor_offerings.get(c.vendor, [])
+    elif c.offering is None:  # an offering text that did not map: the edition stays free text
+        hits = [(oid, e) for oid in tax.vendor_offerings.get(c.vendor, [])
                 if (e := tax.lookup("edition", oid, c.edition)) is not None]
-        if len(hits) == 1:  # the alias names one edition among the vendor's offerings
-            m.edition_id = hits[0]
+        if len(hits) == 1:  # one (offering, edition) among the vendor's offerings has the alias
+            m.offering_id, m.edition_id = hits[0]
+            report.offering_from_edition += 1
     if m.edition_id is not None:
         report.edition_mapped += 1
     else:
@@ -509,14 +538,14 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     dimension_keys = _Keys(tax.aliases.get(("dimension", ""), {}))
     target_queries = sorted({c.target for c in claims if c.target is not None
                              and tax.lookup("target", "", c.target) is None})
-    dimension_queries = sorted({c.capability for c in claims
-                                if tax.lookup("dimension", "", c.capability) is None})
+    dimension_queries = sorted({c.capability for c in claims if c.capability is not None
+                                and tax.lookup("dimension", "", c.capability) is None})
     query_rows: dict[str, int] = {}
     query_vectors = np.zeros((0, 0), dtype=np.float32)
     if target_queries or dimension_queries:
         texts = list(dict.fromkeys(
             [*target_keys.texts, *dimension_keys.texts, *target_queries, *dimension_queries]))
-        vectors = _unit(await embedder.embed(texts, input_type="document"))
+        vectors = await _embed_all(embedder, texts)
         report.embedded_strings = len(texts)
         row = {t: i for i, t in enumerate(texts)}
         target_keys.vectors = vectors[[row[t] for t in target_keys.texts]]
@@ -568,7 +597,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     # 3. Dimensions, the candidates drawn from the dimensions that apply to the target's class.
     classes_of: dict[str, list[str | None]] = {}
     for c in claims:
-        if tax.lookup("dimension", "", c.capability) is None:
+        if c.capability is not None and tax.lookup("dimension", "", c.capability) is None:
             seen = classes_of.setdefault(c.capability, [])
             if mapped[c.claim_id].class_id not in seen:
                 seen.append(mapped[c.claim_id].class_id)
@@ -593,7 +622,8 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             a = dim_adj.setdefault((text, cands), _Adjudication("dimension", text, cands, cid))
             adj_of[(text, cid)] = a
     for c in claims:
-        a = adj_of.get((c.capability, mapped[c.claim_id].class_id))
+        a = (adj_of.get((c.capability, mapped[c.claim_id].class_id))
+             if c.capability is not None else None)
         if a is not None:
             a.add_context(c)
     await adjudicator.run(list(dim_adj.values()))
@@ -605,7 +635,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         if hit is not None:
             m.dimension_id, m.dimension_method = hit, "alias"
         else:
-            a = adj_of.get((c.capability, m.class_id))
+            a = adj_of.get((c.capability, m.class_id)) if c.capability is not None else None
             if a is not None and a.choice is not None:
                 m.dimension_id, m.dimension_method = a.choice, "llm"
             m.skipped = m.skipped or (a is not None and a.skipped)
