@@ -145,3 +145,18 @@ async def test_embedder_gives_up_after_retries_and_does_not_retry_client_errors(
             await emb.embed(["a"])
         await emb.aclose()
     assert calls.count("429") == 6 and calls.count("400") == 1
+
+
+async def test_reranker_counts_tokens():
+    replies = [{"data": [{"index": 0, "relevance_score": 0.5}], "usage": {"total_tokens": 11}},
+               {"data": [{"index": 0, "relevance_score": 0.5}]}]
+
+    def handler(req):
+        return httpx.Response(200, json=replies.pop(0))
+
+    async with Reranker(_settings(), transport=httpx.MockTransport(handler)) as rr:
+        assert rr.tokens_used == 0
+        await rr.rerank("q", ["a"], 1)
+        assert rr.tokens_used == 11
+        await rr.rerank("q", ["a"], 1)  # no usage block: counts nothing
+        assert rr.tokens_used == 11

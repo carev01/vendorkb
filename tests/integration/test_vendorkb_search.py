@@ -3,7 +3,9 @@ import uuid
 from pgvector import Vector
 
 from vendorkb.db import connect, init_schema
-from vendorkb.search import read_section, search_docs
+from vendorkb import search
+from vendorkb.modes import compare_facets, enumerate_vendors
+from vendorkb.search import hybrid_candidates, read_section, search_docs
 
 
 def _vec(i):
@@ -295,5 +297,186 @@ async def test_stopword_only_query_matches_nothing_by_fts(vkb_dsn):
         # no error; at most the vector side's one hit (HNSW may skip it after the
         # previous test's deletes, so the count is not asserted exactly)
         assert len(res.hits) <= 1
+    finally:
+        await conn.close()
+
+
+async def _doc(conn, vendor, product, title="T"):
+    did = str(uuid.uuid4())
+    await conn.execute(
+        "INSERT INTO documents (doc_id, vendor, product, source, title, url, content_hash,"
+        " fetched_at) VALUES (%s,%s,%s,'S',%s,%s,'h', now())",
+        (did, vendor, product, title, f"http://u/{vendor}/{did}"))
+    return did
+
+
+async def _fresh(conn):
+    await init_schema(conn, embed_dim=768)
+    await conn.execute("DELETE FROM documents")
+
+
+async def test_hybrid_candidates_reads_fts_weight_at_call_time(vkb_dsn, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d1, d2 = await _doc(conn, "V1", "P1"), await _doc(conn, "V2", "P2")
+        kw = await _chunk(conn, d1, 0, "Exchange mailbox retention keyword", 5)
+        near = await _chunk(conn, d2, 0, "unrelated words", 0)
+        got = await hybrid_candidates(conn, "retention", _vec(0))
+        assert [h.chunk_id for h in got] == [kw, near]  # FTS rank 1 ties vector rank 1
+        assert [h.rrf_rank for h in got] == [1, 2] and got[0].rerank_score is None
+        monkeypatch.setattr(search, "FTS_WEIGHT", 0.0)
+        got = await hybrid_candidates(conn, "retention", _vec(0))
+        assert got[0].chunk_id == near
+        got = await hybrid_candidates(conn, "retention", _vec(0), vendor=["V1"], limit=1)
+        assert [h.chunk_id for h in got] == [kw]
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_covers_every_vendor(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for v in ("VA", "VB", "VC"):
+            d = await _doc(conn, v, f"{v}-P")
+            await _chunk(conn, d, 0, f"alpha backup {v}", 0)
+        await _doc(conn, "VD", "VD-P")  # a document with no chunks
+        emb = FakeEmbedder(_vec(0))
+        res = await enumerate_vendors(conn, "alpha", embedder=emb,
+                                      reranker=FakeReranker(lambda t: 0.5),
+                                      vendors=["VA", "VB", "VC", "VD", "VE"])
+        assert sorted(res.kept + res.dropped + res.empty) == ["VA", "VB", "VC", "VD", "VE"]
+        assert len(res.kept + res.dropped + res.empty) == 5
+        assert res.empty == ["VD", "VE"] and sorted(res.kept) == ["VA", "VB", "VC"]
+        assert len(emb.calls) == 1 and res.rerank_ok is True
+        assert sorted(h.vendor for h in res.hits) == ["VA", "VB", "VC"]
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_per_vendor_cap(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        single = await _doc(conn, "VS", "Only")
+        for i in range(10):
+            await _chunk(conn, single, i, f"alpha single {i}", 0)
+        for p in ("P1", "P2", "P3"):
+            d = await _doc(conn, "VM", p)
+            for i in range(3):
+                await _chunk(conn, d, i, f"alpha multi {p} {i}", 0)
+        rr = FakeReranker(lambda t: 0.5)
+        res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                      reranker=rr, vendors=["VS", "VM"])
+        vs = [h for h in res.hits if h.vendor == "VS"]
+        vm = [h for h in res.hits if h.vendor == "VM"]
+        assert len(vs) == 3
+        assert len(vm) == 5 and {h.product for h in vm} == {"P1", "P2", "P3"}
+        assert len(rr.calls) == 1 and len(rr.calls[0][1]) == 8  # one rerank over all kept
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_floor_drops_low_vendor(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for v, score in (("VA", 0.9), ("VB", 0.5), ("VC", 0.1)):
+            d = await _doc(conn, v, f"{v}-P")
+            for i in range(2):
+                await _chunk(conn, d, i, f"alpha {v} s{score}", 0)
+        rr = FakeReranker(lambda t: float(t.split(" s")[-1]))
+        res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                      reranker=rr, vendors=["VA", "VB", "VC"], min_score=0.3)
+        assert res.kept == ["VA", "VB"] and res.dropped == ["VC"] and res.empty == []
+        assert [h.vendor for h in res.hits] == ["VA", "VA", "VB", "VB"]
+        assert res.hits[0].rerank_score == 0.9 and res.rerank_ok is True
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_rerank_failure_keeps_all(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for v in ("VA", "VB"):
+            d = await _doc(conn, v, f"{v}-P")
+            for i in range(4):
+                await _chunk(conn, d, i, f"alpha {v} {i}", 0)
+        for reranker, use_rerank in ((FakeReranker(fail=True), True),
+                                     (None, True), (FakeReranker(lambda t: 0.0), False)):
+            res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                          reranker=reranker, vendors=["VA", "VB", "VX"],
+                                          min_score=0.3, use_rerank=use_rerank)
+            assert res.kept == ["VA", "VB"] and res.dropped == [] and res.empty == ["VX"]
+            assert res.rerank_ok is False
+            assert all(h.rerank_score is None for h in res.hits)
+            for v in ("VA", "VB"):
+                assert [h.rrf_rank for h in res.hits if h.vendor == v] == [1, 2, 3]
+        assert reranker.calls == []  # use_rerank=False makes no reranker call
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_max_hits(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        vendors = [f"V{n:02d}" for n in range(30)]
+        for n, v in enumerate(vendors):
+            d = await _doc(conn, v, f"{v}-P")
+            for i in range(3):
+                await _chunk(conn, d, i, f"alpha {v} c{i} s{0.9 - n / 100 - i / 1000}", 0)
+        rr = FakeReranker(lambda t: float(t.split(" s")[-1]))
+        res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                      reranker=rr, vendors=vendors, max_hits=60)
+        assert len(res.hits) == 60 and sorted(res.kept) == vendors
+        counts = {v: sum(h.vendor == v for h in res.hits) for v in vendors}
+        assert all(c >= 1 for c in counts.values())
+        assert all(" c2 " not in h.text for h in res.hits)  # each vendor's worst chunk went
+        assert res.kept == vendors  # ordered by best score
+        assert [h.vendor for h in res.hits[:2]] == ["V00", "V00"]
+    finally:
+        await conn.close()
+
+
+async def test_comparison_quota_survives_rerank(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        da, db = await _doc(conn, "A", "PA"), await _doc(conn, "B", "PB")
+        for i in range(30):
+            await _chunk(conn, da, i, f"alpha high {i}", 0)
+        for i in range(5):
+            await _chunk(conn, db, i, f"alpha low {i}", 0)
+        rr = FakeReranker(lambda t: 0.9 if "high" in t else 0.5)
+        emb = FakeEmbedder(_vec(0))
+        res = await compare_facets(conn, "alpha", embedder=emb, reranker=rr,
+                                   facets=[("vendor", "A"), ("product", "PB")])
+        assert [h.vendor for h in res.hits] == ["A", "B"] * 5
+        assert res.facets_empty == [] and res.rerank_ok is True
+        assert len(emb.calls) == 1 and len(rr.calls) == 2
+        assert len(rr.calls[0][1]) == 20  # RERANK_CANDIDATES // 2
+    finally:
+        await conn.close()
+
+
+async def test_comparison_empty_facet(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        da = await _doc(conn, "A", "PA")
+        for i in range(8):
+            await _chunk(conn, da, i, f"alpha {i}", 0)
+        rr = FakeReranker(lambda t: 0.5)
+        res = await compare_facets(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                   facets=[("vendor", "A"), ("vendor", "B")])
+        assert res.facets_empty == ["B"]
+        assert [h.vendor for h in res.hits] == ["A"] * 5 and res.rerank_ok is True
+        res = await compare_facets(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                   reranker=FakeReranker(fail=True),
+                                   facets=[("vendor", "A"), ("vendor", "B")])
+        assert res.rerank_ok is False and [h.rrf_rank for h in res.hits] == [1, 2, 3, 4, 5]
     finally:
         await conn.close()

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 
 import psycopg
@@ -12,6 +12,9 @@ FTS_LIMIT = 50
 VEC_LIMIT = 50
 RRF_K = 60
 RERANK_CANDIDATES = 40
+# RRF weight of the full-text ranking (the vector ranking weighs 1.0). Read at call time, so
+# an eval can set ``search.FTS_WEIGHT`` to try down-weighting keyword search.
+FTS_WEIGHT = 1.0
 # The live column, and the candidate column `vendorkb reembed` fills for an embedding A/B.
 VECTOR_COLUMNS = ("embedding", "embedding_next")
 
@@ -39,12 +42,18 @@ class SearchResult:
     rerank_ok: bool
 
 
-def rrf(rankings: list[list[str]], *, k: int = RRF_K) -> list[str]:
-    """Reciprocal rank fusion; ties broken by first appearance."""
+def rrf(rankings: list[list[str]], *, k: int = RRF_K,
+        weights: list[float] | None = None) -> list[str]:
+    """Reciprocal rank fusion, each ranking's contribution multiplied by its weight (default
+    1.0 each); ties broken by first appearance."""
+    if weights is None:
+        weights = [1.0] * len(rankings)
+    if len(weights) != len(rankings):
+        raise ValueError(f"{len(weights)} weights for {len(rankings)} rankings")
     scores: dict[str, float] = {}
-    for ranking in rankings:
+    for ranking, weight in zip(rankings, weights):
         for pos, item in enumerate(ranking, start=1):
-            scores[item] = scores.get(item, 0.0) + 1.0 / (k + pos)
+            scores[item] = scores.get(item, 0.0) + weight / (k + pos)
     first = {item: n for n, item in enumerate(scores)}
     return sorted(scores, key=lambda i: (-scores[i], first[i]))
 
@@ -90,17 +99,16 @@ async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) ->
         return await cur.fetchall()
 
 
-async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
-                      reranker: Reranker | None, vendor: list[str] | None = None,
-                      product: list[str] | None = None, k: int = 10,
-                      use_rerank: bool = True,
-                      vector_column: str = "embedding") -> SearchResult:
-    """``vector_column`` names the chunks column to search (an embedding A/B reads a
-    candidate column); only names in ``VECTOR_COLUMNS`` are accepted."""
+async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float], *,
+                            vendor: list[str] | None = None,
+                            product: list[str] | None = None,
+                            limit: int = RERANK_CANDIDATES,
+                            vector_column: str = "embedding") -> list[Hit]:
+    """Full-text and vector candidates fused by RRF, in RRF order (``rrf_rank`` set, no
+    rerank score). ``vector_column`` names the chunks column to search (an embedding A/B
+    reads a candidate column); only names in ``VECTOR_COLUMNS`` are accepted."""
     if vector_column not in VECTOR_COLUMNS:
         raise ValueError(f"unknown vector column {vector_column!r}")
-    # An embedder failure propagates: the caller records it.
-    qvec = (await embedder.embed([query], input_type="query"))[0]
     where, fparams = _filters(vendor, product)
     fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id), "
                f"(SELECT {_TSQUERY} AS tsq) q "
@@ -116,18 +124,31 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
     vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
 
     rows = {r[0]: r for r in [*fts_rows, *vec_rows]}
-    order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]])
-    rrf_pos = {cid: n for n, cid in enumerate(order, start=1)}
-    candidates = order[:RERANK_CANDIDATES]
+    order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]],
+                weights=[FTS_WEIGHT, 1.0])
+    return [_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)]
+
+
+async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
+                      reranker: Reranker | None, vendor: list[str] | None = None,
+                      product: list[str] | None = None, k: int = 10,
+                      use_rerank: bool = True,
+                      vector_column: str = "embedding") -> SearchResult:
+    """``vector_column`` names the chunks column to search (an embedding A/B reads a
+    candidate column); only names in ``VECTOR_COLUMNS`` are accepted."""
+    if vector_column not in VECTOR_COLUMNS:
+        raise ValueError(f"unknown vector column {vector_column!r}")
+    # An embedder failure propagates: the caller records it.
+    qvec = (await embedder.embed([query], input_type="query"))[0]
+    candidates = await hybrid_candidates(conn, query, qvec, vendor=vendor, product=product,
+                                         vector_column=vector_column)
 
     if use_rerank and reranker is not None and candidates:
-        ranked = await reranker.rerank(query, [rows[c][2] for c in candidates], k)
+        ranked = await reranker.rerank(query, [h.text for h in candidates], k)
         if ranked:  # None (outage) and [] for non-empty candidates are both failures
-            hits = [_hit(rows[candidates[i]], rrf_pos[candidates[i]], score)
-                    for i, score in ranked[:k]]
+            hits = [replace(candidates[i], rerank_score=score) for i, score in ranked[:k]]
             return SearchResult(hits=hits, rerank_ok=True)
-    return SearchResult(hits=[_hit(rows[c], rrf_pos[c]) for c in candidates[:k]],
-                        rerank_ok=False)
+    return SearchResult(hits=candidates[:k], rerank_ok=False)
 
 
 async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
