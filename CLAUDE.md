@@ -30,8 +30,20 @@ stack.
   runs with `--max-tokens 5000000`;
 - hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
   reciprocal rank fusion (k=60), then a Voyage rerank of the top 40;
-- question scope detection (`scope.py`, aliases in `scope_aliases.json`);
-- a cite-or-abstain answer step (`answer.py`);
+- question scope detection (`scope.py`, aliases in `scope_aliases.json`; ordinary-word names
+  such as "Own" or "Slide" match case-sensitively);
+- question shape (`shape.py`): single / comparison / enumeration, deterministic. Two named
+  facets never enumerate; a one-vendor "which tools…" question enumerates only for a workload
+  vendor (`WORKLOAD_VENDORS`);
+- cross-vendor retrieval (`modes.py`): `enumerate_vendors` (all vendors at once via the
+  batched `search.vendor_candidates`, 2/3 chunks per vendor, one rerank, floor
+  `ENUMERATION_MIN_SCORE` 0.46 calibrated 2026-11-06) and `compare_facets` (per-facet quotas
+  that survive the rerank);
+- a cite-or-abstain answer step (`answer.py`). Enumeration answers are one line per vendor; a
+  line survives only if it cites a chunk of its own vendor, and the closing line "Checked
+  with nothing documented: …" is built in code, never by the model;
+- cross-vendor eval (`eval/cross_vendor.py`, `eval/answer_eval.py`, labels in `eval/labels/`;
+  `docs/superpowers/cross-vendor-retrieval-2026-11-06.md`);
 - the CLI: `search | answer | stats | sync | reembed | promote-embedding`.
 
 **Not built yet:**
