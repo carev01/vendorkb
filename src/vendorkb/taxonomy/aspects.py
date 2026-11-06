@@ -4,7 +4,8 @@ A workload is a target (resolved by id or alias) or a class. Its aspects are, in
 
 1. coverage aspects: each object type of the class and its ancestors (the lineage, most
    specific class first, object types in YAML order), times ``REQUIRED_DIMENSIONS``;
-2. the class's non-coverage, non-platform dimensions, in ``FAMILIES`` order, then by id;
+2. the class's other, non-platform dimensions (any coverage-family dimension that is not one of
+   the required four included), in ``FAMILIES`` order, then by id;
 3. platform dimensions (about the backup product itself), same order.
 
 A dimension applies to class C when its ``applies_to`` is NULL (all classes) or any entry is C
@@ -99,7 +100,7 @@ async def aspects(conn: psycopg.AsyncConnection, *, target: str | None = None,
     def order(d: tuple) -> tuple[int, str]:
         return (FAMILIES.index(d[1]), d[0])
 
-    rest = [d for d in dims.values() if d[1] != "coverage" and applies(d[4])]
+    rest = [d for d in dims.values() if d[0] not in REQUIRED_DIMENSIONS and applies(d[4])]
     for platform in (False, True):
         for d in sorted((d for d in rest if d[6] is platform), key=order):
             out.append(Aspect("platform" if platform else "dimension", d[0], d[1], d[2], d[3],

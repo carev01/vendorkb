@@ -45,6 +45,11 @@ dimensions:
     aliases: [hardened appliance]
     applies_to: all
     platform: true
+  - id: coverage.attribute_depth
+    name: Attribute depth
+    definition: How many of an object's own attributes a backup keeps beyond its identifier.
+    aliases: [attribute coverage]
+    applies_to: all
 
 classes:
   - id: saas

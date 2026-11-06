@@ -42,9 +42,10 @@ async def test_okta_gets_entra_aspects(conn):
                                             "coverage.export", "coverage.compare"]
     assert len(coverage) == 20
     # then the class's other dimensions in family order, then the platform ones last
-    assert _ids(okta, "dimension") == ["schedule.backup_frequency", "retention.maximum_period"]
+    assert _ids(okta, "dimension") == ["coverage.attribute_depth", "schedule.backup_frequency",
+                                       "retention.maximum_period"]
     assert _ids(okta, "platform") == ["security.platform_hardening"]
-    assert [a.kind for a in okta] == ["coverage"] * 20 + ["dimension"] * 2 + ["platform"]
+    assert [a.kind for a in okta] == ["coverage"] * 20 + ["dimension"] * 3 + ["platform"]
     retention = next(a for a in okta if a.dimension_id == "retention.maximum_period")
     assert (retention.family, retention.value_unit, retention.object_type_id) == (
         "retention", "days", None)
@@ -86,3 +87,12 @@ async def test_unknown_input_raises(conn):
         await aspects(conn)
     with pytest.raises(ValueError):
         await aspects(conn, target="okta", cls="saas")
+
+
+async def test_non_required_coverage_dimension_is_a_plain_dimension(conn):
+    for found in (await aspects(conn, target="okta"), await aspects(conn, target="aws")):
+        depth = [a for a in found if a.dimension_id == "coverage.attribute_depth"]
+        assert [(a.kind, a.object_type_id, a.family) for a in depth] == [
+            ("dimension", None, "coverage")]
+        # first of the dimension group: coverage leads FAMILIES
+        assert _ids(found, "dimension")[0] == "coverage.attribute_depth"

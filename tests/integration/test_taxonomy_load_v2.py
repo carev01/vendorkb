@@ -11,8 +11,8 @@ from vendorkb.taxonomy import load
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 V2_TABLES = ("dimensions", "classes", "object_types", "targets", "variants", "offerings",
              "editions", "aliases")
-COUNTS = {"dimensions": 8, "classes": 5, "object_types": 9, "targets": 6, "variants": 2,
-          "offerings": 1, "editions": 2, "aliases": 67}
+COUNTS = {"dimensions": 9, "classes": 5, "object_types": 9, "targets": 6, "variants": 2,
+          "offerings": 1, "editions": 2, "aliases": 69}
 
 
 def _doc() -> dict:
@@ -257,13 +257,13 @@ async def test_reload_replaces_everything(vkb_dsn, tmp_path):
         second = await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc))
         assert second["version"] != first["version"] and second["version"].startswith("2-")
         assert await load.current_version(conn) == second["version"]
-        assert second["dimensions"] == 7 and second["aliases"] == 67 - 3 - 1
+        assert second["dimensions"] == 8 and second["aliases"] == 69 - 3 - 1
         assert await _rows(conn, "SELECT * FROM dimensions"
                                  " WHERE dimension_id='retention.maximum_period'") == []
         assert await _rows(conn, "SELECT * FROM aliases"
                                  " WHERE entity_id='retention.maximum_period'") == []
         assert await _rows(conn, "SELECT * FROM aliases WHERE alias='system log'") == []
-        assert await _counts(conn) == {**COUNTS, "dimensions": 7, "aliases": 63}
+        assert await _counts(conn) == {**COUNTS, "dimensions": 8, "aliases": 65}
         # loading the same file again is a no-op
         assert await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc)) == second
     finally:
