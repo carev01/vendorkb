@@ -118,9 +118,19 @@ def _chat(payload, *, cost=0.001, tokens=(500, 100)):
                            usage=usage)
 
 
+def _with_members(reply: dict, phrasings: list[str]) -> dict:
+    """A reply without "members" selects every listed phrasing (none for "none")."""
+    if "members" in reply:
+        return reply
+    every = list(range(len(phrasings))) if reply["action"] != "none" else []
+    return {**reply, "members": every}
+
+
 class FakeCompletions:
     def __init__(self, replies, cost=0.001):
-        self.replies = replies  # marker in the user message's phrasings -> reply dict
+        # marker in the user message's phrasings -> reply dict, or a function of the
+        # numbered phrasings returning one
+        self.replies = replies
         self.cost = cost
         self.calls: list[dict] = []
 
@@ -129,7 +139,8 @@ class FakeCompletions:
         phrasings = _phrasings(params["messages"][-1]["content"])
         for marker, reply in self.replies.items():
             if marker in phrasings:
-                return _chat(reply, cost=self.cost)
+                reply = reply(phrasings) if callable(reply) else reply
+                return _chat(_with_members(reply, phrasings), cost=self.cost)
         raise AssertionError(f"unexpected proposal request: {phrasings}")
 
 
@@ -139,9 +150,11 @@ class FakeOpenAI:
 
 
 def _phrasings(user: str) -> list[str]:
-    """The cluster's phrasings listed in a user message (without their counts)."""
+    """The cluster's numbered phrasings in a user message, in order (without number and
+    count): "- [0] some phrase (3)" -> "some phrase"."""
     block = user.split("Phrasings (claim count):\n", 1)[1].split("\n\n", 1)[0]
-    return [line[2:].rsplit(" (", 1)[0] for line in block.splitlines()]
+    return [line.split("] ", 1)[1].rsplit(" (", 1)[0] for line in block.splitlines()
+            if line.startswith("- [")]
 
 
 def _candidates(user: str) -> list[str]:
@@ -247,7 +260,7 @@ async def test_dimension_aliases_merge_in_place_and_new_entries_append(vkb_dsn, 
         assert req["max_tokens"] == _settings().extract_max_tokens
         assert req["response_format"]["json_schema"]["strict"] is True
         schema = req["response_format"]["json_schema"]["schema"]
-        assert schema["required"] == ["action", "id", "new"]
+        assert schema["required"] == ["action", "id", "members", "new"]
         assert schema["properties"]["action"]["enum"] == ["alias", "new", "none"]
         new = schema["properties"]["new"]["anyOf"][0]
         assert new["properties"]["family"]["enum"] == list(load.FAMILIES)
@@ -523,7 +536,7 @@ async def test_anthropic_backend_request_shape(vkb_dsn, tmp_path):
     class Messages:
         async def create(self, **params):
             calls.append(params)
-            text = json.dumps(REPLIES["longest backup retention"])
+            text = json.dumps({**REPLIES["longest backup retention"], "members": [0]})
             return SimpleNamespace(
                 content=[SimpleNamespace(type="text", text=text)], stop_reason="end_turn",
                 usage=SimpleNamespace(input_tokens=400, output_tokens=80))
@@ -573,5 +586,57 @@ async def test_ids_yaml_1_1_would_misread_are_quoted(vkb_dsn, tmp_path):
         suite = next(f for f in tax.offerings if f.id == "examplevendor.cloud_suite")
         assert (suite.editions[-1].id, suite.editions[-1].name) == ("null", "null")
         assert "      - id: 'on'\n        name: 'On'\n" in out.read_text()
+    finally:
+        await conn.close()
+
+
+async def test_reply_selects_which_members_become_aliases(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_dimensions(conn)
+        replies = dict(REPLIES)
+        # Only "longest backup retention" names the entry; its neighbour is noise.
+        replies["longest backup retention"] = lambda ph: {
+            "action": "alias", "id": "retention.maximum_period", "new": None,
+            "members": [ph.index("longest backup retention")]}
+        replies["malware scanning of backups"] = {**REPLIES["malware scanning of backups"],
+                                                  "members": [7]}  # out of range
+        replies["the dashboard thing"] = {"action": "alias", "id": "coverage.backup",
+                                          "new": None, "members": []}  # selects nothing
+        client = FakeOpenAI(replies)
+        out = _copy_fixture(tmp_path)
+        report = await propose.propose(conn, client=client, embedder=FakeEmbedder(VECTORS),
+                                       settings=_settings(), kind="dimension",
+                                       distance_threshold=0.2, out_path=out, max_usd=2.0,
+                                       limit=None)
+        user = next(c["messages"][-1]["content"] for c in client.chat.completions.calls
+                    if "longest backup retention" in _phrasings(c["messages"][-1]["content"]))
+        assert "- [0] " in user and "- [1] " in user  # numbered phrasings
+        schema = client.chat.completions.calls[0]["response_format"]["json_schema"]["schema"]
+        assert schema["required"] == ["action", "id", "members", "new"]
+        assert schema["properties"]["members"] == {"type": "array",
+                                                   "items": {"type": "integer"}}
+        assert (report.aliased, report.added, report.none, report.invalid) == (1, 0, 1, 2)
+        assert report.unselected == 1
+        assert any("out of range" in e for e in report.errors)
+        dims = {d.id: d for d in _validated(out).dimensions}
+        assert set(dims["retention.maximum_period"].aliases) == {
+            "longest retention", "max retention", "longest backup retention"}
+        assert "the dashboard thing" not in dims["coverage.backup"].aliases
+        tail = yaml.safe_load(propose.long_tail_path(out).read_text())["dimension"]
+        assert {"text": "keep backups for the longest time", "count": 2,
+                "vendor_count": 2} in tail
+
+        # A "none" reply that selects members is invalid.
+        replies = dict(REPLIES)
+        replies["the dashboard thing"] = {"action": "none", "id": None, "new": None,
+                                          "members": [0]}
+        report = await propose.propose(conn, client=FakeOpenAI(replies),
+                                       embedder=FakeEmbedder(VECTORS), settings=_settings(),
+                                       kind="dimension", distance_threshold=0.2,
+                                       out_path=_copy_fixture(tmp_path), max_usd=2.0,
+                                       limit=None)
+        assert report.none == 0 and any("'none'" in e for e in report.errors)
     finally:
         await conn.close()

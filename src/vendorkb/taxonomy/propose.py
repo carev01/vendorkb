@@ -21,8 +21,11 @@ a name or alias in its group is not sent; ``limit`` caps the clusters sent (bigg
 For each cluster the extraction model (``extract_backend`` / ``extract_model``, strict JSON
 schema) gets the strings and the ``TOP_CANDIDATES`` existing entries of the group nearest the
 cluster's centroid by embedding (id, name, definition), and answers
-``{"action": "alias" | "new" | "none", "id": ..., "new": ...}``. The model decides; the
-nearest entry alone never maps a string. ``new`` carries its section's fields (``family``
+``{"action": "alias" | "new" | "none", "id": ..., "members": [...], "new": ...}``. The model
+decides; the nearest entry alone never maps a string. ``members`` lists the indices (as
+numbered in the prompt) of the strings that name the chosen or new entry: only those become
+aliases, so clustering noise does not; the others of an applied reply go to the long tail,
+and an empty list is taken as "none". ``new`` carries its section's fields (``family``
 for a dimension, ``class`` for a target, ``offering`` for an edition, ...).
 
 The answers are merged into the YAML at ``out_path`` in place, keeping its comments, layout
@@ -110,6 +113,7 @@ def reply_schema(section: Section) -> dict[str, Any]:
     return object_schema({
         "action": {"type": "string", "enum": ["alias", "new", "none"]},
         "id": _NULLABLE_TEXT,
+        "members": {"type": "array", "items": {"type": "integer"}},
         "new": {"anyOf": [object_schema(NEW_FIELDS[section]), {"type": "null"}]},
     })
 
@@ -124,6 +128,11 @@ covers. Fill "new" and set "id" to null.
 - "none": the phrasings mix different things, are too vague to name one thing, are a \
 vendor's brand name for its own feature, or do not belong in this section. Set "id" and \
 "new" to null.
+"members": the numbers of the phrasings that name exactly the chosen or new entry; [] for \
+"none". Include a phrasing only if it names the same aspect, not a broader, narrower, \
+combined or neighbouring one: "full and incremental backups" is not "on-demand backup"; \
+"point-in-time table restore" is fine for point-in-time recovery. The cluster may be noisy: \
+leaving phrasings out is expected.
 Choose an entry because it means the same thing, never only because it is listed first. \
 Prefer "alias" when an entry fits; propose "new" only when none does. Names and definitions \
 are vendor-neutral and in your own words."""
@@ -221,6 +230,11 @@ class _Cluster:
     members: list[_Stat]
     candidates: list[_Entry] = field(default_factory=list)
 
+    @property
+    def shown(self) -> list[_Stat]:
+        """The members listed in the prompt, in their numbered order (biggest first)."""
+        return sorted(self.members, key=lambda m: (-m.count, m.text))[:MAX_MEMBERS_IN_PROMPT]
+
 
 @dataclass
 class ProposeReport:
@@ -240,7 +254,8 @@ class ProposeReport:
     aliased: int = 0
     added: int = 0                 # new entries written (proposed: true)
     merged_into_existing: int = 0  # "new" whose id already existed: merged as an alias
-    none: int = 0
+    none: int = 0                  # "none", or an alias / new reply selecting no member
+    unselected: int = 0            # members an applied reply left out: to the long tail
     unproposed: int = 0  # eligible but not sent (budget stop or a 400)
     invalid: int = 0     # replies that failed validation or the call
     long_tail: int = 0   # strings in the long tail file under this kind
@@ -366,10 +381,10 @@ async def _collect(conn: psycopg.AsyncConnection, kind: Kind, groups: _Groups,
 def _user_message(c: _Cluster) -> str:
     members = c.members
     vendors = sorted({v for m in members for v in m.vendors})
-    shown = sorted(members, key=lambda m: (-m.count, m.text))[:MAX_MEMBERS_IN_PROMPT]
-    lines = [f"- {m.text} ({m.count})" for m in shown]
+    shown = c.shown
+    lines = [f"- [{i}] {m.text} ({m.count})" for i, m in enumerate(shown)]
     if len(members) > len(shown):
-        lines.append(f"- ... and {len(members) - len(shown)} more")
+        lines.append(f"- ... and {len(members) - len(shown)} more (not selectable)")
     text = (f"Section: {c.group.label}\nVendors ({len(vendors)}): "
             f"{', '.join(vendors[:MAX_VENDORS_IN_PROMPT])}"
             f"{', ...' if len(vendors) > MAX_VENDORS_IN_PROMPT else ''}\n\n"
@@ -383,8 +398,21 @@ def _user_message(c: _Cluster) -> str:
     return text
 
 
-def _parse(text: str | None, group: _Group) -> dict[str, Any]:
-    """The reply ``{action, id, new}`` with its fields checked, or a ValueError."""
+def _members(value: Any, shown: int) -> list[int]:
+    """The reply's member indices, deduplicated in order, or a ValueError."""
+    if not isinstance(value, list) or not all(
+            isinstance(i, int) and not isinstance(i, bool) for i in value):
+        raise ValueError(f"members: {value!r}")
+    bad = [i for i in value if not 0 <= i < shown]
+    if bad:
+        raise ValueError(f"members out of range 0..{shown - 1}: {bad}")
+    return list(dict.fromkeys(value))
+
+
+def _parse(text: str | None, c: _Cluster) -> dict[str, Any]:
+    """The reply ``{action, id, members, new}`` with its fields checked, or a ValueError.
+    An alias or new entry that selects no member is "none"."""
+    group = c.group
     if text is None:
         raise ValueError("no reply text")
     try:
@@ -394,15 +422,20 @@ def _parse(text: str | None, group: _Group) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("invalid-shape")
     action = data.get("action")
+    if action not in ("alias", "new", "none"):
+        raise ValueError(f"action {action!r}")
+    members = _members(data.get("members"), len(c.shown))
     if action == "none":
+        if members:
+            raise ValueError(f"members of a 'none' reply: {members}")
+        return {"action": "none"}
+    if not members:
         return {"action": "none"}
     if action == "alias":
         eid = data.get("id")
         if not isinstance(eid, str) or eid not in {e.id for e in group.entries}:
             raise ValueError(f"alias of unknown {group.section} id {eid!r}")
-        return {"action": "alias", "id": eid}
-    if action != "new":
-        raise ValueError(f"action {action!r}")
+        return {"action": "alias", "id": eid, "members": members}
     new = data.get("new")
     if not isinstance(new, dict):
         raise ValueError("new: not an object")
@@ -418,7 +451,7 @@ def _parse(text: str | None, group: _Group) -> dict[str, Any]:
         if not ok:
             raise ValueError(f"new.{key}: {value!r}")
         out[key] = (value.strip() or None) if isinstance(value, str) else value
-    return {"action": "new", "new": out}
+    return {"action": "new", "new": out, "members": members}
 
 
 # ---- the YAML, edited in place --------------------------------------------------------------
@@ -664,11 +697,13 @@ def _apply(doc: _Doc, tax: Taxonomy, c: _Cluster, reply: dict[str, Any],
     written). A "new" whose id the group already has merges into that entry (created
     false)."""
     group = c.group
+    shown = c.shown
+    selected = [shown[i] for i in reply["members"]]
     if reply["action"] == "new":
         eid, owner, key, entry, named = _new_entry(doc, group, reply["new"])
         if eid not in {e.id for e in group.entries}:
             scope = _alias_scope(group, eid)
-            texts = [m.text for m in c.members if (scope, m.text) not in owned]
+            texts = [m.text for m in selected if (scope, m.text) not in owned]
             if texts:
                 _add_aliases(entry, texts)  # after the name / class / definition
             if group.section == "offering":
@@ -678,7 +713,7 @@ def _apply(doc: _Doc, tax: Taxonomy, c: _Cluster, reply: dict[str, Any],
     else:
         eid = reply["id"]
     scope = _alias_scope(group, eid)
-    texts = [m.text for m in c.members if (scope, m.text) not in owned]
+    texts = [m.text for m in selected if (scope, m.text) not in owned]
     entry = doc.entry(group, eid, tax)
     return eid, False, texts, _add_aliases(entry, texts), entry.get("aliases")
 
@@ -838,7 +873,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
             try:
                 if error is not None:
                     raise ValueError(error)
-                return _parse(text, c.group)
+                return _parse(text, c)
             except ValueError as e:
                 report.invalid += 1
                 report.errors.append(f"{first}: {e}")
@@ -889,6 +924,10 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
             report.aliased += 1
             report.merged_into_existing += int(reply["action"] == "new")
         report.proposed += 1
+        chosen = {c.shown[i].text for i in reply["members"]}
+        unselected = [m for m in c.members if m.text not in chosen]
+        report.unselected += len(unselected)
+        long_tail.extend((c.group, m) for m in unselected)
 
     out = doc.dump()
     validate(parse_doc(out.encode("utf-8"), path))  # as the loader will read it
