@@ -1,22 +1,71 @@
-import json, sys, statistics, yaml
-run, qfile = sys.argv[1], sys.argv[2]
-Q = {q["id"]: q for q in yaml.safe_load(open(qfile))}
-rows = [r for r in json.load(open(run))["per_question"] if r.get("shape") == "enumeration"]
-def at(floor, rs):
+"""Enumeration rerank-floor sweep over one ``cross_vendor.py score --rerank`` run.
+
+    uv run python eval/calibrate_floor.py eval/runs/RUN.json eval/questions.yaml
+
+Reads each enumeration row's ``vendor_best_scores`` (every scored vendor, those below the
+run's --min-score included) and prints, per floor, mean vendor recall, noise vendors and
+precision on the calibration and holdout splits. It prints two rules: the plan's (highest
+floor with calibration recall >= 0.8) and the adopted one (highest floor with calibration
+recall >= 0.95). ENUMERATION_MIN_SCORE = 0.46 was adopted by ruling on 2026-11-06 (spec §9.2:
+the floor is recall-first; the answer's line check owns precision) from the committed run,
+where its calibration recall is 0.949, read as 0.95; the strict >= 0.95 rule gives 0.42 there.
+"""
+from __future__ import annotations
+
+import json
+import statistics
+import sys
+
+import yaml
+
+ADOPTED_FLOOR = 0.46
+
+
+def at(floor: float, rows: list[dict], questions: dict[str, dict]) -> tuple[float, float, float]:
+    """(mean recall, mean noise vendors, mean precision) at ``floor``; unclear vendors count
+    on neither side, questions with nothing to find are skipped."""
     rec, noise, prec = [], [], []
-    for r in rs:
-        q = Q[r["id"]]; exp = {e["vendor"] for e in q["expected_vendors"]}; unc = set(q["unclear_vendors"])
+    for r in rows:
+        q = questions[r["id"]]
+        unclear = set(q.get("unclear_vendors") or [])
+        expected = {e["vendor"] for e in q.get("expected_vendors") or []} - unclear
+        if not expected:
+            continue
         kept = {v for v, s in (r.get("vendor_best_scores") or {}).items() if s >= floor}
-        e = exp - unc
-        if not e: continue
-        rec.append(len(kept & e) / len(e)); n = kept - e - unc; noise.append(len(n))
-        prec.append(len(kept & e) / max(1, len(kept - unc)))
+        rec.append(len(kept & expected) / len(expected))
+        noise.append(len(kept - expected - unclear))
+        prec.append(len(kept & expected) / max(1, len(kept - unclear)))
+    if not rec:
+        return 0.0, 0.0, 0.0
     return statistics.fmean(rec), statistics.fmean(noise), statistics.fmean(prec)
-cal = [r for r in rows if not Q[r["id"]].get("holdout")]; hold = [r for r in rows if Q[r["id"]].get("holdout")]
-print("floor | cal recall noise prec | holdout recall noise prec")
-best = None
-for f in [x / 100 for x in range(0, 80, 2)]:
-    c = at(f, cal); h = at(f, hold)
-    print(f"{f:.2f} | {c[0]:.3f} {c[1]:5.1f} {c[2]:.3f} | {h[0]:.3f} {h[1]:5.1f} {h[2]:.3f}")
-    if c[0] >= 0.8: best = f
-print("chosen floor (highest with calibration recall >= 0.8):", best)
+
+
+def main(argv: list[str] | None = None) -> dict[str, float | None]:
+    run, qfile = (argv if argv is not None else sys.argv[1:])[:2]
+    with open(qfile, encoding="utf-8") as f:
+        questions = {q["id"]: q for q in yaml.safe_load(f)}
+    with open(run, encoding="utf-8") as f:
+        rows = [r for r in json.load(f)["per_question"] if r.get("shape") == "enumeration"]
+    cal = [r for r in rows if not questions[r["id"]].get("holdout")]
+    hold = [r for r in rows if questions[r["id"]].get("holdout")]
+    print("floor | cal recall noise prec | holdout recall noise prec")
+    best80: float | None = None
+    best95: float | None = None
+    for floor in [x / 100 for x in range(0, 80, 2)]:
+        c, h = at(floor, cal, questions), at(floor, hold, questions)
+        print(f"{floor:.2f} | {c[0]:.3f} {c[1]:5.1f} {c[2]:.3f} | {h[0]:.3f} {h[1]:5.1f} {h[2]:.3f}")
+        if c[0] >= 0.8:
+            best80 = floor
+        if c[0] >= 0.95:
+            best95 = floor
+    print("plan rule (highest floor with calibration recall >= 0.8):", best80)
+    print("adopted rule (highest floor with calibration recall >= 0.95):", best95)
+    c, h = at(ADOPTED_FLOOR, cal, questions), at(ADOPTED_FLOOR, hold, questions)
+    print(f"shipped ENUMERATION_MIN_SCORE = {ADOPTED_FLOOR}, adopted by ruling 2026-11-06 "
+          f"(recall-first floor, spec §9.2): calibration recall {c[0]:.3f}, holdout "
+          f"{h[0]:.3f} (the ruling read 0.949 as 0.95; the strict rule above can be lower)")
+    return {"recall_0.8": best80, "recall_0.95": best95}
+
+
+if __name__ == "__main__":
+    main()

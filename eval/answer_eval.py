@@ -5,7 +5,8 @@
     uv run python eval/answer_eval.py summarize --answers eval/runs/answers-2026-11-06.jsonl \
         --grades eval/runs/answer-grades-2026-11-06.jsonl
 
-``run`` is resumable (ids already in --out are skipped, a torn last line is ignored) and
+``run`` is resumable (ids already in --out are skipped, errored rows included: they are
+never retried, so delete a row to rerun it; a torn last line is ignored) and
 stops before the next question once the cumulative charge (rows already in --out count)
 reaches --max-usd or cumulative rerank tokens reach --max-rerank-tokens. Charge = usage.cost;
 else $3/M prompt + $12/M completion tokens; else $0.05 (3 such questions stop the run, exit 1).
@@ -23,6 +24,9 @@ Grades JSONL (written by the grading step), one object per question::
 
 ``summarize`` prints per-shape, per-holdout (holdout flag read from the answers file) and
 overall means; fact_coverage is sum(covered)/sum(total).
+
+Resume differs from ``cross_vendor.py score --resume``, which reruns errored and
+rerank-failed rows.
 """
 from __future__ import annotations
 

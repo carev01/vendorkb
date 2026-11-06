@@ -167,11 +167,15 @@ product) its document row belongs to.
 
 `candidates` writes `DIR/<qid>/<vendor>.json`. `score` writes per-question results plus a
 summary: enumeration vendor recall and noise, comparison facet recall, single-vendor and
-multi-article pool recall, rerank tokens per question, p50/p90 latency per shape. Without
-`--rerank` the pool is the 40 RRF candidates; with it (or `--legacy --rerank`) it is the
-reranked top 10.
+multi-article pool recall, rerank tokens per question, p50/p90 latency per shape. The pool
+(each row's `pool_depth`) is what the answer would see: single and multi-article questions
+(and every `--legacy` question) get the 40 RRF candidates, or the reranked top 10 with
+`--rerank`; enumeration gets up to 60 chunks (2-3 per vendor, picked in RRF order, or
+reranked and floored with `--rerank`); comparison gets 5 per facet (RRF order, or reranked).
 
 `score` appends each question to `OUT.jsonl` as it finishes (`--resume` skips those already
-done there; errored and rerank-failed ones rerun). With `--rerank` it exits 1 if any question
-was not actually reranked (`rerank_failures` in the summary). Enumeration recall and noise cover
+done there; errored and rerank-failed ones rerun, unlike `answer_eval.py`, which never
+retries a written row). With `--rerank` it exits 1 if any question was not actually
+reranked (`rerank_failures` in the summary), and stops (exit 1, results written) before the
+next question once cumulative rerank tokens reach `--max-rerank-tokens` (default 3M). Enumeration recall and noise cover
 labelled questions only (`n_unlabelled` counts the rest); `n_errors` counts failed questions.

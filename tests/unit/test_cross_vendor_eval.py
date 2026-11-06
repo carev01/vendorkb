@@ -122,3 +122,73 @@ def test_load_done_skips_errored_failed_and_torn_lines(tmp_path):
     f.write_text("\n".join(json.dumps(r) for r in rows) + '\n{"id": "torn', encoding="utf-8")
     assert [r["id"] for r in load_done(f)] == ["ok", "ok2"]
     assert load_done(tmp_path / "missing.jsonl") == []
+
+
+async def test_score_questions_stops_at_the_rerank_token_cap(tmp_path):
+    from eval.cross_vendor import score_questions
+
+    rr = SimpleNamespace(tokens_used=0)
+    ran = []
+
+    async def run(q):
+        ran.append(q["id"])
+        rr.tokens_used += 60
+        return {"id": q["id"], "rerank_tokens": 60}
+
+    qs = [{"id": i} for i in ("a", "b", "c", "d")]
+    jsonl = tmp_path / "r.jsonl"
+    results = []
+    stopped = await score_questions(qs, run, jsonl, results, reranker=rr,
+                                    max_rerank_tokens=100, log=lambda _m: None)
+    assert stopped is True and ran == ["a", "b"]  # checked before each question
+    assert [json.loads(x)["id"] for x in jsonl.read_text().splitlines()] == ["a", "b"]
+    # resumed rows count against the cap too; done ids are skipped
+    rr.tokens_used = 0
+    ran.clear()
+    prior = [{"id": "a", "rerank_tokens": 90}]
+    stopped = await score_questions(qs, run, tmp_path / "s.jsonl", prior, reranker=rr,
+                                    max_rerank_tokens=100, log=lambda _m: None)
+    assert stopped is True and ran == ["b"]
+    # no reranker (free mode): never stops
+    ran.clear()
+    assert await score_questions(qs, run, tmp_path / "t.jsonl", [], reranker=None,
+                                 max_rerank_tokens=0, log=lambda _m: None) is False
+    assert ran == ["a", "b", "c", "d"]
+
+
+def test_score_parser_has_a_rerank_token_cap():
+    from eval.cross_vendor import build_parser
+
+    args = build_parser().parse_args(["score", "--out", "x.json"])
+    assert args.max_rerank_tokens == 3_000_000
+    args = build_parser().parse_args(["score", "--out", "x.json", "--max-rerank-tokens", "5"])
+    assert args.max_rerank_tokens == 5
+
+
+def test_pool_depth_names_the_pool_each_shape_sees():
+    from eval.cross_vendor import _pool_depth
+
+    assert _pool_depth("enumeration", legacy=False, rerank=True) == "enum-up-to-60-reranked"
+    assert _pool_depth("comparison", legacy=False, rerank=False) == "5-per-facet-rrf"
+    assert _pool_depth("single", legacy=False, rerank=True) == "top10-reranked"
+    assert _pool_depth("enumeration", legacy=True, rerank=False) == "top40-rrf"
+
+
+def test_calibrate_floor_prints_both_rules_and_the_ruling(tmp_path, capsys):
+    from eval import calibrate_floor
+
+    qs = [{"id": "a", "expected_vendors": [{"vendor": v} for v in "ABCDE"],
+           "unclear_vendors": []},
+          {"id": "h", "holdout": True, "expected_vendors": [{"vendor": "A"}],
+           "unclear_vendors": []}]
+    run = {"per_question": [
+        {"id": "a", "shape": "enumeration", "vendor_best_scores": {"A": 0.9, "B": 0.8, "C": 0.7, "D": 0.6, "E": 0.3, "Z": 0.4}},
+        {"id": "h", "shape": "enumeration", "vendor_best_scores": {"A": 0.7}}]}
+    (tmp_path / "q.yaml").write_text(json.dumps(qs), encoding="utf-8")
+    (tmp_path / "r.json").write_text(json.dumps(run), encoding="utf-8")
+    floors = calibrate_floor.main([str(tmp_path / "r.json"), str(tmp_path / "q.yaml")])
+    # calibration recall 1.0 up to 0.30, 0.8 up to 0.60, lower above
+    assert floors == {"recall_0.8": 0.6, "recall_0.95": 0.3}
+    out = capsys.readouterr().out
+    assert "recall >= 0.8" in out and "recall >= 0.95" in out
+    assert "0.46" in out and "ruling" in out

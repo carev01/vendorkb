@@ -75,3 +75,35 @@ async def test_score_paths_and_candidates(vkb_dsn, tmp_path):
     finally:
         await conn.close()
     json.dumps(r)  # results are JSON-serialisable
+
+
+class FakeReranker:
+    def __init__(self, scores):
+        self.scores = scores
+        self.tokens_used = 0
+
+    async def rerank(self, query, documents, top_k):
+        self.tokens_used += len(documents)
+        ranked = sorted(range(len(documents)), key=lambda i: -self.scores(documents[i]))
+        return [(i, self.scores(documents[i])) for i in ranked[:top_k]]
+
+
+async def test_vendor_best_scores_include_vendors_below_the_floor(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=768)
+        await conn.execute("DELETE FROM documents")
+        await _doc(conn, "Alpha", "AlphaBackup", "immutability high")
+        await _doc(conn, "Beta", "BetaVault", "immutability low")
+        index = await scope_index_from_db(conn)
+        args = argparse.Namespace(rerank=True, legacy=False, min_score=0.5)
+        rr = FakeReranker(lambda t: 0.9 if "high" in t else 0.2)
+        q = {"id": "e", "type": "cross_vendor", "shape": "enumeration",
+             "question": "immutability", "gold_sources": [],
+             "expected_vendors": [{"vendor": "Alpha"}], "unclear_vendors": []}
+        r = await cross_vendor._run_question(conn, q, embedder=FakeEmbedder(), reranker=rr,
+                                             scope_index=index, args=args)
+        assert r["dropped_vendors"] == ["Beta"]
+        assert r["vendor_best_scores"] == {"Alpha": 0.9, "Beta": 0.2}
+    finally:
+        await conn.close()

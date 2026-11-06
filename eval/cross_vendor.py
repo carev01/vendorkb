@@ -11,7 +11,14 @@ and ``key_terms`` (enumeration; the labelling keyword search).
     uv run python eval/cross_vendor.py score --rerank --out eval/runs/xv-rerank.json
 
 Settings come from .env. ``candidates`` and a plain ``score`` spend only one query embedding
-per question; only ``--rerank`` calls the reranker.
+per question; only ``--rerank`` calls the reranker, and stops (exit 1, results written)
+before the next question once cumulative rerank tokens reach ``--max-rerank-tokens``
+(default 3M; resumed rows count).
+
+Resume: ``score`` appends each question to OUT.jsonl as it finishes. ``--resume`` keeps the
+rows already there EXCEPT errored and rerank-failed ones, which run again (the JSONL is
+rewritten without them, so their spent tokens no longer count against the cap). This
+differs from ``answer_eval.py run``, which never retries a row already written.
 """
 from __future__ import annotations
 
@@ -23,6 +30,7 @@ import re
 import statistics
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 import yaml
@@ -200,6 +208,15 @@ async def _single(conn, embedder, question, scope_index, *, legacy: bool,
     return hits, True
 
 
+def _pool_depth(shape: str, *, legacy: bool, rerank: bool) -> str:
+    """What the hits are: the pool the recall numbers are measured on."""
+    if not legacy and shape == "enumeration":
+        return "enum-up-to-60-reranked" if rerank else "enum-up-to-60-picked"
+    if not legacy and shape == "comparison":
+        return "5-per-facet-reranked" if rerank else "5-per-facet-rrf"
+    return "top10-reranked" if rerank else f"top{RERANK_CANDIDATES}-rrf"
+
+
 async def _run_question(conn, q: dict, *, embedder, reranker, scope_index: ScopeIndex,
                         args) -> dict:
     question = q["question"]
@@ -225,12 +242,9 @@ async def _run_question(conn, q: dict, *, embedder, reranker, scope_index: Scope
                                          vendors=scope_index.vendors, min_score=args.min_score,
                                          use_rerank=rerank)
             hits, rerank_ok = er.hits, er.rerank_ok
-            best: dict[str, float] = {}
-            for h in er.hits:  # each kept vendor's best chunk survives the max_hits trim
-                if h.rerank_score is not None:
-                    best[h.vendor] = max(best.get(h.vendor, h.rerank_score), h.rerank_score)
+            # every scored vendor, those below --min-score included: the floor sweep's input
             res.update(kept=len(er.kept), dropped=len(er.dropped), empty=len(er.empty),
-                       dropped_vendors=er.dropped, vendor_best_scores=best)
+                       dropped_vendors=er.dropped, vendor_best_scores=er.best_scores)
         elif shape == "comparison":
             cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                       facets=detected.facets, use_rerank=rerank)
@@ -243,7 +257,7 @@ async def _run_question(conn, q: dict, *, embedder, reranker, scope_index: Scope
                                             legacy=False, reranker=reranker, rerank=rerank)
         if rerank:  # only meaningful when a rerank was asked for
             res["rerank_ok"] = bool(rerank_ok)
-        res["pool_depth"] = "top10-reranked" if rerank else f"top{RERANK_CANDIDATES}-rrf"
+        res["pool_depth"] = _pool_depth(shape, legacy=bool(args.legacy), rerank=rerank)
         res["hit_doc_ids"] = [h.doc_id for h in hits]
         res["hit_vendors"] = sorted({h.vendor for h in hits})
 
@@ -288,6 +302,29 @@ def load_done(path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------- commands
+
+async def score_questions(questions: list[dict], run: Callable[[dict], Awaitable[dict]],
+                          jsonl: Path, results: list[dict], *, reranker,
+                          max_rerank_tokens: int, log: Callable[[str], None] = print) -> bool:
+    """Run every question not already in ``results`` through ``run``, appending each result
+    to ``results`` and to ``jsonl`` as it finishes. Before each question, stop (return True)
+    once the rerank tokens of the rows in ``results`` (resumed ones count) plus this run's
+    ``reranker.tokens_used`` reach ``max_rerank_tokens``. Without a reranker it never stops."""
+    done = {r["id"] for r in results}
+    prior = sum(r.get("rerank_tokens") or 0 for r in results)
+    for q in questions:
+        if q["id"] in done:
+            continue
+        if reranker is not None and prior + reranker.tokens_used >= max_rerank_tokens:
+            log(f"STOPPED: rerank token cap {max_rerank_tokens} reached "
+                f"({prior + reranker.tokens_used} tokens) before {q['id']}")
+            return True
+        r = await run(q)
+        results.append(r)
+        with jsonl.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(r) + "\n")
+    return False
+
 
 def _load(path: str) -> list[dict]:
     return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
@@ -342,21 +379,18 @@ async def cmd_score(args, base: VendorkbSettings) -> int:
     results: list[dict] = load_done(jsonl) if args.resume else []
     # rewrite the JSONL so it holds exactly the kept rows, then append as questions finish
     jsonl.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
-    done = {r["id"] for r in results}
     conn = await connect(base.vendorkb_dsn)
     try:
         scope_index = await scope_index_from_db(conn)
         async with Embedder(base) as embedder:
             reranker = Reranker(base) if args.rerank else None
             try:
-                for q in questions:
-                    if q["id"] in done:
-                        continue
-                    r = await _run_question(conn, q, embedder=embedder, reranker=reranker,
-                                            scope_index=scope_index, args=args)
-                    results.append(r)
-                    with jsonl.open("a", encoding="utf-8") as f:
-                        f.write(json.dumps(r) + "\n")
+                async def run(q: dict) -> dict:
+                    return await _run_question(conn, q, embedder=embedder, reranker=reranker,
+                                               scope_index=scope_index, args=args)
+                stopped = await score_questions(questions, run, jsonl, results,
+                                                reranker=reranker,
+                                                max_rerank_tokens=args.max_rerank_tokens)
             finally:
                 if reranker:
                     await reranker.aclose()
@@ -366,6 +400,7 @@ async def cmd_score(args, base: VendorkbSettings) -> int:
     results.sort(key=lambda r: order.get(r["id"], len(order)))
     report = {"mode": "legacy" if args.legacy else "new", "rerank": bool(args.rerank),
               "min_score": args.min_score, "fts_weight": args.fts_weight,
+              "stopped": "max_rerank_tokens" if stopped else None,
               "summary": summarize(results, rerank=bool(args.rerank)),
               "per_question": results}
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -376,10 +411,10 @@ async def cmd_score(args, base: VendorkbSettings) -> int:
     failed = [r["id"] for r in results if r.get("rerank_ok") is False]
     if failed:
         print(f"RERANK FAILED (results not reranked) on: {failed}", file=sys.stderr)
-    return 1 if errors or failed else 0
+    return 1 if errors or failed or stopped else 0
 
 
-async def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--questions", default="eval/questions.yaml")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -395,8 +430,15 @@ async def main(argv: list[str] | None = None) -> int:
     s.add_argument("--question-ids", nargs="+")
     s.add_argument("--resume", action="store_true",
                    help="skip questions already (successfully) in OUT's .jsonl")
+    s.add_argument("--max-rerank-tokens", type=int, default=3_000_000,
+                   help="with --rerank: stop (exit 1, results written) before the next "
+                        "question once cumulative rerank tokens reach this")
     s.add_argument("--out", required=True)
-    args = ap.parse_args(argv)
+    return ap
+
+
+async def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     base = VendorkbSettings()
     return await (cmd_candidates if args.cmd == "candidates" else cmd_score)(args, base)
 
