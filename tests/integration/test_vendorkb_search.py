@@ -1,11 +1,20 @@
 import uuid
 
+import pytest
+
 from pgvector import Vector
 
 from vendorkb.db import connect, init_schema
 from vendorkb import search
 from vendorkb.modes import compare_facets, enumerate_vendors
 from vendorkb.search import hybrid_candidates, read_section, search_docs, vendor_candidates
+
+
+@pytest.fixture(autouse=True)
+def _equal_fusion_weights(monkeypatch):
+    """These tests pin the fusion mechanics, written for equal FTS/vector weights; the shipped
+    FTS_WEIGHT is a tuning value (tests that vary it set it themselves)."""
+    monkeypatch.setattr(search, "FTS_WEIGHT", 1.0)
 
 
 def _vec(i):
@@ -121,7 +130,7 @@ async def test_filtered_vector_search_is_not_starved_by_hnsw(vkb_dsn):
         await conn.execute("SET enable_sort = off")
         await conn.execute("SET enable_hashjoin = off")
         await conn.execute("SET enable_mergejoin = off")
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await search_docs(conn, "qqqabsent", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                 vendor=["V2"], k=10)
         assert sorted(h.chunk_id for h in res.hits) == sorted(b)
@@ -154,7 +163,7 @@ async def test_vendor_filter_restricts_hits(vkb_dsn):
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
         await _chunk(conn, ids["V2"], 0, "alpha text", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                 vendor=["V2"])
         assert [h.vendor for h in res.hits] == ["V2"]
@@ -174,7 +183,7 @@ async def test_use_rerank_false_makes_no_reranker_call(vkb_dsn):
         await init_schema(conn, embed_dim=768)
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                 use_rerank=False)
         assert rr.calls == [] and res.rerank_ok is False and len(res.hits) == 1
@@ -247,7 +256,7 @@ async def test_vendor_and_product_filters_are_ored(vkb_dsn):
         ids = await _seed(conn)
         await _chunk(conn, ids["V1"], 0, "alpha text", 0)
         await _chunk(conn, ids["V2"], 0, "alpha text", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await search_docs(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                 vendor=["V1"], product=["P2"])
         assert sorted(h.vendor for h in res.hits) == ["V1", "V2"]
@@ -344,7 +353,7 @@ async def test_enumeration_covers_every_vendor(vkb_dsn):
         await _doc(conn, "VD", "VD-P")  # a document with no chunks
         emb = FakeEmbedder(_vec(0))
         res = await enumerate_vendors(conn, "alpha", embedder=emb,
-                                      reranker=FakeReranker(lambda t: 0.5),
+                                      reranker=FakeReranker(lambda t: 0.9),
                                       vendors=["VA", "VB", "VC", "VD", "VE"])
         assert sorted(res.kept + res.dropped + res.empty) == ["VA", "VB", "VC", "VD", "VE"]
         assert len(res.kept + res.dropped + res.empty) == 5
@@ -391,7 +400,7 @@ async def test_enumeration_per_vendor_cap(vkb_dsn):
         # more products than the cap: the best chunk of each of the 5 best products
         await _ranked_vendor(conn, "VM6", [("P1", 5), ("P2", 1), ("P3", 1), ("P4", 1),
                                           ("P5", 1), ("P6", 1)])
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await enumerate_vendors(conn, "qqqabsent", embedder=FakeEmbedder(_vec(0)),
                                       reranker=rr, vendors=["VS", "VM3", "VM6"],
                                       per_vendor=3, per_vendor_multi=5)
@@ -465,7 +474,7 @@ async def test_enumeration_statement_count_is_independent_of_vendor_count(vkb_ds
             d = await _doc(conn, v, f"{v}-P")
             for i in range(12):  # more than per_vendor_multi * 2: no vector top-up needed
                 await _chunk(conn, d, i, f"alpha {v} {i}", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         counts = []
         for vs in (vendors[:1], vendors[:2], vendors):
             cc = CountingConn(conn)
@@ -499,7 +508,7 @@ async def test_enumeration_tops_up_vendors_short_of_vector_rows(vkb_dsn, monkeyp
                 (cid, small, ["A"], i, f"small {i}", Vector(v)))
             small_ids.append(cid)
         monkeypatch.setattr(search, "ENUM_VEC_POOL", 10)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         base = CountingConn(conn)
         await enumerate_vendors(base, "qqqabsent", embedder=FakeEmbedder(_vec(0)),
                                 reranker=rr, vendors=["VB"])
@@ -519,7 +528,7 @@ async def test_enumeration_edge_inputs(vkb_dsn):
         await _fresh(conn)
         d = await _doc(conn, "VA", "VA-P")
         await _chunk(conn, d, 0, "alpha VA", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
                                       reranker=rr, vendors=["VA", "VA", "VX", "VX"])
         assert res.kept == ["VA"] and res.empty == ["VX"] and len(res.hits) == 1
@@ -632,7 +641,7 @@ async def test_comparison_empty_facet(vkb_dsn):
         da = await _doc(conn, "A", "PA")
         for i in range(8):
             await _chunk(conn, da, i, f"alpha {i}", 0)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         res = await compare_facets(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
                                    facets=[("vendor", "A"), ("vendor", "B")])
         assert res.facets_empty == ["B"]
@@ -815,7 +824,7 @@ async def test_comparison_statement_count_has_one_full_text_query(vkb_dsn):
     try:
         await _fresh(conn)
         await _facet_corpus(conn)
-        rr = FakeReranker(lambda t: 0.5)
+        rr = FakeReranker(lambda t: 0.9)
         for facets in ([("vendor", "BIG"), ("vendor", "MID")],
                        [("vendor", "BIG"), ("vendor", "MID"), ("vendor", "SMALL")]):
             cc = CountingConn(conn)

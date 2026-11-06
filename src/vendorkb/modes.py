@@ -18,7 +18,7 @@ from vendorkb.shape import Facet
 # 100K trigger (§9.5), so callers shrink it to 2/3.
 ENUM_PER_VENDOR = 2
 ENUM_PER_VENDOR_MULTI = 3
-ENUMERATION_MIN_SCORE = 0.46  # calibrated 2026-11-06: vendor recall 0.95 (cal and holdout)
+ENUMERATION_MIN_SCORE = 0.54  # calibrated at FTS_WEIGHT 0.25 (2026-11-06): vendor recall 0.952 cal and holdout
 
 
 @dataclass

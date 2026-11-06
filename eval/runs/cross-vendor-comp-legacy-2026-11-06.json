@@ -1,0 +1,299 @@
+{
+  "mode": "legacy",
+  "rerank": true,
+  "min_score": 0.46,
+  "fts_weight": 1.0,
+  "stopped": null,
+  "summary": {
+    "calibration": {
+      "n_errors": 0,
+      "comparison": {
+        "n": 9,
+        "n_scored": 9,
+        "facet_recall": 0.722
+      },
+      "rerank_tokens_per_question": 31125.778,
+      "rerank_failures": 0,
+      "latency_s": {
+        "comparison": {
+          "p50": 2.136,
+          "p90": 3.503
+        }
+      }
+    }
+  },
+  "per_question": [
+    {
+      "id": "ex-rt-07",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+        "41cb167c-fffd-4a26-acdb-8db2e2992b2a",
+        "a67f57af-7f3b-4ee5-b13e-35016586ddea",
+        "04b95d92-d3b4-41b3-92fe-a25de736fb64",
+        "0f2001bd-12c5-429a-bc6a-db21bc0dac43",
+        "21244d9c-1fd9-4a79-af4b-d86ef6c35539",
+        "02faa086-38f5-44fb-9edd-aa941762fcf5",
+        "fafec489-7e48-4a01-85de-c628819120b0",
+        "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+        "2fd8c61e-9b50-4745-bb08-b22efb72e89c"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Veeam"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 3.503,
+      "rerank_tokens": 32612,
+      "embed_tokens": 20
+    },
+    {
+      "id": "ex-rt-08",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "5335291d-4fa9-427d-840b-cdf7431815f3",
+        "f38be958-930f-4d86-9b79-9cbc68172860",
+        "c57950e3-10c0-4815-88b7-f90a2de994c1",
+        "f38be958-930f-4d86-9b79-9cbc68172860",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f",
+        "ffdb57c2-8af6-4303-83c9-1f9887b8ff72",
+        "1e404498-e630-4d09-8073-6155185f9a15",
+        "86d7eb61-546b-4098-a0e6-517a3f561038",
+        "5335291d-4fa9-427d-840b-cdf7431815f3",
+        "68af57db-6111-49fb-8081-eaeffaad7d59"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 2.136,
+      "rerank_tokens": 32213,
+      "embed_tokens": 18
+    },
+    {
+      "id": "ex-rt-09",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "32213b64-34a7-4d22-b215-bfbf0679f105",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f",
+        "8571efad-1a7c-47a5-bcd7-42db17e5f770",
+        "ecc02e55-394d-4e8d-8020-33c62a938c19",
+        "724ad559-7182-476b-88c7-c0542021784e",
+        "fdae8eb4-250b-4376-92ac-b527dca2385a",
+        "1cde879f-5152-4b0e-a9e8-9d4e762ee9ed",
+        "ba809757-e908-423a-b597-3fc7d3c44c53",
+        "f7fa671c-fad5-4557-aa52-cfd6264a56d7"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 1.139,
+      "rerank_tokens": 29329,
+      "embed_tokens": 23
+    },
+    {
+      "id": "cv-10",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "5b507749-cba1-437c-ad3b-b5a3823b15cc",
+        "6f8e0591-421f-4465-850b-d15cdb1e4396",
+        "674482e0-afe0-4ed6-869e-5170926e7204",
+        "d98e5bb8-9acc-4c0e-a682-fd4091aafc8a",
+        "6f8e0591-421f-4465-850b-d15cdb1e4396",
+        "355fa26e-d0cc-4f19-a424-41c99eec9ba7",
+        "953570f6-46b8-4b6d-8584-a30cd9dcc37c",
+        "141866d1-d2ca-4bfa-8d6d-0c606661fbc7",
+        "674482e0-afe0-4ed6-869e-5170926e7204",
+        "fe7aa5bf-4b24-4349-b9f9-70789269663f"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 1.319,
+      "rerank_tokens": 31274,
+      "embed_tokens": 24
+    },
+    {
+      "id": "cv-11",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "8d28293a-4280-41fd-a19a-b8a81f011a4c",
+        "1805194a-3eec-4980-af6d-d5f7700f2e14",
+        "c980f67f-9405-4e26-8dd8-57b06b475d3d",
+        "1805194a-3eec-4980-af6d-d5f7700f2e14",
+        "6caffcaa-5228-4c6c-9af0-6cab6b8494ff",
+        "c980f67f-9405-4e26-8dd8-57b06b475d3d",
+        "b9c9c3bf-d85c-4bee-944b-3afced1529cb",
+        "9e935ee3-a6ee-40bb-9ace-afbfab512865",
+        "06059606-e70d-4d97-bcf3-c2bc223f1b47",
+        "06059606-e70d-4d97-bcf3-c2bc223f1b47"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Cohesity"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 2.419,
+      "rerank_tokens": 30516,
+      "embed_tokens": 31
+    },
+    {
+      "id": "cv-12",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "6d6f73e2-e740-436f-b4d8-e1488a16d7b6",
+        "4e6f5f33-bfc3-4c14-b9bf-992565914308",
+        "906e3681-de3f-44a6-ae19-122c4e2ed385",
+        "f1334f88-ae93-49b8-878e-2b6e3c950748",
+        "38a6e706-8c7e-40f2-9b33-c5e911c43192",
+        "588c1405-1168-4316-9973-4e33a9f2b924",
+        "a64933be-4bd5-4b5d-8479-7873ba474592",
+        "ba7f9175-d730-4b40-802b-706d038df9e3",
+        "ba4f71b8-b425-486b-8e85-a0cabd9b8c14",
+        "20e130fe-8c0c-4bcb-a9b1-6f6e33ad85b5"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [
+        "Backup and Recovery"
+      ],
+      "latency_s": 1.755,
+      "rerank_tokens": 31002,
+      "embed_tokens": 38
+    },
+    {
+      "id": "cv-13",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "68cca74d-e0dc-4b68-8ff4-54bb79833861",
+        "554ebdbf-e818-43e8-9d1d-55fbd28a983b",
+        "014e2e10-b57a-4f90-8dbc-538daa377fe5",
+        "d42e9c68-5844-48c4-ac5a-368bf350452d",
+        "fbc3ed47-f2e8-45c0-a589-b89eb66bf746",
+        "7bdfae9f-5318-42f8-a15f-f5e46a844c48",
+        "e4abd063-bf7b-44df-821c-be3d22d77d86",
+        "44e0f24e-be2c-4716-a0b7-cea17259451d",
+        "0ad183e5-bc2c-4a87-97f0-3bfd72b84692",
+        "554ebdbf-e818-43e8-9d1d-55fbd28a983b"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Cohesity"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 2.709,
+      "rerank_tokens": 26017,
+      "embed_tokens": 30
+    },
+    {
+      "id": "cv-14",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "f030f167-8430-47d9-88d7-f780560e77e6",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6",
+        "5e1e575d-ddb9-4d61-b226-9f57b95090ef",
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6",
+        "8423fe23-4b4a-4f9f-a367-d417d7259274",
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "f030f167-8430-47d9-88d7-f780560e77e6",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Microsoft"
+      ],
+      "facet_recall": 0.0,
+      "facets_without_gold": [],
+      "latency_s": 1.153,
+      "rerank_tokens": 32079,
+      "embed_tokens": 21
+    },
+    {
+      "id": "cv-15",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "rerank_ok": true,
+      "pool_depth": "top10-reranked",
+      "hit_doc_ids": [
+        "799ddd0b-8910-42c3-830c-703e6a8e4129",
+        "42dbbcab-047b-4aa2-8947-66ee0f8f22c0",
+        "082f4084-c2fb-422c-9120-850277419d56",
+        "082f4084-c2fb-422c-9120-850277419d56",
+        "ae06b89a-2c1b-427b-b1c5-a46e0e2606fa",
+        "1e404498-e630-4d09-8073-6155185f9a15",
+        "8571efad-1a7c-47a5-bcd7-42db17e5f770",
+        "082f4084-c2fb-422c-9120-850277419d56",
+        "42dbbcab-047b-4aa2-8947-66ee0f8f22c0",
+        "2116f155-780b-4b5a-8584-46dd0761d10f"
+      ],
+      "hit_vendors": [
+        "Cohesity",
+        "Microsoft"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 3.115,
+      "rerank_tokens": 35090,
+      "embed_tokens": 37
+    }
+  ]
+}

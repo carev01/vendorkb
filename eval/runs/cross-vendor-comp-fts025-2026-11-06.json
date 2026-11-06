@@ -1,0 +1,351 @@
+{
+  "mode": "new",
+  "rerank": true,
+  "min_score": 0.46,
+  "fts_weight": 0.25,
+  "stopped": null,
+  "summary": {
+    "calibration": {
+      "n_errors": 0,
+      "comparison": {
+        "n": 9,
+        "n_scored": 9,
+        "facet_recall": 0.833
+      },
+      "rerank_tokens_per_question": 25402.444,
+      "rerank_failures": 0,
+      "latency_s": {
+        "comparison": {
+          "p50": 1.242,
+          "p90": 3.238
+        }
+      }
+    }
+  },
+  "per_question": [
+    {
+      "id": "ex-rt-07",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "Veeam",
+        "AWS Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "41cb167c-fffd-4a26-acdb-8db2e2992b2a",
+        "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+        "a67f57af-7f3b-4ee5-b13e-35016586ddea",
+        "04b95d92-d3b4-41b3-92fe-a25de736fb64",
+        "3f4fec00-cd76-41b4-ac19-bec8894d09bb",
+        "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+        "0f2001bd-12c5-429a-bc6a-db21bc0dac43",
+        "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+        "e68100a4-af4c-44b8-a84c-a994d977c792",
+        "5d7d817e-7045-41c1-8b36-faa94a5b2c40"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 3.238,
+      "rerank_tokens": 25127,
+      "embed_tokens": 20
+    },
+    {
+      "id": "ex-rt-08",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "Veeam Backup & Replication",
+        "Azure Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "c6f75533-3cdf-4a7e-8584-d448ba0798f9",
+        "5335291d-4fa9-427d-840b-cdf7431815f3",
+        "ffdb57c2-8af6-4303-83c9-1f9887b8ff72",
+        "f38be958-930f-4d86-9b79-9cbc68172860",
+        "b6c7a166-5080-44bf-84e5-bc2e3395d811",
+        "c57950e3-10c0-4815-88b7-f90a2de994c1",
+        "941f4db6-d2ed-4c4e-a02a-8df1d77ba17a",
+        "f38be958-930f-4d86-9b79-9cbc68172860",
+        "eb887b94-efb3-4df7-b2c5-1d774e38f0e1",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 2.601,
+      "rerank_tokens": 22394,
+      "embed_tokens": 18
+    },
+    {
+      "id": "ex-rt-09",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "Veeam Backup for Microsoft 365",
+        "Azure Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "32213b64-34a7-4d22-b215-bfbf0679f105",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f",
+        "fdae8eb4-250b-4376-92ac-b527dca2385a",
+        "a6481417-ece0-481d-a73e-c4279e5eec5f",
+        "237ef584-34b7-4f1a-82b3-f90c71a4c2b0",
+        "8571efad-1a7c-47a5-bcd7-42db17e5f770",
+        "5684ae5c-873b-462e-a712-6317878e6fec",
+        "ecc02e55-394d-4e8d-8020-33c62a938c19",
+        "d19a341a-6a81-4b47-9112-257e1deeb002",
+        "724ad559-7182-476b-88c7-c0542021784e"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 1.413,
+      "rerank_tokens": 24672,
+      "embed_tokens": 23
+    },
+    {
+      "id": "cv-10",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "Microsoft 365 Backup",
+        "Veeam Backup for Microsoft 365"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "6f8e0591-421f-4465-850b-d15cdb1e4396",
+        "5b507749-cba1-437c-ad3b-b5a3823b15cc",
+        "674482e0-afe0-4ed6-869e-5170926e7204",
+        "d98e5bb8-9acc-4c0e-a682-fd4091aafc8a",
+        "6f8e0591-421f-4465-850b-d15cdb1e4396",
+        "355fa26e-d0cc-4f19-a424-41c99eec9ba7",
+        "953570f6-46b8-4b6d-8584-a30cd9dcc37c",
+        "141866d1-d2ca-4bfa-8d6d-0c606661fbc7",
+        "674482e0-afe0-4ed6-869e-5170926e7204",
+        "7d604dcf-e193-4769-8f03-d9595f2e570e"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 1.242,
+      "rerank_tokens": 25578,
+      "embed_tokens": 24
+    },
+    {
+      "id": "cv-11",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "FortKnox",
+        "AWS Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "8d28293a-4280-41fd-a19a-b8a81f011a4c",
+        "c980f67f-9405-4e26-8dd8-57b06b475d3d",
+        "9f9dc5e0-7658-4083-9ce7-3c38bdaf58e0",
+        "6caffcaa-5228-4c6c-9af0-6cab6b8494ff",
+        "c7472dc1-23fe-4fc0-ad6d-8835239de6ae",
+        "c980f67f-9405-4e26-8dd8-57b06b475d3d",
+        "3d43dcea-9bff-4095-b8bd-399d798df5db",
+        "b9c9c3bf-d85c-4bee-944b-3afced1529cb",
+        "7c804d55-42fe-4977-b389-60a21d0b0269",
+        "06059606-e70d-4d97-bcf3-c2bc223f1b47"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Cohesity"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 0.913,
+      "rerank_tokens": 25172,
+      "embed_tokens": 31
+    },
+    {
+      "id": "cv-12",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "Microsoft",
+        "Backup and Recovery",
+        "Veeam Data Cloud"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "906e3681-de3f-44a6-ae19-122c4e2ed385",
+        "11aba04f-bb99-44f2-a198-b1d7bf58ee11",
+        "4e6f5f33-bfc3-4c14-b9bf-992565914308",
+        "588c1405-1168-4316-9973-4e33a9f2b924",
+        "ebc9cbba-47ce-4351-bd4a-1bc291d1d6f4",
+        "6d6f73e2-e740-436f-b4d8-e1488a16d7b6",
+        "944c6047-6b33-4350-b13d-ff64a3e25509",
+        "b918524b-c2a8-49bd-b6f8-8b7bb13e8ce5",
+        "ba7f9175-d730-4b40-802b-706d038df9e3",
+        "906e3681-de3f-44a6-ae19-122c4e2ed385",
+        "8fd28099-97e4-4ab3-b256-20da93250593",
+        "a64933be-4bd5-4b5d-8479-7873ba474592",
+        "333570a8-6472-4b33-ad66-a247325c6c77",
+        "c2a602a1-7386-4c3e-b788-ef38cc4eeeed",
+        "ba4f71b8-b425-486b-8e85-a0cabd9b8c14"
+      ],
+      "hit_vendors": [
+        "Microsoft",
+        "Storware",
+        "Veeam"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [
+        "Backup and Recovery"
+      ],
+      "latency_s": 1.775,
+      "rerank_tokens": 26562,
+      "embed_tokens": 38
+    },
+    {
+      "id": "cv-13",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "FortKnox",
+        "AWS Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "68cca74d-e0dc-4b68-8ff4-54bb79833861",
+        "554ebdbf-e818-43e8-9d1d-55fbd28a983b",
+        "fc409999-9c70-47cd-9944-dc829cf5824c",
+        "014e2e10-b57a-4f90-8dbc-538daa377fe5",
+        "1b5bfaf2-c3b7-491f-877a-b7fb685b23e6",
+        "d42e9c68-5844-48c4-ac5a-368bf350452d",
+        "3d43dcea-9bff-4095-b8bd-399d798df5db",
+        "554ebdbf-e818-43e8-9d1d-55fbd28a983b",
+        "572832b9-67d7-40cc-b228-ea4c4139c8c9",
+        "554ebdbf-e818-43e8-9d1d-55fbd28a983b"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Cohesity"
+      ],
+      "facet_recall": 1.0,
+      "facets_without_gold": [],
+      "latency_s": 1.225,
+      "rerank_tokens": 23077,
+      "embed_tokens": 30
+    },
+    {
+      "id": "cv-14",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "AWS Backup",
+        "Azure Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "f030f167-8430-47d9-88d7-f780560e77e6",
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6",
+        "a5cfa426-f5dd-4bea-8553-460e13df7763",
+        "5e1e575d-ddb9-4d61-b226-9f57b95090ef",
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "e94136da-c7ca-4691-8d46-1e6d9e4a67b6",
+        "dbba3e4b-a1fe-4fc3-88fd-7bba86575293",
+        "8423fe23-4b4a-4f9f-a367-d417d7259274"
+      ],
+      "hit_vendors": [
+        "AWS",
+        "Microsoft"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 0.863,
+      "rerank_tokens": 28429,
+      "embed_tokens": 21
+    },
+    {
+      "id": "cv-15",
+      "type": "cross_vendor",
+      "holdout": false,
+      "shape": "comparison",
+      "detected_shape": "comparison",
+      "facets": [
+        "FortKnox",
+        "Azure Backup"
+      ],
+      "facets_empty": [],
+      "rerank_ok": true,
+      "pool_depth": "5-per-facet-reranked",
+      "hit_doc_ids": [
+        "799ddd0b-8910-42c3-830c-703e6a8e4129",
+        "42dbbcab-047b-4aa2-8947-66ee0f8f22c0",
+        "799ddd0b-8910-42c3-830c-703e6a8e4129",
+        "082f4084-c2fb-422c-9120-850277419d56",
+        "799ddd0b-8910-42c3-830c-703e6a8e4129",
+        "082f4084-c2fb-422c-9120-850277419d56",
+        "799ddd0b-8910-42c3-830c-703e6a8e4129",
+        "ae06b89a-2c1b-427b-b1c5-a46e0e2606fa",
+        "04683c4e-7643-425b-a01e-70efdda686ee",
+        "1e404498-e630-4d09-8073-6155185f9a15"
+      ],
+      "hit_vendors": [
+        "Cohesity",
+        "Microsoft"
+      ],
+      "facet_recall": 0.5,
+      "facets_without_gold": [],
+      "latency_s": 1.023,
+      "rerank_tokens": 27611,
+      "embed_tokens": 37
+    }
+  ]
+}
