@@ -39,21 +39,35 @@ def test_normalize():
     assert cluster.normalize("S3   Object  LOCK") == "s3 object lock"
 
 
-@pytest.mark.parametrize(("kind", "raw", "expected"), [
-    ("feature", "Immutable-Backups", "immutable_backups"),
-    ("feature", "instant vm recovery", "instant_vm_recovery"),
-    ("feature", "3-2-1 rule", "f_3_2_1_rule"),
-    ("target", "AWS.RDS", "aws.rds"),
-    ("target", "aws rds.postgres-sql", "aws_rds.postgres_sql"),
-    ("target", ".aws..s3.", "aws.s3"),
+@pytest.mark.parametrize(("raw", "expected"), [
+    ("Immutable-Backups", "immutable_backups"),
+    ("instant vm recovery", "instant_vm_recovery"),
+    ("  Role ", "role"),
 ])
-def test_slug_ids(kind, raw, expected):
-    assert propose.slug_id(raw, kind) == expected
+def test_snake_ids(raw, expected):
+    assert propose._snake(raw) == expected
 
 
-def test_parent_of():
-    assert propose.parent_of("aws.rds.postgres") == "aws.rds"
-    assert propose.parent_of("aws") is None
+@pytest.mark.parametrize(("raw", "expected"), [
+    ("AWS.RDS", "aws.rds"),
+    ("aws rds.postgres-sql", "aws_rds.postgres_sql"),
+    (".aws..s3.", "aws.s3"),
+])
+def test_dotted_ids(raw, expected):
+    assert propose._dotted(raw) == expected
+
+
+def test_snake_refuses_an_empty_id():
+    with pytest.raises(ValueError):
+        propose._snake("--")
+
+
+@pytest.mark.parametrize(("text", "quoted"), [("yes", True), ("1:20", True), ("null", True),
+                                              ("365", True), ("admin roles", False),
+                                              ("dd boost", False)])
+def test_scalar_quotes_what_yaml_1_1_would_misread(text, quoted):
+    out = propose._scalar(text)
+    assert out == text and (type(out) is not str) == quoted
 
 
 def test_long_tail_path():

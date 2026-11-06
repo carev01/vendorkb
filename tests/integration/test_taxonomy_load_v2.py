@@ -268,3 +268,29 @@ async def test_reload_replaces_everything(vkb_dsn, tmp_path):
         assert await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc)) == second
     finally:
         await conn.close()
+
+
+def test_proposed_flag_is_accepted_on_reviewable_entries():
+    doc = copy.deepcopy(_doc())
+    doc["dimensions"][4]["proposed"] = True
+    doc["targets"][0]["proposed"] = False
+    doc["classes"][1]["object_types"][0]["proposed"] = True
+    doc["offerings"][0]["proposed"] = True
+    doc["offerings"][0]["editions"][0]["proposed"] = True
+    taxonomy = load.validate(doc)
+    assert len(taxonomy.dimensions) == 9  # a review marker only: nothing else changes
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda d: d["dimensions"][4].update(proposed="yes"),
+    lambda d: d["targets"][0].update(proposed=1),
+    lambda d: d["classes"][1]["object_types"][0].update(proposed="true"),
+    lambda d: d["offerings"][0].update(proposed=None),
+])
+def test_proposed_flag_must_be_boolean(mutate):
+    doc = copy.deepcopy(_doc())
+    mutate(doc)
+    with pytest.raises(load.TaxonomyError) as err:
+        load.validate(doc)
+    assert any("proposed must be true or false" in p for p in err.value.problems), \
+        err.value.problems

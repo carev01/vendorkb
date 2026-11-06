@@ -341,9 +341,12 @@ def _parser() -> argparse.ArgumentParser:
     c.add_argument("--dry-run", action="store_true", help="count only; change nothing")
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
-    t = tax.add_parser("propose", help="cluster raw claim strings and propose entries with "
-                                       "EXTRACT_MODEL into the YAML (budget-capped)")
-    t.add_argument("--kind", choices=("feature", "target"), required=True)
+    t = tax.add_parser("propose", help="cluster the v3 claim strings of one section and merge "
+                                       "EXTRACT_MODEL's alias / new-entry answers into the "
+                                       "v2 YAML for review (budget-capped)")
+    t.add_argument("--kind", choices=("dimension", "target", "object_type", "offering"),
+                   required=True, help="dimension: capability; target: target; object_type:"
+                   " target scope per target class; offering: offering and edition per vendor")
     t.add_argument("--threshold", type=float, default=0.25,
                    help="cosine distance threshold for clustering (default 0.25)")
     t.add_argument("--out", default="taxonomy/taxonomy.yaml",

@@ -19,7 +19,9 @@ The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``t
 - **offering** ``{vendor, id, name, aliases, editions}``: ``id`` is ``<snake>.<snake>`` and
   ``editions`` a list of ``{id, name, aliases}``.
 
-``aliases`` may be omitted (none). Unknown keys are refused, so a misspelt key is not silently
+``aliases`` may be omitted (none). Dimensions, targets, offerings, object types, variants and
+editions may carry ``proposed: true``, the review marker ``taxonomy propose`` puts on the
+entries it adds; it changes nothing else. Unknown keys are refused, so a misspelt key is not silently
 ignored. ``validate`` collects every problem before raising ``TaxonomyError``, and nothing is
 written unless the file is valid. Aliases are stored normalized (``cluster.normalize``) with
 each entity's own name among them, keyed ``(alias, entity_type, scope)``: an alias may name
@@ -243,6 +245,14 @@ class _Checker:
             return None
         return value.strip()
 
+    def flag(self, where: str, item: dict, key: str) -> bool:
+        """An optional boolean key (default false)."""
+        value = item.get(key, False)
+        if not isinstance(value, bool):
+            self.add(f"{where}: {key} must be true or false, got {value!r}")
+            return False
+        return value
+
     def aliases(self, where: str, value: Any) -> tuple[str, ...]:
         if value is None:
             return ()
@@ -288,9 +298,10 @@ class _Checker:
         out: list[Named] = []
         seen: set[str] = set()
         for loc, item in self.entries(where, value):
-            self.keys(loc, item, ("id", "name"), ("aliases",))
+            self.keys(loc, item, ("id", "name"), ("aliases", "proposed"))
             eid = self.ident(loc, item, SNAKE_RE, what, seen)
             label = f"{loc} ({eid})" if eid else loc
+            self.flag(label, item, "proposed")
             name = self.text(label, item, "name")
             aliases = self.aliases(label, item.get("aliases"))
             if eid is not None and name is not None:
@@ -303,7 +314,7 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
     seen: set[str] = set()
     for where, item in ck.entries("dimensions", raw):
         ck.keys(where, item, ("id", "name", "definition", "applies_to"),
-                ("aliases", "value_unit", "platform"))
+                ("aliases", "value_unit", "platform", "proposed"))
         did = ck.ident(where, item, PAIR_RE, "dimension", seen)
         label = f"{where} ({did})" if did else where
         family = did.partition(".")[0] if did else None
@@ -320,10 +331,8 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
                        f" got {applies!r}")
             applies = None
         value_unit = ck.text(label, item, "value_unit", required=False)
-        platform = item.get("platform", False)
-        if not isinstance(platform, bool):
-            ck.add(f"{label}: platform must be true or false, got {platform!r}")
-            platform = False
+        platform = ck.flag(label, item, "platform")
+        ck.flag(label, item, "proposed")
         if did is not None and family in FAMILIES and name and definition:
             applies_to = None if applies in (None, "all") else tuple(dict.fromkeys(applies))
             out.append((Dimension(did, family, name, definition, aliases, applies_to,
@@ -351,9 +360,11 @@ def _targets(ck: _Checker, raw: Any) -> list[tuple[Target, str]]:
     out: list[tuple[Target, str]] = []
     seen: set[str] = set()
     for where, item in ck.entries("targets", raw):
-        ck.keys(where, item, ("id", "name", "class"), ("aliases", "object_aliases", "variants"))
+        ck.keys(where, item, ("id", "name", "class"),
+                ("aliases", "object_aliases", "variants", "proposed"))
         tid = ck.ident(where, item, DOTTED_RE, "target", seen)
         label = f"{where} ({tid})" if tid else where
+        ck.flag(label, item, "proposed")
         name = ck.text(label, item, "name")
         class_id = ck.text(label, item, "class")
         aliases = ck.aliases(label, item.get("aliases"))
@@ -375,9 +386,10 @@ def _offerings(ck: _Checker, raw: Any) -> list[Offering]:
     out: list[Offering] = []
     seen: set[str] = set()
     for where, item in ck.entries("offerings", raw):
-        ck.keys(where, item, ("vendor", "id", "name"), ("aliases", "editions"))
+        ck.keys(where, item, ("vendor", "id", "name"), ("aliases", "editions", "proposed"))
         oid = ck.ident(where, item, PAIR_RE, "offering", seen)
         label = f"{where} ({oid})" if oid else where
+        ck.flag(label, item, "proposed")
         vendor = ck.text(label, item, "vendor")
         name = ck.text(label, item, "name")
         aliases = ck.aliases(label, item.get("aliases"))

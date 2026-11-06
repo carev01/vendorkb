@@ -27,6 +27,22 @@ def stubbed(monkeypatch):
     return calls
 
 
+@pytest.mark.parametrize("kind", ["dimension", "target", "object_type", "offering"])
+def test_taxonomy_propose_kinds(stubbed, monkeypatch, capsys, kind):
+    async def fake_propose(conn, **kw):
+        stubbed.update(kw)
+        return propose.ProposeReport(kind=kw["kind"])
+
+    monkeypatch.setattr(propose, "propose", fake_propose)
+    assert cli.main(["taxonomy", "propose", "--kind", kind]) == 0
+    assert stubbed["kind"] == kind
+
+
+def test_taxonomy_propose_refuses_v1_kinds(stubbed):
+    with pytest.raises(SystemExit):
+        cli.main(["taxonomy", "propose", "--kind", "feature"])
+
+
 @pytest.mark.parametrize(("invalid", "budget", "code"), [(0, False, 0), (0, True, 0),
                                                           (2, False, 1)])
 def test_taxonomy_propose_args_and_exit(stubbed, monkeypatch, capsys, invalid, budget, code):
@@ -52,7 +68,7 @@ def test_taxonomy_propose_defaults(stubbed, monkeypatch, capsys):
         return propose.ProposeReport()
 
     monkeypatch.setattr(propose, "propose", fake_propose)
-    assert cli.main(["taxonomy", "propose", "--kind", "feature"]) == 0
+    assert cli.main(["taxonomy", "propose", "--kind", "dimension"]) == 0
     assert (stubbed["distance_threshold"], stubbed["out_path"], stubbed["max_usd"],
             stubbed["limit"]) == (0.25, "taxonomy/taxonomy.yaml", 2.0, None)
 
