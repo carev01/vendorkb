@@ -7,13 +7,16 @@ zero-width characters and soft hyphens dropped, "…" spelled "..."). Then, in o
 2. a substring once every non-alphanumeric character is a space (markdown, table pipes,
    punctuation) is accepted as "exact-nopunct";
 3. ``rapidfuzz.fuzz.partial_ratio`` >= ``FUZZY_THRESHOLD`` is accepted as "fuzzy:<score>"
-   only if every quote word of 3+ characters appears in the aligned chunk span, so an
-   inserted "not" or a swapped platform name fails however high the score.
+   only if every quote word of 3+ characters, every token with a digit and every negation
+   ("no", "not", "never", "can't", "without", ...) appears in the aligned chunk span, and
+   the span holds no negation the quote lacks: an inserted or dropped "no", a "5 years" for
+   "7 years", or a swapped platform name fails however high the score.
 
 Anything else is "no-match:<score>" (with the missing words, if the score passed). A quote
 under ``MIN_WORDS`` words *and* under ``MIN_CHARS`` characters is "too-short": a lone table
 cell such as "Yes" ties nothing to a capability. ``match`` also returns the matched chunk span
-as it stands in the original text: that, not the model's quote, is the stored evidence.
+as it stands in the original text, widened to whole words: that, not the model's quote, is
+the stored evidence.
 """
 from __future__ import annotations
 
@@ -35,6 +38,9 @@ _TRANSLATE = str.maketrans({
     "…": "...",
 })
 _WORD = re.compile(r"\w+")
+_TOKEN = re.compile(r"\w+(?:'\w+)?")  # keeps contractions ("can't") whole
+NEGATIONS = frozenset({"no", "not", "never", "cannot", "can't", "don't", "doesn't", "isn't",
+                       "aren't", "won't", "without"})
 
 
 @dataclass(frozen=True)
@@ -71,11 +77,40 @@ def _span(original: str, idx: list[int], start: int, end: int) -> str:
     return original[idx[start]:idx[end - 1] + 1]
 
 
+def _widen(t: str, start: int, end: int) -> tuple[int, int]:
+    """Grow ``t[start:end]`` to whole words, without leading or trailing spaces."""
+    while start > 0 and t[start - 1].isalnum():
+        start -= 1
+    while end < len(t) and t[end].isalnum():
+        end += 1
+    while start < end and t[start] == " ":
+        start += 1
+    while end > start and t[end - 1] == " ":
+        end -= 1
+    return start, end
+
+
 def _find(q: str, t: str, idx: list[int], original: str) -> str | None:
-    """The original text of ``q``'s first occurrence in ``t``, matched on whole-string
-    boundaries of ``q`` (a leading space in ``t`` is never part of the span)."""
+    """The original text of ``q``'s first occurrence in ``t``, widened to whole words."""
     at = t.find(q)
-    return None if at < 0 else _span(original, idx, at, at + len(q))
+    if at < 0:
+        return None
+    return _span(original, idx, *_widen(t, at, at + len(q)))
+
+
+def _coverage(q: str, span: str) -> str | None:
+    """Why the span does not cover the quote's words, numbers and negations, or None."""
+    span_words = set(_WORD.findall(span))
+    must = {w for w in _WORD.findall(q)
+            if len(w) >= MIN_WORD_LEN or any(c.isdigit() for c in w)}
+    q_neg = set(_TOKEN.findall(q)) & NEGATIONS
+    span_neg = set(_TOKEN.findall(span)) & NEGATIONS
+    missing = sorted((must - span_words) | (q_neg - span_neg))
+    if missing:
+        return f"missing:{','.join(missing)}"
+    if extra := sorted(span_neg - q_neg):
+        return f"extra-negation:{','.join(extra)}"
+    return None
 
 
 def match(quote: str, chunk_text: str) -> GateResult:
@@ -100,19 +135,9 @@ def match(quote: str, chunk_text: str) -> GateResult:
     score = float(al.score) if al is not None else 0.0
     if al is None or score < FUZZY_THRESHOLD:
         return GateResult(False, f"no-match:{score:.1f}")
-    start, end = al.dest_start, al.dest_end
-    while start > 0 and t[start - 1].isalnum():  # widen to whole words
-        start -= 1
-    while end < len(t) and t[end].isalnum():
-        end += 1
-    while start < end and t[start] == " ":
-        start += 1
-    while end > start and t[end - 1] == " ":
-        end -= 1
-    span_words = set(_WORD.findall(t[start:end]))
-    missing = sorted({w for w in _WORD.findall(q) if len(w) >= MIN_WORD_LEN} - span_words)
-    if missing:
-        return GateResult(False, f"no-match:{score:.1f} missing:{','.join(missing)}")
+    start, end = _widen(t, al.dest_start, al.dest_end)
+    if (why := _coverage(q, t[start:end])) is not None:
+        return GateResult(False, f"no-match:{score:.1f} {why}")
     return GateResult(True, f"fuzzy:{score:.1f}", _span(chunk_text, idx, start, end))
 
 

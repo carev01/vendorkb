@@ -265,11 +265,11 @@ async def test_budget_counts_spend_so_far(vkb_dsn):
         client = FakeClient(replies={"Amazon RDS": _message({"claims": []},
                                                             tokens=(1_000_000, 0))})
         report = await extract.run(conn, ids, client=client,
-                                   settings=_settings(extract_budget_usd=0.1001), mode="sync")
+                                   settings=_settings(extract_budget_usd=0.1001, extract_concurrency=1), mode="sync")
         assert report.done == 1 and report.stopped_by_budget is True
         assert len(client.messages.calls) == 1
         again = await extract.run(conn, ids, client=client,
-                                  settings=_settings(extract_budget_usd=0.1001), mode="sync")
+                                  settings=_settings(extract_budget_usd=0.1001, extract_concurrency=1), mode="sync")
         assert again.done == 0 and again.stopped_by_budget is True
     finally:
         await conn.close()
@@ -356,7 +356,7 @@ async def test_cli_extract_prints_report(vkb_dsn, monkeypatch, capsys, tmp_path)
     ids_file = tmp_path / "ids.txt"
     ids_file.write_text(f"{cid}\n\n")
     client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
-    monkeypatch.setattr(cli, "_anthropic_client", lambda settings: client)
+    monkeypatch.setattr(cli, "_extract_client", lambda settings: client)
     monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
     code = await asyncio.to_thread(cli.main, ["extract", "--ids-file", str(ids_file),
                                               "--mode", "sync", "--limit", "5"])
@@ -543,7 +543,8 @@ async def test_bad_request_stops_a_sync_run(vkb_dsn):
             "bad schema", response=httpx.Response(400, request=request), body=None)
         client = FakeClient(replies={"Amazon RDS": bad})
         try:
-            await extract.run(conn, ids, client=client, settings=_settings(), mode="sync")
+            await extract.run(conn, ids, client=client,
+                              settings=_settings(extract_concurrency=1), mode="sync")
         except anthropic.BadRequestError:
             pass
         else:
@@ -582,3 +583,227 @@ async def test_resume_after_crash_mid_results_applies_each_result_once(vkb_dsn):
         assert rows == {a: 1, b: 2} and len(batches.created) == 2
     finally:
         await conn.close()
+
+
+
+def _chat(payload, *, finish="stop", tokens=(1000, 200), cost=None, refusal=None):
+    content = payload if payload is None or isinstance(payload, str) else json.dumps(payload)
+    usage = SimpleNamespace(prompt_tokens=tokens[0], completion_tokens=tokens[1])
+    if cost is not None:
+        usage.cost = cost
+    return SimpleNamespace(
+        choices=[SimpleNamespace(finish_reason=finish, message=SimpleNamespace(
+            content=content, refusal=refusal))], usage=usage)
+
+
+class FakeCompletions:
+    def __init__(self, replies, delay=0.0, crash_on=None):
+        self.replies = replies  # chunk text marker -> response | Exception
+        self.calls: list[dict] = []
+        self.delay = delay
+        self.crash_on = crash_on  # 1-based call number that raises RuntimeError
+        self.active = 0
+        self.max_active = 0
+
+    async def create(self, **params):
+        import asyncio
+        self.calls.append(params)
+        if self.crash_on is not None and len(self.calls) == self.crash_on:
+            raise RuntimeError("pod evicted")
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        try:
+            await asyncio.sleep(self.delay)
+        finally:
+            self.active -= 1
+        body = params["messages"][-1]["content"]
+        for marker, reply in self.replies.items():
+            if marker in body:
+                if isinstance(reply, Exception):
+                    raise reply
+                return reply
+        return _chat({"claims": []}, cost=0.0)
+
+
+class FakeOpenAI:
+    def __init__(self, replies=None, **kw):
+        self.chat = SimpleNamespace(completions=FakeCompletions(replies or {}, **kw))
+
+
+def _oa(**kw) -> VendorkbSettings:
+    return _settings(extract_backend="openai",
+                     extract_model="anthropic/claude-haiku-5.5:batch", **kw)
+
+
+def test_openai_request_shape():
+    chunk = extract.ChunkRow(chunk_id="c1", doc_id="d1", vendor="rubrik", product=None,
+                             version=None, title="T", section_path=["A"], text=TEXT)
+    req = extract.build_openai_request(chunk, _oa())
+    assert req["model"] == "anthropic/claude-haiku-5.5:batch" and req["max_tokens"] == 2000
+    assert req["messages"][0] == {"role": "system", "content": extract.SYSTEM_PROMPT}
+    assert req["messages"][1]["role"] == "user" and TEXT in req["messages"][1]["content"]
+    assert req["response_format"] == {"type": "json_schema", "json_schema": {
+        "name": "claims", "strict": True, "schema": extract.CLAIM_SCHEMA}}
+    assert req["extra_body"] == {"usage": {"include": True}, "reasoning": {"effort": "low"}}
+
+
+async def test_openai_success_uses_reported_cost(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        client = FakeOpenAI({"Amazon RDS": _chat({"claims": [GOOD, INVENTED]}, cost=0.0123)})
+        report = await extract.run(conn, [cid], client=client, settings=_oa(), mode="sync")
+        assert (report.done, report.claims_accepted, report.claims_rejected) == (1, 1, 1)
+        assert abs(report.est_cost_usd - 0.0123) < 1e-12
+        assert await _rows(conn, "SELECT extractor_model, input_tokens, output_tokens"
+                                 " FROM extractions") == [
+            ("anthropic/claude-haiku-5.5:batch", 1000, 200)]
+        assert abs(await extract._spent(conn) - 0.0123) < 1e-9
+    finally:
+        await conn.close()
+
+
+async def test_openai_cost_in_model_extra_is_used():
+    usage = SimpleNamespace(prompt_tokens=1, completion_tokens=1, model_extra={"cost": 0.5})
+    assert extract._reported_cost(usage) == 0.5
+
+
+async def test_openai_missing_cost_falls_back_to_the_token_price(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        client = FakeOpenAI({"Amazon RDS": _chat({"claims": [GOOD]}, tokens=(1000, 200))})
+        report = await extract.run(conn, [cid], client=client, settings=_oa(), mode="sync")
+        assert report.done == 1
+        expected = (1000 * 0.10 + 200 * 0.50) / 1e6
+        assert abs(report.est_cost_usd - expected) < 1e-12
+        assert abs(await extract._spent(conn) - expected) < 1e-12
+    finally:
+        await conn.close()
+
+
+async def test_openai_length_refusal_and_empty_are_errored(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        cut, refused, empty, bad = await _doc(
+            conn, texts=(TEXT + " #cut", TEXT + " #refuse", TEXT + " #empty", TEXT + " #bad"))
+        client = FakeOpenAI({
+            "#cut": _chat('{"claims": [', finish="length", cost=0.001),
+            "#refuse": _chat(None, refusal="I can't help with that"),
+            "#empty": _chat(None),
+            "#bad": _chat("{nope")})
+        report = await extract.run(conn, [cut, refused, empty, bad], client=client,
+                                   settings=_oa(), mode="sync")
+        assert (report.done, report.errored) == (0, 4)
+        rows = dict(await _rows(conn, "SELECT chunk_id::text, error FROM extractions"))
+        assert rows[cut] == "length" and rows[refused] == "refusal"
+        assert rows[empty] == "no-text" and rows[bad].startswith("invalid-json")
+    finally:
+        await conn.close()
+
+
+async def test_openai_runs_concurrently_and_stops_at_the_budget(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ids = await _doc(conn, texts=tuple(f"{TEXT} n{i}" for i in range(20)))
+        client = FakeOpenAI({"Amazon RDS": _chat({"claims": [GOOD]}, cost=0.01)}, delay=0.01)
+        report = await extract.run(conn, ids, client=client,
+                                   settings=_oa(extract_budget_usd=0.05, extract_concurrency=4),
+                                   mode="sync")
+        completions = client.chat.completions
+        assert completions.max_active > 1  # calls overlapped
+        assert report.stopped_by_budget is True and 1 <= report.done < 20
+        spent = await extract._spent(conn)
+        assert abs(spent - 0.01 * report.done) < 1e-9
+        # in flight is bounded by the concurrency, so the overshoot is too
+        assert spent <= 0.05 + 4 * 0.01
+        [(n_ids,)] = await _rows(conn, "SELECT cardinality(chunk_ids) FROM extract_batches")
+        assert n_ids == report.done
+    finally:
+        await conn.close()
+
+
+async def test_openai_ledger_survives_a_crash(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        ids = await _doc(conn, texts=tuple(f"{TEXT} n{i}" for i in range(5)))
+        client = FakeOpenAI({"Amazon RDS": _chat({"claims": []}, cost=0.01)}, crash_on=3)
+        try:
+            await extract.run(conn, ids, client=client,
+                              settings=_oa(extract_concurrency=1), mode="sync")
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the crash should end the run")
+        assert len(client.chat.completions.calls) == 3  # nothing dispatched after the crash
+        assert abs(await extract._spent(conn) - 0.02) < 1e-9
+        assert await _rows(conn, "SELECT count(*) FROM extractions WHERE status='done'") == [
+            (2,)]
+        # the next run picks up where it stopped, and the ledger keeps adding up
+        client.chat.completions.crash_on = None
+        report = await extract.run(conn, ids, client=client,
+                                   settings=_oa(extract_concurrency=1), mode="sync")
+        assert (report.skipped, report.done) == (2, 3)
+        assert abs(await extract._spent(conn) - 0.05) < 1e-9
+    finally:
+        await conn.close()
+
+
+async def test_openai_backend_refuses_batch_mode(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        try:
+            await extract.run(conn, [cid], client=FakeOpenAI(), settings=_oa(), mode="batch")
+        except ValueError as e:
+            assert "sync" in str(e)
+        else:
+            raise AssertionError("batch mode needs the anthropic backend")
+    finally:
+        await conn.close()
+
+
+async def test_cli_extract_openai_backend(vkb_dsn, monkeypatch, capsys, tmp_path):
+    import asyncio
+
+    from vendorkb import cli
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+    finally:
+        await conn.close()
+    ids_file = tmp_path / "ids.txt"
+    ids_file.write_text(f"{cid}\n")
+    client = FakeOpenAI({"Amazon RDS": _chat({"claims": [GOOD]}, cost=0.001)})
+    seen = {}
+
+    def build(settings):
+        seen["backend"] = settings.extract_backend
+        return client
+    monkeypatch.setattr(cli, "_extract_client", build)
+    monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
+    code = await asyncio.to_thread(cli.main, ["extract", "--ids-file", str(ids_file),
+                                              "--backend", "openai"])
+    assert code == 0 and seen["backend"] == "openai"
+    out = json.loads(capsys.readouterr().out)
+    assert out["done"] == 1 and out["claims_accepted"] == 1
+
+
+def test_cli_builds_openai_client_from_settings():
+    from openai import AsyncOpenAI
+
+    from vendorkb import cli
+
+    client = cli._extract_client(_oa(extract_base_url="https://openrouter.ai/api/v1",
+                                     extract_api_key="k"))
+    assert isinstance(client, AsyncOpenAI)
+    assert str(client.base_url).startswith("https://openrouter.ai/api/v1")
+    assert client.max_retries == cli.EXTRACT_MAX_RETRIES

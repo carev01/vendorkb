@@ -21,7 +21,14 @@ next run; after ``MAX_ATTEMPTS`` it is ``failed`` and skipped. It is never count
 with zero claims. A result for a chunk that sync has since deleted is skipped
 (``skipped_deleted``).
 
-``client`` is an ``anthropic.AsyncAnthropic`` or a fake with the same surface:
+``settings.extract_backend`` picks the client. "anthropic": an ``anthropic.AsyncAnthropic``
+(sync or batch mode). "openai": an ``openai.AsyncOpenAI`` on any OpenAI-compatible endpoint
+(OpenRouter's ``anthropic/claude-haiku-5.5:batch``, say), sync mode only, with strict
+``json_schema`` output and the cost the provider reports (``usage.cost``; the token price as
+fallback). Sync mode runs ``extract_concurrency`` calls at once and writes each result as it
+completes; the budget check counts the estimates of the calls in flight.
+
+The anthropic ``client`` is an ``anthropic.AsyncAnthropic`` or a fake with the same surface:
 ``messages.create(**params)``, ``messages.batches.create(requests=)``,
 ``messages.batches.retrieve(id)`` and ``await messages.batches.results(id)`` (an async
 iterator of results with ``custom_id`` and ``result.type``/``result.message``).
@@ -36,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
 import anthropic
+import openai
 import psycopg
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
@@ -163,6 +171,7 @@ class _Outcome:
     claims: list[Any] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
+    cost: float | None = None  # as the provider reported it; None: priced from the tokens
 
 
 def cost_usd(input_tokens: int, output_tokens: int, *, batch: bool) -> float:
@@ -186,6 +195,25 @@ def build_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]
     }
 
 
+def _cost(outcome: _Outcome, *, batch: bool) -> float:
+    if outcome.cost is not None:
+        return outcome.cost
+    return cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch)
+
+
+def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]:
+    """Chat Completions params for the OpenAI-compatible backend (same prompt and schema)."""
+    req = build_request(chunk, settings)
+    return {
+        "model": settings.extract_model,
+        "max_tokens": MAX_TOKENS,
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *req["messages"]],
+        "response_format": {"type": "json_schema", "json_schema": {
+            "name": "claims", "strict": True, "schema": CLAIM_SCHEMA}},
+        "extra_body": {"usage": {"include": True}, "reasoning": {"effort": "low"}},
+    }
+
+
 def _estimate(request: dict[str, Any], *, batch: bool) -> float:
     chars = len(request["system"]) + sum(len(m["content"]) for m in request["messages"])
     return cost_usd(chars // CHARS_PER_TOKEN + 1, request["max_tokens"], batch=batch)
@@ -203,15 +231,50 @@ def _parse(message: Any) -> _Outcome:
     if stop in ("refusal", "max_tokens"):
         return _Outcome("errored", stop, input_tokens=tin, output_tokens=tout)
     text = next((b.text for b in message.content if getattr(b, "type", None) == "text"), None)
+    return _parse_text(text, tin, tout)
+
+
+def _parse_text(text: str | None, tin: int, tout: int, cost: float | None = None) -> _Outcome:
     if text is None:
-        return _Outcome("errored", "no-text", input_tokens=tin, output_tokens=tout)
+        return _Outcome("errored", "no-text", input_tokens=tin, output_tokens=tout, cost=cost)
     try:
         data = json.loads(text)
     except json.JSONDecodeError as e:
-        return _Outcome("errored", f"invalid-json: {e}", input_tokens=tin, output_tokens=tout)
+        return _Outcome("errored", f"invalid-json: {e}", input_tokens=tin, output_tokens=tout,
+                        cost=cost)
     if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
-        return _Outcome("errored", "invalid-shape", input_tokens=tin, output_tokens=tout)
-    return _Outcome("done", claims=data["claims"], input_tokens=tin, output_tokens=tout)
+        return _Outcome("errored", "invalid-shape", input_tokens=tin, output_tokens=tout,
+                        cost=cost)
+    return _Outcome("done", claims=data["claims"], input_tokens=tin, output_tokens=tout,
+                    cost=cost)
+
+
+def _reported_cost(usage: Any) -> float | None:
+    """``usage.cost`` (USD) when the provider reports it (OpenRouter with usage.include)."""
+    cost = getattr(usage, "cost", None)
+    if cost is None:
+        cost = (getattr(usage, "model_extra", None) or {}).get("cost")
+    try:
+        return None if cost is None else float(cost)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_openai(response: Any) -> _Outcome:
+    usage = getattr(response, "usage", None)
+    tin = int(getattr(usage, "prompt_tokens", 0) or 0)
+    tout = int(getattr(usage, "completion_tokens", 0) or 0)
+    cost = _reported_cost(usage)
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return _Outcome("errored", "no-choices", input_tokens=tin, output_tokens=tout,
+                        cost=cost)
+    choice = choices[0]
+    if choice.finish_reason == "length":
+        return _Outcome("errored", "length", input_tokens=tin, output_tokens=tout, cost=cost)
+    if getattr(choice.message, "refusal", None):
+        return _Outcome("errored", "refusal", input_tokens=tin, output_tokens=tout, cost=cost)
+    return _parse_text(choice.message.content, tin, tout, cost)
 
 
 def _judge(claim: Any, text: str) -> gate.GateResult:
@@ -245,7 +308,7 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
     'errored' extraction row is (re)written, and never twice by the same batch, so a resumed
     batch is idempotent and 'done' / 'failed' rows are final.
     """
-    cost = cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch)
+    cost = _cost(outcome, batch=batch)
     report.input_tokens += outcome.input_tokens
     report.output_tokens += outcome.output_tokens
     report.est_cost_usd += cost
@@ -344,40 +407,82 @@ async def _spent(conn: psycopg.AsyncConnection) -> float:
     return float((await cur.fetchone())[0])  # type: ignore[index]
 
 
+async def _call(client: Any, chunk: ChunkRow, settings: VendorkbSettings
+                ) -> tuple[_Outcome, Exception | None]:
+    """One extraction call; returns the outcome and, for a 400, the error to stop the run on
+    (a request-shape bug fails every chunk the same way). Transient errors (429, 5xx,
+    connection) are retried by the client (``max_retries``) before they land here."""
+    try:
+        if settings.extract_backend == "openai":
+            return _parse_openai(await client.chat.completions.create(
+                **build_openai_request(chunk, settings))), None
+        return _parse(await client.messages.create(**build_request(chunk, settings))), None
+    except (anthropic.BadRequestError, openai.BadRequestError) as e:
+        return _api_error(e), e
+    except (anthropic.RateLimitError, anthropic.APIStatusError, anthropic.APIConnectionError,
+            openai.RateLimitError, openai.APIStatusError, openai.APIConnectionError) as e:
+        return _api_error(e), None
+
+
 async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
                     settings: VendorkbSettings, spent: float, report: ExtractReport) -> None:
+    """Up to ``extract_concurrency`` calls at once, each result written as it completes.
+
+    Before each dispatch, spend so far plus the estimates of the calls in flight plus this
+    chunk's estimate must fit the budget. Each chunk's cost goes onto the run's ledger row in
+    the same transaction as its result, so the ledger is right after a crash. Writes share
+    the one connection, so they are serialized. On a 400 or an unexpected error nothing more
+    is dispatched; the calls in flight finish and are recorded, then the error is raised.
+    """
     ledger_id = f"{SYNC_LEDGER_PREFIX}{uuid.uuid4()}"
     await conn.execute(
         "INSERT INTO extract_batches (batch_id, extractor_model, prompt_version, chunk_ids,"
         " est_cost_usd, actual_cost_usd, status) VALUES (%s,%s,%s,'{}',0,0,'submitted')",
         (ledger_id, settings.extract_model, PROMPT_VERSION))
+    slots = asyncio.Semaphore(max(1, settings.extract_concurrency))
+    db = asyncio.Lock()
+    in_flight = 0.0
+    errors: list[BaseException] = []
+    tasks: list[asyncio.Task[None]] = []
+
+    async def work(chunk: ChunkRow, estimate: float) -> None:
+        nonlocal spent, in_flight
+        try:
+            outcome, fatal = await _call(client, chunk, settings)
+            async with db:
+                await _record(conn, chunk.chunk_id, chunk, outcome,
+                              model=settings.extract_model, ledger_id=ledger_id, batch=False,
+                              report=report)
+            spent += _cost(outcome, batch=False)
+            if fatal is not None:
+                errors.append(fatal)
+        except Exception as e:  # re-raised by the dispatcher once the others finish
+            errors.append(e)
+        finally:
+            in_flight -= estimate
+            slots.release()
+
     try:
         for chunk in pending:
-            request = build_request(chunk, settings)
-            if spent + _estimate(request, batch=False) > settings.extract_budget_usd:
+            await slots.acquire()
+            if errors:
+                slots.release()
+                break
+            estimate = _estimate(build_request(chunk, settings), batch=False)
+            if spent + in_flight + estimate > settings.extract_budget_usd:
+                slots.release()
                 report.stopped_by_budget = True
-                log.warning("extract: budget $%.2f reached (spent $%.4f); stopping",
-                            settings.extract_budget_usd, spent)
-                return
-            fatal: Exception | None = None
-            try:
-                message = await client.messages.create(**request)
-            except anthropic.BadRequestError as e:
-                # a request-shape bug fails every chunk the same way: stop at the first
-                outcome, fatal = _api_error(e), e
-            except (anthropic.RateLimitError, anthropic.APIStatusError,
-                    anthropic.APIConnectionError) as e:
-                outcome = _api_error(e)
-            else:
-                outcome = _parse(message)
-            await _record(conn, chunk.chunk_id, chunk, outcome, model=settings.extract_model,
-                          ledger_id=ledger_id, batch=False, report=report)
-            spent += cost_usd(outcome.input_tokens, outcome.output_tokens, batch=False)
-            if fatal is not None:
-                raise fatal
+                log.warning("extract: budget $%.2f reached (spent $%.4f, in flight $%.4f);"
+                            " stopping", settings.extract_budget_usd, spent, in_flight)
+                break
+            in_flight += estimate
+            tasks.append(asyncio.create_task(work(chunk, estimate)))
+        await asyncio.gather(*tasks)
     finally:
         await conn.execute("UPDATE extract_batches SET status='processed', ended_at=now()"
                            " WHERE batch_id=%s", (ledger_id,))
+    if errors:
+        raise errors[0]
 
 
 def _api_error(e: Exception) -> _Outcome:
@@ -453,7 +558,7 @@ async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids
         seen.add(cid)
         outcome = (_parse(result.result.message) if result.result.type == "succeeded"
                    else _Outcome("errored", _batch_error(result.result)))
-        actual += cost_usd(outcome.input_tokens, outcome.output_tokens, batch=True)
+        actual += _cost(outcome, batch=True)
         await _record(conn, cid, rows.get(cid), outcome, model=settings.extract_model,
                       ledger_id=batch_id, batch=True, report=report)
     for cid in sorted(expected - seen):
@@ -516,6 +621,9 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
               poll_seconds: float = 30) -> ExtractReport:
     if mode not in ("sync", "batch"):
         raise ValueError(f"unknown mode {mode!r}")
+    if mode == "batch" and settings.extract_backend != "anthropic":
+        raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
+                         " sync mode (OpenRouter's ':batch' model is already half price)")
     ids = list(dict.fromkeys(str(uuid.UUID(str(i))) for i in chunk_ids))
     report = ExtractReport(chunks=len(ids))
     cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))

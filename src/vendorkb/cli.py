@@ -8,6 +8,7 @@ import dataclasses
 import json
 import logging
 import sys
+from typing import Literal
 
 import anthropic
 import psycopg
@@ -155,9 +156,18 @@ async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
-def _anthropic_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic:
-    """The extraction client; with no ANTHROPIC_API_KEY setting the SDK reads the env var."""
-    return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+EXTRACT_MAX_RETRIES = 5  # the SDKs back off on 429, 5xx and connection errors
+
+
+def _extract_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncOpenAI:
+    """The extraction client for ``extract_backend``. anthropic: with no ANTHROPIC_API_KEY
+    setting the SDK reads the env var. openai: EXTRACT_BASE_URL + EXTRACT_API_KEY."""
+    if settings.extract_backend == "openai":
+        return AsyncOpenAI(base_url=settings.extract_base_url or None,
+                           api_key=settings.extract_api_key or None,
+                           max_retries=EXTRACT_MAX_RETRIES)
+    return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None,
+                                    max_retries=EXTRACT_MAX_RETRIES)
 
 
 def _read_ids(path: str, limit: int | None) -> list[str]:
@@ -167,13 +177,16 @@ def _read_ids(path: str, limit: int | None) -> list[str]:
 
 
 async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    if args.backend:
+        settings = settings.model_copy(update={"extract_backend": args.backend})
+    mode: Literal["sync", "batch"] = args.mode or (
+        "batch" if settings.extract_backend == "anthropic" else "sync")
     ids = _read_ids(args.ids_file, args.limit)
     conn = await connect(settings.vendorkb_dsn)
-    client = _anthropic_client(settings)
+    client = _extract_client(settings)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
-        report = await extract.run(conn, ids, client=client, settings=settings,
-                                   mode=args.mode)
+        report = await extract.run(conn, ids, client=client, settings=settings, mode=mode)
     finally:
         close = getattr(client, "close", None)
         if close is not None:
@@ -217,8 +230,12 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("extract", help="extract capability claims from chunks with "
                                        "EXTRACT_MODEL (resumable; budget-capped)")
     s.add_argument("--ids-file", required=True, help="chunk ids, one per line")
-    s.add_argument("--mode", choices=("sync", "batch"), default="batch",
-                   help="sync: one call per chunk (smoke tests); batch: Message Batches API")
+    s.add_argument("--backend", choices=("anthropic", "openai"), default=None,
+                   help="override EXTRACT_BACKEND (openai: EXTRACT_BASE_URL/EXTRACT_API_KEY)")
+    s.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="sync: one call per chunk, EXTRACT_CONCURRENCY at once; batch: the "
+                        "Message Batches API (anthropic only). Default: batch for anthropic, "
+                        "sync for openai")
     s.add_argument("--limit", type=int, default=None, help="only the first N ids (smoke)")
     return p
 

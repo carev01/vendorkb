@@ -109,3 +109,53 @@ def test_short_quotes_are_rejected():
 def test_quote_longer_than_chunk_is_never_fuzzy_accepted():
     ok, reason = gate.check(CHUNK + " and also it supports everything else", CHUNK)
     assert not ok and reason.startswith("no-match:")
+
+
+LIMITS = ("Retention\n\nRetention for immutable backups can be configured for up to 7 years on "
+          "Amazon S3 storage. File-level restore requires an agent on the guest virtual "
+          "machine. Instant recovery has no support for encrypted virtual machine disks in "
+          "this release.")
+
+
+def _fuzzy_candidate(quote: str) -> None:
+    assert fuzz.partial_ratio(gate.normalize(quote), gate.normalize(LIMITS)) >= 90
+
+
+def test_numeric_swap_is_rejected():
+    quote = ("Retention for immutable backups can be configured for up to 5 years on Amazon S3 "
+             "storage.")
+    _fuzzy_candidate(quote)
+    ok, reason = gate.check(quote, LIMITS)
+    assert not ok and "5" in reason
+
+
+def test_inserted_short_negation_is_rejected():
+    quote = "File-level restore requires no agent on the guest virtual machine."
+    _fuzzy_candidate(quote)
+    ok, reason = gate.check(quote, LIMITS)
+    assert not ok and "no" in reason
+
+
+def test_dropped_negation_is_rejected():
+    quote = ("Instant recovery has support for encrypted virtual machine disks in this "
+             "release.")
+    _fuzzy_candidate(quote)
+    ok, reason = gate.check(quote, LIMITS)
+    assert not ok and "negation" in reason
+
+
+def test_fuzzy_with_matching_numbers_and_negation_is_accepted():
+    quote = ("Instant recovery has no support for encrypted virtual machine disks in this "
+             "release")  # no full stop; same words
+    assert gate.match(quote, LIMITS).ok
+    quote = "immutable backups can be configured up to 7 years on Amazon S3 storage"
+    _fuzzy_candidate(quote)
+    r = gate.match(quote, LIMITS)
+    assert r.ok and r.reason.startswith("fuzzy:")
+
+
+def test_exact_span_is_widened_to_whole_words():
+    r = gate.match("mutable backups are supported for Amazon S3", PROBE)
+    assert r.ok and r.span == "Immutable backups are supported for Amazon S3"
+    r = gate.match("Object lock: Ye", TABLE)
+    assert r.ok and r.span == "Object lock** | Yes"
