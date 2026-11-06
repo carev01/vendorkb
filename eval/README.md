@@ -146,3 +146,27 @@ run.
   origin: new
   search_check: "FTS 'mainframe tape library' and vector search top 10: nothing relevant."
 ```
+
+## Cross-vendor eval (`eval/cross_vendor.py`)
+
+Extra question fields for cross-vendor questions: `shape` (`enumeration` | `comparison`;
+absent -> detected by `detect_shape`), `expected_vendors` (`[{vendor, product, article_ids}]`),
+`unclear_vendors` (excluded from recall and noise), `holdout: true` (new questions only; the
+summary splits calibration vs holdout) and `key_terms` (enumeration; labelling keyword search).
+Comparison facet recall maps each `gold_sources` article to the facet (detected vendor or
+product) its document row belongs to.
+
+    # labelling aid: per question and vendor, top 10 hybrid chunks + top 5 FTS hits per key term
+    uv run python eval/cross_vendor.py candidates --question-ids xv-01 xv-02 --out eval/runs/cand
+    # new system, free (no rerank): shape detection, then the matching mode
+    uv run python eval/cross_vendor.py score --out eval/runs/xv-free.json
+    # production baseline: every question through search_docs with scope detection
+    uv run python eval/cross_vendor.py score --legacy --out eval/runs/xv-legacy.json
+    # paid: with the reranker (adds rerank tokens per question; --min-score, --fts-weight apply)
+    uv run python eval/cross_vendor.py score --rerank --out eval/runs/xv-rerank.json
+
+`candidates` writes `DIR/<qid>/<vendor>.json`. `score` writes per-question results plus a
+summary: enumeration vendor recall and noise, comparison facet recall, single-vendor and
+multi-article pool recall, rerank tokens per question, p50/p90 latency per shape. Without
+`--rerank` the pool is the 40 RRF candidates; with it (or `--legacy --rerank`) it is the
+reranked top 10.
