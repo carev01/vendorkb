@@ -28,14 +28,16 @@ written; every other row keeps its values. Strings are compared normalized
 Nearest neighbour alone never maps. One adjudication is made per distinct (kind, string,
 candidate set) and cached for the run; it carries up to ``MAX_CONTEXTS`` of the claims using the
 string (capability, target, target scope, vendor) as context, and its strict JSON reply is
-``{"choice": "<candidate id>" | "none"}``. Calls go to ``map_model`` on ``map_backend``,
-``extract_concurrency`` at a time; each is estimated before it is sent (its prompt plus
-``MAP_MAX_TOKENS`` of output, priced by ``map_price``) and the run stops sending once spent plus in flight plus the next
-estimate would pass ``max_usd``: what is left is unmapped and counted in ``skipped_by_budget``.
-A rejected request (``BadRequestError``: a bad model or schema) stops the run and raises with
-nothing written. The alias and candidate keys and the strings to adjudicate are embedded in one
-pass per run (in slices) and kept as float32. A capability blank after normalization is
-unmapped without a call.
+``{"choice": <integer>}`` -- one fixed schema for every call (the candidates are numbered 1..k
+in the prompt; 0 is none; anything else is ``llm_invalid``). Calls go to ``map_model`` on
+``map_backend``, ``extract_concurrency`` at a time; each is estimated before it is sent (its
+prompt plus ``MAP_MAX_TOKENS`` of output, priced by ``map_price``) and the run stops sending
+once spent plus in flight plus the next estimate would pass ``max_usd``: what is left is
+unmapped and counted in ``skipped_by_budget``. A rejected request (``BadRequestError``: a bad
+model or schema) stops the run and raises with nothing written; a 400 that says "rate limit" is
+retried by ``llm.call`` and, when it persists, fails that adjudication only. The alias and
+candidate keys and the strings to adjudicate are embedded in one pass per run (in slices) and
+kept as float32. A capability blank after normalization is unmapped without a call.
 
 Every v3 claim read is then (re)written in one transaction and stamped with the taxonomy
 version, so downstream builds use only mappings made under the current version.
@@ -45,7 +47,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -58,7 +59,7 @@ from vendorkb.claims.extract import cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.aspects import dimension_applies
 from vendorkb.taxonomy.cluster import normalize
-from vendorkb.taxonomy.llm import build_request, call, object_schema
+from vendorkb.taxonomy.llm import build_request, call, object_schema, rate_limited
 from vendorkb.taxonomy.load import current_version
 from vendorkb.taxonomy.propose import CHARS_PER_TOKEN, PROMPT_FAMILY
 
@@ -295,26 +296,26 @@ _SYSTEM: dict[Kind, str] = {
 You map the target of a claim extracted from backup-product documentation to one entry of a
 workload taxonomy. The target is the workload, platform, service or storage the claim applies
 to. You get the target phrase, up to three claims that use it (capability | target | target
-scope | vendor) and the nearest taxonomy targets (id | name | details).
+scope | vendor) and the nearest taxonomy targets, numbered (number. id | name | details).
 
 Choose a candidate only when the phrase names that same workload (its name, an abbreviation or
 another name for it). Answer "none" when the phrase names a broader or narrower workload than
 every candidate, a different service of the same vendor, the backup product's own component,
 or anything else. A close name is not enough: "none" is the right answer whenever you are not
-sure. Reply with JSON {"choice": "<candidate id>"} or {"choice": "none"}.""",
+sure. Reply with JSON {"choice": <the candidate's number>}, or {"choice": 0} for none.""",
     "dimension": """\
 You map the capability of a claim extracted from backup-product documentation to one dimension
 of a vendor-neutral comparison taxonomy. A dimension is one comparable aspect, defined by its
 name and definition. You get the capability phrase, up to three claims that use it (capability
 | target | target scope | vendor), the workload class of the claim's target, and the nearest
-dimensions that apply to that class (id | name | definition).
+dimensions that apply to that class, numbered (number. id | name | definition).
 
 Choose the candidate whose definition covers what the capability states: the capability may be
 narrower than the dimension (one value or one option of it), never about something else. A
 coverage dimension (coverage.*) fits only a capability that says whether objects can be backed
 up, restored, exported or compared. Answer "none" when no candidate's definition covers the
 capability, or when you are not sure: a related topic is not enough. Reply with JSON
-{"choice": "<candidate id>"} or {"choice": "none"}.""",
+{"choice": <the candidate's number>}, or {"choice": 0} for none.""",
 }
 
 
@@ -333,17 +334,19 @@ def _user_message(tax: _Tax, a: _Adjudication) -> str:
         lines.append(f"Workload class: {a.class_id or _NO_CLASS}")
     lines += ["", "Claims (capability | target | target scope | vendor):"]
     lines += [f"- {' | '.join(ctx)}" for ctx in a.contexts[:MAX_CONTEXTS]]
-    lines += ["", "Candidates (id | name | details):"]
-    lines += [f"- {eid} | {' | '.join(_details(tax, a.kind, eid))}" for eid in a.candidates]
+    lines += ["", "Candidates (number. id | name | details):"]
+    lines += [f"{n}. {eid} | {' | '.join(_details(tax, a.kind, eid))}"
+              for n, eid in enumerate(a.candidates, 1)]
     return "\n".join(lines)
 
 
-def reply_schema(candidates: Iterable[str]) -> dict[str, Any]:
-    return object_schema({"choice": {"type": "string", "enum": [*candidates, "none"]}})
+# One fixed schema for every adjudication: the API compiles a grammar per distinct schema and
+# rate-limits compilations, so the candidates are numbered in the prompt, never enumerated here.
+REPLY_SCHEMA: dict[str, Any] = object_schema({"choice": {"type": "integer"}})
 
 
 def _parse(text: str | None, candidates: tuple[str, ...]) -> str | None:
-    """The chosen candidate id, None for "none", or a ValueError."""
+    """The chosen candidate id (``choice`` 1..k), None for 0, or a ValueError."""
     if text is None:
         raise ValueError("no reply text")
     try:
@@ -351,11 +354,10 @@ def _parse(text: str | None, candidates: tuple[str, ...]) -> str | None:
     except json.JSONDecodeError as e:
         raise ValueError(f"invalid-json: {e}") from e
     choice = data.get("choice") if isinstance(data, dict) else None
-    if choice == "none":
-        return None
-    if not isinstance(choice, str) or choice not in candidates:
-        raise ValueError(f"choice {choice!r} is not a candidate")
-    return choice
+    if isinstance(choice, bool) or not isinstance(choice, int) \
+            or not 0 <= choice <= len(candidates):
+        raise ValueError(f"choice {choice!r} is not 0..{len(candidates)}")
+    return None if choice == 0 else candidates[choice - 1]
 
 
 def map_price(settings: VendorkbSettings) -> tuple[float, float]:
@@ -410,10 +412,15 @@ class _Adjudicator:
                 request = build_request(
                     backend=settings.map_backend, model=settings.map_model,
                     max_tokens=MAP_MAX_TOKENS, system=system, user=user,
-                    schema=reply_schema(a.candidates), name="taxonomy_map")
+                    schema=REPLY_SCHEMA, name="taxonomy_map")
                 text, error, cost = await call(self.client, request,
                                                backend=settings.map_backend, price=self.price)
             except (anthropic.BadRequestError, openai.BadRequestError) as e:
+                if rate_limited(e):  # still rate-limited after call()'s retries: this string
+                    report.llm_invalid += 1
+                    report.errors.append(f"{a.kind} {a.text!r}: {e}")
+                    log.warning("taxonomy map: rate-limited for %s %r: %s", a.kind, a.text, e)
+                    return
                 self.stop, self.fatal = True, self.fatal or e
                 return
             except Exception as e:  # API errors and odd provider shapes: this string only

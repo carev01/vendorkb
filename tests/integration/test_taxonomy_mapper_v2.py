@@ -17,7 +17,7 @@ from pgvector import Vector
 
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
-from vendorkb.taxonomy import load, mapper
+from vendorkb.taxonomy import llm, load, mapper
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 DIM = 32
@@ -69,8 +69,19 @@ def _kind(user: str) -> str:
 
 
 def _candidates(user: str) -> list[str]:
-    block = user.split("Candidates (id | name | details):\n", 1)[1]
-    return [line[2:].split(" | ", 1)[0] for line in block.split("\n\n", 1)[0].splitlines()]
+    """The candidate ids, in their numbered order (1..k)."""
+    block = user.split("Candidates (number. id | name | details):\n", 1)[1]
+    lines = block.split("\n\n", 1)[0].splitlines()
+    for n, line in enumerate(lines, 1):
+        assert line.startswith(f"{n}. ")
+    return [line.split(". ", 1)[1].split(" | ", 1)[0] for line in lines]
+
+
+def _number(choice, candidates: list[str]) -> int:
+    """A reply's choice: an id becomes its number, "none" 0; an int is sent as it is."""
+    if isinstance(choice, int):
+        return choice
+    return 0 if choice == "none" else candidates.index(choice) + 1
 
 
 def _chat(payload, *, cost):
@@ -91,7 +102,8 @@ REPLIES = {
     "keep copies for ages": _pick("retention.maximum_period"),
     "the dashboard thing": lambda candidates: "none",
     "mystery platform": lambda candidates: "none",
-    "made up answer": lambda candidates: "not.a.candidate",
+    "made up answer": lambda candidates: 99,  # out of range
+    "negative answer": lambda candidates: -1,
 }
 
 
@@ -107,7 +119,8 @@ class FakeCompletions:
         choose = self.replies.get(_phrase(user))
         if choose is None:
             raise AssertionError(f"unexpected adjudication: {_phrase(user)!r}")
-        return _chat({"choice": choose(_candidates(user))}, cost=self.cost)
+        candidates = _candidates(user)
+        return _chat({"choice": _number(choose(candidates), candidates)}, cost=self.cost)
 
 
 class FakeOpenAI:
@@ -251,7 +264,9 @@ async def test_llm_choice_and_none(vkb_dsn, tmp_path):
         user = req["messages"][-1]["content"]
         candidates = _candidates(user)
         assert len(candidates) == 5 and candidates[0] == "okta"  # nearest first
-        assert schema["properties"]["choice"]["enum"] == [*candidates, "none"]
+        assert schema == mapper.REPLY_SCHEMA == {
+            "type": "object", "properties": {"choice": {"type": "integer"}},
+            "required": ["choice"], "additionalProperties": False}
         assert _kind(user) == "target"
         # the claim's capability, target, target scope and vendor are the context
         assert "keep copies for ages | Okta Workforce | - | examplevendor" in user
@@ -324,6 +339,10 @@ async def test_dimension_candidates_only_from_applicable_dimensions(vkb_dsn, tmp
             assert _kind(user) == "dimension"
             by_class[user.split("Workload class: ", 1)[1].split("\n", 1)[0]] = _candidates(user)
         assert len(client.calls) == 3  # one per distinct candidate set
+        # one fixed reply schema whatever the candidates (the API compiles one grammar)
+        schemas = [c["response_format"]["json_schema"]["schema"] for c in client.calls]
+        assert all(sc == schemas[0] for sc in schemas)
+        assert len({tuple(v) for v in by_class.values()}) == 3
         assert by_class["saas.crm"][0] == "recovery.automation_bypass"
         assert "recovery.automation_bypass" not in by_class["saas.identity"]
         assert "recovery.automation_bypass" not in by_class["cloud"]
@@ -441,9 +460,12 @@ async def test_invalid_reply_is_unmapped_and_counted(vkb_dsn, tmp_path):
     try:
         await _fresh(conn, tmp_path)
         cid = await _claim(conn, "made up answer", "Okta")
+        negative = await _claim(conn, "negative answer", "Okta")
         report = await _run(conn)
         assert (await _mapping(conn, cid))["dimension_method"] == "unmapped"
-        assert report.llm_invalid == 1 and "made up answer" in report.errors[0]
+        assert (await _mapping(conn, negative))["dimension_method"] == "unmapped"
+        assert report.llm_invalid == 2 and report.llm_calls == 2
+        assert any("made up answer" in e and "99" in e for e in report.errors)
     finally:
         await conn.close()
 
@@ -524,7 +546,7 @@ async def test_anthropic_backend_uses_the_map_model(vkb_dsn, tmp_path):
         class Messages:
             async def create(self, **params):
                 calls.append(params)
-                text = json.dumps({"choice": "retention.maximum_period"})
+                text = json.dumps({"choice": 1})
                 return SimpleNamespace(
                     content=[SimpleNamespace(type="text", text=text)], stop_reason="end_turn",
                     usage=SimpleNamespace(input_tokens=300, output_tokens=10))
@@ -536,7 +558,8 @@ async def test_anthropic_backend_uses_the_map_model(vkb_dsn, tmp_path):
         assert calls[0]["model"] == "claude-haiku-5-5"
         fmt = calls[0]["output_config"]["format"]
         assert fmt["type"] == "json_schema"
-        assert fmt["schema"]["properties"]["choice"]["enum"][-1] == "none"
+        assert fmt["schema"] == mapper.REPLY_SCHEMA
+        assert _candidates(calls[0]["messages"][-1]["content"])[0] == "retention.maximum_period"
         assert report.dimension_llm == 1
         assert abs(report.spent_usd - (300 * 0.10 + 10 * 0.50) / 1e6) < 1e-12
     finally:
@@ -617,5 +640,84 @@ async def test_embedding_in_slices_gives_the_same_mapping(vkb_dsn, tmp_path, mon
         assert all(len(texts) <= 7 for texts, _ in embedder.calls)
         m = await _mapping(conn, cid)
         assert (m["target_id"], m["dimension_id"]) == ("okta", "retention.maximum_period")
+    finally:
+        await conn.close()
+
+
+def _bad_request(message: str) -> openai.BadRequestError:
+    return openai.BadRequestError(message, response=httpx.Response(
+        400, request=httpx.Request("POST", "http://x")), body=None)
+
+
+async def test_rate_limited_400_is_retried(vkb_dsn, tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "RATE_LIMIT_BACKOFF_S", 0.0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta")
+        client = FakeOpenAI()
+        real = client.chat.completions.create
+        failures = []
+
+        async def flaky(**params):
+            if len(failures) < 2:
+                failures.append(params)
+                raise _bad_request("Grammar compilation rate limit exceeded: 50 compilations"
+                                   " per minute")
+            return await real(**params)
+
+        client.chat.completions.create = flaky
+        report = await _run(conn, client)
+        assert len(failures) == 2 and report.llm_calls == 1 and report.llm_invalid == 0
+        assert (await _mapping(conn, cid))["dimension_id"] == "retention.maximum_period"
+    finally:
+        await conn.close()
+
+
+async def test_persistent_rate_limit_fails_only_that_adjudication(vkb_dsn, tmp_path,
+                                                                   monkeypatch):
+    monkeypatch.setattr(llm, "RATE_LIMIT_BACKOFF_S", 0.0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        limited = await _claim(conn, "keep copies for ages", "Okta")
+        fine = await _claim(conn, "the dashboard thing", "Okta")
+        client = FakeOpenAI()
+        real = client.chat.completions.create
+        attempts = []
+
+        async def limited_for_one(**params):
+            if _phrase(params["messages"][-1]["content"]) == "keep copies for ages":
+                attempts.append(1)
+                raise _bad_request("rate limit exceeded")
+            return await real(**params)
+
+        client.chat.completions.create = limited_for_one
+        report = await _run(conn, client)
+        assert len(attempts) == llm.RATE_LIMIT_RETRIES + 1
+        assert report.llm_invalid == 1 and report.llm_calls == 1
+        assert (await _mapping(conn, limited))["dimension_method"] == "unmapped"
+        assert (await _mapping(conn, fine))["mapped_version"] is not None  # run completed
+    finally:
+        await conn.close()
+
+
+async def test_genuine_bad_request_is_not_retried(vkb_dsn, tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "RATE_LIMIT_BACKOFF_S", 0.0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta")
+        attempts = []
+
+        class Broken:
+            async def create(self, **params):
+                attempts.append(1)
+                raise _bad_request("output_config.format.schema: invalid schema")
+
+        client = SimpleNamespace(chat=SimpleNamespace(completions=Broken()))
+        with pytest.raises(openai.BadRequestError):
+            await _run(conn, client)
+        assert len(attempts) == 1
     finally:
         await conn.close()

@@ -5,13 +5,26 @@ Both backends take the same strict JSON schema (every property required,
 ``output_config.format``, ``openai`` (any OpenAI-compatible endpoint, e.g. OpenRouter) through
 ``response_format``. ``call`` returns the reply text, an error label for a reply that cannot be
 used (cut off, refused, empty), and the call's cost: the provider's reported cost when it gives
-one, else priced from the token counts.
+one, else priced from the token counts. A 400 whose message says "rate limit" (Anthropic's
+grammar-compilation limit is a 400, not a 429, so the SDK does not retry it) is retried up to
+``RATE_LIMIT_RETRIES`` times with exponential back-off, then re-raised; any other 400 is
+raised at once.
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Any, Literal
 
+import anthropic
+import openai
+
 from vendorkb.claims.extract import _reported_cost, cost_usd
+
+log = logging.getLogger(__name__)
+
+RATE_LIMIT_RETRIES = 4
+RATE_LIMIT_BACKOFF_S = 15.0  # doubled on each retry
 
 Backend = Literal["anthropic", "openai"]
 
@@ -42,11 +55,31 @@ def build_request(*, backend: Backend, model: str, max_tokens: int, system: str,
     }
 
 
+def rate_limited(e: BaseException) -> bool:
+    """A 400 that is a rate limit (retryable), not a bad request."""
+    return isinstance(e, anthropic.BadRequestError | openai.BadRequestError) \
+        and "rate limit" in str(e).lower()
+
+
+async def _create(create: Any, request: dict[str, Any]) -> Any:
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            return await create(**request)
+        except (anthropic.BadRequestError, openai.BadRequestError) as e:
+            if not rate_limited(e) or attempt == RATE_LIMIT_RETRIES:
+                raise
+            delay = RATE_LIMIT_BACKOFF_S * 2 ** attempt
+            log.warning("rate-limited 400 (%s); retry %d/%d in %.0f s", e, attempt + 1,
+                        RATE_LIMIT_RETRIES, delay)
+            await asyncio.sleep(delay)
+    raise AssertionError("unreachable")
+
+
 async def call(client: Any, request: dict[str, Any], *, backend: Backend,
                price: tuple[float, float]) -> tuple[str | None, str | None, float]:
     """(reply text, error, cost) for one call built by ``build_request``."""
     if backend == "openai":
-        resp = await client.chat.completions.create(**request)
+        resp = await _create(client.chat.completions.create, request)
         usage = getattr(resp, "usage", None)
         cost = _reported_cost(usage)
         if cost is None:
@@ -61,7 +94,7 @@ async def call(client: Any, request: dict[str, Any], *, backend: Backend,
         if getattr(choices[0].message, "refusal", None):
             return None, "refusal", cost
         return choices[0].message.content, None, cost
-    msg = await client.messages.create(**request)
+    msg = await _create(client.messages.create, request)
     usage = getattr(msg, "usage", None)
     cost = cost_usd(int(getattr(usage, "input_tokens", 0) or 0),
                     int(getattr(usage, "output_tokens", 0) or 0), batch=False, price=price)
