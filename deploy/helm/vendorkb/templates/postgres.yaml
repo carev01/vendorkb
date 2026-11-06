@@ -28,6 +28,13 @@ spec:
       containers:
         - name: postgres
           image: {{ .Values.postgres.image }}
+          {{- with .Values.postgres.settings }}
+          args:
+            {{- range $k, $v := . }}
+            - "-c"
+            - {{ printf "%s=%v" $k $v | quote }}
+            {{- end }}
+          {{- end }}
           ports: [{containerPort: 5432, name: postgres}]
           env:
             - {name: POSTGRES_DB, value: {{ .Values.postgres.database | quote }}}
