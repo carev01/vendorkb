@@ -1,0 +1,420 @@
+{
+ "question_id": "cv43-01",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve Backup",
+   "chunk_ids": [
+    "3eb6ad7d-c17f-4016-a671-9a6f251e72c8",
+    "e3027311-ea4f-4b06-ac1f-7895478419b3"
+   ],
+   "doc_ids": [
+    "6aa89449-97ee-4d8a-83da-cb182f3f4496",
+    "e316f3c4-b030-46e9-aaa2-766de8d9db91"
+   ],
+   "note": "Arcserve Backup Agent for Oracle provides an SBT interface (sbt.cfg, SBT_HOST) so RMAN scripts back up straight to the Arcserve Backup server."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "bc607543-87e7-46f1-89b2-b75291e6fc63",
+    "7c70b970-e16d-4242-8bee-baa2474ca881"
+   ],
+   "doc_ids": [
+    "f2e5ac8d-c0aa-4b8b-b4b3-2ca64cacd70f",
+    "235144b6-7aed-478a-bb27-08f15cc3fca7"
+   ],
+   "note": "Backup Exec Oracle Agent uses RMAN and supports DBA-initiated RMAN jobs (SBT_TAPE channel) sent to the Backup Exec server."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "49e69895-ee32-42c5-94a0-94f02bde205a",
+    "0a58591b-d036-421b-bd84-b053f4fb52de"
+   ],
+   "doc_ids": [
+    "87e28810-040a-4f5c-be14-e4672b43fe2a",
+    "eadc567d-28e5-44db-8d4d-f4cbc57efea3"
+   ],
+   "note": "Tina RMAN module: RMAN allocates sbt channels with SBT_LIBRARY=libtina_rman.so, creating Tina backup/restore jobs."
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "unclear",
+   "product": "Axcient (General)",
+   "chunk_ids": [
+    "95d94f54-739e-4859-836a-7a0315d20dc3"
+   ],
+   "doc_ids": [
+    "19bf8412-ac39-4499-8f37-b6c90b702b5b"
+   ],
+   "note": "RMAN backups to local file system, then the generated files are backed up."
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "e343af5d-1554-439b-8a72-0b1bc67fe449",
+    "ca57f040-c947-4ae8-87d3-3f47c62eb8f1"
+   ],
+   "doc_ids": [
+    "049d2ab2-ab9e-4b3e-a752-e472fc7d4c52"
+   ],
+   "note": "Bacula Enterprise Oracle Plugin exposes an RMAN SBT interface (libobk.so) so RMAN backs up directly into Bacula."
+  },
+  "Barracuda": {
+   "label": "unclear",
+   "product": "Barracuda Backup",
+   "chunk_ids": [
+    "5812cd6c-9de7-4e52-b310-f68fe7cc4290",
+    "8f6054f2-d192-4bb2-8bc6-01c8d3eee16e"
+   ],
+   "doc_ids": [
+    "37d84513-6611-40e3-b28c-8102bc9cbae5"
+   ],
+   "note": "Uses native RMAN to a dump file via pre-execute script, then Barracuda agent backs it up."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "DataProtect, NetBackup",
+   "chunk_ids": [
+    "7bf6144b-5446-47f4-9bdb-929b15365b02",
+    "f8cd6033-c9e3-4af2-a4cb-2c0570b7a793",
+    "36436880-1f81-4b12-bd03-255c7d3ccdd2"
+   ],
+   "doc_ids": [
+    "b6fc2273-c2d5-4fa6-a59e-90c2e4492cb9",
+    "c751cea8-cba4-4048-922f-010f770aedef"
+   ],
+   "note": "DataProtect provides the Cohesity SBT Plugin for RMAN; NetBackup for Oracle uses RMAN SBT_TAPE channels."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console",
+   "chunk_ids": [
+    "2f17d8ce-d825-4227-b02f-2a8cb2d05f96",
+    "62778552-2d19-4fef-a8a2-1961a199b983",
+    "8088675e-fc8a-4b58-b5e7-5c0dde1e2abc"
+   ],
+   "doc_ids": [
+    "9107076f-05f4-4dfa-93bb-b193d7ae492e",
+    "f2e1e534-c9f7-4490-b819-aa358874f57b",
+    "65e2cbb9-bdd2-4c28-95f7-328f61cd740b"
+   ],
+   "note": "Commvault Oracle agent: RMAN command-line backups/restores via sbt_tape channels with SBT_LIBRARY=libobk.so."
+  },
+  "Datto": {
+   "label": "unclear",
+   "product": "BCDR",
+   "chunk_ids": [
+    "8e465eb1-ec69-408f-9b0d-2739b1a7b800",
+    "2ec402e8-a614-4bcd-909a-9fe4da4b3dba"
+   ],
+   "doc_ids": [
+    "26180e77-aed8-42f7-9b05-739d8a6298bf"
+   ],
+   "note": "Suggests RMAN backups to a NAS share on the Datto device; workaround rather than RMAN integration."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "e1116d14-2177-45a0-bb78-d09f4cc22296",
+    "a7854968-1e2c-4baf-ac4d-c04c3ff49f23"
+   ],
+   "doc_ids": [
+    "ef7316f4-f56e-4d84-90ac-b39598c25491",
+    "d83c1ba0-5529-4ff6-a5cc-d1c77bb8092b"
+   ],
+   "note": "PowerProtect Data Manager Oracle RMAN agent (libddobk.so SBT library) lets RMAN back up to PowerProtect/Data Domain storage units."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "99bc245d-8fd0-499c-a84f-e2dd92f6d491",
+    "1bed37ef-0681-44b0-ac4d-46d955e83bdd",
+    "1fa1c76d-4b88-448b-b6f3-53ca31401fd9"
+   ],
+   "doc_ids": [
+    "663ecc18-3aa7-4bea-96e1-8968739bc0c2",
+    "c8a1a04c-649e-4f72-ba94-3fa8effce2f3",
+    "f1bf6365-e2fa-4efa-9110-7dc6cd7b7e96"
+   ],
+   "note": "Phoenix Backup Store mounts are the RMAN target for DBA-run RMAN backups; Druva also ships an SBT library (libphxsbt.so)."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "unclear",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "645b536a-4b12-4e45-962c-1961c0e4a2e2",
+    "63d1ff1d-d7de-4900-9b66-3b9a5c11ed74"
+   ],
+   "doc_ids": [
+    "265c3db7-3ada-473b-84fb-55a7fa860054",
+    "b4510631-72e8-4408-8d02-353d2936b653"
+   ],
+   "note": "Backup and DR runs RMAN itself (appliance-managed, configurable channels); no DBA-initiated RMAN/SBT path documented."
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "b672767a-53a5-4728-ab21-5f9186d77be6",
+    "c55e8ad0-a8a4-45c9-a0b5-63e60f5323b2"
+   ],
+   "doc_ids": [
+    "abbe836b-0f52-4d7b-8cc6-d1e144bbf110",
+    "9810c1ee-5e22-4c86-a8c5-09654d94792d"
+   ],
+   "note": "IBM Storage Protect Data Protection for Oracle (TDPO): RMAN backs up to Storage Protect server via type 'sbt_tape' channels."
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "unclear",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "4577db18-1cef-4ceb-9920-b09eca56599b",
+    "6a4b0234-bac1-4d29-a983-aaf503e67b0c"
+   ],
+   "doc_ids": [
+    "4a924b22-7d25-4fc6-87f0-c07e71a2b12e",
+    "2e0af35c-ce1c-44b8-b5b5-dc6f49d25f3e"
+   ],
+   "note": "Cove creates RMAN backup files in a folder then backs up the folder; not a direct RMAN media integration."
+  },
+  "Nakivo": {
+   "label": "unclear",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "1bd72010-43ba-4cce-ab36-1361e6026aaf"
+   ],
+   "doc_ids": [
+    "014d5ce0-c069-4efa-a74e-9c0e8a84961a"
+   ],
+   "note": "spot-check disagreement (unclear vs yes); set unclear. NAKIVO agent runs RMAN commands for backup jobs to the RMAN-configured destination; not DBA RMAN writing into NAKIVO."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "unclear",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "da6b46f3-5c5b-47ae-95da-ee6aa9f6add3",
+    "ea2094c0-2c08-4b70-ab19-74bf665590fd",
+    "99d1b5e1-3919-406f-b028-71cc11708a75"
+   ],
+   "doc_ids": [
+    "97e5d7d7-2097-4732-9bf8-df77a9e26208",
+    "0f732a09-a557-428e-a2f7-133c49beff1c",
+    "01113047-6c79-447c-9fb8-044ea915b470"
+   ],
+   "note": "RSC orchestrates RMAN backups itself; Managed Volumes mentioned for Oracle but DBA RMAN-to-Rubrik workflow not stated in candidates."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "unclear",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "1d1b9fc5-9394-4b1a-ac0d-269ee75d71c8",
+    "1add99bc-3956-4c6a-b2af-b6ed41451e66"
+   ],
+   "doc_ids": [
+    "a1502af5-8623-4798-84ae-51d5ab0d9a36",
+    "c9663bc7-b2bc-4dfb-a9f2-0d969bfa24a9"
+   ],
+   "note": "Oracle protection/application backup can initiate RMAN and set RMAN retention; no SBT/DBA-direct integration stated."
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "unclear",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "9f84dbec-caac-4a71-b319-7b3c9e8bf247",
+    "11d2d93f-6be0-4e12-9a55-c5bcb499ead1"
+   ],
+   "doc_ids": [
+    "6dd614c5-9285-45de-a0f7-0f2104f0d03a",
+    "9deeecc6-0945-4c93-a288-e1f973a3feb4"
+   ],
+   "note": "Unitrends agent leverages RMAN for its own backup jobs; no DBA-driven RMAN integration stated."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "f00c70f7-e576-4e8e-97cb-33788de6fc44",
+    "6e1c15c5-bab1-468b-af3b-4b6fedc2cc90"
+   ],
+   "doc_ids": [
+    "b91608ef-55d5-4a60-8020-bf2035d75639",
+    "ee35964a-448d-40fc-8e99-e34b6be2ff67"
+   ],
+   "note": "Veeam Plug-In for Oracle RMAN acts as the agent between RMAN and Veeam backup repositories."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

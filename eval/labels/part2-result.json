@@ -1,0 +1,425 @@
+[
+ {
+  "question_id": "cv-03",
+  "vendor": "Rubrik",
+  "label": "yes",
+  "chunk_ids": [
+   "d1e4e0da-17a3-44b1-a8cb-defdda83f25c"
+  ],
+  "note": "Rubrik Security Cloud protects Hyper-V VMs via WMI/RCT backups"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Arctera",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No Proxmox mention in Arctera docs"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "CloudCasa",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No multi-person approval for destructive ops documented"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "Velero",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No multi-person approval documented"
+ },
+ {
+  "question_id": "cv43-08",
+  "vendor": "Eon",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Eon docs never mention Salesforce"
+ },
+ {
+  "question_id": "cv43-12",
+  "vendor": "N-Able",
+  "label": "unclear",
+  "chunk_ids": [
+   "b76eb107-8d67-488f-905b-3c53df8f0ff5"
+  ],
+  "note": "Cove anomaly detection alerts on critical config changes, not scanning backup data; docs say no file scanning"
+ },
+ {
+  "question_id": "cv-03",
+  "vendor": "Trilio",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Trilio docs have no Hyper-V mention"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Veeam",
+  "label": "unclear",
+  "chunk_ids": [
+   "af602c43-ba1d-4807-942b-cfd6182fc723"
+  ],
+  "note": "Kasten snapshots/backs up OpenStack Cinder volumes (for K8s PVs); no OpenStack instance backup"
+ },
+ {
+  "question_id": "cv-08",
+  "vendor": "Arcserve",
+  "label": "yes",
+  "chunk_ids": [
+   "0c0281f5-d190-4348-b4a1-f2a2c9af7588",
+   "6d57913a-f6b8-405a-b101-8adf3deeb40e"
+  ],
+  "note": "Arcserve Backup UNIX agent supports AIX"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "N-Able",
+  "label": "yes",
+  "chunk_ids": [
+   "6b3a4005-52bb-4179-98d9-cc77d2225d98"
+  ],
+  "note": "Cove Fortified Copies are immutable backups by default"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Synology",
+  "label": "yes",
+  "chunk_ids": [
+   "1b74e8b6-8203-4230-8ced-26def5309f03",
+   "e6c21443-3d9f-4b8c-a4af-b8e872954de6"
+  ],
+  "note": "ActiveProtect backup copy to remote storage or another appliance"
+ },
+ {
+  "question_id": "cv43-07",
+  "vendor": "AvePoint",
+  "label": "yes",
+  "chunk_ids": [
+   "cad19729-6408-4d17-b2c6-9b4a1b76eff8"
+  ],
+  "note": "Cloud Backup for Google Workspace protects Gmail, Drive, Calendar, shared drives"
+ },
+ {
+  "question_id": "cv-09",
+  "vendor": "Afi.ai",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No pre/post backup scripts in Afi docs"
+ },
+ {
+  "question_id": "cv43-05",
+  "vendor": "Acronis",
+  "label": "yes",
+  "chunk_ids": [
+   "b19f9a9c-655d-4b2c-a10a-b41c21241000",
+   "843171e4-1054-49f9-a17c-8e0610a07e7a"
+  ],
+  "note": "Run-as-VM validation with heartbeat/screenshot; automated test failover with screenshot"
+ },
+ {
+  "question_id": "cv-02",
+  "vendor": "Acronis",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No Kubernetes mention in Acronis docs"
+ },
+ {
+  "question_id": "cv-05",
+  "vendor": "Trilio",
+  "label": "unclear",
+  "chunk_ids": [
+   "b6eb5b9f-cb79-41f4-a5e7-792c4a1dcf66"
+  ],
+  "note": "Only dedicated backup network isolation; no bandwidth cap/schedule"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Axcient",
+  "label": "unclear",
+  "chunk_ids": [
+   "26c8fc5c-0773-419d-9212-c45c038f59df",
+   "45175b56-7a9f-4571-98ca-8745df559e33"
+  ],
+  "note": "Guest agent supports KVM disk formats and Proxmox is a recovery target; no Proxmox VE VM backup stated"
+ },
+ {
+  "question_id": "cv43-05",
+  "vendor": "Arcserve",
+  "label": "yes",
+  "chunk_ids": [
+   "eb3a13ba-7217-425c-ae4f-8cfd4f04b6ad",
+   "ce845e78-66f0-4280-bb66-bcc290a4b80a"
+  ],
+  "note": "ShadowProtect/ImageManager advanced verification auto-boots via VirtualBoot and captures screenshot"
+ },
+ {
+  "question_id": "cv-08",
+  "vendor": "Nakivo",
+  "label": "unclear",
+  "chunk_ids": [
+   "8e2bada1-7ee7-493f-8b64-3e5e285cd6b3"
+  ],
+  "note": "Only passing note that AIX LPAR objects can be selected; platforms list x86 Windows/Linux"
+ },
+ {
+  "question_id": "cv-07",
+  "vendor": "Gearset",
+  "label": "unclear",
+  "chunk_ids": [
+   "0e7d9074-f0ab-4af4-bc7f-7ce733c7d92c"
+  ],
+  "note": "Per-run backup result email notifications to team members, no scheduled status reports"
+ },
+ {
+  "question_id": "cv43-07",
+  "vendor": "Axcient",
+  "label": "yes",
+  "chunk_ids": [
+   "ab1319c4-7b01-48e5-8df7-e30cc1175e5c"
+  ],
+  "note": "x360Cloud supports Gmail, Calendar, Contacts, Drive, Shared Drive"
+ },
+ {
+  "question_id": "cv43-08",
+  "vendor": "Acronis",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Acronis docs do not mention Salesforce"
+ },
+ {
+  "question_id": "cv43-06",
+  "vendor": "Flosum",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Flosum is Salesforce backup; no bare-metal restore"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "Hornetsecurity (Altaro)",
+  "label": "yes",
+  "chunk_ids": [
+   "43287db6-7ee9-42ac-b4dc-f59978670a95"
+  ],
+  "note": "VM Backup supports immutable (WORM) backup locations"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Veeam",
+  "label": "yes",
+  "chunk_ids": [
+   "9f61c51d-5796-4db8-b492-c7127d0c24e3"
+  ],
+  "note": "VBR Proxmox VE plug-in backs up Proxmox VE VMs"
+ },
+ {
+  "question_id": "cv43-06",
+  "vendor": "Nakivo",
+  "label": "unclear",
+  "chunk_ids": [
+   "4598547f-7815-4b45-9f6d-cdf81d315ec8"
+  ],
+  "note": "BMR described as same hardware yet also 'to a different computer'; no dissimilar-hardware handling"
+ },
+ {
+  "question_id": "cv-09",
+  "vendor": "AvePoint",
+  "label": "unclear",
+  "chunk_ids": [
+   "49924805-26c9-4edc-b7a3-878389351aed"
+  ],
+  "note": "Pre/post scripts only for GCP Linux VM app-consistent snapshots via Google guest agent"
+ },
+ {
+  "question_id": "cv-07",
+  "vendor": "IBM",
+  "label": "yes",
+  "chunk_ids": [
+   "077b5782-c203-4e7a-a22a-faca2a9ec239",
+   "93a4de80-831e-4537-af0e-e24bd4c11d30"
+  ],
+  "note": "Operations Center email reports; Storage Defender scheduled reports emailed"
+ },
+ {
+  "question_id": "cv43-08",
+  "vendor": "Atempo",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Salesforce mentioned only as Atempo support site ID"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Red Hat",
+  "label": "yes",
+  "chunk_ids": [
+   "39f9cd5b-aac3-4806-9840-597545dbbdb4"
+  ],
+  "note": "OADP multiple BSLs to store backups across regions/providers for redundancy"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Arctera",
+  "label": "yes",
+  "chunk_ids": [
+   "24cbcaaa-d493-4bff-96de-f79b19385cff"
+  ],
+  "note": "Backup Exec supports robotic tape libraries"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Nakivo",
+  "label": "yes",
+  "chunk_ids": [
+   "1bd72010-43ba-4cce-ab36-1361e6026aaf"
+  ],
+  "note": "NAKIVO protects Oracle via agent executing RMAN commands"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Google",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No tape support in Google Backup and DR docs"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "Trilio",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No multi-person approval in Trilio docs"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "Google",
+  "label": "yes",
+  "chunk_ids": [
+   "9e31d873-d224-4805-9bf7-2aafb8a306dc"
+  ],
+  "note": "Multi-party approval via Google PAM to remove liens protecting backup vault projects"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Bacula",
+  "label": "yes",
+  "chunk_ids": [
+   "406e0e8e-e753-4e2d-bd70-d2b237a4e62b"
+  ],
+  "note": "Bacula Enterprise Proxmox and QEMU plugins back up Proxmox VE VMs"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Slide",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No Oracle/RMAN in Slide docs"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Salesforce",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Own/Backup & Recover is SaaS backup; no RMAN"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Keepit",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Keepit is SaaS backup; no OpenStack"
+ },
+ {
+  "question_id": "cv-03",
+  "vendor": "Nakivo",
+  "label": "yes",
+  "chunk_ids": [
+   "de77c61e-f206-4601-9992-985cc61985df"
+  ],
+  "note": "NAKIVO creates Hyper-V backup jobs"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "Slide",
+  "label": "yes",
+  "chunk_ids": [
+   "85ed0e05-41b4-428a-be72-54bdea04884e"
+  ],
+  "note": "Backups stored as ZFS snapshots, immutable"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Datto",
+  "label": "yes",
+  "chunk_ids": [
+   "e41509e9-61d7-4693-8b35-314ee0039585"
+  ],
+  "note": "SIRIS Private replicates to another SIRIS at a secondary site"
+ },
+ {
+  "question_id": "cv43-06",
+  "vendor": "Veeam",
+  "label": "yes",
+  "chunk_ids": [
+   "87385bba-60f7-48b1-b9a7-69cf355730cd",
+   "1ca73f8b-3908-4a86-b197-2eba404ac23a",
+   "9e11cf2a-63a3-43ef-b91a-61086b15e37e"
+  ],
+  "note": "Veeam Agent for Windows BMR to new computer with driver injection"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Keepit",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No Proxmox in Keepit docs"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "GRAX",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "GRAX is Salesforce backup; no OpenStack"
+ },
+ {
+  "question_id": "cv43-10",
+  "vendor": "AvePoint",
+  "label": "unclear",
+  "chunk_ids": [
+   "439acc76-c728-4769-9de2-d10272a33427"
+  ],
+  "note": "Holds exist in Opus (content archiving), not on backup data; Cloud Backup only unlimited retention"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Datto",
+  "label": "unclear",
+  "chunk_ids": [
+   "2ec402e8-a614-4bcd-909a-9fe4da4b3dba"
+  ],
+  "note": "Workaround: RMAN writes to a NAS share on the Datto, then snapshotted; no native RMAN integration"
+ },
+ {
+  "question_id": "cv-03",
+  "vendor": "Keepit",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Keepit is SaaS backup; no Hyper-V"
+ },
+ {
+  "question_id": "cv-05",
+  "vendor": "Acronis",
+  "label": "yes",
+  "chunk_ids": [
+   "cc1cc60b-28de-4409-91b3-8bd68d043489"
+  ],
+  "note": "Performance and backup window sets hourly output speed and allowed windows"
+ },
+ {
+  "question_id": "cv-06",
+  "vendor": "Unitrends",
+  "label": "unclear",
+  "chunk_ids": [
+   "f3f97afe-f2d3-40d0-a866-9815d8887d3f",
+   "568212a6-97d8-4689-8dde-f57aa81cc7fa"
+  ],
+  "note": "Unitrends appliance cannot protect Office 365; M365 only via Spanning integration in UniView"
+ }
+]

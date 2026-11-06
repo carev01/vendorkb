@@ -1,0 +1,404 @@
+{
+ "question_id": "cv43-04",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect On-premises",
+   "chunk_ids": [
+    "bfb8af83-d296-4542-a7da-26a87b277f58",
+    "d831b501-7804-424f-85b0-abfd682b730d"
+   ],
+   "doc_ids": [
+    "eb16cac3-eb08-4007-9211-7d96964ddfc0",
+    "d3c2ad3e-0081-4d32-b81c-171375a62637"
+   ],
+   "note": "Backing up to a tape device (drives/libraries) attached to a storage node."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve Backup",
+   "chunk_ids": [
+    "480770e6-0b1f-4241-acd1-fc910aeb9fdd",
+    "15bcab2b-f057-422c-8298-b67d4da817b9"
+   ],
+   "doc_ids": [
+    "a021e166-9269-4629-9fac-6567117668f0",
+    "105a1f65-031a-4d69-99e9-54d8b840965e"
+   ],
+   "note": "Back up to a tape library; Tape Library Option configures libraries."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "24cbcaaa-d493-4bff-96de-f79b19385cff",
+    "292ae31f-2f1c-4e49-b9f2-6bd6ea66d884"
+   ],
+   "doc_ids": [
+    "4c4ff757-c0f0-44b0-a441-210bbbd9456f",
+    "909f2ba0-decc-42a0-8f75-982daa2cd714"
+   ],
+   "note": "Backup Exec manages robotic tape libraries and tape drives."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina / Miria",
+   "chunk_ids": [
+    "a9ecb09b-94c2-42fb-86cc-f9c93caaa137",
+    "ebaac4b6-b9df-4ba1-88ee-6e1bbaa99951",
+    "603b41f6-3e52-40e1-8c6f-d44ea7a90067"
+   ],
+   "doc_ids": [
+    "23a8975a-8dc2-48ab-a6e6-4488414638cf",
+    "e34dc9e8-3de6-4f22-83ba-3d9adcab4efa",
+    "23739821-5e22-4320-92c2-389403b2273f"
+   ],
+   "note": "Tina tape storage with library types and LTO drive compatibility; Miria supports tape libraries."
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "61591ec8-4204-4068-9706-f931c946f497",
+    "2679679b-4c1d-470b-b6fd-bc27be463d60"
+   ],
+   "doc_ids": [
+    "3a5f44ac-60a6-47a8-a14d-f935299ef702",
+    "5e5cce0d-f68b-4d75-8fb4-e947f3ff84c7"
+   ],
+   "note": "Tape autochanger/drive configuration and testing for backups."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup",
+   "chunk_ids": [
+    "9a1f8f9a-9e36-4e78-ab9e-d251a8ae4c7a",
+    "4825d52f-5392-48ba-8f5b-2f46caa48234"
+   ],
+   "doc_ids": [
+    "6ac3fafb-c94e-48b7-8456-ea8658324523",
+    "4157dcd9-d16a-4639-88f4-4db49935a692"
+   ],
+   "note": "Appliance spec lists long-term retention vaulting to Tape, Autoloader, Robotic Library (found via SQL)."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup",
+   "chunk_ids": [
+    "94a25c4e-cb80-4bc0-80e3-d2c8f3ddcdbf",
+    "3c50364f-2894-4fe4-93ad-a09886946c77"
+   ],
+   "doc_ids": [
+    "3d432c97-67d4-4f86-a003-963abd50273b",
+    "8b91734b-f7bb-404d-845a-1407cef3580b"
+   ],
+   "note": "NetBackup backs up to tape drives/tape libraries (NDMP)."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell Console",
+   "chunk_ids": [
+    "4ebdd176-fa1f-4d98-b067-9351fdea3d9b",
+    "c75890ed-cdb8-4f87-b40c-d6a131ac617c"
+   ],
+   "doc_ids": [
+    "90e097a5-f099-48a4-ad19-31c56f01970d",
+    "d96dfffa-59fe-43f4-8e3e-6ebd83d385a3"
+   ],
+   "note": "Tape storage/tape libraries and drives as backup targets."
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "NetWorker",
+   "chunk_ids": [
+    "96f1ff94-86f4-4847-94a3-202010a6a693",
+    "365a8092-7451-4aa3-bbe6-fc1e1306e7c3"
+   ],
+   "doc_ids": [
+    "a7526d2a-a446-4e61-a9df-ce0ea33f1a12"
+   ],
+   "note": "NetWorker backs up to supported (WORM) tape drives."
+  },
+  "Druva": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "bca40454-0665-49fa-847c-1cf05be08cf9"
+   ],
+   "doc_ids": [
+    "9d8abac6-d314-40e6-8a55-45cf2345e654"
+   ],
+   "note": "FAQ explicitly states LTO/DAT/DLT tape drives are not supported."
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "1e15767e-83c4-4695-925d-b75471441d3c",
+    "932631c5-27af-4ede-8e28-c0bb86aca876"
+   ],
+   "doc_ids": [
+    "4733087e-a5e8-447b-b5c8-3b0c234760b3"
+   ],
+   "note": "LTO device class for tape libraries and drives."
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup (DPM/MABS)",
+   "chunk_ids": [
+    "a3fd8b90-03a4-4cf0-a7fe-3bde14715f81",
+    "78702ba7-c71a-449a-9368-a36a9a7db857",
+    "1fa4fb70-b86d-4680-952b-6c0414bdfb0d"
+   ],
+   "doc_ids": [
+    "6fb6031b-18ca-4997-80ae-07c01a60e28d",
+    "861ab6ba-9644-46cc-ab35-cde79ba1b8f3",
+    "039dd6f2-cf1d-40fc-a3e9-190a64e2dcb3"
+   ],
+   "note": "MABS/DPM long-term backup to a standalone tape device or tape library."
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "1b1fcae7-07e2-463c-a51f-7aa79e670e36",
+    "2d12a01e-6f10-4b9e-97d1-92154045f6ad"
+   ],
+   "doc_ids": [
+    "bb009ac8-7822-4516-8846-372c8d5f5009",
+    "152af96c-efdf-47c3-b317-fd14ea479ac3"
+   ],
+   "note": "Native tape support for automated tape libraries and standalone drives."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "unclear",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "dd337287-3b71-4c24-88c4-ca84afccdfe3",
+    "1171dcc6-4e6d-4cd5-aca8-cee88a3831ec"
+   ],
+   "doc_ids": [
+    "13239469-aa51-4655-b3de-a26d09939db9",
+    "478201d5-027f-48f9-8b34-207f5cd0990d"
+   ],
+   "note": "Archives to tape only through third-party QStar Archive Manager."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "e46e7777-6b80-4caa-a7de-406f9e7433cc",
+    "fba9e86f-4794-42b8-9d74-108c694ff285"
+   ],
+   "doc_ids": [
+    "2e5e738c-bab5-4717-98c6-0112f875f8c7"
+   ],
+   "note": "Tape pools with tape libraries and drives as backup destination."
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "7223fa73-624f-4608-8a39-7bb6616f7b89",
+    "4100ca1b-eac6-43fa-b5b5-adc8cf3de076"
+   ],
+   "doc_ids": [
+    "e5b642ef-1c0c-4870-b5e0-36bf342bd06c"
+   ],
+   "note": "Tape device/autochanger as backup copy target."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "0c7411bb-9a51-43f7-9a80-ad0d29c6a757"
+   ],
+   "doc_ids": [
+    "1e0fa871-58f6-446d-9d1e-84526729c7c2"
+   ],
+   "note": "Backup to tape jobs copy backups to a tape library."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

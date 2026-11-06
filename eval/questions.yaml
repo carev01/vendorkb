@@ -1783,6 +1783,114 @@
 - id: ex-rt-10
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["dad69d7c-189b-4d53-8d70-40697eae685a"]
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud / On-premises"
+    article_ids: ["45697e59-b8b8-4bb3-8cc7-4775b6670a21", "ddb4705a-7980-4ff9-99c1-13f7972a5865"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["0a9ccf84-1472-41bd-869a-2a396dbda267", "c882ed4a-77f2-4d6c-baa8-6dbca1816ff6"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["519bd917-83c0-4fa4-b003-d4e8adea4005", "c3f0502b-f300-4dac-a716-5a4ad35f3b44"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["68ce54ba-89bc-47da-bbae-ecee297c4845", "d7379400-6763-4a67-865c-ebbad05b3f9c"]
+  - vendor: "Atempo"
+    product: "Miria / Tina"
+    article_ids: ["7325176e-7863-4811-9551-5908c18c7007", "d0b04adc-0e7c-4872-b6f8-1fcb8e9935e2"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Microsoft 365"
+    article_ids: ["79d9c9b1-169e-46da-8b98-28e0cfd25e6d"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["4c5e1da8-e2af-4b67-8867-68f75da4aa69"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["2199072a-0625-4d42-9a84-0d9c8e9a1185", "75bf6529-da76-4a09-9a41-29110e4a303f"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup / Cloud-to-Cloud Backup"
+    article_ids: ["04547fdf-fa9a-4fa5-b3f9-075542c703dc", "1c70bf66-e2bd-46f6-b716-757563fc646c"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["4d459d9f-f827-4723-95d0-51d2bc103345", "6c78c339-4417-4225-8db9-7668e450a46d"]
+  - vendor: "Cohesity"
+    product: "NetBackup"
+    article_ids: ["9febaea9-0959-4656-bdcd-8a754af7c658", "e14fc8b6-2bbf-4ff0-b396-3c580d632fa7"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["455098ce-dbcd-4a7d-bb02-825a95d82f03", "e275df34-8123-495a-8af6-4c9bfc62585c"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["220ec129-0246-4d8f-b8bf-8a70bbe8ca21", "2815eb43-a437-422a-8a73-770b58d8397a"]
+  - vendor: "Dell"
+    product: "Avamar / NetWorker"
+    article_ids: ["da11734f-ccfb-41f8-9b02-283f142d46e0", "f305dee5-e186-4d1c-b5ea-55f21062ba64"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["07e9242e-ac75-4952-9993-82c8210e4608", "81891bbf-f3ef-4722-b44c-ac9bc02e89de"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["01ccf0b0-58bb-4e33-90ea-e15e670cb758", "0a2c374d-abf0-4d9a-a31a-8ca89ab6585e"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["83251b03-e576-48c8-80ab-54baa33e84f4", "f524477e-d83a-4dc6-b022-5a41243a9481"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["4b0c8213-5e4f-47bd-9d51-36a178e35fcf", "b81b8f9e-65cd-4be2-866a-50ae86142c01"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery (VM Backup)"
+    article_ids: ["d36ed90c-bce4-4520-baea-490a767ef696", "e4deeff7-af35-4bc9-8fdf-f662eea16593"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["275989c2-3d8f-4e3e-89fe-a71c7cc5f8e1", "cefa0ec6-6910-49d2-9a40-a74e3663f1e9"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["7cefcd4a-bb78-44fe-a6ba-2973df130876", "94efaadf-0be5-4052-8efd-aaacdf7501ae"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["724ad559-7182-476b-88c7-c0542021784e", "ba809757-e908-423a-b597-3fc7d3c44c53"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["573dec67-c8d9-483e-88eb-71719243d9c5", "a6584de4-c4e4-48a8-af53-0446c5ff2388"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["9e68dc37-b290-4757-a5e0-d953af4b060b", "d63de9f5-ed44-47cf-bca8-ce4f9c38d070"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["d60879d8-b5dd-4cdc-aa92-238297f5a472"]
+  - vendor: "Portworx"
+    product: "PX-Backup"
+    article_ids: ["6b6ae128-2f3d-43c7-96fb-ecf50e110eb9", "81fbca3e-fe21-4704-9bd9-1b825d582da4"]
+  - vendor: "Red Hat"
+    product: "OADP"
+    article_ids: ["3fa52b07-e8f6-4daf-a164-606f6bc33866"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["02b4b629-1a02-4c6f-8fae-a71250dd7e6d", "a9eedaa5-b262-48b3-ac53-12d1eff2950d", "fba33ba5-1ee9-4813-946b-cddd2423362d"]
+  - vendor: "Slide"
+    product: "Slide"
+    article_ids: ["d3da4b08-8f8e-4e57-bb37-b2e6ac73c15d"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["db015445-a9fc-444f-8a4f-48cc4b14bf50"]
+  - vendor: "Synology"
+    product: "ActiveProtect Manager"
+    article_ids: ["6cf32699-b864-4d6c-8a8b-a95470fdde77", "b3d36b5b-73fe-4382-a70a-c4d526458a74"]
+  - vendor: "Trilio"
+    product: "Trilio for Kubernetes"
+    article_ids: ["130eb19a-a884-42ab-8c79-35eb49bca98a", "d8c3f558-d647-4cca-a2c7-6432ecd9ca59"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["53d7f217-f034-4069-9bb6-b84ab5545b61"]
+  - vendor: "Zerto"
+    product: "Zerto"
+    article_ids: ["26924a0a-0a1c-4634-8c30-f53eecbedaf8", "d3a5326d-c31b-4c51-b10f-f4d68564f62e"]
+  unclear_vendors:
+  - "Salesforce"
   key_terms:
   - immutable
   - immutability
@@ -1820,6 +1928,110 @@
 - id: ex-rt-12
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["04b95d92-d3b4-41b3-92fe-a25de736fb64", "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd"]
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["231323ce-3a25-4d35-bec3-4d2c2e89e5e6", "a24dc04a-4238-43dd-b62f-710dff2a45f8"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["bd30bc60-dda5-48bb-9559-78c934f98b7a"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["9ea6b7b0-f4f4-4021-89d0-5579820e304f", "c9c9dc78-59a6-47f0-91fa-88ee0fead58c"]
+  - vendor: "Arctera"
+    product: "System Recovery"
+    article_ids: ["58602359-2fb1-4304-949a-a87af2935e14", "d2a606bf-d062-4d54-bf7d-fe66f3076bf7"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["6e6c139c-5155-422b-bea9-8966493a77d1", "ff0fea4a-8eca-4e45-822b-9c505fdc1779"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for IaaS + PaaS / Microsoft 365"
+    article_ids: ["d6316175-c362-4dc1-be7c-bc43d901cf64"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["339ee028-a1c9-4e84-a671-17807fd11363", "37e97341-2863-495a-a04d-18e70167c238", "5042b2ee-8812-4dfb-bafe-64c1eb4445ef"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["713451d2-8523-4745-9a4c-2e63e60916e5"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup"
+    article_ids: ["291f9481-40cc-4f80-a1d8-bf2d7d756331", "35fd1df5-5f83-44bd-acb6-766f7518923b"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["dadf3301-81fe-4221-96bf-f5d7fb2fcbac"]
+  - vendor: "Cohesity"
+    product: "Cloud Protection Service / NetBackup"
+    article_ids: ["bac563b6-c7b5-4f2e-86c6-bd5989fae60e", "e38b91b4-8da8-4969-ad24-20b80c8397e3"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["e4faaf93-cea6-4e49-ace4-5d3e374124ea"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["8332ffb7-ea27-45ed-847d-ab7dbc2ac4cd", "b27e1f22-eb0b-470b-934d-bb64ea55508f", "dbc90590-2da4-4de9-886a-3e9af6bfdd6b"]
+  - vendor: "Dell"
+    product: "NetWorker"
+    article_ids: ["a72cf9d8-cb5b-49bc-a025-36c52404846a"]
+  - vendor: "Druva"
+    product: "Druva CloudRanger / Enterprise Workloads"
+    article_ids: ["01f7796b-e64f-4c3c-8baf-802a4ad23651", "bb1f62fe-bdf8-4f1d-8003-e9a3c74dd1bf"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["203da96f-aa64-4040-9f92-b3a48f2a3843"]
+  - vendor: "GRAX"
+    product: "GRAX"
+    article_ids: ["a2f4b209-4447-4fcb-9955-014b33b8e33d"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["0cb3de26-2f6f-450d-a72d-da24823ced82", "f524477e-d83a-4dc6-b022-5a41243a9481"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "VM Backup"
+    article_ids: ["d36ed90c-bce4-4520-baea-490a767ef696", "eef1193b-2b2b-4ce9-8a7a-bba9f4f00e02"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["15123c86-6878-4cb3-baab-36b583034c25", "3206bd89-5d2f-413f-8137-c14e90c7a789"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["a6481417-ece0-481d-a73e-c4279e5eec5f", "ecc02e55-394d-4e8d-8020-33c62a938c19"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["162cfdf5-770c-455c-8f4e-7f34d4c8eecc"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["8adc1937-824c-404f-9787-64011d8c8d9e", "cb18cd30-8639-44a5-a326-c032a6fa7361"]
+  - vendor: "Portworx"
+    product: "PX-Backup"
+    article_ids: ["07a776b8-249e-4e0c-81f3-0839c9b156e6", "24e91969-8a9b-4f7a-aa18-d47318b4ef56"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["7cfd2c43-e6f9-4005-82ab-5fb6c783c3b7", "f4943933-809f-4a1e-b87d-31d33549953c"]
+  - vendor: "Slide"
+    product: "Slide"
+    article_ids: ["f139cf16-ca1a-4c20-9537-211fe28b6760"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["2e5e738c-bab5-4717-98c6-0112f875f8c7", "b4e0eeac-7cfd-4b87-bdcf-82d1ede58515"]
+  - vendor: "Synology"
+    product: "ActiveProtect Manager"
+    article_ids: ["c8073faa-2416-42f4-a4ff-275bd23c2dbb", "e691031c-8dd8-46af-9c2f-681f1c6d003c"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["e5b642ef-1c0c-4870-b5e0-36bf342bd06c", "ec4cd42c-e82f-4e3c-9e01-14c61986e738"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["41cb167c-fffd-4a26-acdb-8db2e2992b2a", "a67f57af-7f3b-4ee5-b13e-35016586ddea"]
+  - vendor: "Zerto"
+    product: "Zerto"
+    article_ids: ["19fae9a7-a9ff-4c0b-9de9-1445185e411c", "9e416012-7051-4028-8de1-31af80d293cd"]
+  unclear_vendors:
+  - "Flosum"
+  - "Gearset"
+  - "HYCU"
+  - "Red Hat"
+  - "Trilio"
+  - "Velero"
   key_terms:
   - cross-region copy
   - offsite copy
@@ -1859,6 +2071,46 @@
 - id: cv-01
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["693a3299-dce2-4640-8656-e05935725149"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["19d7e515-22ab-4bdb-8162-584d8008dd1b"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Microsoft 365 / Salesforce"
+    article_ids: ["3cae4d28-b310-4ace-9472-ac952a0eae7d", "dfb453e4-b21d-4ad8-9a0f-9e0a78050e76", "ec37c6b1-f072-4f62-b998-41d54997c72a"]
+  - vendor: "Cohesity"
+    product: "Helios / FortKnox"
+    article_ids: ["0c572d50-583d-43a9-8d80-80ac74a55088", "18d777cd-3747-49c1-b192-4d0072e885b2"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["872ea0e8-7d37-4e10-8ebd-a0af9ac367a5", "95bb3405-c0f7-4ab5-a6e8-a938f9ecc64e", "acf2521e-1d95-47fc-95a2-4bfe74873df2"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["717b5aca-d3d4-4a39-990c-2a90bba37d91"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["2280f1fd-621e-41d0-abda-02513dd16204"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery (365 Total Backup)"
+    article_ids: ["36e45a29-a9ea-4da2-b05f-4d9df88155b9"]
+  - vendor: "IBM"
+    product: "Storage Protect / Storage Defender / Copy Services Manager"
+    article_ids: ["247fa056-b423-42f5-9372-21e50577e150", "da25f53a-e01b-4e8b-a702-6127b4f460b5", "e3121d5b-becf-4375-a342-070dae636312"]
+  - vendor: "Microsoft"
+    product: "Azure Backup / Microsoft 365 Backup"
+    article_ids: ["0ae27869-d301-41e3-a3dd-91478ffeb73d", "6d5aa2c9-7dff-430a-997e-86448604c7d2", "a6481417-ece0-481d-a73e-c4279e5eec5f", "bbf27686-1c55-47ac-9ce5-2829663fa28b"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["4a2b8d64-060e-4082-a415-302114a2922c", "6e5625d3-1622-403a-8c10-363ffa261400", "87186ffe-0467-4827-88f0-47cc6b222e61"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["c9aedbf0-a995-4954-ac9e-514c64b7a80c"]
+  unclear_vendors:
+  - "Dell"
+  - "NinjaOne (Dropsuite)"
   key_terms:
   - four-eyes
   - multi-person approval
@@ -1901,6 +2153,59 @@
 - id: cv-02
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["e2f5ddee-5104-49af-bdc4-d2a7a06bf6d6", "e85a46a9-0350-4ce9-a407-b853622ad094"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["0c8eeb50-d76c-4768-bd24-d8568bf19b0f", "5353965a-5b04-47d1-af77-89706caffa29"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for IaaS + PaaS"
+    article_ids: ["f68eae51-e698-4d4a-94c8-81b846d7e7b0"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["62ec11ab-c569-4600-bb2d-87f996eb316d", "97db0bbb-c85a-4b91-aaf8-2eab89f1153e", "b001faa8-43c3-40eb-8b39-5dbb27e8c762"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["2d8c7db8-e88d-4f44-bf96-1a996b081bc0", "c286e27f-ef67-4301-a2fc-852e41321aa6"]
+  - vendor: "Cohesity"
+    product: "Cloud Protection Service, DataProtect, NetBackup"
+    article_ids: ["108efdcd-4e11-4e2e-b751-6c03bc9f9f3b", "2f824e4e-ad8a-4839-ba43-b77fecd2af21", "f3fee091-15ee-4c51-9614-d9ef905a5ffb"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["559a4471-83d5-4b2c-aebe-0e7ac0ae2c05", "981a33ce-b530-4de7-ab14-d33794d47b7c", "9883b4dd-149b-4090-82ba-05559bf7a8bc"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager"
+    article_ids: ["15364424-8db8-4bb9-9e2e-df7e04e9bac8", "8f15fd43-29fd-469b-a127-0ce235798d46"]
+  - vendor: "IBM"
+    product: "Storage Defender"
+    article_ids: ["2b2d4682-0e14-42ee-9a49-b282083ce4fc", "c092edb9-f60b-432f-8660-e9b35fd568cd"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["45a0d60b-9292-47a8-bcef-34451965fbc0", "b49a7c60-558b-4d79-96f4-de6a38913dc7"]
+  - vendor: "Portworx"
+    product: "PX-Backup"
+    article_ids: ["113d7958-7fde-4f09-b5d9-743685e5f3a4", "46b48e12-68bf-4517-8563-6559f9084f45"]
+  - vendor: "Red Hat"
+    product: "OADP"
+    article_ids: ["3fa52b07-e8f6-4daf-a164-606f6bc33866"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["523720c5-83f1-4364-a055-5c63ba3ebcaa", "68165b5b-e371-46e8-962a-cd6742444283"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["967f8b76-52c2-4a04-be7b-12e54a37e37b", "9b89ca4e-e30d-4bff-86ea-3e0fc845417c"]
+  - vendor: "Trilio"
+    product: "Trilio for Kubernetes"
+    article_ids: ["9363b885-f38b-42b9-a832-65e958c0c9e5", "befcd0ed-f1aa-465e-9028-1e73cdae2981"]
+  - vendor: "Veeam"
+    product: "Veeam Kasten for Kubernetes, Veeam Backup & Replication"
+    article_ids: ["92f8a81b-64b8-4e57-959e-6c29d1fa79af", "e08447ac-f1f9-446e-9d90-7a5750c473e8"]
+  - vendor: "Velero"
+    product: "Velero"
+    article_ids: ["1c144337-8c54-429c-bf50-66e4d34923e2", "2a73457e-0e2c-49ab-9c81-79eb9527ad65"]
+  unclear_vendors: []
   key_terms:
   - Kubernetes
   - persistent volume
@@ -1940,6 +2245,78 @@
 - id: cv-03
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect"
+    article_ids: ["634e6356-3e2b-4e5d-bc67-5856e6fe835e", "6b306be8-6f84-4044-80e3-c1a1236c5964"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP / Arcserve Backup"
+    article_ids: ["79395a9a-ca1a-4344-859b-1030e73630db", "dc9c8f3b-d87f-4332-844c-4443432db06a"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["2d11a0b4-41c4-4db1-82cb-e8b816179cb1", "700988f5-c4cb-427a-bfdb-8262618cedba"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["8ac6927a-89fc-4131-aed7-f5af649a250a", "ea9b7874-4d60-4f4c-95dd-e1bdb470efc5"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["b2573d6b-e098-4c8c-a6dc-1c1dc6d148c6", "f4adc011-2508-4739-87ef-b135df73e2e5"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["4a08bfe1-ad81-4039-9e8a-7f2a288f9b96"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup / Intronis Backup"
+    article_ids: ["0bf555e1-0df0-4874-9356-72a149c1c8ef", "de1bcf71-b53e-4572-8e5e-fade1799078e"]
+  - vendor: "Cohesity"
+    product: "DataProtect"
+    article_ids: ["f06b5258-7db2-4868-9315-7bc83d1cab12", "f2c45592-cd40-4506-85d3-8be3fc50441c"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell"
+    article_ids: ["064d8ca7-a4cd-43b0-84e5-53ee8c4b80de", "6ba3ef06-8d20-4d2c-8dcb-c3f23c471c67"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["84c62508-3b42-47c2-aaf0-173271a2f2d0", "879b6342-41de-42d9-9204-534ec2c43cee"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager / Avamar"
+    article_ids: ["169041f3-90b7-4691-834a-ddaf2354621a", "8186f3f0-981f-48ac-8979-ce6db794f26b"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["343c76e2-a2e9-4d5f-8606-70a2c115b059", "b5d03070-2a66-4025-ac53-a72785726f56"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["7cae55d0-2640-4621-beb8-c39d6a90fb1f"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery (VM Backup)"
+    article_ids: ["28bfe10b-3a77-4a68-b772-6942f9078447", "a383884c-e8e9-4baa-b2c9-363bc3821aee"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["21e09b05-c511-4d96-a8a9-9b69a2fcb9e2", "53a999bd-b066-4227-b5a7-030c0c40fb2c"]
+  - vendor: "Microsoft"
+    product: "Azure Backup (MABS)"
+    article_ids: ["30e340d6-6241-49b5-bcc2-f995ca9a5a2d"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["64152b55-8ef4-41de-9628-1d6f9d95d1a0"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["c5cbd0c3-049f-40f7-a0af-5e8ad5858939"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["a6c876bf-c8db-4a5a-95f9-4ec2df033a01", "c14847ac-a1f9-4e44-835d-a013edb69662"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["3f33a632-3d9e-4fe1-8e36-024c8be6eb68"]
+  - vendor: "Synology"
+    product: "Active Backup / ActiveProtect"
+    article_ids: ["39a9f681-4e34-4c3f-b391-a03388e90b5a", "55158688-75d1-435e-b886-eebbe2f0952e"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["a081b2ad-741a-42bb-93d4-dc53eb6a4e2d"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["2aeed8ec-da60-4db8-8d1d-ac16cedd8e96", "458bb44f-6ce2-492a-a6ca-ec7dd50bac07"]
+  unclear_vendors:
+  - "Zerto"
   key_terms:
   - Hyper-V
   - SCVMM
@@ -1973,6 +2350,50 @@
 - id: cv-04
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud / On-premises"
+    article_ids: ["03acd761-0e00-4343-998b-95adef25258e", "c3798a54-2b7f-4117-ab59-6210af52c8a4", "d9e57dce-a5af-4447-bc60-9d6cf0449290"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["e5a7d0a2-574f-4117-bb89-3bfa1d7d8888"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["98027f96-be19-4dbb-b354-87ad32e29f59", "b3ec0c33-b510-463a-9d88-29e3d9df469d"]
+  - vendor: "Barracuda"
+    product: "Intronis Backup"
+    article_ids: ["417fc6d7-a1aa-4137-910c-f03329fced66", "4a0d6e1d-1a10-452f-a17d-2216117d325f"]
+  - vendor: "Cohesity"
+    product: "NetBackup"
+    article_ids: ["a2b7cf73-fc59-49f2-bc26-f11215b8610d", "c16ab890-bc96-4103-97be-20115600b7e4"]
+  - vendor: "Commvault"
+    product: "CommCell Console"
+    article_ids: ["106f1d02-0910-4fd4-924e-928762c3a4ac", "8895c87f-33bb-446d-8dfa-c5ee3e8c6205"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["29345cd2-d8dd-4e7c-860f-b358287d5598", "476c84c9-a797-414b-ba33-275ff45c18a0"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["7b9fd7b9-2e52-4202-ac31-92b9c47d6c0f"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery"
+    article_ids: ["eef1193b-2b2b-4ce9-8a7a-bba9f4f00e02"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["296a549f-4de1-4c4f-94ef-772fa256bb5e", "390fd0aa-c44a-4f13-b0e7-baf15c5db0b4", "e58a6466-9799-4f6f-9cb8-3a17b882e9f8", "fc281823-5360-42d5-9157-5f2b463219bc"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["49898ccc-eb34-4cb1-829e-d327ff95a1ed", "8ad1eb35-ab07-463e-baaa-99931b4c30bc"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["55712e91-993c-4b33-98d7-3bf5dd614766"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["165e1c93-1f5c-4613-81d3-fbac5b5c2acc", "e4a4f400-b14f-4cd2-b966-5e5b936b0636", "f8ec6de8-d896-4d48-a651-6efeda0590e6"]
+  unclear_vendors:
+  - "Arcserve"
+  - "Unitrends"
+  - "Zerto"
   key_terms:
   - seeding
   - Snowball
@@ -2009,6 +2430,85 @@
 - id: cv-05
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["481d7026-1b57-458e-9ee0-b3d01e8ec761"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["41ab460b-191e-41e6-8864-4ca65866efb8", "46e136af-9a21-470b-9159-cd652073ce3e"]
+  - vendor: "Arctera"
+    product: "DLO / System Recovery"
+    article_ids: ["b87734b9-981c-41ee-8eac-2c0d3af264b8", "f8de61e0-48e7-4e19-953c-066f9658c7ab"]
+  - vendor: "Atempo"
+    product: "Lina"
+    article_ids: ["b52fa29d-ce88-47f1-bd36-c68ae520b541", "ffabd80b-cb17-45de-9953-c7a7f1dcf899"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["4e6542c0-f90b-4b6d-bee2-b14611161b35", "6e80ba27-5b33-41aa-9815-09b3145bfcc5"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["819c4dd9-fd25-4373-ac0f-7359299616b3"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup / Intronis Backup"
+    article_ids: ["0f0cc1ad-6aed-49ab-ad89-7ac299115884", "f899cb79-7710-4b58-b3a0-62c9ab7c6b91"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["19c89b8a-4a35-4491-9093-9ce476a6177e"]
+  - vendor: "Cohesity"
+    product: "NetBackup / Cloud Protection Service"
+    article_ids: ["12ef870c-c652-436a-9b8a-517cecc7164c", "cfc4d983-2e57-41bc-a830-e087b8833548", "d742e49f-fcba-48b7-8858-9067278a5f38"]
+  - vendor: "Commvault"
+    product: "CommCell Console"
+    article_ids: ["db37617b-002d-452d-b7b6-39e738f49160"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["55f70d31-572f-4e83-9fd3-60f206f38cb6", "c16e15cd-8329-4536-921c-7443b955c843", "fb5df071-6a6e-4ffe-b6b4-0bf5aee472d0"]
+  - vendor: "Dell"
+    product: "Avamar"
+    article_ids: ["397d1fb9-2f59-4cba-a8b4-92c36151d8d6", "3a90edec-e6d4-4eb5-8fdb-d054314c0bdd"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["207f5f87-e1c8-4f85-93f3-569691389b97", "7899b74c-8547-4573-b0fe-e88bae325798"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["f1080ff3-14ea-4679-992d-7fbb049040b7"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["f1f523de-d788-4267-b385-393d1ba75536"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery"
+    article_ids: ["6c8e4e26-9812-466a-aad6-4d52f894bf62", "c2c3d26e-2c14-41a0-8cf1-00276a5bb13c"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["b48359de-14a9-4148-92bf-2f1b26513e75", "ffe67841-f64e-4adf-a348-12a376449c7e"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["4f5cdc70-6d4b-4a24-99dc-53831cfaef1d", "e84a1182-d886-47a0-826e-a66caf0b054f"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["d56867dc-48c5-4513-996c-4f841c3c46cc", "dc7d456a-999c-4176-ac60-a7f63c7de97c"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["ae69964e-ce17-46ac-b513-01be67671dcc", "b3274699-02db-4e92-88d3-055424de4d93", "d7c1b888-b6e0-40c0-8ce3-e215399db793"]
+  - vendor: "Synology"
+    product: "Active Backup / ActiveProtect Manager"
+    article_ids: ["32c2ad7a-4e59-4445-8dd6-5f4cd1af9b9a", "9e16eb09-a212-4a46-9d53-7ea2bcf0215c", "e098212b-9250-4abf-8626-159f375c27f5"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["e5b642ef-1c0c-4870-b5e0-36bf342bd06c"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["91cda81f-a595-4f2c-8fb1-606821b1741c", "e418d768-bf2e-4ef7-9ea8-2fdbce16393c"]
+  - vendor: "Zerto"
+    product: "Zerto"
+    article_ids: ["d72ee503-a12f-40a3-9447-9defe39511fa"]
+  unclear_vendors:
+  - "Acronis"
+  - "IBM"
+  - "Portworx"
+  - "Slide"
+  - "Trilio"
   key_terms:
   - bandwidth throttling
   - network throttling
@@ -2051,6 +2551,90 @@
 - id: cv-06
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["71ae694d-219a-48ca-804f-cfb960f8be4d", "bd24cba4-c4d3-4e1d-95d5-82ef37bb2970"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["1f41f1c3-74d7-4faa-8ac0-5135b70f8ead", "74c4b5df-22cd-418b-aa1d-cb74ae5060a5"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["8ebf10da-1e03-459c-b670-1ce815251659"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["7bf61142-5736-4e5a-a3f5-57f6b5778925", "a037440d-0afb-4186-acb3-677d8dee8772", "fba01142-a6ca-4a64-bc74-cda88c85ec09"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["18c45191-0f7a-4c54-beab-3b6918133f5a", "bf70969a-9c60-455e-9766-eef025a56ded"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Microsoft 365"
+    article_ids: ["205d38e9-195c-4863-82b0-9ee23493fdd1", "d56f6275-c52a-4417-b820-099b210146ec"]
+  - vendor: "Axcient"
+    product: "x360Cloud"
+    article_ids: ["7d078e4e-26fc-4fa0-b258-fc4387e201c8", "c4885c64-150f-4fc8-95f6-6649ea6a13f6"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["2e2a6f29-4dac-49b2-a7ab-d4b9dacd2c4d", "be89918d-4518-4044-a75e-807cf8bb1d97"]
+  - vendor: "Barracuda"
+    product: "Cloud-to-Cloud Backup"
+    article_ids: ["9d99da2e-5345-4797-ae5d-4c10fc8c0ab9"]
+  - vendor: "CloudAlly"
+    product: "CloudAlly for MS 365"
+    article_ids: ["2d4af1bf-4614-4597-8613-d38fd2c31742", "5c55b6ea-8822-499a-9e9d-d59906979594"]
+  - vendor: "Cohesity"
+    product: "Cloud Protection Service"
+    article_ids: ["d2ffacab-820f-41d5-8a4a-0b882eedcfd3", "d8359f96-c86c-4db1-a8d1-9a199573c50f"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["5aa3b59f-ca35-46c0-8378-3fb275b76e86", "956d4329-eafb-49cb-a0b3-e70451cab9fc", "e5ff3c00-4e95-4954-bdf7-d1398012db59"]
+  - vendor: "Datto"
+    product: "SaaS Protection for M365"
+    article_ids: ["2b923f1f-061f-4e95-891d-69d8966c4e51"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["4d1e3860-ac72-473d-9705-b92d3c5e8bef", "d2cac951-fce8-4f51-ab0b-ff26369fbba0"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["27d95f60-54d4-4d4e-a176-36311ccbed4e", "6a094b76-d85f-4c4f-9d6c-787c829400ce"]
+  - vendor: "HYCU"
+    product: "R-Cloud for Microsoft 365 and Google Workspace"
+    article_ids: ["32836ab0-c35c-4cef-92c7-566edecada48", "e4714e79-c7b8-4883-a470-47d7253e95aa"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery"
+    article_ids: ["24a39bb9-b321-4852-9a67-51da896abe4b", "92b600e9-c443-4a68-a804-47c913dce0b8"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["7fa7d182-6c0a-4c8a-8ce0-7b104a2a613a", "fb03c83d-da49-4ada-af1b-56b20c821937"]
+  - vendor: "Microsoft"
+    product: "Microsoft 365 Backup"
+    article_ids: ["5c9a6c31-f0ef-4726-9dbe-4e911625025b", "be59ddcb-555c-44c3-bc17-49d341b1a334"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["17f8eb63-ffd6-4c12-8ed7-c701c5192fca", "89ce80d1-5206-44c5-afd5-b825abd27c19"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["7d44e8a0-eaa1-49d3-b755-0c797fa2c23d"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["53ff6b2d-faa9-4391-a2d4-4e278e144ae9", "c2e750cd-eb78-4862-8d02-56d21d268769"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["47e29d75-93bf-402e-88a3-2e02d8851771"]
+  - vendor: "Spanning"
+    product: "User Guide"
+    article_ids: ["6397f43e-2159-4dbb-89f2-18b88c3b1baa", "ea5f1651-d66c-47b0-8428-c262e1111107"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["11aba04f-bb99-44f2-a198-b1d7bf58ee11", "ebc9cbba-47ce-4351-bd4a-1bc291d1d6f4"]
+  - vendor: "Synology"
+    product: "ActiveProtect Manager / Active Backup"
+    article_ids: ["11c84bb6-2f95-4c85-b913-02ea0b6817d9", "3f57a043-4666-420d-820b-541c71062b7b", "4e099d97-5c20-4e91-b59c-536b17b1dc05"]
+  - vendor: "Veeam"
+    product: "Veeam Backup for Microsoft 365 / Veeam Data Cloud"
+    article_ids: ["93f90d77-197e-41c2-8685-6a3b957546ae", "a5f866cb-98c2-40d8-9268-206dbfdbf987"]
+  unclear_vendors:
+  - "Unitrends"
   key_terms:
   - Exchange Online
   - OneDrive
@@ -2085,6 +2669,103 @@
 - id: cv-07
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["08b4ad14-3edf-4180-b628-e3905b1379e3", "3704689c-2a17-4cb0-a0e9-e87707097ef6"]
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud / On-premises"
+    article_ids: ["297e3da9-d719-486a-a4e9-0d0537d7cc88", "91ce8318-6bb4-4c96-bb0f-9da4c2117c9f"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["3c117bbc-d0e1-4584-8082-3fd723e5ef73"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP / ShadowProtect / Arcserve Backup"
+    article_ids: ["1785e84a-c442-4f86-bfce-f7cad3dd6dc7", "24288755-24c0-4dae-8df4-1564077a7ec4", "316f87ca-d158-4b19-9543-fbefbc2c90d6"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["b8105146-4243-42cd-82f6-77a65045bf50", "cdf1aea3-22fd-4150-bc42-48059f98c3c3"]
+  - vendor: "Atempo"
+    product: "Lina"
+    article_ids: ["560474ce-1c66-4f31-bf73-17bb0002c09c"]
+  - vendor: "AvePoint"
+    product: "Elements (MSP Administration)"
+    article_ids: ["26aa0a22-c460-43ae-8d40-a2f72b51743e", "fea6dda0-2d69-42ec-9cac-7bd44564bd14"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["a04d20fe-be62-44ce-a217-9c24e0204180", "b699f952-256b-4c0d-ac7d-586012fc864d"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup / Data Inspector"
+    article_ids: ["223b9ecb-b9b7-46c7-9902-0edcc445b0c0", "3b267f1d-d500-4cfd-9286-153283583bef"]
+  - vendor: "CloudAlly"
+    product: "CloudAlly for MS 365"
+    article_ids: ["76b1cb57-9d91-4d5b-b96a-d0a29c6d41d4"]
+  - vendor: "Cohesity"
+    product: "FortKnox / NetBackup IT Analytics"
+    article_ids: ["28df7e33-92b9-494c-9d7d-16c1fc6acc87", "9ea251fa-f87e-44ce-8dce-7b2d15866754"]
+  - vendor: "Commvault"
+    product: "CommCell Console"
+    article_ids: ["0a57df4c-ef97-4171-bbc1-1b687c4bbf4f", "f8ccaa75-598b-4077-8ded-92fad6e52b4a"]
+  - vendor: "Datto"
+    product: "BCDR / SaaS Protection for M365"
+    article_ids: ["6d8dc85e-b237-4cd9-9564-8cfb81f2f52d", "7f7ceda1-0d91-419c-90d1-a3ad6ed94b39", "99b7dc3d-fcd0-4a6f-a47f-22d64616909a"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager / Avamar"
+    article_ids: ["30b1235b-8460-49d1-91bc-1bcf98b7c325", "45fd814a-a918-43ae-93a2-34cb5d2c67e7"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["3001e606-b1fa-43c1-851e-b04a38bb5c1b"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["13068f53-668c-41a5-ad77-cb899ef57fad", "7640d7e1-936f-4b77-9374-f76d548a8122", "c49fb066-4b5c-47c2-b667-836e239f332d"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition / HYCU for Azure"
+    article_ids: ["0e962c78-eb79-432b-8cf5-201b145cb98d", "a33d4c4a-b634-4dba-b2c4-8635be26c61a"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery (VM Backup)"
+    article_ids: ["307dd953-2493-4d43-8f2b-60451a6a6cfc"]
+  - vendor: "IBM"
+    product: "Storage Defender"
+    article_ids: ["6dceea52-1eac-4717-80c2-ecc8135b0c6a", "b5bc01de-18e2-4e7e-a4db-e989effffe6e"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["0569e31f-0dba-42c1-8fab-9fd838f6a4a3"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["4b79b518-67c7-4a99-b26d-bf8765d6a2b5", "be281c8c-34aa-471f-990f-263ccffb0e5e"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["1043b299-d9f1-4711-84e6-83a3875c3145", "a90b293b-6ccb-41fe-bce4-1d9365fef5a7"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["5a59f13c-4b2c-4ddd-b365-d354e45846f9"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["ae3d762f-72e4-47ce-bf9f-6a0ae925ad95"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["6a1ad0c1-2651-4143-9366-48ebdc4cd3f1", "f008f533-0a60-49b5-8e96-6e36f71a3e66"]
+  - vendor: "Spanning"
+    product: "Spanning Backup (User Guide)"
+    article_ids: ["107a1dda-5adc-4c8d-ad5a-b47dee4df395", "b7c96425-d6e6-48db-9bee-df47c277db0a"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["79c9c3d2-f91e-4d07-9cf0-6fd84ae8f787", "db015445-a9fc-444f-8a4f-48cc4b14bf50"]
+  - vendor: "Synology"
+    product: "Active Backup / ActiveProtect Manager"
+    article_ids: ["335483c8-b00a-405c-aee8-0607cbde192f", "d97602cc-f5ff-47d5-939d-fe13a553ee25"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["09ff529f-2572-48d6-8e7d-923bde6ecc1c", "53d34283-3539-43b2-bc12-ff2fc3c6e6ca"]
+  - vendor: "Veeam"
+    product: "Veeam Data Cloud / Veeam ONE"
+    article_ids: ["3d6779bf-74fc-4080-a2f3-fde6d871ad87", "dacfd41b-aba7-471c-9246-c9dfa8d089f4"]
+  unclear_vendors:
+  - "Bacula"
+  - "CloudCasa"
+  - "Gearset"
+  - "Salesforce"
+  - "Zerto"
   key_terms:
   - scheduled report
   - email report
@@ -2124,6 +2805,43 @@
 - id: cv-08
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Arcserve"
+    product: "Arcserve Backup"
+    article_ids: ["4ba4060a-b6b4-4067-b932-a1ba86fe2902", "f367facd-aba4-43c4-be96-6590dc34ed49", "f8fdd5fe-e684-441c-99e8-2a78877770e6"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["7a7e20a5-03b5-40bc-88f4-b506a2ff1813", "e59f8792-acfc-4b75-b73a-b8d3c7feb8b3"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["4e701cec-4602-4669-b102-44b49d37af95", "fabd24a4-cf10-4b09-b626-c7d2759139d0"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["819c4dd9-fd25-4373-ac0f-7359299616b3", "bd1381c2-5b6c-4974-86d2-71dde885606e", "ddd7fcb1-40fa-4f7d-860e-54bf309b260d"]
+  - vendor: "Cohesity"
+    product: "DataProtect"
+    article_ids: ["614c7a06-b8e3-444d-bbb7-6b9a5c613bcf", "f2c45592-cd40-4506-85d3-8be3fc50441c", "f580be53-8eaf-4cfe-85a1-abe5035035c6"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell"
+    article_ids: ["66644211-b6ca-449e-928e-750f2f6dfdbc", "ac8bf340-e516-44dd-a68e-80bf88761e1d", "b3017642-c8b6-4faf-aa91-b4112571bad6"]
+  - vendor: "Dell"
+    product: "NetWorker / Avamar / PowerProtect Data Manager"
+    article_ids: ["39bc6540-c94f-492a-8944-528a6239c361", "97e75e01-d01e-42eb-b061-135c0b0a579b", "9e8aef2d-cc7e-40ce-86e6-70b183f4d093"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["36ff1fdc-4b31-485d-a4d0-3ac4d64414bc", "49383a81-e892-499d-bc72-8d2d05561ab3"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["376e4815-0a33-4267-954c-6f49501d6a2f", "58e1d598-1cdc-4d3b-beb5-e70972c92e77", "f2d473f1-133f-4be4-840e-f9afb07bf3ab"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["2fcac9ed-7174-4ba3-a09a-305716aefe89", "a7c78968-2078-4c92-847f-296117438387"]
+  - vendor: "Veeam"
+    product: "Veeam Agent for IBM AIX (VBR)"
+    article_ids: ["43369e60-c4b3-4abb-9fbc-05a811507e55", "c0fbff20-b69f-4f97-a870-2a4def60d356"]
+  unclear_vendors:
+  - "Druva"
+  - "Nakivo"
   key_terms:
   - AIX
   question: We still have some IBM AIX servers. Which of these vendors can protect AIX machines?
@@ -2151,6 +2869,94 @@
 - id: cv-09
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud / On-premises"
+    article_ids: ["0ba21aed-3af2-4564-95ed-b7fbe03e1cf0", "3ee6e223-eb2a-45e2-b20b-a2dbf5048898", "5b497484-c73e-4035-854d-e19a17153483"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["3b2e8468-d8b9-4219-b834-471a68700aff"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["ab8d7ea8-3048-4296-9b0d-3258919aa12c"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["1e892267-5a81-4b86-8dc7-99fbdc025afc", "d5c34da6-b84b-4647-9933-0ae69feef753"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["53eeca57-2264-4a63-a67c-e230c62e460d", "840537ac-d936-43a1-b168-0306b63603ef", "84ceb64b-a2ac-477e-8498-fbbde507bd3b"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup"
+    article_ids: ["735a0958-86cc-4072-8794-1a3385b85bb3"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["19c89b8a-4a35-4491-9093-9ce476a6177e", "637a75b2-6105-4e43-b4da-cc231b2e3e86"]
+  - vendor: "Cohesity"
+    product: "DataProtect"
+    article_ids: ["6a5ea64c-d4a4-4390-956f-40ea4e802e17"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell Console"
+    article_ids: ["3c1871de-4ea6-4b73-a444-1c17e20a8e09", "6c5f6212-21a7-4e1d-8f7e-68fd32b9e381"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["590a3b17-05fb-4624-9b94-40ef4732d26f"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager"
+    article_ids: ["247d135a-40a1-4da4-9ca4-e0c478e9920d", "3a335476-9216-4aab-94a0-d8be639ebb00"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["69aba438-00b5-4a38-b95c-5f5ba5435e0c", "ee98d3d9-d57f-44e9-9d7b-64238b916ae6"]
+  - vendor: "Google"
+    product: "Google Cloud Backup and DR"
+    article_ids: ["912654b2-c887-4f4e-aabd-08c7c5ef411f", "e1d70fd1-b5e5-4553-8ecb-c6366a9d67f8"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition / HYCU for Azure"
+    article_ids: ["414b4e5e-65ee-4758-922a-47625d3c1ccb", "7808ee1f-b586-42e1-9fc8-ea08b77558c0", "da42cbd0-6349-4fb2-9787-ac6eba52a1ee"]
+  - vendor: "IBM"
+    product: "Storage Defender"
+    article_ids: ["96b8e1d9-a057-44c0-a434-93f81ee3a47f"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["0b9873f7-a1f2-4376-b9c3-8459d69dc2f3", "a8ba8211-f452-4e2d-a7c8-3c24b08155aa"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["b293456c-4c56-4007-81a7-b1c92a2dee32"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["777a2124-f987-4652-be92-243afe0e5666"]
+  - vendor: "Portworx"
+    product: "PX-Backup"
+    article_ids: ["72470cf3-fefa-4a82-a765-41bf39c8f1d4"]
+  - vendor: "Red Hat"
+    product: "OADP"
+    article_ids: ["3fa52b07-e8f6-4daf-a164-606f6bc33866", "b39489bd-643f-4968-8691-44925f330c69"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["6c2a2806-3771-4c4b-87cc-5c91722d9eb8", "afd105be-ec66-4469-9c8f-0b8fb3b911e6", "e2e70ff6-2d74-4161-a7a4-9e4e521eef19"]
+  - vendor: "Slide"
+    product: "Slide"
+    article_ids: ["6258f7ff-1684-4e53-b639-de815b61fbf1"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["33162078-4ecb-4fed-b827-6ca2ba3bc73c", "b0ae1fd1-94b3-4adf-a292-bf96a4feb920"]
+  - vendor: "Synology"
+    product: "Active Backup / ActiveProtect Manager"
+    article_ids: ["c7bce95d-021a-4a3e-aa79-de05219d5996", "fb8bcfd6-9e4e-44fa-b0d3-3140f5f96042"]
+  - vendor: "Trilio"
+    product: "Trilio for Kubernetes"
+    article_ids: ["592a31a3-5bd0-4db7-a362-da3bbb4ba4f9"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["bd21282a-151a-4e30-8e68-d425b348cb94"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication / Veeam Agent"
+    article_ids: ["25176dce-bb87-423b-9132-a753384a6c08", "375d6209-bc9c-44cd-914c-c16592559c4c"]
+  - vendor: "Velero"
+    product: "Velero"
+    article_ids: ["bd636ea1-3179-4b25-8d01-486b702edc67"]
+  unclear_vendors:
+  - "AvePoint"
+  - "Zerto"
   key_terms:
   - pre-job script
   - post-job script
@@ -2667,6 +3473,47 @@
 - id: cv43-01
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Arcserve"
+    product: "Arcserve Backup"
+    article_ids: ["6aa89449-97ee-4d8a-83da-cb182f3f4496", "e316f3c4-b030-46e9-aaa2-766de8d9db91"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["235144b6-7aed-478a-bb27-08f15cc3fca7", "f2e5ac8d-c0aa-4b8b-b4b3-2ca64cacd70f"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["87e28810-040a-4f5c-be14-e4672b43fe2a", "eadc567d-28e5-44db-8d4d-f4cbc57efea3"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["049d2ab2-ab9e-4b3e-a752-e472fc7d4c52"]
+  - vendor: "Cohesity"
+    product: "DataProtect, NetBackup"
+    article_ids: ["b6fc2273-c2d5-4fa6-a59e-90c2e4492cb9", "c751cea8-cba4-4048-922f-010f770aedef"]
+  - vendor: "Commvault"
+    product: "CommCell Console"
+    article_ids: ["65e2cbb9-bdd2-4c28-95f7-328f61cd740b", "9107076f-05f4-4dfa-93bb-b193d7ae492e", "f2e1e534-c9f7-4490-b819-aa358874f57b"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager"
+    article_ids: ["d83c1ba0-5529-4ff6-a5cc-d1c77bb8092b", "ef7316f4-f56e-4d84-90ac-b39598c25491"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["663ecc18-3aa7-4bea-96e1-8968739bc0c2", "c8a1a04c-649e-4f72-ba94-3fa8effce2f3", "f1bf6365-e2fa-4efa-9110-7dc6cd7b7e96"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["9810c1ee-5e22-4c86-a8c5-09654d94792d", "abbe836b-0f52-4d7b-8cc6-d1e144bbf110"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["b91608ef-55d5-4a60-8020-bf2035d75639", "ee35964a-448d-40fc-8e99-e34b6be2ff67"]
+  unclear_vendors:
+  - "Axcient"
+  - "Barracuda"
+  - "Datto"
+  - "Google"
+  - "N-Able"
+  - "Nakivo"
+  - "Rubrik"
+  - "Storware"
+  - "Unitrends"
   question: "Which backup products integrate with Oracle RMAN so the DBA's RMAN backups go straight into the backup system?"
   gold_facts:
     - "Arcserve: documented: Oracle RMAN backups can be submitted from the Backup Manager or the RMAN Console (UNIX/Linux agent)."
@@ -2689,6 +3536,37 @@
 - id: cv43-02
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["4c8a83f0-c01f-4e90-9dc3-15162c581dbc", "bc7eb5af-985b-4564-95de-18780651897e"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["5402e9c9-bd32-438c-a34c-7bfda620cf42", "99ed6b89-9661-4485-81f8-98a913a5b204"]
+  - vendor: "Cohesity"
+    product: "NetBackup (DataProtect via Storware)"
+    article_ids: ["64886d8d-72ee-46bb-9ec7-713bea7c7339", "999922bb-41fb-4b14-b93e-d8d81a064856"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell"
+    article_ids: ["6c5ee05e-5435-48ec-8c80-d2a4b222c0b5", "8598d843-953c-4091-8ee7-a9f473adc0d3"]
+  - vendor: "Dell"
+    product: "Avamar"
+    article_ids: ["a66face2-fabd-4a0a-b444-9ae772561fb1", "d05f09dd-38aa-477a-96aa-940fc2e0f557"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["46b6ef60-f085-4fe6-86dd-d43a00fa60ca"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["75cfe694-1917-4f48-b140-c411a2dfda47", "b2d22ebc-d439-4150-ab1a-60b1c0b1dc2c"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["d15299e2-10bc-472f-985e-879ec69721c0"]
+  unclear_vendors:
+  - "Acronis"
+  - "Arcserve"
+  - "Trilio"
+  - "Veeam"
+  - "Velero"
   question: "Which backup tools can protect OpenStack instances and their Cinder volumes?"
   gold_facts:
     - "Bacula: documented: Bacula Enterprise backs up OpenStack Cinder volumes attached to an instance."
@@ -2711,6 +3589,42 @@
 - id: cv43-03
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect"
+    article_ids: ["2630760a-201c-4e4f-9949-5c59c2cbafd0", "af1a6408-959a-4f4b-8ed7-fd41bfa73f35", "fcf5cd95-2eda-4cac-97ed-d9456e3bca4e"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["31168bcc-b1a9-41d9-aa5a-e1fb88ccc664", "79b9676f-221c-418f-a39d-a91c200a3027", "7e249add-9263-4b4c-8088-a7104e7a380b", "9675df45-c920-4c33-8eab-cf51c8953f61"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["065b4e49-b8a7-4836-94bc-fbc66c892eeb", "1328c568-1789-483e-92e3-20ea1a382fc0", "23174673-3718-4224-aa3d-5cd7c2cff8dc"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup"
+    article_ids: ["311f9cae-66f4-4503-b6cf-cbe98b499e71", "a82b343d-8677-4187-9f98-cd41c657adf8", "c58f9fe9-95a9-48d3-903e-c9019598f186"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["f0a1f595-44fa-418c-90e3-be7ef40a9a7d", "f70a18a5-176f-46b7-9e1f-15fa72973f76"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["008e7d80-3ff0-4863-a74a-48adac971e41", "73633843-2ff3-48c0-87b0-5c975557e7c7", "bf8efc52-586a-4dc9-aa54-8a29012c3200"]
+  - vendor: "Hornetsecurity (Altaro)"
+    product: "Backup & Recovery"
+    article_ids: ["04fc124f-4756-466f-8084-1f1868b7da18", "70b2a8ab-00de-4bd2-98f7-2717b798537b"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["6bf78708-40db-49ce-ba46-a1024944e67c", "8bebf228-a694-49ed-b8b1-1c24e4d42470", "d63de9f5-ed44-47cf-bca8-ce4f9c38d070"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["46cd50ed-6a27-4b9e-8d49-ad6300948da1", "d97330df-a944-43de-a446-da3bb57289b2", "dcf7fe1b-9467-464f-986c-b09d2608ac7a"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["9a428bed-bce2-4bb5-9585-d85ed6986386", "a1c188a8-1d6c-4ebb-95c6-1edb2d9e7e3a"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["460a9b70-fbd8-4d26-ae0e-90f8c88a987e", "e03aca2e-39ea-40db-980f-47f8936df4e5", "eb6998fe-dd07-4ee9-939d-5b6c17fdfb5b"]
+  unclear_vendors:
+  - "Axcient"
   question: "We are moving our VMs to Proxmox. Which backup products can back up Proxmox VE virtual machines?"
   gold_facts:
     - "Bacula: documented: Bacula Enterprise has Proxmox and QEMU plugins for Proxmox VE VMs and containers."
@@ -2733,6 +3647,54 @@
 - id: cv43-04
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect On-premises"
+    article_ids: ["d3c2ad3e-0081-4d32-b81c-171375a62637", "eb16cac3-eb08-4007-9211-7d96964ddfc0"]
+  - vendor: "Arcserve"
+    product: "Arcserve Backup"
+    article_ids: ["105a1f65-031a-4d69-99e9-54d8b840965e", "a021e166-9269-4629-9fac-6567117668f0"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["4c4ff757-c0f0-44b0-a441-210bbbd9456f", "909f2ba0-decc-42a0-8f75-982daa2cd714"]
+  - vendor: "Atempo"
+    product: "Tina / Miria"
+    article_ids: ["23739821-5e22-4320-92c2-389403b2273f", "23a8975a-8dc2-48ab-a6e6-4488414638cf", "e34dc9e8-3de6-4f22-83ba-3d9adcab4efa"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["3a5f44ac-60a6-47a8-a14d-f935299ef702", "5e5cce0d-f68b-4d75-8fb4-e947f3ff84c7"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup"
+    article_ids: ["4157dcd9-d16a-4639-88f4-4db49935a692", "6ac3fafb-c94e-48b7-8456-ea8658324523"]
+  - vendor: "Cohesity"
+    product: "NetBackup"
+    article_ids: ["3d432c97-67d4-4f86-a003-963abd50273b", "8b91734b-f7bb-404d-845a-1407cef3580b"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell Console"
+    article_ids: ["90e097a5-f099-48a4-ad19-31c56f01970d", "d96dfffa-59fe-43f4-8e3e-6ebd83d385a3"]
+  - vendor: "Dell"
+    product: "NetWorker"
+    article_ids: ["a7526d2a-a446-4e61-a9df-ce0ea33f1a12"]
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["4733087e-a5e8-447b-b5c8-3b0c234760b3"]
+  - vendor: "Microsoft"
+    product: "Azure Backup (DPM/MABS)"
+    article_ids: ["039dd6f2-cf1d-40fc-a3e9-190a64e2dcb3", "6fb6031b-18ca-4997-80ae-07c01a60e28d", "861ab6ba-9644-46cc-ab35-cde79ba1b8f3"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["152af96c-efdf-47c3-b317-fd14ea479ac3", "bb009ac8-7822-4516-8846-372c8d5f5009"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["2e5e738c-bab5-4717-98c6-0112f875f8c7"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["e5b642ef-1c0c-4870-b5e0-36bf342bd06c"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["1e0fa871-58f6-446d-9d1e-84526729c7c2"]
+  unclear_vendors:
+  - "Rubrik"
   question: "Which backup products can write backups to a physical LTO tape library or autoloader?"
   gold_facts:
     - "Acronis: documented: Acronis Cyber Protect supports backing up to tape devices (with documented limitations)."
@@ -2757,6 +3719,47 @@
 - id: cv43-05
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["672d2b0d-8a4f-490f-a707-e5274efca039", "ae0c41b5-ff70-4e08-9123-349267fc79bf"]
+  - vendor: "Arcserve"
+    product: "Arcserve ShadowProtect"
+    article_ids: ["339df7f5-2a6a-4c16-b20d-923f999aba28"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["1d59bd6c-f695-498a-a8f8-cd2acc8e27b7", "c281763b-bcc0-496b-b63e-5a8b298a229b"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["011e31a3-71b0-437e-9ce6-dddccf2d63ef", "ec3d0d5c-98a7-4d3c-8fea-7c4293e7d72e", "f53ed7ea-55b9-4db3-8b45-a9d9ab738bee"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["447dbe3f-0d32-4fa1-bc64-d8c54d35791b", "a30f173a-cbad-419d-bba9-3d043c2eaa2c"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["6ca8612c-fbe4-4bab-9c19-525a17fe6eae"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["1b272319-883b-47cf-ba98-2b770918fc50", "6e1c7417-f4f7-48f5-84fc-8087fe427b47"]
+  - vendor: "Slide"
+    product: "Slide"
+    article_ids: ["cb645b97-a986-41c5-906a-86d731af6838"]
+  - vendor: "Synology"
+    product: "ActiveProtect Manager"
+    article_ids: ["6cf32699-b864-4d6c-8a8b-a95470fdde77"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["53280056-e6f4-40af-9202-480571ad1b34", "e5a135df-e567-4f8e-ae78-6c79310a7ba7"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["c6c322ad-34b4-4235-b655-db650506f82f", "c7dbf1ef-5fe3-4e02-a6d2-0387659c811a"]
+  unclear_vendors:
+  - "AWS"
+  - "Druva"
+  - "HYCU"
+  - "Hornetsecurity (Altaro)"
+  - "IBM"
+  - "Rubrik"
   question: "Which backup products automatically test-boot each backup and give you a screenshot or report proving the machine actually starts?"
   gold_facts:
     - "Arcserve: documented: Verification history shows the boot log and a screenshot of the booted image."
@@ -2781,6 +3784,44 @@
 - id: cv43-06
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud / On-premises"
+    article_ids: ["1ecbad1e-3687-4234-b65e-df944554f98e", "9e5acfbf-a385-48cb-a66b-af7a315da75c", "bb964c1f-92be-4dca-8d1a-68558264adf0"]
+  - vendor: "Arcserve"
+    product: "Arcserve ShadowProtect"
+    article_ids: ["507570d3-01e9-43b6-8af1-fd05cb4bc557", "c8570df7-63a8-4fe1-9fb0-6330a42d67cf"]
+  - vendor: "Arctera"
+    product: "System Recovery / Backup Exec"
+    article_ids: ["333f549d-32d6-46f8-ab66-96c96dfb7145", "ae4e3901-2815-4a24-9e23-e03d31bb4075", "e6ec94f3-4fe0-4c13-8cc8-df925e4fb179"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["40a586ff-66e4-4a75-abc3-8f226822c8fa", "4890efaa-d9af-4fd0-9e1b-125953ad1e44", "9f279415-ff37-49ae-a3ec-4fd062be8171"]
+  - vendor: "Barracuda"
+    product: "Intronis Backup"
+    article_ids: ["1a6caec0-106e-4414-96a7-6ea818f41627", "67434695-375c-4907-9ce9-81d3c1df696d"]
+  - vendor: "Cohesity"
+    product: "NetBackup"
+    article_ids: ["aa6c5dca-5eee-4186-96f7-03b969b933af", "bb2b4ee9-1de9-41b3-bd6b-811ae3ae5b9e"]
+  - vendor: "Commvault"
+    product: "CommCell Console"
+    article_ids: ["7d51ab3b-dfce-4dc4-b494-f146d0256eec", "8e88b00c-7caa-4cc4-9f86-7dd0d1cb69b3"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["0c5dd699-f697-4abf-a526-6f710a78d146", "1098c88c-42ab-40cf-9bea-5f6451699f14"]
+  - vendor: "Dell"
+    product: "NetWorker"
+    article_ids: ["9f01460a-2671-444d-aab7-bd45317f391c"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["8fa4da5d-26eb-4ee1-a14a-6b52affc976a", "953afa13-f685-495f-9406-4a11dd76584c"]
+  unclear_vendors:
+  - "Atempo"
+  - "Bacula"
+  - "N-Able"
+  - "Nakivo"
+  - "Rubrik"
+  - "Veeam"
   question: "Our server died and the replacement is a different model. Which products can do a bare-metal restore onto different hardware?"
   gold_facts:
     - "Acronis: documented: Universal Restore updates drivers so a system recovered to dissimilar hardware boots."
@@ -2803,6 +3844,61 @@
 - id: cv43-07
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["29a097b3-98f2-4fa7-82de-22c25d562b85", "ec9818d0-9f7b-4c0e-a1a0-8a4335fd4c6b", "efb22526-2f50-4014-a12b-d014c85e583e", "f7221937-2b25-4e22-a292-fd9bd11a57a2"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["2aab86b1-b76c-4d0e-8b54-d63ae26f4a10", "fbbcbb8d-ab2c-4643-9993-356bc90e2bf3"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Google Workspace"
+    article_ids: ["f675d46c-7a69-4570-9202-e1308ee7686c"]
+  - vendor: "Axcient"
+    product: "x360Cloud"
+    article_ids: ["c4885c64-150f-4fc8-95f6-6649ea6a13f6", "f5d328cc-56c6-4e75-9a70-09866605d156", "fc18e778-98b0-4061-9f4a-5edcfe8d5d1d"]
+  - vendor: "Bacula"
+    product: "Bacula Enterprise"
+    article_ids: ["e5c8db95-9cb1-4782-8611-fa7f0f70c7bb", "f86d4e02-0893-4def-b53d-4b0c37877fcd"]
+  - vendor: "CloudAlly"
+    product: "CloudAlly"
+    article_ids: ["47f4c6bd-2343-4e29-aee8-38cdba0bd04a", "6dc90070-8131-4a80-9ba6-ea93008d80a1", "95f2beee-bfb4-404e-ad0a-1cffcc2f6c6e"]
+  - vendor: "Cohesity"
+    product: "Cloud Protection Service"
+    article_ids: ["1491eadd-c1f7-4749-82e6-210a2ddef7db", "8e4e39ff-25e9-4993-b163-e58fef5b9666"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["2c47b91f-363e-4d2e-9087-05476d1b0b70", "b04bc6e6-79df-4fd4-b2ef-c876dd79551a", "d95bd4c3-eb5f-45f8-a1d2-336d00571674"]
+  - vendor: "Datto"
+    product: "SaaS Protection"
+    article_ids: ["2b923f1f-061f-4e95-891d-69d8966c4e51", "65b0aa2b-aa39-4373-98f1-6e17b6e28dd9"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["54f5cf35-acd2-464c-bf10-24590874efe7", "8a1e6002-1473-439b-84a2-91f6d5225352"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["3e8f25f7-b3bd-43e7-9bee-5500467de329", "512207c5-62db-4676-a78b-b8fd9b979c52"]
+  - vendor: "HYCU"
+    product: "R-Cloud for Microsoft 365 and Google Workspace"
+    article_ids: ["0d79ccc4-9d26-4b1f-b757-6fa74a5cbe88", "5efb795a-9e21-4b96-9e34-66e19f9e9902", "74d30028-e176-4849-947b-90d46d9cbbd2"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["3e7064bd-4a53-4b40-bf5b-273c221e48e5", "45076231-4582-4fe5-9b90-5cbd13bd7829"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["6313766c-667e-492f-8531-dde17893422f", "6f42adec-d9e9-48f9-8a77-fa8bf409b27b", "8da81b6c-fe9e-48cd-893e-a28110c8e45f"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["0bc5735d-d374-4919-a45a-661b3c03ca35", "46b61260-3499-4b64-9304-da3deb2f1f76"]
+  - vendor: "Spanning"
+    product: "Spanning Backup for Google Workspace"
+    article_ids: ["ccabeb64-3894-448f-bb28-e7848c906d28", "d334b1f4-a403-4301-886e-7103ca888a40"]
+  - vendor: "Synology"
+    product: "Active Backup for Google Workspace"
+    article_ids: ["884f4f57-d3bb-4d74-bede-e6c67d64d776", "99b89e47-fe07-4705-9d8a-f4bb101566b7"]
+  unclear_vendors:
+  - "Barracuda"
+  - "Unitrends"
   question: "Which products can back up our Google Workspace (Gmail, Drive, Calendar, Shared drives)?"
   gold_facts:
     - "Acronis: documented: Cloud-to-cloud backup and recovery of Google Workspace data."
@@ -2831,6 +3927,42 @@
 - id: cv43-08
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Salesforce"
+    article_ids: ["53939543-791d-4573-b5d5-c0283b31faf8", "8a909e3e-7fd2-4e39-96ec-8d2e0fb420aa"]
+  - vendor: "Cohesity"
+    product: "Cloud Protection Service"
+    article_ids: ["a75b942b-507b-4267-85aa-ece0f75690b9", "e973e31d-82ed-4f2c-9106-d88e7ba5ef82"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["3ca3a3d3-d91a-4855-8c95-44d7abbe4140", "4967e2d3-cca5-4a7d-b242-6c38f02d6578", "c10888e9-bebb-45c8-be42-ed609d18f43f"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["1269c0a8-779e-490a-a147-7cd4cd8da636", "d29e9b4b-2c25-4cb7-aaa3-58e1f7f2e180"]
+  - vendor: "Flosum"
+    product: "Backup and Archive (B&A)"
+    article_ids: ["5fa40be1-86d6-468a-a490-61420a4c7d2e", "7584088e-5b0c-4c87-a869-401c404c2b5b", "de271675-bf5d-4477-9c00-b14486bbcc4c"]
+  - vendor: "Gearset"
+    product: "Gearset"
+    article_ids: ["610c7eb5-dd3a-42ef-a268-7cdfd45e177e", "f745b571-87ea-4059-97b7-456cb03fa86d"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["b6eeb9f1-3e16-4c13-9074-f9ebf6468859", "daee679e-679f-4f39-97f4-4a20f0782de1"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["6ae6edfc-2525-4db0-971d-80d24e46d21a", "b2389b11-297b-4bb6-9a14-c511a1dd66b9", "c734ec4e-c7aa-4654-a1f4-50a7fc062521", "dafb59d9-af31-4172-bcd4-70540a94c19e"]
+  - vendor: "Salesforce"
+    product: "Own (Backup & Recover for Salesforce)"
+    article_ids: ["2d04b682-e1c9-4e14-bdcd-edae442bd515"]
+  - vendor: "Spanning"
+    product: "Spanning Backup for Salesforce"
+    article_ids: ["1a4b515c-5288-4263-bcaa-2aacc7d2a075", "3f19ea0d-3d92-4028-aa1c-be35f5b5819e"]
+  - vendor: "Veeam"
+    product: "Veeam Backup for Salesforce / Veeam Data Cloud"
+    article_ids: ["2e7597a2-c6ab-4401-b27d-f00740687a1d", "64014623-119d-41b7-8352-8a23977e63bf"]
+  unclear_vendors:
+  - "GRAX"
   question: "Which tools can back up and restore Salesforce metadata (Apex classes, flows, custom objects), not just records?"
   gold_facts:
     - "AvePoint: documented: Restore of Salesforce metadata types (ApexClass, ApexTrigger, CustomObject...) in place."
@@ -2855,6 +3987,53 @@
 - id: cv43-09
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect On-premises, Cyber Protect Cloud"
+    article_ids: ["7bba3692-e884-407b-8ef4-e9e0657c5cae", "b2eeae12-1fe8-4a62-96ce-5c49964ca8dc"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["6cfc376b-bf41-41a1-8fc8-e091bed3c7b9"]
+  - vendor: "Atempo"
+    product: "Tina"
+    article_ids: ["57485a01-a29c-4fa8-94d4-e7315e968816"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["32afa42a-6a40-4dd8-9528-da51fb0f19c2", "9aebddc1-7f44-47f7-8d66-f298df19bb58"]
+  - vendor: "Cohesity"
+    product: "NetBackup"
+    article_ids: ["a243d1bd-6b5c-4ebd-9b1b-a2a4be73717e", "ca0134a4-1c2d-407d-b9dd-f8b10046df97"]
+  - vendor: "Commvault"
+    product: "CommCell Console, Commvault Cloud"
+    article_ids: ["48af7409-7fb7-4893-9c15-ff6231f5afbd", "ad66cf51-c12f-42af-b021-4afae912034d"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager"
+    article_ids: ["0e23f0f2-72ad-4bb4-83c0-44c5bb67c166", "7c85b7dd-e5cb-4841-a8ca-6f9a77244524"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["77d78df9-8a7d-4c13-803e-9ed8c031f630", "857d12ee-2524-4392-b3f0-eed38a02d187"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["4736b851-1be1-4725-9759-ce786f01acce", "fb1d1703-c1a6-429b-aa76-eed0fb138708"]
+  - vendor: "IBM"
+    product: "Storage Defender"
+    article_ids: ["0e6544a5-3aaa-4128-babe-8a452cc0c342", "4aad37a5-eefe-4e95-8f0c-c7a575316f4e"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["2a571c2a-f7f7-47d7-8eee-62e2ebb34c0d", "b2377c24-558e-46c4-b65c-32ca85ea6750"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["46f41d71-c89b-411c-8f74-69d22325bb0d", "fb0aeb20-ffe3-477c-9104-dfd086e5f7f5"]
+  - vendor: "Storware"
+    product: "Backup and Recovery"
+    article_ids: ["2cd63c69-0723-486f-ac09-79e4bcf1ba8b"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["0681a797-502d-43ef-8385-caf19f07b0f9", "fb246de1-1217-465a-9abb-c1b8c96acd2b"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["2043ff3c-ce62-40bb-8022-916c2a191b36", "8db1d0fe-739e-45de-b021-04205c03bd47"]
+  unclear_vendors: []
   question: "Which backup products support Nutanix AHV virtual machines natively, without installing agents in each VM?"
   gold_facts:
     - "Druva: documented: Nutanix AHV VMs are backed up per backup policy schedule or on demand."
@@ -2879,6 +4058,45 @@
 - id: cv43-10
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["55c56e87-11ff-4b57-b48c-d0ad4d57da6a"]
+  - vendor: "Axcient"
+    product: "x360Recover"
+    article_ids: ["37348864-f445-4572-ba68-43809c422b59"]
+  - vendor: "Cohesity"
+    product: "DataProtect / Cloud Protection Service"
+    article_ids: ["0d8a8b62-dad5-4bad-ba7c-580b5c2db94f", "a1561725-7f69-4b63-8c0d-6dc1941caeed"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud"
+    article_ids: ["211c3054-5eba-425e-843e-83cb2b53d687", "54912347-067c-4f75-aa49-d939d3c65118"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["03a59403-1304-47ea-9f38-a7820e81958f", "80645d6a-6c3c-4d54-ae27-92d0eca6a553"]
+  - vendor: "HYCU"
+    product: "R-Cloud for Microsoft 365 and Google Workspace"
+    article_ids: ["5313eee6-47be-428b-a893-caca11eb8c8f", "58830c45-aebf-4770-9dea-17090b899f6e"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["2a82501e-0911-489d-bb9b-1d722cec88ed"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["c4c31a7a-a77c-496d-b29b-e6f127376037", "cba9146d-3bb5-48ab-a178-6bf22f8336da"]
+  - vendor: "Salesforce"
+    product: "Own (Backup & Recover)"
+    article_ids: ["8c0d1d6b-ff4c-46da-829a-a4851f25b1a3", "ece7f47f-66fe-467b-9457-1affefbe2487"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["a6be8833-8b5b-4c77-93ca-c5fd16b9db58"]
+  unclear_vendors:
+  - "Acronis"
+  - "Atempo"
+  - "AvePoint"
+  - "Barracuda"
+  - "CloudCasa"
+  - "Datto"
+  - "Veeam"
   question: "Legal asked us to keep a user's backups indefinitely for litigation. Which products let me put backup data on legal hold?"
   gold_facts:
     - "Acronis: documented: Legal hold rules from the email archive or cloud applications protection."
@@ -2905,6 +4123,92 @@
 - id: cv43-11
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["8b9aebdf-ca0c-4a9c-8b2d-b2e8e6ea4538"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["110f094f-155d-4cb2-9b89-6e8591f954d8", "99467439-92ca-4d71-aa7c-060fe455b846", "d129482a-fd1a-4fb3-a2e0-673926d62643"]
+  - vendor: "Atempo"
+    product: "Lina / Tina"
+    article_ids: ["0d9bc3fb-476e-4027-a470-c5bedaf0cfa2", "416f569c-62c4-49db-82df-3111baebdcaa", "d6df6809-001e-4dd4-9270-f7a250ea5e89"]
+  - vendor: "Axcient"
+    product: "x360Recover / x360Portal"
+    article_ids: ["3aa756b8-b6f4-45e5-a85f-cad00947e7b1", "5ddca044-767d-4ea7-9161-09a4d889b275"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["213427f0-7cc7-46b4-b627-1b53481e75f8", "87b1f12f-02f3-402b-b376-b3c762e70db4"]
+  - vendor: "Barracuda"
+    product: "Barracuda Backup / Intronis Backup"
+    article_ids: ["3e888125-59ef-4f9b-bdb1-854ad60e262b", "72541bb9-03ae-4aa7-adf7-da33e9b0a31d"]
+  - vendor: "CloudAlly"
+    product: "CloudAlly for MS 365"
+    article_ids: ["8ef47399-b252-4545-b869-ae85435a9bad", "af310294-3774-4c9a-b979-fc59fa1d42cc"]
+  - vendor: "CloudCasa"
+    product: "CloudCasa"
+    article_ids: ["31294f2c-07b1-4dee-8645-999f39510873"]
+  - vendor: "Cohesity"
+    product: "NetBackup Flex Appliance / DataProtect"
+    article_ids: ["45791203-f35e-4d25-a9d9-31c77d38830f", "805b8ef8-7c13-4856-a984-75c111f15313"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell Console"
+    article_ids: ["d42bdd96-61d1-411d-bef9-f63f68b742ae", "eb0b9397-6a00-4ecd-8fe6-f0b6b50c493a", "f0684041-eb88-4fff-9ed7-6b913743d5a8"]
+  - vendor: "Datto"
+    product: "SaaS Protection for M365"
+    article_ids: ["1454fb90-90fa-4bcb-86f4-80f692e12ce5", "f521cdaf-5557-445b-b932-e6cbf41e78c8"]
+  - vendor: "Dell"
+    product: "NetWorker"
+    article_ids: ["e8aa06e4-f1c3-4535-9502-5d085243879f"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["90234d8e-a28f-4455-a00c-b6c865639410", "cae0b230-49db-4751-bef4-cde3e413d36f"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["330358cd-e7a9-4e38-9c51-dddc3fb94e5b", "84def343-ede4-44a7-9e9a-f681bc455e94", "ce6e2565-dde1-430e-82e2-86e70a9e59be"]
+  - vendor: "IBM"
+    product: "Storage Defender"
+    article_ids: ["0a84af1e-ccb3-4d98-a942-85e8fba81b43", "16a73a80-063c-43d0-88e2-be0fd4b694dd", "5e4d182d-ae88-4501-9166-ac4d436b234f"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["23b3d78c-59ee-40cc-a321-884ce808738c", "54feea3d-4b9e-45f8-8187-53ae3fb4cbd5", "f6ba9c27-be25-448b-bb9e-c5528018dc96"]
+  - vendor: "N-Able"
+    product: "Cove Data Protection"
+    article_ids: ["a6584de4-c4e4-48a8-af53-0446c5ff2388", "d5b9cee2-abd8-4bb9-8b17-2ab1d207b9bf"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["56677394-71d7-4b70-a0da-4c4b7f05098a", "5c79c62f-6e81-43c2-a81b-4c908aa0d002", "6a83f07c-f82f-4e4f-926e-2c36b7dd3f79"]
+  - vendor: "NinjaOne (Dropsuite)"
+    product: "SaaS Backup"
+    article_ids: ["0ae3db26-fb33-4724-a439-45af7a8dc58f", "a3840757-08df-4d00-abe6-ac85c673e6e7"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["8515ae49-0e04-4adc-acdc-40d9fc6e7187", "d68437c8-2a62-4b02-9e01-b30882faf2e6"]
+  - vendor: "Salesforce"
+    product: "Own"
+    article_ids: ["60e29afc-c676-48b8-8027-e99fb067437b", "de8431a3-d46e-44d0-8195-7eefa67e78a8"]
+  - vendor: "Slide"
+    product: "Slide"
+    article_ids: ["b66c80c7-dda5-43c6-b4a8-913a4cbd2e37"]
+  - vendor: "Spanning"
+    product: "User Guide"
+    article_ids: ["27d9ca06-a823-413e-8684-99d07ad35852", "b27a8b6f-e0fa-49a1-b85e-326e4b61906a"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["7c952bf6-752a-4687-a6a2-bd3e86141b86", "870b4a8d-0a8e-4468-b222-57b93b502844"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["64cbfe98-7d09-4fbf-8d74-6ddfc8bf7054", "9a1144cf-e3d0-4b0a-8eb4-0b10c3ce0d5b"]
+  - vendor: "Zerto"
+    product: "Zerto"
+    article_ids: ["15f87b9a-4a89-4862-9e63-ca67bd916e25", "fe4fede8-2e20-4d4c-9e5d-0e3ed709ac69"]
+  unclear_vendors:
+  - "AWS"
+  - "Afi.ai"
+  - "Gearset"
+  - "Hornetsecurity (Altaro)"
+  - "Storware"
+  - "Synology"
   question: "Which backup consoles support two-factor authentication (authenticator app codes) for admin logins?"
   gold_facts:
     - "Atempo: documented: Miria can set two-factor authentication as optional or mandatory for users."
@@ -2927,6 +4231,82 @@
 - id: cv43-12
   type: cross_vendor
   shape: enumeration
+  expected_vendors:
+  - vendor: "AWS"
+    product: "AWS Backup"
+    article_ids: ["148fd292-79a6-4dfc-a382-931b03658734"]
+  - vendor: "Acronis"
+    product: "Cyber Protect Cloud"
+    article_ids: ["bc79fbc5-850c-4c0b-a429-7077555ef0db", "fe30ab43-05ec-4f52-a7bf-a22b0d679e15"]
+  - vendor: "Afi.ai"
+    product: "Afi.ai"
+    article_ids: ["c4a23959-a9f7-49d1-bd21-298e53e88426", "c882ed4a-77f2-4d6c-baa8-6dbca1816ff6", "f342c16b-34bc-4022-a4c7-40d557090589"]
+  - vendor: "Arcserve"
+    product: "Arcserve UDP"
+    article_ids: ["5c589dc4-fd48-4cae-876b-5465b2973a21", "91a82bf7-5b7b-4585-b284-a359646424a3"]
+  - vendor: "Arctera"
+    product: "Backup Exec"
+    article_ids: ["566d6d02-ff68-4486-b0d7-8fa6964dc8d1", "6b96baa0-3d61-4698-9081-d52bbd1ec748"]
+  - vendor: "Atempo"
+    product: "Lina"
+    article_ids: ["0de44b72-2de6-433b-a34b-c96adbab024e", "d6df6809-001e-4dd4-9270-f7a250ea5e89"]
+  - vendor: "AvePoint"
+    product: "Cloud Backup for Microsoft 365 / Salesforce / Google Workspace"
+    article_ids: ["35518775-de02-4851-a4e7-f40d987b1b8c", "b9d5dcb0-f210-4b5f-b7d4-561df8fa8c63"]
+  - vendor: "Bacula"
+    product: "Bacula"
+    article_ids: ["0ec36b3b-94a9-4634-b7f2-ad71afbb632a", "51823354-5ebf-4054-b8c0-b2a33f7cf60b", "ddd7fcb1-40fa-4f7d-860e-54bf309b260d"]
+  - vendor: "Cohesity"
+    product: "Security Center / NetBackup"
+    article_ids: ["1e2ed49f-775c-4b92-be61-d4cb6add1b15", "887bd671-c123-44e1-91c8-ef2d6b7457fd", "d6b3868c-862e-4ef6-acae-6f999a053ae0"]
+  - vendor: "Commvault"
+    product: "Commvault Cloud / CommCell Console"
+    article_ids: ["4315057c-e0a8-449a-9f10-4b1575b9d861", "6bcd34e0-3d00-424f-a5db-aed3e521b1f3", "6d4e2988-11db-44b0-85ff-c86ef71130e7"]
+  - vendor: "Datto"
+    product: "BCDR"
+    article_ids: ["729d0996-7646-4b45-ac4e-5787043f9d80", "a06f87ef-65af-4b8a-847e-d17a25cfce61"]
+  - vendor: "Dell"
+    product: "PowerProtect Data Manager"
+    article_ids: ["9b787a33-4514-404a-97af-9d33236df671", "b34187b4-6e10-4059-be14-0d661abda1fd"]
+  - vendor: "Druva"
+    product: "Druva"
+    article_ids: ["428dc3f6-62c8-4b92-b774-d111ef6c4d07", "b6b0e66b-6ed0-437f-b8f5-cf5bbd77eb1a"]
+  - vendor: "Eon"
+    product: "Eon"
+    article_ids: ["0c6eff37-7719-4b52-abaa-41c1238f11c4", "b27dfbb9-96b6-4413-9ea8-13d892baf1e8"]
+  - vendor: "HYCU"
+    product: "R-Cloud Hybrid Cloud Edition"
+    article_ids: ["4a943119-45bf-4600-abc1-a058d97dfdc4", "dd920c4a-b227-4ff1-addb-869c9a2010f3"]
+  - vendor: "IBM"
+    product: "Storage Defender / Storage Protect"
+    article_ids: ["55627b0d-2eb3-4200-8d27-ae32e1a52d18", "ea5e2279-2ca4-46a0-9da7-d927ffb64e55", "f79373f4-7e57-4b58-ae86-24d10bf6a170"]
+  - vendor: "Keepit"
+    product: "Keepit"
+    article_ids: ["31eab101-1e45-43a9-a687-74e8523a4152"]
+  - vendor: "Microsoft"
+    product: "Azure Backup"
+    article_ids: ["86d7eb61-546b-4098-a0e6-517a3f561038", "99717ca2-d138-412b-86ce-81a2b08962f6"]
+  - vendor: "Nakivo"
+    product: "Nakivo Backup & Replication"
+    article_ids: ["677f035d-4a39-44e3-b28b-4472eb634e72"]
+  - vendor: "Rubrik"
+    product: "Rubrik Security Cloud"
+    article_ids: ["06e97a2f-bff3-444e-9a49-8dd3493723a3", "5d3ec548-f449-444b-a040-efe6b576ea8e"]
+  - vendor: "Unitrends"
+    product: "Unitrends Unified Backup"
+    article_ids: ["09ab444a-71b6-4edf-8d28-0dd4028b9b9f", "2dfd1497-232e-4df7-b66b-cf161734946e"]
+  - vendor: "Veeam"
+    product: "Veeam Backup & Replication"
+    article_ids: ["809e436f-2e6b-4166-bf5b-499df8ae53a1", "ffdb57c2-8af6-4303-83c9-1f9887b8ff72"]
+  - vendor: "Zerto"
+    product: "Zerto"
+    article_ids: ["307c98fb-bf69-4d69-a94c-dc7072b9e139", "3166664a-f00d-4f16-b55a-73033d6980b2"]
+  unclear_vendors:
+  - "Barracuda"
+  - "GRAX"
+  - "Google"
+  - "N-Able"
+  - "Salesforce"
   question: "Which backup products can scan backups for signs of ransomware, such as unusual changes or encryption, and alert on them?"
   gold_facts:
     - "Commvault: documented: Threat Detection for Databases flags anomalous activity in database backups."

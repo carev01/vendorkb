@@ -1,0 +1,509 @@
+{
+ "question_id": "ex-rt-12",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "564d0c32-5988-4834-979f-36b6b2614bf7",
+    "72a00ea5-f17b-4952-8b54-2cc2bce724ae"
+   ],
+   "doc_ids": [
+    "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd",
+    "04b95d92-d3b4-41b3-92fe-a25de736fb64"
+   ],
+   "note": "Copy backups to other AWS Regions/accounts on demand or in a backup plan"
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "6e747bad-4697-4b10-a6a3-d178f2c0509a",
+    "2c9b4596-bb53-4496-ac81-716e7269ae56"
+   ],
+   "doc_ids": [
+    "a24dc04a-4238-43dd-b62f-710dff2a45f8",
+    "231323ce-3a25-4d35-bec3-4d2c2e89e5e6"
+   ],
+   "note": "Geo-redundant storage copies backups to a geographically distant secondary region"
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "71f2ef6d-7ee4-455d-bf1a-1042c29293d2"
+   ],
+   "doc_ids": [
+    "bd30bc60-dda5-48bb-9559-78c934f98b7a"
+   ],
+   "note": "Back up to several storages: copy in the cluster's region and a reserve copy in another region"
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "927fc754-7e0c-4522-a20b-b3ab5b7b224e",
+    "0bcaf9c9-0da8-40b2-bdc8-5e6271c548a3"
+   ],
+   "doc_ids": [
+    "c9c9dc78-59a6-47f0-91fa-88ee0fead58c",
+    "9ea6b7b0-f4f4-4021-89d0-5579820e304f"
+   ],
+   "note": "Copy recovery points to another data store on a remote site; replicate to Arcserve Cloud / remote RPS"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "System Recovery",
+   "chunk_ids": [
+    "2b81bd1b-7342-4a3e-9b3d-41891953fa40",
+    "06f29ad5-1eb8-4083-87d3-29b4346b7a0b"
+   ],
+   "doc_ids": [
+    "d2a606bf-d062-4d54-bf7d-fe66f3076bf7",
+    "58602359-2fb1-4304-949a-a87af2935e14"
+   ],
+   "note": "Offsite Copy copies recovery points to an offsite destination (external drive, S3/Azure)"
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "4935a396-a62e-41e6-a9b4-e842fde2195b",
+    "e5894ed9-9957-4d76-b896-9705c7c299c9"
+   ],
+   "doc_ids": [
+    "ff0fea4a-8eca-4e45-822b-9c505fdc1779",
+    "6e6c139c-5155-422b-bea9-8966493a77d1"
+   ],
+   "note": "Duplication makes a second backup copy on another storage/site; remote sites replicate to central site"
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for IaaS + PaaS / Microsoft 365",
+   "chunk_ids": [
+    "1c300fae-d32c-4210-b00c-6ad56476a9b0",
+    "fcb4a98b-8ccf-4f2a-bd14-5cd5c3e97296"
+   ],
+   "doc_ids": [
+    "d6316175-c362-4dc1-be7c-bc43d901cf64"
+   ],
+   "note": "Availability Paired Region (geo-redundant storage) replicates backup data to a paired secondary region"
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "f784d1ac-c245-4ec7-919e-ef329cc269b8",
+    "a461acac-a163-41f8-983e-f23bdcc94975",
+    "bea27218-a5df-4969-bd6f-d71430fc5869"
+   ],
+   "doc_ids": [
+    "37e97341-2863-495a-a04d-18e70167c238",
+    "339ee028-a1c9-4e84-a671-17807fd11363",
+    "5042b2ee-8812-4dfb-bafe-64c1eb4445ef"
+   ],
+   "note": "Geo+ copies restore points to a geographically separate secondary region; site-to-site replication"
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "697ea7e4-e101-4d16-b79c-21feba409a73"
+   ],
+   "doc_ids": [
+    "713451d2-8523-4745-9a4c-2e63e60916e5"
+   ],
+   "note": "Offsite copies via Copy Jobs to a second Storage Daemon / Copy/Migration jobs"
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup",
+   "chunk_ids": [
+    "ae4af166-4161-4054-b0cf-b02e536fd3f1",
+    "2f1acfd1-8038-4549-b4c8-7aeb29ae7a8c"
+   ],
+   "doc_ids": [
+    "291f9481-40cc-4f80-a1d8-bf2d7d756331",
+    "35fd1df5-5f83-44bd-acb6-766f7518923b"
+   ],
+   "note": "Offsite replication to Barracuda Cloud Storage or another Barracuda Backup device"
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "yes",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "dc811298-18ac-4689-b8e9-76ef377db066"
+   ],
+   "doc_ids": [
+    "dadf3301-81fe-4221-96bf-f5d7fb2fcbac"
+   ],
+   "note": "Database backup option 'Copy to another region' stores backup data in another AWS region"
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Cloud Protection Service / NetBackup",
+   "chunk_ids": [
+    "268ccb7f-47e2-4787-b5b0-99c7fbe949f7",
+    "2539cb37-f759-44a4-a6b9-1d84059341ea"
+   ],
+   "doc_ids": [
+    "bac563b6-c7b5-4f2e-86c6-bd5989fae60e",
+    "e38b91b4-8da8-4969-ad24-20b80c8397e3"
+   ],
+   "note": "Configure a secondary region for backups; NetBackup duplicates backup images"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "c79141b6-2c2a-4aac-9218-231596198e3c"
+   ],
+   "doc_ids": [
+    "e4faaf93-cea6-4e49-ace4-5d3e374124ea"
+   ],
+   "note": "Multi-region backup plans add snapshot/backup copies for other regions"
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "1bb662c5-eef8-44ca-857e-1c5acb572d8d",
+    "b97c6fbb-11c0-45b3-8fa0-2f15df8a2a8a",
+    "e41509e9-61d7-4693-8b35-314ee0039585"
+   ],
+   "doc_ids": [
+    "dbc90590-2da4-4de9-886a-3e9af6bfdd6b",
+    "8332ffb7-ea27-45ed-847d-ab7dbc2ac4cd",
+    "b27e1f22-eb0b-470b-934d-bb64ea55508f"
+   ],
+   "note": "Offsite sync of local backups to Datto cloud; secondary replication to a second offsite server; SIRIS Private secondary site"
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "NetWorker",
+   "chunk_ids": [
+    "634674c3-cd8a-4ed9-a209-5dbc5349a59b"
+   ],
+   "doc_ids": [
+    "a72cf9d8-cb5b-49bc-a025-36c52404846a"
+   ],
+   "note": "Cascaded replication to a geographically distant disaster recovery site"
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva CloudRanger / Enterprise Workloads",
+   "chunk_ids": [
+    "9c3c41ce-a999-44af-a2cf-147b91c9b469",
+    "a5fbb6fc-f2d3-4fee-b98b-fe8b475bb4b0"
+   ],
+   "doc_ids": [
+    "01f7796b-e64f-4c3c-8baf-802a4ad23651",
+    "bb1f62fe-bdf8-4f1d-8003-e9a3c74dd1bf"
+   ],
+   "note": "Cross-region backups create copies in up to two additional AWS regions; AWS account as DR secondary site"
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "1ef82dd8-1e92-4367-b407-522e034bf52d"
+   ],
+   "doc_ids": [
+    "203da96f-aa64-4040-9f92-b3a48f2a3843"
+   ],
+   "note": "Policies can back up to a vault in a different region or different cloud from the source"
+  },
+  "Flosum": {
+   "label": "unclear",
+   "product": "Backup and Archive",
+   "chunk_ids": [
+    "b8d7733d-46a9-45ac-87d3-0e5e126a5390"
+   ],
+   "doc_ids": [
+    "9ecc72d6-b2b1-4b62-9661-3ae500902f65"
+   ],
+   "note": "Best-practice advice to store copies in cloud and off-site; no product mechanism stated"
+  },
+  "GRAX": {
+   "label": "yes",
+   "product": "GRAX",
+   "chunk_ids": [
+    "06020ff0-5f0d-42ed-b27f-87e0c4af0a53"
+   ],
+   "doc_ids": [
+    "a2f4b209-4447-4fcb-9955-014b33b8e33d"
+   ],
+   "note": "Passive storage sync supports AWS cross-region passive storage for DR"
+  },
+  "Gearset": {
+   "label": "unclear",
+   "product": "Gearset",
+   "chunk_ids": [
+    "633ab5c6-f29c-4a18-9ec7-86369815bd5c"
+   ],
+   "doc_ids": [
+    "470ff25b-c141-48ff-9bc8-c70388f73aee"
+   ],
+   "note": "Only a manually downloaded metadata snapshot that 'can be used as an offsite backup'"
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "0b8535bb-e292-49c3-9259-05ab8f105642",
+    "6f5c06c2-5597-47fb-a047-f6ed327e6ba8"
+   ],
+   "doc_ids": [
+    "f524477e-d83a-4dc6-b022-5a41243a9481",
+    "0cb3de26-2f6f-450d-a72d-da24823ced82"
+   ],
+   "note": "Backup vaults can be cross-regional/multi-regional; store backups off-site in a different region"
+  },
+  "HYCU": {
+   "label": "unclear",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "5191357e-f0f4-476f-bef3-cabb192c0874",
+    "afca359c-5436-496d-93b4-c48130f8da21"
+   ],
+   "doc_ids": [
+    "dcfaf286-4b9f-45e4-90d2-b8b143bf3c4c",
+    "6e62b06f-b328-4ca4-987c-67e4928de42e"
+   ],
+   "note": "Backup copy to a different storage account/target, but another region/site is not stated (auto target is same region)"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "VM Backup",
+   "chunk_ids": [
+    "fd86469e-745a-4c73-a657-f2cab943733b",
+    "46c6b955-699c-40be-b2c4-387b180b2504"
+   ],
+   "doc_ids": [
+    "d36ed90c-bce4-4520-baea-490a767ef696",
+    "eef1193b-2b2b-4ce9-8a7a-bba9f4f00e02"
+   ],
+   "note": "Offsite Copy Location sends a redundant copy of backups to an offsite location over WAN/VPN"
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "b4e976cc-cb0c-4dcd-908c-1ad4097d6528",
+    "f2e2a312-67a8-48ce-8ac3-378768d4aaba"
+   ],
+   "doc_ids": [
+    "15123c86-6878-4cb3-baab-36b583034c25",
+    "3206bd89-5d2f-413f-8137-c14e90c7a789"
+   ],
+   "note": "Replication from primary to disaster recovery site; offsite tape copy"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "342a8510-f3a5-492d-982a-ec39f1303212",
+    "5f23c745-d58a-4538-95c8-d9b08764d1cb"
+   ],
+   "doc_ids": [
+    "ecc02e55-394d-4e8d-8020-33c62a938c19",
+    "a6481417-ece0-481d-a73e-c4279e5eec5f"
+   ],
+   "note": "GRS replicates backups to an Azure paired secondary region; cross-region restore"
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "14cd90ee-bbc0-4b6a-903c-917e06373c19"
+   ],
+   "doc_ids": [
+    "162cfdf5-770c-455c-8f4e-7f34d4c8eecc"
+   ],
+   "note": "Backups saved remotely in the cloud or a private data center, with an optional additional local LocalSpeedVault copy"
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "dc177f27-fddc-439d-a559-b7437f2f8164",
+    "55ee9d24-ecd5-4239-8bfc-d49c5a1da82b"
+   ],
+   "doc_ids": [
+    "cb18cd30-8639-44a5-a326-c032a6fa7361",
+    "8adc1937-824c-404f-9787-64011d8c8d9e"
+   ],
+   "note": "Backup Copy jobs maintain additional copies of backups, incl. to cloud/offsite"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "yes",
+   "product": "PX-Backup",
+   "chunk_ids": [
+    "27dbab4b-e22a-4cab-a53a-a33fa0bb8a3f",
+    "9f1f7e4a-757d-4741-b99d-fc4b20c772af"
+   ],
+   "doc_ids": [
+    "07a776b8-249e-4e0c-81f3-0839c9b156e6",
+    "24e91969-8a9b-4f7a-aa18-d47318b4ef56"
+   ],
+   "note": "Cross-region backup and restore; 3-2-1 with backup locations in different regions"
+  },
+  "Red Hat": {
+   "label": "unclear",
+   "product": "OADP",
+   "chunk_ids": [
+    "39f9cd5b-aac3-4806-9840-597545dbbdb4"
+   ],
+   "doc_ids": [
+    "3fa52b07-e8f6-4daf-a164-606f6bc33866"
+   ],
+   "note": "spot-check disagreement (unclear vs yes); set unclear. Multiple backup storage locations across regions/providers for redundancy, but no copying of a backup to a second location stated"
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "cf0a86af-1989-472c-a68f-74c8b94803aa",
+    "63e7a2bc-88e7-4f4a-9d5c-cfa6a4d9315f"
+   ],
+   "doc_ids": [
+    "f4943933-809f-4a1e-b87d-31d33549953c",
+    "7cfd2c43-e6f9-4005-82ab-5fb6c783c3b7"
+   ],
+   "note": "Rubrik Cloud Vault multi-region redundancy keeps a copy in a secondary region"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "yes",
+   "product": "Slide",
+   "chunk_ids": [
+    "f84a8013-2c67-43bc-ac07-bd42b4935bc1"
+   ],
+   "doc_ids": [
+    "f139cf16-ca1a-4c20-9537-211fe28b6760"
+   ],
+   "note": "Slide Box replicates snapshots to the Slide Cloud for offsite storage"
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "8a70d347-bfbc-45c2-bf15-6460045cd40e",
+    "e46e7777-6b80-4caa-a7de-406f9e7433cc"
+   ],
+   "doc_ids": [
+    "b4e0eeac-7cfd-4b87-bdcf-82d1ede58515",
+    "2e5e738c-bab5-4717-98c6-0112f875f8c7"
+   ],
+   "note": "Backup Copy replicates to a secondary destination in another storage location; tapes assignable to offsite location"
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "ActiveProtect Manager",
+   "chunk_ids": [
+    "e19c2d8f-1c5e-474f-8635-1c01e214d79e",
+    "1b74e8b6-8203-4230-8ced-26def5309f03"
+   ],
+   "doc_ids": [
+    "e691031c-8dd8-46af-9c2f-681f1c6d003c",
+    "c8073faa-2416-42f4-a4ff-275bd23c2dbb"
+   ],
+   "note": "Backup copies sent to a remote site / remote storage or another appliance"
+  },
+  "Trilio": {
+   "label": "unclear",
+   "product": "Trilio for Kubernetes",
+   "chunk_ids": [
+    "b47f0d44-1359-4ba4-bf3a-07f6eb46781b"
+   ],
+   "doc_ids": [
+    "29762915-8cf5-471f-b701-1c1de0d211c4"
+   ],
+   "note": "Continuous restore stages backup PV data onto remote-site clusters; no explicit backup copy to another region/site"
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "73bb7d46-f0ae-4db4-a6fe-1ec7fd42f846",
+    "eb052c95-c6c3-4e35-8321-2d08fdc062d3"
+   ],
+   "doc_ids": [
+    "ec4cd42c-e82f-4e3c-9e01-14c61986e738",
+    "e5b642ef-1c0c-4870-b5e0-36bf342bd06c"
+   ],
+   "note": "Backup copy jobs to secondary/external targets for disaster recovery"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "62e4a46c-9337-4178-aa8a-283e2e8937fa",
+    "d99ae80c-ab5f-4dd1-9ffe-dfc68c45cced"
+   ],
+   "doc_ids": [
+    "41cb167c-fffd-4a26-acdb-8db2e2992b2a",
+    "a67f57af-7f3b-4ee5-b13e-35016586ddea"
+   ],
+   "note": "Backup copy jobs copy backups to secondary repositories onsite or offsite / cloud"
+  },
+  "Velero": {
+   "label": "unclear",
+   "product": "Velero",
+   "chunk_ids": [
+    "9ab74b1b-67e1-45ce-b9b4-7c1176f7622b"
+   ],
+   "doc_ids": [
+    "1f72eada-6daf-4e24-90e4-ab6c69e310ca"
+   ],
+   "note": "Some backups can target a bucket in a different region, but no copy of a backup to a second region stated"
+  },
+  "Zerto": {
+   "label": "yes",
+   "product": "Zerto",
+   "chunk_ids": [
+    "eabd93c8-cf82-41b1-acad-a5c1f8d3ce5d",
+    "8af97e8f-54a7-41df-aad7-b96a827acd8c"
+   ],
+   "doc_ids": [
+    "9e416012-7051-4028-8de1-31af80d293cd",
+    "19fae9a7-a9ff-4c0b-9de9-1445185e411c"
+   ],
+   "note": "Remote DR VPG replicates to a remote site with Extended Journal Copy"
+  }
+ }
+}

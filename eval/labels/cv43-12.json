@@ -1,0 +1,470 @@
+{
+ "question_id": "cv43-12",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "ed82f6e1-3174-4d55-961f-405b733c4730",
+    "121a4a40-be47-4869-9685-3f47a32a69c5"
+   ],
+   "doc_ids": [
+    "148fd292-79a6-4dfc-a382-931b03658734"
+   ],
+   "note": "Malware scanning of recovery points via Amazon GuardDuty Malware Protection, with scan results."
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "c9dc01a8-1dc1-438e-a2df-d230c2ed2c49",
+    "3e441033-294e-4a3f-b38d-27ac6413593f"
+   ],
+   "doc_ids": [
+    "bc79fbc5-850c-4c0b-a429-7077555ef0db",
+    "fe30ab43-05ec-4f52-a7bf-a22b0d679e15"
+   ],
+   "note": "Backup scanning plans scan backups for malware including ransomware."
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "4517f155-dd34-4cab-ac04-910536e76c9d",
+    "254c843e-b000-4008-a3d5-5900c0645dc7",
+    "da23dcd7-67b3-4f42-a077-5fb5ea91a4df"
+   ],
+   "doc_ids": [
+    "c4a23959-a9f7-49d1-bd21-298e53e88426",
+    "c882ed4a-77f2-4d6c-baa8-6dbca1816ff6",
+    "f342c16b-34bc-4022-a4c7-40d557090589"
+   ],
+   "note": "Afi detects suspicious file encryption events and notifies admins of possible ransomware (found via SQL)."
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "a412c032-2def-4498-b208-b0d30b62df89",
+    "8d498e00-465a-4ea2-88bf-fe687fc25047"
+   ],
+   "doc_ids": [
+    "91a82bf7-5b7b-4585-b284-a359646424a3",
+    "5c589dc4-fd48-4cae-876b-5465b2973a21"
+   ],
+   "note": "Assured Security AI Anomaly Detection and Malware Scan tasks on backups."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "ff84e88a-6b4e-4392-9190-1f0b4d96b183",
+    "4a44e79e-65a4-4f1a-a731-1dc7ceb7d5cb"
+   ],
+   "doc_ids": [
+    "566d6d02-ff68-4486-b0d7-8fa6964dc8d1",
+    "6b96baa0-3d61-4698-9081-d52bbd1ec748"
+   ],
+   "note": "Malware scan of backup sets and Anomaly Detection Summary report."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Lina",
+   "chunk_ids": [
+    "e79ef295-b235-430b-a993-ca74575be8e9",
+    "c82695b8-9cfb-48e9-aff4-c0549cc14585"
+   ],
+   "doc_ids": [
+    "d6df6809-001e-4dd4-9270-f7a250ea5e89",
+    "0de44b72-2de6-433b-a34b-c96adbab024e"
+   ],
+   "note": "Detects unusual/suspicious backup activity (compression-rate change from cryptovirus) with alerts."
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Microsoft 365 / Salesforce / Google Workspace",
+   "chunk_ids": [
+    "236e230e-174d-4e2c-ac78-08083d00ee5a",
+    "d48103ea-576d-4ae6-9660-ef2a9cad252f"
+   ],
+   "doc_ids": [
+    "35518775-de02-4851-a4e7-f40d987b1b8c",
+    "b9d5dcb0-f210-4b5f-b7d4-561df8fa8c63"
+   ],
+   "note": "Unusual activities analysis warns of potential ransomware attack from backup activity."
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "af154ea4-01dd-471f-a27f-52f8cd443331",
+    "059204e0-e454-4e80-99c4-68c6dc95412c",
+    "8982a7dc-8e91-4ffa-82cf-62ad9c056146"
+   ],
+   "doc_ids": [
+    "ddd7fcb1-40fa-4f7d-860e-54bf309b260d",
+    "51823354-5ebf-4054-b8c0-b2a33f7cf60b",
+    "0ec36b3b-94a9-4634-b7f2-ad71afbb632a"
+   ],
+   "note": "Backup poisoning detection flags anomalous data volume indicating ransomware; malware detection."
+  },
+  "Barracuda": {
+   "label": "unclear",
+   "product": "Data Inspector",
+   "chunk_ids": [
+    "9cbd6e51-3c9c-4d68-a3be-4145448c8e91"
+   ],
+   "doc_ids": [
+    "05adc8c9-d6cb-405b-94ac-2e23c78cd238"
+   ],
+   "note": "Data Inspector threat/malware detection scans live SharePoint/OneDrive data, not backups."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Security Center / NetBackup",
+   "chunk_ids": [
+    "33610ddf-5c43-4834-ab1a-cb3b75184a73",
+    "f62ae3be-4da0-4a98-9e54-f9ea14cab594",
+    "e00f11db-ebfe-4ee5-99a5-c3e74ba7e854"
+   ],
+   "doc_ids": [
+    "d6b3868c-862e-4ef6-acae-6f999a053ae0",
+    "887bd671-c123-44e1-91c8-ef2d6b7457fd",
+    "1e2ed49f-775c-4b92-be61-d4cb6add1b15"
+   ],
+   "note": "Entropy-based anomaly detection, threat scans on backups, NetBackup malware scanning."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell Console",
+   "chunk_ids": [
+    "dc172297-10f2-4782-b4d2-c16c13c2be8e",
+    "49612ab9-8910-41ab-83a9-29022fa86af4",
+    "bdf9c978-b17d-4576-ad15-9040c64950d6"
+   ],
+   "doc_ids": [
+    "4315057c-e0a8-449a-9f10-4b1575b9d861",
+    "6d4e2988-11db-44b0-85ff-c86ef71130e7",
+    "6bcd34e0-3d00-424f-a5db-aed3e521b1f3"
+   ],
+   "note": "Threat Scan detects malware and encryption in backup data; anomaly monitoring."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "f303b152-25a7-444c-bd7f-28372a29aebc",
+    "03e0f2e0-766b-496c-8aab-abad6ee5cec1"
+   ],
+   "doc_ids": [
+    "729d0996-7646-4b45-ac4e-5787043f9d80",
+    "a06f87ef-65af-4b8a-847e-d17a25cfce61"
+   ],
+   "note": "Ransomware check on snapshots alerts if infection suspected."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "8394df81-e9eb-456c-a606-468540e3ae7f",
+    "41a515d4-2f16-4f87-b05d-9bfa121cc99a"
+   ],
+   "doc_ids": [
+    "9b787a33-4514-404a-97af-9d33236df671",
+    "b34187b4-6e10-4059-be14-0d661abda1fd"
+   ],
+   "note": "Anomaly Detection alerts."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "8287dd95-5958-449d-9a99-a7a0352c1efe",
+    "7eb6f541-cb5f-4ecd-90dd-b3f21ff4d6a2"
+   ],
+   "doc_ids": [
+    "428dc3f6-62c8-4b92-b774-d111ef6c4d07",
+    "b6b0e66b-6ed0-437f-b8f5-cf5bbd77eb1a"
+   ],
+   "note": "Ransomware detection framework on backup data."
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "68788743-b293-4014-9c8e-0300caea5863",
+    "77bc4609-53a2-4724-befd-57fde249caa9"
+   ],
+   "doc_ids": [
+    "b27dfbb9-96b6-4413-9ea8-13d892baf1e8",
+    "0c6eff37-7719-4b52-abaa-41c1238f11c4"
+   ],
+   "note": "Ransomware detection on backed-up resources."
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "unclear",
+   "product": "GRAX",
+   "chunk_ids": [
+    "65c697dd-1d9f-40eb-ba0c-0d4eef97828b"
+   ],
+   "doc_ids": [
+    "9464022f-78fa-401c-a836-2a2c6074392b"
+   ],
+   "note": "Pilot anomaly detection notifies on unusually high deletes; not ransomware/encryption specific."
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "unclear",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "29acdaf6-2255-4658-9f09-ddc3274ec79a"
+   ],
+   "doc_ids": [
+    "852c5f60-abc4-4a70-af1c-326677f83309"
+   ],
+   "note": "Event Threat Detection monitors high-risk user actions on backups, not scanning backup content."
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "7be8c0b5-bb19-4571-8778-511997483dfb",
+    "94352964-2438-44a6-afdd-43b20971246d"
+   ],
+   "doc_ids": [
+    "dd920c4a-b227-4ff1-addb-869c9a2010f3",
+    "4a943119-45bf-4600-abc1-a058d97dfdc4"
+   ],
+   "note": "R-Shield anomaly detection on backup size and malware scans."
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Defender / Storage Protect",
+   "chunk_ids": [
+    "74c2aecf-2974-4f8c-a9c1-64a536836295",
+    "1268c457-cc6e-40e6-ba63-8c61fc80ca30",
+    "211faf3c-8d4c-4d14-8882-17acc792f171"
+   ],
+   "doc_ids": [
+    "ea5e2279-2ca4-46a0-9da7-d927ffb64e55",
+    "f79373f4-7e57-4b58-ae86-24d10bf6a170",
+    "55627b0d-2eb3-4200-8d27-ae32e1a52d18"
+   ],
+   "note": "Behavioral anomaly threat detection; Operations Center flags signs of ransomware in backup data."
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "3c55d782-187b-457b-8ee6-17f94e042c5a",
+    "539e57dd-1e01-4a4e-8c0d-c3e550c35134"
+   ],
+   "doc_ids": [
+    "31eab101-1e45-43a9-a687-74e8523a4152"
+   ],
+   "note": "Anomaly Monitoring detects significant backup data changes (e.g. ransomware) and alerts."
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "9f59e299-301d-403e-9112-5aa76bb26e5c",
+    "b9510f75-5de3-4c8a-85f1-031e5b10a618"
+   ],
+   "doc_ids": [
+    "86d7eb61-546b-4098-a0e6-517a3f561038",
+    "99717ca2-d138-412b-86ce-81a2b08962f6"
+   ],
+   "note": "Threat detection for Azure VM backups via Microsoft Defender for Cloud assesses restore point health."
+  },
+  "N-Able": {
+   "label": "unclear",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "b76eb107-8d67-488f-905b-3c53df8f0ff5"
+   ],
+   "doc_ids": [
+    "31869a82-221d-43e8-86a2-76db01ce2907"
+   ],
+   "note": "Anomaly detection only for critical configuration changes, not backup data."
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "7182f443-8365-4dd9-8aa2-de57c423d780"
+   ],
+   "doc_ids": [
+    "677f035d-4a39-44e3-b28b-4472eb634e72"
+   ],
+   "note": "Backup Malware Scan scans backups for malware."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "ea40cde5-1c35-4966-9e3d-d7355219f144",
+    "dd344bc7-0e5b-4f7c-ad97-5702f5921b53"
+   ],
+   "doc_ids": [
+    "06e97a2f-bff3-444e-9a49-8dd3493723a3",
+    "5d3ec548-f449-444b-a040-efe6b576ea8e"
+   ],
+   "note": "Threat Monitoring scans snapshots; encryption detection anomaly alerts."
+  },
+  "Salesforce": {
+   "label": "unclear",
+   "product": "Own",
+   "chunk_ids": [
+    "248768a5-1b49-45ba-a4e9-25c4776e4dd3"
+   ],
+   "doc_ids": [
+    "c32002af-cbd5-4167-b7fc-cc9ddec98063"
+   ],
+   "note": "Smart Alerts on unusual data changes/deletions; not described as ransomware/encryption detection."
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "9892e5a5-b727-4894-b16e-b7b366ef72ab",
+    "27558dfe-357b-42f4-88e3-97882259d8f8"
+   ],
+   "doc_ids": [
+    "09ab444a-71b6-4edf-8d28-0dd4028b9b9f",
+    "2dfd1497-232e-4df7-b66b-cf161734946e"
+   ],
+   "note": "Predictive analytics ransomware detection flags at-risk backups."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "90573c2a-be3a-480e-9de5-1bf2c883f22a",
+    "51e7ca2a-502f-4fdd-92cd-81562fa71c37"
+   ],
+   "doc_ids": [
+    "ffdb57c2-8af6-4303-83c9-1f9887b8ff72",
+    "809e436f-2e6b-4166-bf5b-499df8ae53a1"
+   ],
+   "note": "Inline entropy analysis detects encrypted files during backup; malware detection events."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "yes",
+   "product": "Zerto",
+   "chunk_ids": [
+    "bf8ecee4-4798-42eb-b559-469c9a5d1cae",
+    "c03f835d-f4e4-4182-9f12-f4af47be2c80"
+   ],
+   "doc_ids": [
+    "3166664a-f00d-4f16-b55a-73033d6980b2",
+    "307c98fb-bf69-4d69-a94c-dc7072b9e139"
+   ],
+   "note": "Encryption Detection inspects protected VM writes for abnormal encryption with alerts."
+  }
+ }
+}

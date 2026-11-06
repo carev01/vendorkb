@@ -1,0 +1,373 @@
+{
+ "question_id": "cv43-02",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "unclear",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "e1229055-09f9-4ca0-9661-19424913d50f"
+   ],
+   "doc_ids": [
+    "9dabb96d-17b8-4683-9d2c-9afef9f6a235"
+   ],
+   "note": "Backs up its own OpenStack-based Cyber Frame IaaS VMs; generic OpenStack/Cinder protection not stated"
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "unclear",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "d4ec6f46-783c-434e-ba7d-bc393d07fca1"
+   ],
+   "doc_ids": [
+    "5f4aa499-0241-4b17-89aa-8e5c6b63e1ab"
+   ],
+   "note": "Openstack Nova (OVH) only appears in a hypervisor selection list for agent-based backup"
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "f975ffd0-8337-4a12-8729-09ab8bab5b2c",
+    "3c478da7-23fb-4adc-b115-5372ad91e505",
+    "4a057855-e26c-4169-bd02-a1e4b37d86e9"
+   ],
+   "doc_ids": [
+    "bc7eb5af-985b-4564-95de-18780651897e",
+    "4c8a83f0-c01f-4e90-9dc3-15162c581dbc"
+   ],
+   "note": "Tina OpenStack VM backups; restore of VMs and their volumes"
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "b4ae182e-c1d8-4ade-abc7-f097599344a6",
+    "ee5a9500-da83-4a7b-8586-bf30f61bff24"
+   ],
+   "doc_ids": [
+    "5402e9c9-bd32-438c-a34c-7bfda620cf42",
+    "99ed6b89-9661-4485-81f8-98a913a5b204"
+   ],
+   "note": "OpenStack plugin backs up Nova servers and Cinder volumes attached to an instance"
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup (DataProtect via Storware)",
+   "chunk_ids": [
+    "0bcb6c4f-851a-48e8-9f01-80c2c23bc8e6",
+    "79f089dd-74b5-4a24-af95-1dcd943ba32b"
+   ],
+   "doc_ids": [
+    "64886d8d-72ee-46bb-9ec7-713bea7c7339",
+    "999922bb-41fb-4b14-b93e-d8d81a064856"
+   ],
+   "note": "NetBackup supports OpenStack protection plans; DataProtect protects OpenStack VMs only via third-party Storware integration"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell",
+   "chunk_ids": [
+    "ea8d9380-0560-4fd8-b01d-a0d58e22fceb",
+    "56cd30e5-2581-4bdb-b797-40c9efc96de3"
+   ],
+   "doc_ids": [
+    "8598d843-953c-4091-8ee7-a9f473adc0d3",
+    "6c5ee05e-5435-48ec-8c80-d2a4b222c0b5"
+   ],
+   "note": "Commvault protects OpenStack instances; Cinder volumes restorable from instance backups"
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "Avamar",
+   "chunk_ids": [
+    "897146a1-fb7c-4abf-b8d6-cc3361b2608e",
+    "67069ec7-68a9-4717-945e-6857bc7cd256"
+   ],
+   "doc_ids": [
+    "d05f09dd-38aa-477a-96aa-940fc2e0f557",
+    "a66face2-fabd-4a0a-b444-9ae772561fb1"
+   ],
+   "note": "Avamar OpenStack Data Protection Extension, agentless backup of OpenStack instances and volume copies"
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "e8e29901-6069-45fe-994b-1300fd6c5b7d",
+    "4775d5f6-42f5-4173-a21e-e70819be04de"
+   ],
+   "doc_ids": [
+    "46b6ef60-f085-4fe6-86dd-d43a00fa60ca"
+   ],
+   "note": "Druva OpenStack backup of instances with attached Cinder volumes (Cinder snapshots)"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "b39a3bda-4eb8-4673-a5f8-266d371f9d6c",
+    "3dd0a39c-6e39-40fe-b4aa-1ffed54c29a3"
+   ],
+   "doc_ids": [
+    "b2d22ebc-d439-4150-ab1a-60b1c0b1dc2c",
+    "75cfe694-1917-4f48-b140-c411a2dfda47"
+   ],
+   "note": "RSC protects OpenStack VMs and Glance images; attaches Cinder volumes to proxies during backup"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "b076fb1b-46e4-4987-ab07-d55df5d0d87c",
+    "0de15f63-9cde-428f-8195-758f37aaccbf"
+   ],
+   "doc_ids": [
+    "d15299e2-10bc-472f-985e-879ec69721c0"
+   ],
+   "note": "Storware OpenStack VM backup strategies incl. Cinder volumes"
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "unclear",
+   "product": "Trilio for Kubernetes",
+   "chunk_ids": [
+    "83ae33aa-0a86-4076-914f-f35e6486a2d1"
+   ],
+   "doc_ids": [
+    "0e04f09a-6c0a-40da-8fb7-7110ff93a7e1"
+   ],
+   "note": "Only says Trilio's approach is proven in OpenStack; no OpenStack product documented in corpus"
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "unclear",
+   "product": "Veeam Kasten for Kubernetes",
+   "chunk_ids": [
+    "af602c43-ba1d-4807-942b-cfd6182fc723"
+   ],
+   "doc_ids": [
+    "0966c5f4-e20b-4bfe-8754-7fc329c9e28d"
+   ],
+   "note": "Kasten snapshots/backs up Cinder block storage for Kubernetes volumes only, not OpenStack instances"
+  },
+  "Velero": {
+   "label": "unclear",
+   "product": "Velero",
+   "chunk_ids": [
+    "ac542252-3108-4f59-8dcc-b567ec513500"
+   ],
+   "doc_ids": [
+    "f35301b8-3cfd-4081-81c8-d25de1ed5de2"
+   ],
+   "note": "Cinder volume snapshots only via a community third-party OpenStack plugin, for Kubernetes volumes"
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

@@ -1,0 +1,385 @@
+{
+ "question_id": "cv43-08",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Salesforce",
+   "chunk_ids": [
+    "357467d1-5ec3-4f0f-ad8f-810f9aa30bf4",
+    "985c4600-544b-44de-bd8c-a22b62df90ce"
+   ],
+   "doc_ids": [
+    "8a909e3e-7fd2-4e39-96ec-8d2e0fb420aa",
+    "53939543-791d-4573-b5d5-c0283b31faf8"
+   ],
+   "note": "Backs up/restores metadata via Metadata API; restorable types include ApexClass, ApexTrigger, CustomObject, Flow"
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Cloud Protection Service",
+   "chunk_ids": [
+    "9a611a3b-c992-471b-add6-e6e093eb339c",
+    "1ed786ea-be14-4a6b-b3d2-5a8f234520bd"
+   ],
+   "doc_ids": [
+    "a75b942b-507b-4267-85aa-ece0f75690b9",
+    "e973e31d-82ed-4f2c-9106-d88e7ba5ef82"
+   ],
+   "note": "Protects Salesforce metadata (object schemas, Apex classes, workflows); wizard-based metadata recovery"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "48a4cada-10e3-44c5-952f-be4068ed6b10",
+    "4c76a0a1-24c7-4e8f-b9a8-7ea62f7e146e",
+    "6af0f120-81fc-4ac7-bf78-f8d3f4064988"
+   ],
+   "doc_ids": [
+    "c10888e9-bebb-45c8-be42-ed609d18f43f",
+    "3ca3a3d3-d91a-4855-8c95-44d7abbe4140",
+    "4967e2d3-cca5-4a7d-b242-6c38f02d6578"
+   ],
+   "note": "Restore Salesforce metadata to Salesforce or file system"
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "0469d561-5086-49d7-8648-20d2f8727175",
+    "4dd94c97-2db8-41f9-9aba-cae1af7aeb15"
+   ],
+   "doc_ids": [
+    "d29e9b4b-2c25-4cb7-aaa3-58e1f7f2e180",
+    "1269c0a8-779e-490a-a147-7cd4cd8da636"
+   ],
+   "note": "Snapshot Metadata sub-tab to compare and restore metadata; selective restore of metadata"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "yes",
+   "product": "Backup and Archive (B&A)",
+   "chunk_ids": [
+    "d041ff5f-5aaf-4f84-9493-001555088807",
+    "c5bd3265-9813-4b35-a8ad-f34c73891aa0",
+    "3a7fbe3f-6baf-463c-aaf8-2594450aaa32"
+   ],
+   "doc_ids": [
+    "de271675-bf5d-4477-9c00-b14486bbcc4c",
+    "5fa40be1-86d6-468a-a490-61420a4c7d2e",
+    "7584088e-5b0c-4c87-a869-401c404c2b5b"
+   ],
+   "note": "Backup and restore of Salesforce metadata, including ApexComponent; metadata restore jobs"
+  },
+  "GRAX": {
+   "label": "unclear",
+   "product": "GRAX",
+   "chunk_ids": [
+    "0b17ebbb-e3bf-42cd-9ecf-86bae9724adb",
+    "66c5b4f5-2c9c-4d46-9390-8432bb0b45b1"
+   ],
+   "doc_ids": [
+    "f875d337-e5b0-4a89-bd07-df51d1c4e36f"
+   ],
+   "note": "Backs up all Salesforce metadata objects with version history/compare, but no metadata restore documented"
+  },
+  "Gearset": {
+   "label": "yes",
+   "product": "Gearset",
+   "chunk_ids": [
+    "87524ca8-399d-4c2e-85aa-0e0aff1f0bef",
+    "324c2bb0-c8da-4ae4-ad14-985c14b1878f"
+   ],
+   "doc_ids": [
+    "f745b571-87ea-4059-97b7-456cb03fa86d",
+    "610c7eb5-dd3a-42ef-a268-7cdfd45e177e"
+   ],
+   "note": "Salesforce data & metadata backup & restore; restore metadata from a backup job"
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "8018770c-bc02-479c-b5e7-21058a21b06b",
+    "e8ec15e4-39c6-4de8-89ce-093dfb83d961",
+    "d3ba7062-4a6a-4308-a2f7-7efc91607d72"
+   ],
+   "doc_ids": [
+    "b6eeb9f1-3e16-4c13-9074-f9ebf6468859",
+    "daee679e-679f-4f39-97f4-4a20f0782de1"
+   ],
+   "note": "Backs up metadata via Metadata API (custom fields, flows...) and restores metadata from connector metadata folder"
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "1dcd6471-8523-40a4-8c77-d9d78130afac",
+    "245322e2-83af-4c8b-8a5c-e2400ee67a13",
+    "0b63d556-0c62-4bf6-8be3-a983b9bcf285",
+    "532f0c61-4239-483d-9236-022ed1bed8ab"
+   ],
+   "doc_ids": [
+    "dafb59d9-af31-4172-bcd4-70540a94c19e",
+    "b2389b11-297b-4bb6-9a14-c511a1dd66b9",
+    "6ae6edfc-2525-4db0-971d-80d24e46d21a",
+    "c734ec4e-c7aa-4654-a1f4-50a7fc062521"
+   ],
+   "note": "Salesforce metadata backup and recovery (custom objects, workflows); backs up ApexClass metadata"
+  },
+  "Salesforce": {
+   "label": "yes",
+   "product": "Own (Backup & Recover for Salesforce)",
+   "chunk_ids": [
+    "77e15f1d-150c-436e-a879-432c838c21e6",
+    "87ed696f-222b-4aa4-8424-1b48dfbad4e1"
+   ],
+   "doc_ids": [
+    "2d04b682-e1c9-4e14-bdcd-edae442bd515"
+   ],
+   "note": "Own backs up metadata via Metadata API and restores deleted/corrupted metadata"
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "yes",
+   "product": "Spanning Backup for Salesforce",
+   "chunk_ids": [
+    "f83bfc6e-1265-4f63-9e10-2c6d62af8087",
+    "e762a5ba-f606-4a6e-ac42-1b579a16c0b8"
+   ],
+   "doc_ids": [
+    "3f19ea0d-3d92-4028-aa1c-be35f5b5819e",
+    "1a4b515c-5288-4263-bcaa-2aacc7d2a075"
+   ],
+   "note": "Restore metadata types including Classes, Flows, Objects"
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup for Salesforce / Veeam Data Cloud",
+   "chunk_ids": [
+    "9c4785fe-51a1-48b8-98ec-4c2b6a720e5a",
+    "850ba977-1382-4896-871d-09d8103bde43"
+   ],
+   "doc_ids": [
+    "2e7597a2-c6ab-4401-b27d-f00740687a1d",
+    "64014623-119d-41b7-8352-8a23977e63bf"
+   ],
+   "note": "Restore metadata including Apex classes; metadata backup and restore"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

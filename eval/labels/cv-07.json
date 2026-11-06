@@ -1,0 +1,492 @@
+{
+ "question_id": "cv-07",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "041d257a-c81e-4c31-b928-8473168d887a",
+    "31f47de0-7a56-4d1b-b012-aff214c726bf"
+   ],
+   "doc_ids": [
+    "3704689c-2a17-4cb0-a0e9-e87707097ef6",
+    "08b4ad14-3edf-4180-b628-e3905b1379e3"
+   ],
+   "note": "Audit Manager report plans deliver daily/scheduled reports to your Amazon S3 bucket (CSV/JSON)."
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud / On-premises",
+   "chunk_ids": [
+    "5acf2bf1-38ac-4865-a0fc-5f6d7024a573",
+    "785f656d-882e-47db-b1df-c5587a7375d8"
+   ],
+   "doc_ids": [
+    "91ce8318-6bb4-4c96-bb0f-9da4c2117c9f",
+    "297e3da9-d719-486a-a4e9-0d0537d7cc88"
+   ],
+   "note": "Reports can be scheduled and sent by email to recipients or saved to a folder (.xlsx)."
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "4f755fda-81c0-494c-893a-d188be94b55a"
+   ],
+   "doc_ids": [
+    "3c117bbc-d0e1-4584-8082-3fd723e5ef73"
+   ],
+   "note": "Periodic status reports delivered via email, Slack, Teams or Google Chat."
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP / ShadowProtect / Arcserve Backup",
+   "chunk_ids": [
+    "ad485448-b808-4ed5-b2b1-3556ff62d17b",
+    "59dcdfe3-1146-41bf-86eb-284c04646c49",
+    "e6eda1ee-e6e3-462d-98a4-a59f03386ddf"
+   ],
+   "doc_ids": [
+    "1785e84a-c442-4f86-bfce-f7cad3dd6dc7",
+    "316f87ca-d158-4b19-9543-fbefbc2c90d6",
+    "24288755-24c0-4dae-8df4-1564077a7ec4"
+   ],
+   "note": "UDP scheduled report emails; ShadowControl schedules standard report to recipients daily/weekly/monthly."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "dfdd77b3-9303-419e-b4a5-daab8ba3fff7",
+    "01696ab0-4374-4231-924c-eb33146f0412"
+   ],
+   "doc_ids": [
+    "b8105146-4243-42cd-82f6-77a65045bf50",
+    "cdf1aea3-22fd-4150-bc42-48059f98c3c3"
+   ],
+   "note": "Reports can be scheduled on a recurring schedule with email notification including a copy of the report."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Lina",
+   "chunk_ids": [
+    "dddfc251-4f5d-42a8-99f6-feec2ea79f4d"
+   ],
+   "doc_ids": [
+    "560474ce-1c66-4f31-bf73-17bb0002c09c"
+   ],
+   "note": "Lina reports can be submitted automatically daily/weekly/monthly to email recipients (attachment, URL link or embedded table)."
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Elements (MSP Administration)",
+   "chunk_ids": [
+    "120e33d2-ac84-4207-a8e6-7765633bc174",
+    "5240920f-64f1-4a8b-bcc2-2e54b57b4c34"
+   ],
+   "doc_ids": [
+    "26aa0a22-c460-43ae-8d40-a2f72b51743e",
+    "fea6dda0-2d69-42ec-9cac-7bd44564bd14"
+   ],
+   "note": "Elements can export and send reports to recipients on a schedule (Excel workbook by email)."
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "a7a0a990-27a5-4cf5-8503-671e3f9ddef5",
+    "373689ba-48c1-4119-b829-2e78d37542b0"
+   ],
+   "doc_ids": [
+    "b699f952-256b-4c0d-ac7d-586012fc864d",
+    "a04d20fe-be62-44ce-a217-9c24e0204180"
+   ],
+   "note": "Report definitions delivered by email on a daily/weekly/monthly schedule; scheduled delivery of executive summary reports."
+  },
+  "Bacula": {
+   "label": "unclear",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "0a67ce56-f2db-4115-bbf0-8754e13506a7"
+   ],
+   "doc_ids": [
+    "9ff86f28-5508-4463-a364-644e94b72c11"
+   ],
+   "note": "Only a third-party script (baculabackupreport.py via cron) emails a daily job report; native docs only show per-job mail messages."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup / Data Inspector",
+   "chunk_ids": [
+    "e5d12d9a-a3dd-417a-a50f-cee81f3afd22",
+    "5abd6850-bd84-486e-b56e-b4b5dd1b45dc"
+   ],
+   "doc_ids": [
+    "3b267f1d-d500-4cfd-9286-153283583bef",
+    "223b9ecb-b9b7-46c7-9902-0edcc445b0c0"
+   ],
+   "note": "Daily summary reports emailed to configured recipients; Data Inspector scheduled reports emailed."
+  },
+  "CloudAlly": {
+   "label": "yes",
+   "product": "CloudAlly for MS 365",
+   "chunk_ids": [
+    "7e98d043-b06f-473f-ab8e-3f6bd0393ae7"
+   ],
+   "doc_ids": [
+    "76b1cb57-9d91-4d5b-b96a-d0a29c6d41d4"
+   ],
+   "note": "Backup summary report emailed to recipients daily/weekly/monthly as CSV attachment or download link."
+  },
+  "CloudCasa": {
+   "label": "unclear",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "1f6850a6-3703-405f-a0e8-d654fc142f82"
+   ],
+   "doc_ids": [
+    "623cac43-8b0a-493a-acf0-bf531573a132"
+   ],
+   "note": "Only security scan summary reports are emailed each time the scan job runs; no backup status report schedule shown."
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "FortKnox / NetBackup IT Analytics",
+   "chunk_ids": [
+    "a0c6acbb-62f9-49e5-9e8e-a6f2e81b79c7",
+    "256c43c9-68a2-4cb8-8e28-a0ee8602ab39"
+   ],
+   "doc_ids": [
+    "28df7e33-92b9-494c-9d7d-16c1fc6acc87",
+    "9ea251fa-f87e-44ce-8dce-7b2d15866754"
+   ],
+   "note": "Reports can be scheduled to run periodically and emailed to recipients (download link if large)."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console",
+   "chunk_ids": [
+    "e7f8c23a-8bc1-420e-aaf0-13206c4ce28b",
+    "45985fc9-96a5-41c3-be2c-089aa120641e"
+   ],
+   "doc_ids": [
+    "f8ccaa75-598b-4077-8ded-92fad6e52b4a",
+    "0a57df4c-ef97-4171-bbc1-1b687c4bbf4f"
+   ],
+   "note": "Scheduled job summary reports with users who receive the scheduled report."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR / SaaS Protection for M365",
+   "chunk_ids": [
+    "22224558-bc61-47a2-854b-4fa3b0b8f538",
+    "5e690c17-d4b9-4388-998f-c4a2c4712535",
+    "31464427-9844-49a9-8b11-4d33bf9af17e"
+   ],
+   "doc_ids": [
+    "6d8dc85e-b237-4cd9-9564-8cfb81f2f52d",
+    "99b7dc3d-fcd0-4a6f-a47f-22d64616909a",
+    "7f7ceda1-0d91-419c-90d1-a3ad6ed94b39"
+   ],
+   "note": "Reports generated at a set frequency and emailed (PDF/HTML/CSV) to recipients; daily backup success report."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager / Avamar",
+   "chunk_ids": [
+    "b70ce30a-d4e6-43c2-9e11-7f602590c123",
+    "2edd4af7-74cc-47df-b04b-e0ef634a7450"
+   ],
+   "doc_ids": [
+    "45fd814a-a918-43ae-93a2-34cb5d2c67e7",
+    "30b1235b-8460-49d1-91bc-1bcf98b7c325"
+   ],
+   "note": "PPDM Schedule automatically sends report to email recipients on a recurring schedule; Avamar emails backup reports."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "e6457a51-bd32-47c5-b67e-9dbaf5790727"
+   ],
+   "doc_ids": [
+    "3001e606-b1fa-43c1-851e-b04a38bb5c1b"
+   ],
+   "note": "Centralized reports send scheduled report emails daily, weekly or monthly."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "unclear",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "spot-check disagreement (no vs unclear); set unclear. "
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "79ed57a9-7784-49c3-b991-e4a289a6c98b",
+    "f42e8d91-b0ae-4947-b7e5-8f17f28975da",
+    "5e6d9198-6798-45ef-ad8b-cc67c71e0648"
+   ],
+   "doc_ids": [
+    "c49fb066-4b5c-47c2-b667-836e239f332d",
+    "13068f53-668c-41a5-ad77-cb899ef57fad",
+    "7640d7e1-936f-4b77-9374-f76d548a8122"
+   ],
+   "note": "Legacy management console scheduled email reports (configure schedule reports); BigQuery reporting can automate email reports."
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition / HYCU for Azure",
+   "chunk_ids": [
+    "87b865be-031d-4f3f-844e-368c587f3e90",
+    "b2870267-c974-428d-b976-274c7be1dc2c"
+   ],
+   "doc_ids": [
+    "a33d4c4a-b634-4dba-b2c4-8635be26c61a",
+    "0e962c78-eb79-432b-8cf5-201b145cb98d"
+   ],
+   "note": "Reports generated automatically daily/weekly/monthly and delivered by email (SMTP)."
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery (VM Backup)",
+   "chunk_ids": [
+    "d88202c2-e24c-416e-b984-25cac65dc262"
+   ],
+   "doc_ids": [
+    "307dd953-2493-4d43-8f2b-60451a6a6cfc"
+   ],
+   "note": "Daily digest status report emailed at a specific time to configured recipients."
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "93a4de80-831e-4537-af0e-e24bd4c11d30",
+    "bf4a9d6e-0c14-49e4-a871-9f3b76c601f7"
+   ],
+   "doc_ids": [
+    "b5bc01de-18e2-4e7e-a4db-e989effffe6e",
+    "6dceea52-1eac-4717-80c2-ecc8135b0c6a"
+   ],
+   "note": "Reports scheduled to run periodically and emailed to recipients at specified times."
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "19b6ef95-7640-4e94-b66b-ebd722650b0d",
+    "973e15b7-aa35-46f5-afff-4cb8cf35bf18"
+   ],
+   "doc_ids": [
+    "0569e31f-0dba-42c1-8fab-9fd838f6a4a3"
+   ],
+   "note": "Backup coverage reports scheduled weekly/monthly; download link (CSV) sent to recipients."
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "b0abf5b5-726a-4ec7-bcf8-bf63eb97b5f8",
+    "852da1e4-3bae-4147-b2e7-c60253497cab"
+   ],
+   "doc_ids": [
+    "4b79b518-67c7-4a99-b26d-bf8765d6a2b5",
+    "be281c8c-34aa-471f-990f-263ccffb0e5e"
+   ],
+   "note": "Email Report feature deploys a logic app to send periodic Backup Reports via email."
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "802242c5-14bc-4470-90f1-eaacfe6ffff5",
+    "227d85b1-c301-449a-989d-ad8a055af7b8",
+    "b8e8fc5d-01aa-4f4f-9aab-166b7ab8714e"
+   ],
+   "doc_ids": [
+    "a90b293b-6ccb-41fe-bce4-1d9365fef5a7",
+    "1043b299-d9f1-4711-84e6-83a3875c3145"
+   ],
+   "note": "Scheduled email reports of dashboard views; scheduled executive summary reports to recipients."
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "3eef5414-5f69-43a1-86a6-62609425f4fa"
+   ],
+   "doc_ids": [
+    "5a59f13c-4b2c-4ddd-b365-d354e45846f9"
+   ],
+   "note": "Overview and Protection Coverage reports generated on a schedule and emailed to recipients."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "yes",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "95d5b7b1-a541-4523-b616-727c1a1cd919",
+    "3e276f30-4b95-4ee3-ade0-c72bd5d3c1fa",
+    "25ce3b67-0952-40f4-a8b0-11e118bd6201"
+   ],
+   "doc_ids": [
+    "ae3d762f-72e4-47ce-bf9f-6a0ae925ad95"
+   ],
+   "note": "Backup Summary Report delivered monthly by email (Backup Report Delivery)."
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "c7dd2392-49fc-408d-a3a9-5108b4580462",
+    "bdabffd9-1e93-48ba-920b-da26d20ec1c3"
+   ],
+   "doc_ids": [
+    "f008f533-0a60-49b5-8e96-6e36f71a3e66",
+    "6a1ad0c1-2651-4143-9366-48ebdc4cd3f1"
+   ],
+   "note": "Report schedules deliver RSC reports as HTML email to registered addresses at intervals."
+  },
+  "Salesforce": {
+   "label": "unclear",
+   "product": "Own",
+   "chunk_ids": [
+    "85ca9ac2-3409-4888-85f8-9bdb314e3a20"
+   ],
+   "doc_ids": [
+    "a0d3c8f8-5c15-4ea2-a52d-f94e6c949126"
+   ],
+   "note": "Only Security Insights emailed reports (security scores), not backup status reports."
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "yes",
+   "product": "Spanning Backup (User Guide)",
+   "chunk_ids": [
+    "9bb6b788-0801-469d-87b4-df3337c241e4",
+    "ed583ae5-c8b7-4498-ab85-e4265f619e87"
+   ],
+   "doc_ids": [
+    "b7c96425-d6e6-48db-9bee-df47c277db0a",
+    "107a1dda-5adc-4c8d-ad5a-b47dee4df395"
+   ],
+   "note": "Daily status summary emails about backups sent to a configurable recipient list."
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "69242f74-27d5-4081-b830-5d9ce61916c9",
+    "42d6778f-b0e8-49cd-a862-8ed058171569"
+   ],
+   "doc_ids": [
+    "79c9c3d2-f91e-4d07-9cf0-6fd84ae8f787",
+    "db015445-a9fc-444f-8a4f-48cc4b14bf50"
+   ],
+   "note": "Backup policy option sends a daily backup/restore report to a mailing list; e-mail reports."
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "Active Backup / ActiveProtect Manager",
+   "chunk_ids": [
+    "b388a8fc-6ce5-400f-88f6-95005c59b9e0",
+    "33de4f98-3b8f-4ff6-8497-aafea838dc0e"
+   ],
+   "doc_ids": [
+    "335483c8-b00a-405c-aee8-0607cbde192f",
+    "d97602cc-f5ff-47d5-939d-fe13a553ee25"
+   ],
+   "note": "Reports generated on a customized schedule and emailed; scheduled data protection summary reports."
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "75476829-47d2-409c-abfb-6bbb0f7a8c29",
+    "5e9ed240-407f-49da-91f2-85452a3847bc"
+   ],
+   "doc_ids": [
+    "53d34283-3539-43b2-bc12-ff2fc3c6e6ca",
+    "09ff529f-2572-48d6-8e7d-923bde6ecc1c"
+   ],
+   "note": "Email reports (appliance status, schedule success/failure, management status daily) configured for email delivery."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Data Cloud / Veeam ONE",
+   "chunk_ids": [
+    "c399a7fa-64e7-4485-8b6a-bc2a7d54d009",
+    "3f1ea238-6128-4247-94c9-9ba5d80c1bd8"
+   ],
+   "doc_ids": [
+    "dacfd41b-aba7-471c-9246-c9dfa8d089f4",
+    "3d6779bf-74fc-4080-a2f3-fde6d871ad87"
+   ],
+   "note": "VDC M365 scheduled reports emailed with download link; Veeam ONE scheduled report delivery to folder/network share."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "unclear",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "spot-check disagreement (no vs unclear); set unclear. "
+  }
+ }
+}

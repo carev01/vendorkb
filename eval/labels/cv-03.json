@@ -1,0 +1,439 @@
+{
+ "question_id": "cv-03",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect",
+   "chunk_ids": [
+    "7ea76da4-436b-4a25-b997-e7c2bbef4427",
+    "6bbb30ce-90ba-4e63-952d-dc95b2137f3c"
+   ],
+   "doc_ids": [
+    "634e6356-3e2b-4e5d-bc67-5856e6fe835e",
+    "6b306be8-6f84-4044-80e3-c1a1236c5964"
+   ],
+   "note": "Agent for Hyper-V installed on Hyper-V hosts backs up Hyper-V VMs (with clustering limitations)"
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP / Arcserve Backup",
+   "chunk_ids": [
+    "e1197c6c-15b4-46ff-ba32-b11767e4590a",
+    "77661bef-7dca-4638-ab70-111affafce25"
+   ],
+   "doc_ids": [
+    "79395a9a-ca1a-4344-859b-1030e73630db",
+    "dc9c8f3b-d87f-4332-844c-4443432db06a"
+   ],
+   "note": "UDP agentless VM backup policy for Hyper-V; Arcserve Backup protects Hyper-V VMs via VSS writer"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "e943437b-7b6e-4ab9-97ee-a8823f3c0799",
+    "277720d1-b27f-43cf-aa03-3c917041358c"
+   ],
+   "doc_ids": [
+    "2d11a0b4-41c4-4db1-82cb-e8b816179cb1",
+    "700988f5-c4cb-427a-bfdb-8262618cedba"
+   ],
+   "note": "Backup Exec Agent for Hyper-V backs up and restores Hyper-V VMs"
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "f56d3d48-ef6d-4a67-84cd-a58b90a95784",
+    "c3572c99-193a-49c7-b618-e86dd340a009"
+   ],
+   "doc_ids": [
+    "ea9b7874-4d60-4f4c-95dd-e1bdb470efc5",
+    "8ac6927a-89fc-4131-aed7-f5af649a250a"
+   ],
+   "note": "Tina Hyper-V backup and restore documented"
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "5c2468fa-5202-45e3-9654-3eb1f28ae86b",
+    "5c2ba701-c7a1-4a99-ac8a-596f686f10b4"
+   ],
+   "doc_ids": [
+    "f4adc011-2508-4739-87ef-b135df73e2e5",
+    "b2573d6b-e098-4c8c-a6dc-1c1dc6d148c6"
+   ],
+   "note": "x360Recover documents Hyper-V backups (guest-level recommended, host-level technically possible)"
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "289cdb19-f3bc-4cf8-9317-f52d93f824f2",
+    "f92c3075-ef7c-495d-a94f-6018c13d52cc"
+   ],
+   "doc_ids": [
+    "4a08bfe1-ad81-4039-9e8a-7f2a288f9b96"
+   ],
+   "note": "Bacula Enterprise Hyper-V plugins back up Hyper-V VMs"
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup / Intronis Backup",
+   "chunk_ids": [
+    "4360cd90-44d8-44d6-9083-7f0e0ca06ee1",
+    "905d3c1c-d7aa-492e-bc0e-595818cbb1ef"
+   ],
+   "doc_ids": [
+    "0bf555e1-0df0-4874-9356-72a149c1c8ef",
+    "de1bcf71-b53e-4572-8e5e-fade1799078e"
+   ],
+   "note": "Barracuda Backup performs image-level Hyper-V backups; Intronis documents Hyper-V backup requirements"
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "DataProtect",
+   "chunk_ids": [
+    "2e32570d-0b99-434f-8ea9-db93435b287b",
+    "fff793a2-ba89-4036-b2e4-e7b7633fcb84"
+   ],
+   "doc_ids": [
+    "f06b5258-7db2-4868-9315-7bc83d1cab12",
+    "f2c45592-cd40-4506-85d3-8be3fc50441c"
+   ],
+   "note": "DataProtect VM protection covers Hyper-V backups (VSS snapshots); Hyper-V supported software list"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell",
+   "chunk_ids": [
+    "f96c1403-ca3a-4479-8b85-900f21278829",
+    "c1ea7ab3-7e7c-4b84-8204-7198d723ffea"
+   ],
+   "doc_ids": [
+    "6ba3ef06-8d20-4d2c-8dcb-c3f23c471c67",
+    "064d8ca7-a4cd-43b0-84e5-53ee8c4b80de"
+   ],
+   "note": "Virtual Server Agent backs up and recovers Hyper-V VMs"
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "f7fb52c8-3fd5-48ab-9a21-29749e08432b",
+    "758110bc-508f-4069-8c60-ec5947f4ed33"
+   ],
+   "doc_ids": [
+    "879b6342-41de-42d9-9204-534ec2c43cee",
+    "84c62508-3b42-47c2-aaf0-173271a2f2d0"
+   ],
+   "note": "Hyper-V Connector agentless backup and Universal VM Backup for VMs on Hyper-V hosts"
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager / Avamar",
+   "chunk_ids": [
+    "099fb5df-2d72-488b-b2e0-bd789f0eafff",
+    "6e66ce16-639c-4ed4-9451-eb37623b2542"
+   ],
+   "doc_ids": [
+    "8186f3f0-981f-48ac-8979-ce6db794f26b",
+    "169041f3-90b7-4691-834a-ddaf2354621a"
+   ],
+   "note": "PPDM for Hyper-V VMs and Avamar Plug-in for Hyper-V VSS image-level backups"
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "6232c56f-bd56-4307-9ad2-fb9ed7327976",
+    "bc9b1a11-8909-426d-b558-4e29b9c91cd3"
+   ],
+   "doc_ids": [
+    "b5d03070-2a66-4025-ac53-a72785726f56",
+    "343c76e2-a2e9-4d5f-8606-70a2c115b059"
+   ],
+   "note": "Hyper-V virtual machine backup workflow documented"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "6a8cbbf0-f35a-439e-84f4-db078c8d7225"
+   ],
+   "doc_ids": [
+    "7cae55d0-2640-4621-beb8-c39d6a90fb1f"
+   ],
+   "note": "Prerequisites for protecting VMs in Hyper-V clusters and Azure Local with HYCU"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery (VM Backup)",
+   "chunk_ids": [
+    "4b77719c-c177-4edd-8c5b-8c27760bbac5",
+    "e14fcd9c-484d-429d-9242-e561dbbe138c"
+   ],
+   "doc_ids": [
+    "a383884c-e8e9-4baa-b2c9-363bc3821aee",
+    "28bfe10b-3a77-4a68-b772-6942f9078447"
+   ],
+   "note": "VM Backup does live backups of Hyper-V guest VMs"
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "ff2ca804-8134-4878-bc3b-144def566f35",
+    "a5aaa0f5-e3e8-4296-9f89-e95dd563df36"
+   ],
+   "doc_ids": [
+    "21e09b05-c511-4d96-a8a9-9b69a2fcb9e2",
+    "53a999bd-b066-4227-b5a7-030c0c40fb2c"
+   ],
+   "note": "Storage Protect for Virtual Environments: Data Protection for Microsoft Hyper-V"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup (MABS)",
+   "chunk_ids": [
+    "b1b19fde-ce0e-44cd-b2a3-a5cbffb31551",
+    "ae061eb1-8ece-4931-964f-f233cdb69b04"
+   ],
+   "doc_ids": [
+    "30e340d6-6241-49b5-bcc2-f995ca9a5a2d"
+   ],
+   "note": "Back up Hyper-V VMs with Azure Backup Server"
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "46acdc64-dd6d-4b31-a6df-a1c80dc56072",
+    "55940a13-dacb-4e17-b7eb-daca60a5e35c"
+   ],
+   "doc_ids": [
+    "64152b55-8ef4-41de-9628-1d6f9d95d1a0"
+   ],
+   "note": "Hyper-V VMs protected by Cove Backup Manager at guest or host level"
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "d02a9269-d728-437f-8e8f-03ae759f60ec"
+   ],
+   "doc_ids": [
+    "c5cbd0c3-049f-40f7-a0af-5e8ad5858939"
+   ],
+   "note": "Backup Job Wizard for Hyper-V adds Hyper-V VMs to backup jobs"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "d1e4e0da-17a3-44b1-a8cb-defdda83f25c",
+    "ca44f69c-e931-4617-9b99-e0421c7b924d"
+   ],
+   "doc_ids": [
+    "a6c876bf-c8db-4a5a-95f9-4ec2df033a01",
+    "c14847ac-a1f9-4e44-835d-a013edb69662"
+   ],
+   "note": "Hyper-V VMs protected (RBS on host) and recovered from snapshots"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "only exports backups as VHD for restore into Hyper-V; no backup of Hyper-V VMs"
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "a87ca93d-941f-43b4-a748-50c1dcd9b5b3",
+    "2992c57d-5e1d-45a6-9dd5-df93137b463b"
+   ],
+   "doc_ids": [
+    "3f33a632-3d9e-4fe1-8e36-024c8be6eb68"
+   ],
+   "note": "Hyper-V / Azure Stack HCI (incl. SCVMM-managed) VM protection"
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "Active Backup / ActiveProtect",
+   "chunk_ids": [
+    "88aa96be-f554-44d3-90cc-59dd6eed3e63",
+    "2b637976-139e-46b0-8cf4-88602b609034"
+   ],
+   "doc_ids": [
+    "55158688-75d1-435e-b886-eebbe2f0952e",
+    "39a9f681-4e34-4c3f-b391-a03388e90b5a"
+   ],
+   "note": "Supported Hyper-V hypervisors for VM backup; Active Backup for Business Hyper-V requirements"
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "50feb517-cab0-42c9-ab1f-a84a4ee17a76",
+    "d131dc19-66e9-48e2-84e9-4d85fc587921"
+   ],
+   "doc_ids": [
+    "a081b2ad-741a-42bb-93d4-dc53eb6a4e2d"
+   ],
+   "note": "Considerations and requirements for protecting Hyper-V VMs"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "8ae56715-75fe-48d5-b8ec-de33390babfc",
+    "3b0f77da-3934-4d3b-9b56-9c8fa518b39a"
+   ],
+   "doc_ids": [
+    "458bb44f-6ce2-492a-a6ca-ec7dd50bac07",
+    "2aeed8ec-da60-4db8-8d1d-ac16cedd8e96"
+   ],
+   "note": "VBR produces image-level backups of Hyper-V VMs"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "unclear",
+   "product": "Zerto",
+   "chunk_ids": [
+    "a3a6c30b-0de8-473e-a26d-8e4a4af9f95b"
+   ],
+   "doc_ids": [
+    "d7bfb61c-d537-4834-9424-374e956120ce"
+   ],
+   "note": "Hyper-V VMs are replicated for DR (replication limitations), backup of Hyper-V VMs not stated in candidates"
+  }
+ }
+}

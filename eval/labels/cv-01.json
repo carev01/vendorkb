@@ -1,0 +1,394 @@
+{
+ "question_id": "cv-01",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "cfd91226-6a53-4096-990f-9dcad4cd7834",
+    "38feb971-f659-4673-9add-aa4c09ded62d"
+   ],
+   "doc_ids": [
+    "693a3299-dce2-4640-8656-e05935725149"
+   ],
+   "note": "Multi-party approval for logically air-gapped vaults: an approval team must approve vault access/recovery requests"
+  },
+  "Acronis": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "f1a87d0a-4d2f-4bae-90ba-5726be6d3ee1"
+   ],
+   "doc_ids": [
+    "19d7e515-22ab-4bdb-8162-584d8008dd1b"
+   ],
+   "note": "Backup data deletion requests require approval from another administrator"
+  },
+  "Arcserve": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Microsoft 365 / Salesforce",
+   "chunk_ids": [
+    "88d7f0c3-1f97-4031-adcb-703f4ef7efc5",
+    "17f6d2c2-ad62-4c50-921b-33d026f84035",
+    "3de82fad-f863-4919-8b1c-74898cc29d44"
+   ],
+   "doc_ids": [
+    "ec37c6b1-f072-4f62-b998-41d54997c72a",
+    "3cae4d28-b310-4ace-9472-ac952a0eae7d",
+    "dfb453e4-b21d-4ad8-9a0f-9e0a78050e76"
+   ],
+   "note": "Approval process for data deletion/cleanup and retention change; other administrators approve in My Tasks"
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Helios / FortKnox",
+   "chunk_ids": [
+    "9e61dac3-3c3f-4e7e-a0c0-b68eb8726d03",
+    "b747a6a6-af7b-4bd9-b06a-d56fb39f9eb6",
+    "e18053ae-bc0b-4343-b0ce-6b2dc7836dff"
+   ],
+   "doc_ids": [
+    "0c572d50-583d-43a9-8d80-80ac74a55088",
+    "18d777cd-3747-49c1-b192-4d0072e885b2"
+   ],
+   "note": "Quorum approvals: predefined quorum of approvers must approve governed operations"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "6034c04b-51f6-4968-a431-ed9924e9bbcd",
+    "3befd562-1e14-445e-914c-3f37b541a7b7",
+    "0e39f579-d481-4832-ac3d-2e243e4e0d45"
+   ],
+   "doc_ids": [
+    "95bb3405-c0f7-4ab5-a6e8-a938f9ecc64e",
+    "872ea0e8-7d37-4e10-8ebd-a0af9ac367a5",
+    "acf2521e-1d95-47fc-95a2-4bfe74873df2"
+   ],
+   "note": "Multi-Person Authorization: restricted operations (e.g. deletions, config changes) require approval from another admin"
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "unclear",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "75b7e2ba-c2e9-4a86-9a16-caf5629c9ec0",
+    "05b9984e-5e48-4bb2-856e-23ced2d33b5b"
+   ],
+   "doc_ids": [
+    "7fcd28e7-73a5-47a0-991e-92a6441e0037",
+    "0e47832e-c3c9-42af-a541-5485ef02011a"
+   ],
+   "note": "Compliance-mode retention lock operations require separate security officer credentials; dual control by credential, not an approval workflow"
+  },
+  "Druva": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "cee66243-fa1a-4ad1-af97-726826335426",
+    "de930eec-cebc-4434-9809-2369416a4bca"
+   ],
+   "doc_ids": [
+    "717b5aca-d3d4-4a39-990c-2a90bba37d91"
+   ],
+   "note": "Action approvals: designated approvers must approve high-impact actions such as deleting a backup policy; requester cannot self-approve"
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "9e31d873-d224-4805-9bf7-2aafb8a306dc"
+   ],
+   "doc_ids": [
+    "2280f1fd-621e-41d0-abda-02513dd16204"
+   ],
+   "note": "Multi-party approval workflow via Privileged Access Manager to protect project liens on projects with backup vaults"
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery (365 Total Backup)",
+   "chunk_ids": [
+    "c1d3bd83-69b6-47ee-a3cb-1ebd986a5a46"
+   ],
+   "doc_ids": [
+    "36e45a29-a9ea-4da2-b05f-4d9df88155b9"
+   ],
+   "note": "Four-Eye Approval: deletion/retention changes require approval by a second administrator"
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect / Storage Defender / Copy Services Manager",
+   "chunk_ids": [
+    "3d8429a5-1675-43f4-b3f2-122d3311d830",
+    "2cd636f4-aa35-49f3-a500-ca739c0a9f3a",
+    "7e626e17-ea5c-4bc2-b4c8-612a96752417"
+   ],
+   "doc_ids": [
+    "247fa056-b423-42f5-9372-21e50577e150",
+    "da25f53a-e01b-4e8b-a702-6127b4f460b5",
+    "e3121d5b-becf-4375-a342-070dae636312"
+   ],
+   "note": "Command approvals (another admin approves restricted commands), quorum approvals, Safeguarded Copy dual control"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup / Microsoft 365 Backup",
+   "chunk_ids": [
+    "c2a91827-321d-4458-b194-f475a2d352d7",
+    "db47062e-8ca4-44b9-90bc-9bf8a9d4d2c3",
+    "21b9b1dd-370d-4a21-a003-310fa014d43b",
+    "5083f45c-90c1-4d1a-bad6-6cb6b2af15df"
+   ],
+   "doc_ids": [
+    "6d5aa2c9-7dff-430a-997e-86448604c7d2",
+    "a6481417-ece0-481d-a73e-c4279e5eec5f",
+    "bbf27686-1c55-47ac-9ce5-2829663fa28b",
+    "0ae27869-d301-41e3-a3dd-91478ffeb73d"
+   ],
+   "note": "Multi-user authorization via Resource Guard (security admin approval); M365 Backup two-person critical action approval"
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "unclear",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "f4089b4c-c5fb-4075-aef9-b735749221be",
+    "8e47fb3a-8830-40e3-9918-3fa8af229d8b"
+   ],
+   "doc_ids": [
+    "dd50df2b-71d0-41c7-a117-745a30c6ea15",
+    "fd6bdd4c-d51b-4add-b724-a6be364d75f4"
+   ],
+   "note": "CRO role provides approvals for sensitive actions and mailbox purge requires approval; no explicit second-admin approval mechanism described"
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "db7e1556-f235-43f6-8581-cebcaac9860b",
+    "302bfd93-8ba1-4472-a12a-2479f875a185",
+    "c8a845a1-3d8e-471e-abd1-94ddb6cdd2fc"
+   ],
+   "doc_ids": [
+    "6e5625d3-1622-403a-8c10-363ffa261400",
+    "87186ffe-0467-4827-88f0-47cc6b222e61",
+    "4a2b8d64-060e-4082-a415-302114a2922c"
+   ],
+   "note": "Quorum authorization (QAuth): additional approvals required before data-modifying actions"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "6f319260-1917-4c67-9eb7-fb3a6f65fe77",
+    "e7713dc8-3adc-4537-a937-bc550b89e01c"
+   ],
+   "doc_ids": [
+    "c9aedbf0-a995-4954-ac9e-514c64b7a80c"
+   ],
+   "note": "Four-eyes authorization: deleting backups, removing repositories etc. require approval by another admin"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

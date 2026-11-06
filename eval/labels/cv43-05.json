@@ -1,0 +1,397 @@
+{
+ "question_id": "cv43-05",
+ "labels": {
+  "AWS": {
+   "label": "unclear",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "1d64eec7-e37f-4863-a448-984cdc6103f5"
+   ],
+   "doc_ids": [
+    "c0265d8b-4a23-4a5f-93a6-70bd9a0f9977"
+   ],
+   "note": "Automated periodic restore testing with validation; not a boot screenshot/boot proof"
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "b19f9a9c-655d-4b2c-a10a-b41c21241000",
+    "843171e4-1054-49f9-a17c-8e0610a07e7a"
+   ],
+   "doc_ids": [
+    "ae0c41b5-ff70-4e08-9123-349267fc79bf",
+    "672d2b0d-8a4f-490f-a707-e5274efca039"
+   ],
+   "note": "Run-as-VM validation with VM heartbeat and screenshot validation; automated test failover boots VM and captures screenshot"
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve ShadowProtect",
+   "chunk_ids": [
+    "ce845e78-66f0-4280-bb66-bcc290a4b80a"
+   ],
+   "doc_ids": [
+    "339df7f5-2a6a-4c16-b20d-923f999aba28"
+   ],
+   "note": "ImageManager verification boots images with VirtualBoot and captures a screenshot of the booted image"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "676285b0-6fa7-4c0f-9a6a-f12847694dc9",
+    "99f971d1-6118-489f-a9a0-46027416991d",
+    "767ce983-1a4e-461e-8bd1-d95750339003"
+   ],
+   "doc_ids": [
+    "c281763b-bcc0-496b-b63e-5a8b298a229b",
+    "1d59bd6c-f695-498a-a8f8-cd2acc8e27b7"
+   ],
+   "note": "Recovery Ready validation job registers, powers on and heartbeat-checks a VM from backup; Recovery Ready Validation Summary report (job-based, per-backup automation not explicit)"
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "333fb024-a84b-45a8-b403-472829f486d5",
+    "136f7cb7-9eae-4f59-815c-10418e400143",
+    "b068cdc8-7ecf-4fb1-ab30-5a4c43cb45d7"
+   ],
+   "doc_ids": [
+    "ec3d0d5c-98a7-4d3c-8fea-7c4293e7d72e",
+    "f53ed7ea-55b9-4db3-8b45-a9d9ab738bee",
+    "011e31a3-71b0-437e-9ce6-dddccf2d63ef"
+   ],
+   "note": "Nightly Boot VM checks / AutoVerify with screenshot verification"
+  },
+  "Bacula": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Commvault": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "7404831b-b8c8-4e4c-acdd-a4f0c6db54c9",
+    "e5c1d1b7-b804-4e32-b884-f869f51d3351"
+   ],
+   "doc_ids": [
+    "a30f173a-cbad-419d-bba9-3d043c2eaa2c",
+    "447dbe3f-0d32-4fa1-bc64-d8c54d35791b"
+   ],
+   "note": "Scheduled Screenshot Verification of backups"
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "unclear",
+   "product": "Druva",
+   "chunk_ids": [
+    "ebfaa0f9-f0a2-45c0-ab22-66cdf430e8d2",
+    "bd68e0f1-5064-4a3d-ae0a-aab4ce0f2dd9"
+   ],
+   "doc_ids": [
+    "5fd201f1-b6ab-4261-aa1b-bf57f359aa62",
+    "15189863-20b9-451a-a4ff-fae3196cdabf"
+   ],
+   "note": "Scheduled Cyber Recovery Testing (quarterly+) with Recovery Report; not per-backup and boot proof not explicit"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "unclear",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "a539d719-8834-4451-be83-cacab4d11f78",
+    "fd8abbf6-58dc-40c8-a76f-1db6ba70bb8f"
+   ],
+   "doc_ids": [
+    "ad2ec97a-749c-42e6-aead-634e58b79387"
+   ],
+   "note": "Scheduled validation policy clones and powers on the VM, but no screenshot/report proving boot is stated"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "unclear",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "392e9623-f7dd-4ada-a741-7bed2aae318c"
+   ],
+   "doc_ids": [
+    "d36ed90c-bce4-4520-baea-490a767ef696"
+   ],
+   "note": "Scheduled full test restores so you can boot the VM and confirm; no automatic boot check or screenshot/report"
+  },
+  "IBM": {
+   "label": "unclear",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "c92b1117-617c-46a4-b68d-3b55f1cb63d7",
+    "36e6f533-5563-4437-98ab-2b406e1aa279"
+   ],
+   "doc_ids": [
+    "5aefb371-6f19-47c7-af32-8ca76ed2bb63",
+    "d8e89bbe-8f79-4ca5-8f94-408600902687"
+   ],
+   "note": "Recovery Assurance automated clean-room recovery tests via third-party Predatar integration"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "b7b89617-4d24-4ce2-97c7-eb468f6e142e",
+    "9734d671-d29b-4aea-881b-e80300da991e"
+   ],
+   "doc_ids": [
+    "6ca8612c-fbe4-4bab-9c19-525a17fe6eae"
+   ],
+   "note": "Recovery Testing boots VM and shows screenshot taken during boot phase"
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "1e5f3d12-40e3-406f-a389-a9a7a4225d25",
+    "ae4b608e-9a0d-40f0-a0e4-7a3580e8ab2c"
+   ],
+   "doc_ids": [
+    "1b272319-883b-47cf-ba98-2b770918fc50",
+    "6e1c7417-f4f7-48f5-84fc-8087fe427b47"
+   ],
+   "note": "Screenshot/boot verification: after each backup VM is Flash-booted, screenshot in notifications/dashboard"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "unclear",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "fe6b8296-d813-401e-9699-fb4c158e73d9"
+   ],
+   "doc_ids": [
+    "6e27217e-0a37-49fa-bfc5-26e7e7519ace"
+   ],
+   "note": "Scheduled automated test recoveries via Recovery Plans; no boot screenshot/report stated"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "yes",
+   "product": "Slide",
+   "chunk_ids": [
+    "8802be0c-ba03-4d40-8e2a-155e9288c0c9"
+   ],
+   "doc_ids": [
+    "cb645b97-a986-41c5-906a-86d731af6838"
+   ],
+   "note": "Every backup runs boot verification to a login screen; failures alert with screenshot"
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "ActiveProtect Manager",
+   "chunk_ids": [
+    "8644c65f-1ebd-474b-afdc-8d44e07b6618"
+   ],
+   "doc_ids": [
+    "6cf32699-b864-4d6c-8a8b-a95470fdde77"
+   ],
+   "note": "Backup verification checks bootability and records a video of the trial restoration"
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "01493d16-07ff-4d9a-a44e-41a98beafa44",
+    "85675c28-4e79-478f-9ede-7f0ccd27f145"
+   ],
+   "doc_ids": [
+    "53280056-e6f4-40af-9202-480571ad1b34",
+    "e5a135df-e567-4f8e-ae78-6c79310a7ba7"
+   ],
+   "note": "Recovery assurance scheduled Run Test DCA jobs stand up VMs and test; Recovery Assurance report"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "742e5648-20b3-4922-b699-b925d858beb7",
+    "570a35d4-1c5c-4342-bb54-9327ea29dad3"
+   ],
+   "doc_ids": [
+    "c6c322ad-34b4-4235-b655-db650506f82f",
+    "c7dbf1ef-5fe3-4e02-a6d2-0387659c811a"
+   ],
+   "note": "SureBackup boots VMs from backup, boot verification (heartbeat/ping), emails a report"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

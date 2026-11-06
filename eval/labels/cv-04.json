@@ -1,0 +1,399 @@
+{
+ "question_id": "cv-04",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud / On-premises",
+   "chunk_ids": [
+    "2497bebb-6b8e-4f6d-a8e3-3be36150ba85",
+    "8090c169-be00-41d2-9c20-656f6f75a5a9",
+    "617c8c36-f048-4d72-a896-425211e42164"
+   ],
+   "doc_ids": [
+    "03acd761-0e00-4343-998b-95adef25258e",
+    "c3798a54-2b7f-4117-ab59-6210af52c8a4",
+    "d9e57dce-a5af-4447-bc60-9d6cf0449290"
+   ],
+   "note": "Physical Data Shipping: save the initial backup on a removable device and ship it for upload to the cloud storage."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "unclear",
+   "product": "Arcserve ShadowProtect",
+   "chunk_ids": [
+    "6a13e47f-3854-4a35-b146-6e010472e1a6"
+   ],
+   "doc_ids": [
+    "0f9fdead-691f-43a7-ae68-c532b940bc90"
+   ],
+   "note": "Only a link title 'How To: Use a Arcserve Seed Drive on an ESXi or Hyper-V Host'; no text describing the capability."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "70d0fc90-952f-4c1a-a48a-962d2932e89e"
+   ],
+   "doc_ids": [
+    "e5a7d0a2-574f-4117-bb89-3bfa1d7d8888"
+   ],
+   "note": "Seed a remote dedup device by storing a full backup on a USB drive and transporting it to the remote site to avoid WAN transfer."
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "2202c299-a09f-4bf5-9721-40bec2aea19f",
+    "e15e5a66-5ae2-434e-9837-4786468926fc",
+    "adc19423-9bed-4b5b-af2d-2bb4cd4b4bd3"
+   ],
+   "doc_ids": [
+    "98027f96-be19-4dbb-b354-87ad32e29f59",
+    "b3ec0c33-b510-463a-9d88-29e3d9df469d"
+   ],
+   "note": "Preload (seed) drives: request a preload hard drive to ship initial backup data to the Axcient data center."
+  },
+  "Bacula": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Intronis Backup",
+   "chunk_ids": [
+    "18e35a5e-e4bb-4bb0-830d-b1ef062b1581",
+    "d1c85c83-bd1f-4522-9a2e-e420671a402d"
+   ],
+   "doc_ids": [
+    "417fc6d7-a1aa-4137-910c-f03329fced66",
+    "4a0d6e1d-1a10-452f-a17d-2216117d325f"
+   ],
+   "note": "Initial seed: back up to a USB hard drive and mail it to Barracuda for upload (US only)."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup",
+   "chunk_ids": [
+    "a658e4e6-fad7-4905-9bbb-dc6a6a7046f6",
+    "98f5a084-a4ff-4f67-8228-f57be6c4f96a"
+   ],
+   "doc_ids": [
+    "a2b7cf73-fc59-49f2-bc26-f11215b8610d",
+    "c16ab890-bc96-4103-97be-20115600b7e4"
+   ],
+   "note": "NetBackup protects/transfers data via Amazon Snowball and Snowball Edge devices."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console",
+   "chunk_ids": [
+    "7e815b2a-8202-4927-80d3-082574ce4fcc",
+    "b25a4200-49ae-4a76-960e-d751e46f94a9"
+   ],
+   "doc_ids": [
+    "106f1d02-0910-4fd4-924e-928762c3a4ac",
+    "8895c87f-33bb-446d-8dfa-c5ee3e8c6205"
+   ],
+   "note": "Cloud library seeding: back up to local disk / Snowball / Data Box / Transfer Appliance and ship it to the cloud vendor."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "657ad4ca-20e1-4208-abeb-9b280909bdf9",
+    "93fcd478-de62-41e4-b0d0-64875a4f4e3b"
+   ],
+   "doc_ids": [
+    "29345cd2-d8dd-4e7c-860f-b358287d5598",
+    "476c84c9-a797-414b-ba33-275ff45c18a0"
+   ],
+   "note": "RoundTrip drives: external hard drives used to seed data into the Datto Cloud."
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "862d900f-4ce1-41f1-a802-2312cd3265af"
+   ],
+   "doc_ids": [
+    "7b9fd7b9-2e52-4202-ac31-92b9c47d6c0f"
+   ],
+   "note": "Seeding device alerts: at capacity Druva triggers a request to ship the seeding device to AWS (from SQL check)."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "9b94e75f-07ee-44ed-81d4-bd52a9036bcd"
+   ],
+   "doc_ids": [
+    "eef1193b-2b2b-4ce9-8a7a-bba9f4f00e02"
+   ],
+   "note": "Seed To Disk: manually transport the first full backup on a removable disk to the offsite backup server, then send only incrementals over WAN."
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "cc2611fa-4541-4994-9b30-02857d2b4912",
+    "21aca3db-dbac-4ea4-a0eb-00a89c214342",
+    "b7562648-52af-4d5e-8433-168b07d9f785",
+    "45dc2c5c-36c3-4bf9-9d4e-e2700ac072ae"
+   ],
+   "doc_ids": [
+    "296a549f-4de1-4c4f-94ef-772fa256bb5e",
+    "390fd0aa-c44a-4f13-b0e7-baf15c5db0b4",
+    "e58a6466-9799-4f6f-9cb8-3a17b882e9f8",
+    "fc281823-5360-42d5-9157-5f2b463219bc"
+   ],
+   "note": "Offline backup: initial full backup transferred via Azure Data Box or customer disks with Import/Export."
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "0a9490d3-fccb-4b84-b8fb-c276a0b0bc5c",
+    "1668bee5-06c3-45e9-8182-fa5a0e508365"
+   ],
+   "doc_ids": [
+    "49898ccc-eb34-4cb1-829e-d327ff95a1ed",
+    "8ad1eb35-ab07-463e-baaa-99931b4c30bc"
+   ],
+   "note": "Seed backup: back up to a removable drive and transfer the seeding folder to the cloud storage, for slow Internet connections."
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "f31d9bab-829b-40eb-8b5e-1acb31d2022a"
+   ],
+   "doc_ids": [
+    "55712e91-993c-4b33-98d7-3bf5dd614766"
+   ],
+   "note": "Staged (seed) backup: run initial backup to removable media (USB drive), transfer media to new location, then incrementals."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "unclear",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "eb052c95-c6c3-4e35-8321-2d08fdc062d3",
+    "20758057-59ea-4fbf-9f7d-78534c0fe4fc"
+   ],
+   "doc_ids": [
+    "94741083-e11d-41a9-954c-7d25c2946705",
+    "e5b642ef-1c0c-4870-b5e0-36bf342bd06c"
+   ],
+   "note": "Mentions seeding a target appliance and a 'physical seed device' (unsupported in EC2/Azure) but no procedure stating the shipping capability."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "635ee3ae-fdc4-4e0f-ae5d-cfedb08a976b",
+    "655c9543-1ee1-488d-b284-b076f13953c9",
+    "a9ad030a-8762-4a0d-8e52-26e6d444862a"
+   ],
+   "doc_ids": [
+    "165e1c93-1f5c-4613-81d3-fbac5b5c2acc",
+    "e4a4f400-b14f-4cd2-b966-5e5b936b0636",
+    "f8ec6de8-d896-4d48-a651-6efeda0590e6"
+   ],
+   "note": "Seeding backups to Amazon S3 via AWS Snowball Edge (and to Azure Blob via Data Box) instead of over the internet."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "unclear",
+   "product": "Zerto",
+   "chunk_ids": [
+    "3a181a2a-e891-478c-9b46-9e3c70d7685c"
+   ],
+   "doc_ids": [
+    "ae873373-7a2c-4247-b207-848b0f977e64"
+   ],
+   "note": "Preseeded volumes reuse an existing disk at the recovery site to avoid full WAN sync; physical shipment of data not stated."
+  }
+ }
+}

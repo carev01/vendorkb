@@ -1,0 +1,392 @@
+{
+ "question_id": "cv43-09",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect On-premises, Cyber Protect Cloud",
+   "chunk_ids": [
+    "466ae63d-f243-4120-9ee4-fa2b9ba83aa8",
+    "77413a5d-e864-43e7-b5d7-7ee514c7c5b9"
+   ],
+   "doc_ids": [
+    "7bba3692-e884-407b-8ef4-e9e0657c5cae",
+    "b2eeae12-1fe8-4a62-96ce-5c49964ca8dc"
+   ],
+   "note": "Agent for Nutanix virtual appliance deployed in the cluster backs up AHV VMs at host level via Prism."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "2006243b-b579-4811-b01c-1c67d4b445e5"
+   ],
+   "doc_ids": [
+    "6cfc376b-bf41-41a1-8fc8-e091bed3c7b9"
+   ],
+   "note": "Arcserve UDP host-based agentless backup plans support Nutanix AHV (AHV transport method, backup proxy)."
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "8afd9ace-c825-4390-bfdb-259681441b74",
+    "6e3ccae3-0534-4ed3-8bb6-b4585c52eb80"
+   ],
+   "doc_ids": [
+    "57485a01-a29c-4fa8-94d4-e7315e968816"
+   ],
+   "note": "Tina Nutanix AHV agent (GVA + adapter) backs up AHV VMs without installing a Tina agent on every VM."
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "e73174de-5e29-4fac-837c-292c8feea780",
+    "1cba4e4e-6ec2-4ed5-8984-5a7b9ad67d14"
+   ],
+   "doc_ids": [
+    "32afa42a-6a40-4dd8-9528-da51fb0f19c2",
+    "9aebddc1-7f44-47f7-8d66-f298df19bb58"
+   ],
+   "note": "Bacula Enterprise Nutanix-AHV Plugin performs image-level VM backups as alternative to a client in each guest."
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup",
+   "chunk_ids": [
+    "016c4984-b166-4450-b000-ff04d7639fae",
+    "133746a0-9e2c-4d5f-8d71-74fd286fc65b"
+   ],
+   "doc_ids": [
+    "ca0134a4-1c2d-407d-b9dd-f8b10046df97",
+    "a243d1bd-6b5c-4ebd-9b1b-a2a4be73717e"
+   ],
+   "note": "NetBackup protects AHV VMs through Nutanix Prism Central registration (Workloads > Nutanix AHV)."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console, Commvault Cloud",
+   "chunk_ids": [
+    "2440c7d2-e562-461f-868b-77528a16a46b",
+    "0666b018-b1d6-4e01-a2c5-28bc659597e3"
+   ],
+   "doc_ids": [
+    "48af7409-7fb7-4893-9c15-ff6231f5afbd",
+    "ad66cf51-c12f-42af-b021-4afae912034d"
+   ],
+   "note": "Virtual Server Agent proxy protects Nutanix AHV VMs (HotAdd) via Prism Element/Central."
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "6fdccce7-c46f-4fd3-9af9-5075bab112e1",
+    "0094aa35-af32-4d70-bb56-ba07cb981a37"
+   ],
+   "doc_ids": [
+    "7c85b7dd-e5cb-4841-a8ca-6f9a77244524",
+    "0e23f0f2-72ad-4bb4-83c0-44c5bb67c166"
+   ],
+   "note": "PowerProtect Data Manager protects Nutanix AHV VM assets (backup, file-level restore)."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "e2e43b5e-bb92-415b-b233-919970fb57c9",
+    "5e72d74e-38d2-473f-900e-6cbcf99c2747"
+   ],
+   "doc_ids": [
+    "77d78df9-8a7d-4c13-803e-9ed8c031f630",
+    "857d12ee-2524-4392-b3f0-eed38a02d187"
+   ],
+   "note": "Druva protects Nutanix AHV VMs via a backup proxy registered with Prism, with auto-configuration of VMs."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "9981ed0e-fd53-4f59-b2da-ed96e88aa16e",
+    "a555fd68-35ca-49df-a610-69240586341a"
+   ],
+   "doc_ids": [
+    "4736b851-1be1-4725-9759-ce786f01acce",
+    "fb1d1703-c1a6-429b-aa76-eed0fb138708"
+   ],
+   "note": "HYCU virtual appliance deployed on AHV cluster protects VMs/volume groups of added Nutanix clusters."
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "eb1df8d9-681c-4364-ac6e-b8d8b011addb",
+    "b2d29a07-9bdb-406e-9614-01f28f5e93cc"
+   ],
+   "doc_ids": [
+    "0e6544a5-3aaa-4128-babe-8a452cc0c342",
+    "4aad37a5-eefe-4e95-8f0c-c7a575316f4e"
+   ],
+   "note": "Storage Defender Data Protect supports Acropolis (AHV) VMs with block-based backup."
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "d5d52873-f8cf-43d9-8cc4-7c975c36757b",
+    "9ab22b71-7117-4421-95d9-9041b3786a26"
+   ],
+   "doc_ids": [
+    "b2377c24-558e-46c4-b65c-32ca85ea6750",
+    "2a571c2a-f7f7-47d7-8eee-62e2ebb34c0d"
+   ],
+   "note": "NAKIVO backs up Nutanix AHV VMs with backup jobs via a Nutanix AHV virtual appliance."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "71c38bbf-b0e5-47dc-80d2-01e9c068bd22",
+    "ab2711e3-77ba-4fa6-a193-f0d346fad43f"
+   ],
+   "doc_ids": [
+    "46f41d71-c89b-411c-8f74-69d22325bb0d",
+    "fb0aeb20-ffe3-477c-9104-dfd086e5f7f5"
+   ],
+   "note": "RSC protects AHV virtual machines via Nutanix Prism Central mapped to Rubrik clusters."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "048dae4a-7e80-4efe-a806-b54d2d3a8d76",
+    "84ab5d8d-8599-4f9a-abf5-9eb9f3e96bc9"
+   ],
+   "doc_ids": [
+    "2cd63c69-0723-486f-ac09-79e4bcf1ba8b"
+   ],
+   "note": "Storware Backup & Recovery backs up AHV VMs via Nutanix v4 API or Prism with proxy VM; no hypervisor OS access needed."
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "6acc74bb-caf3-4594-9a54-be4656a13dfa",
+    "cf7ce856-8972-4873-9a9c-1b4a9851aff2"
+   ],
+   "doc_ids": [
+    "fb246de1-1217-465a-9abb-c1b8c96acd2b",
+    "0681a797-502d-43ef-8385-caf19f07b0f9"
+   ],
+   "note": "Unitrends performs AHV host-level backups via Nutanix AHV backup jobs."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "0eac03fc-a328-4331-9b81-d3867bf485c1",
+    "afa5de3b-87db-4bd7-bdbc-19dab41d90ff"
+   ],
+   "doc_ids": [
+    "8db1d0fe-739e-45de-b021-04205c03bd47",
+    "2043ff3c-ce62-40bb-8022-916c2a191b36"
+   ],
+   "note": "Veeam Backup & Replication with Veeam Plug-in for Nutanix AHV protects AHV VMs (Prism Central/Element deployment)."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}
