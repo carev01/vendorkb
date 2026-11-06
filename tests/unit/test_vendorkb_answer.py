@@ -528,27 +528,27 @@ def test_product_group_may_nest_one_level_of_parentheses():
 
 
 @pytest.mark.parametrize("line", [
-    "Veeam: the sources do not document AIX [1]",
-    "Veeam: does not support AIX [1]",
-    "Veeam: VBR doesn't back up AIX [1]",
-    "Veeam: AIX is not supported [1]",
-    "Veeam: AIX is not documented [1]",
-    "Veeam: there is no support for AIX [1]",
-    "Veeam: VBR cannot protect AIX [1]",
+    "Veeam: hardened repository backups cannot be deleted [1]",
+    "Veeam: does not require an agent [1]",
+    "Veeam: customers don't need to manage infrastructure [1]",
 ])
-def test_negative_lines_are_dropped(line):
-    assert ans.check_enumeration_lines(line, _H, _V) == ("", [], 1)
+def test_capability_lines_with_negative_words_are_kept(line):
+    assert ans.check_enumeration_lines(line, _H, _V) == (line, ["Veeam"], 0)
 
 
-@pytest.mark.asyncio
-async def test_negative_line_vendor_lands_in_the_closing_line(monkeypatch):
-    idx = ScopeIndex(vendors=["Veeam", "Rubrik"], products=[], aliases={})
-    _patch_enum(monkeypatch, [_hit(1, "Veeam"), _hit(2, "Rubrik")], ["Veeam", "Rubrik"])
-    r = await _run_enum(FakeClient(["Veeam: does not support AIX [1]\nRubrik: AIX agent [2]"]),
-                        idx)
-    assert r["vendors_listed"] == ["Rubrik"] and r["lines_dropped"] == 1
-    assert r["answer"].endswith("Checked with nothing documented: Veeam.")
+def test_enumeration_rules_ask_for_positive_lines():
     assert "never what it does not" in ans.ENUMERATION_RULES
+
+
+def test_stripped_workload_vendor_marker_keeps_the_line():
+    v = ["Veeam", "Microsoft", "Rubrik"]
+    hits = [_hit(1, "Veeam"), _hit(2, "Rubrik"), _hit(3, "Microsoft")]
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "Veeam: backs up Microsoft 365 [1][3]", hits, v)
+    assert kept == "Veeam: backs up Microsoft 365 [1]" and dropped == 0
+    assert listed == ["Veeam"]
+    assert ans.check_enumeration_lines(
+        "Veeam: supports AIX [1]. Rubrik also supports AIX [2].", hits, v) == ("", [], 1)
 
 
 class FinishClient(FakeClient):

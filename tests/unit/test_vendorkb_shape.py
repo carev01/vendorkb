@@ -161,7 +161,7 @@ def test_one_facet_sweep_or_vendors_wording_is_single(q):
     "Which vendors can back up Salesforce metadata?",
     "Which tools can back up Microsoft Exchange?",
     "Which products protect Cohesity clusters?",
-    "Which tools work for our Nakivo deployment?",
+    "Which products can back up our Google Workspace?",
 ])
 def test_one_facet_workload_or_protected_vendor_is_enumeration(q):
     assert detect_shape(q, INDEX).kind == "enumeration", q
@@ -191,3 +191,15 @@ def test_each_and_both_are_not_comparison_wording(q):
 def test_two_facets_with_comparison_wording_stay_comparison():
     assert detect_shape("Is Veeam better than Rubrik for tape?", INDEX).kind == "comparison"
     assert detect_shape("Which one handles tape: Veeam or Rubrik?", INDEX).kind == "comparison"
+
+
+@pytest.mark.parametrize("q", [
+    "What products does Microsoft offer for SQL backup?",
+    "Which tools does AWS provide for backing up EC2?",
+    "What solutions from Google cover Workspace backup?",
+    "Which vendors does Microsoft partner with for backup?",
+    "Which platforms does our Cohesity cluster protect?",
+    "Which tools work for our Nakivo deployment?",
+])
+def test_subject_vendor_and_owned_vendor_are_single(q):
+    assert detect_shape(q, INDEX).kind == "single", q

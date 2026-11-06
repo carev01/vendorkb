@@ -56,10 +56,19 @@ def _product_vendor(product: str, index: ScopeIndex) -> str:
     return next(iter(owners)) if len(owners) == 1 else f"?{product}"  # unknown: its own vendor
 
 
+def _follows(words: str, vendor: str, question: str, index: ScopeIndex) -> bool:
+    return any(re.search(rf"\b({words})\s+{re.escape(surface)}(?!\w)", question, re.IGNORECASE)
+               for surface in _surfaces(vendor, index))
+
+
+def _is_subject(vendor: str, question: str, index: ScopeIndex) -> bool:
+    """The vendor is what is asked about ("does Microsoft offer", "from Veeam")."""
+    return _follows("does|do|did|from|by|of|in|at", vendor, question, index)
+
+
 def _is_protected(vendor: str, question: str, index: ScopeIndex) -> bool:
-    """The vendor is what gets protected ("protect Cohesity", "for our Nakivo")."""
-    return any(re.search(rf"\b(protect|back up|backup of|for our|our)\s+{re.escape(surface)}(?!\w)",
-                         question, re.IGNORECASE) for surface in _surfaces(vendor, index))
+    """The vendor is what gets protected ("protect Cohesity", "back up Salesforce")."""
+    return _follows("protect|back up|backup of", vendor, question, index)
 
 
 def _has_or_pair(question: str, facets: list[Facet]) -> bool:
@@ -87,10 +96,13 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
     kind, name = facets[0]
     if is_cross_vendor(question):
         # "other vendors besides Veeam" sweeps; "storage vendors Veeam integrates with" does not
-        if _EXCLUDING.search(question) or (kind == "vendor" and name in WORKLOAD_VENDORS):
+        if _EXCLUDING.search(question):
+            return Shape("enumeration", facets)
+        if (kind == "vendor" and name in WORKLOAD_VENDORS
+                and not _is_subject(name, question, index)):
             return Shape("enumeration", facets)
         return Shape("single", facets)
-    if _SWEEP.search(question) and kind == "vendor" and (
+    if _SWEEP.search(question) and kind == "vendor" and not _is_subject(name, question, index) and (
             name in WORKLOAD_VENDORS or _is_protected(name, question, index)):
         # the vendor is a workload ("back up our Google Workspace"), not what is asked about
         return Shape("enumeration", facets)

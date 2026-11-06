@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, find_facets
 from vendorkb.search import Hit, SearchResult, search_docs
-from vendorkb.shape import detect_shape
+from vendorkb.shape import WORKLOAD_VENDORS, detect_shape
 
 log = logging.getLogger(__name__)
 
@@ -70,10 +70,6 @@ def closing_line(names: list[str]) -> str:
 _BULLET = re.compile(r"^(?:[-*\u2022]|\d+[.)])\s+")
 _EMPHASIS = re.compile(r"^(?:\*\*|__|\*)")
 _PRODUCTS = re.compile(r"^ ?\(((?:[^()]|\([^()]*\))*)\)")  # one level of nesting
-# a line saying what a vendor does NOT do: that vendor belongs in the closing line
-_NEGATIVE = re.compile(
-    r"\b(?:does not|do not|doesn't|don't|is not supported|not documented|no support|cannot)\b",
-    re.IGNORECASE)
 
 
 def _parse_line(line: str, vendors: list[str]) -> tuple[str, str | None, str] | None:
@@ -140,10 +136,9 @@ def _check_lines(text: str, hits: list[Hit], vendors: list[str],
 
         rest = re.sub(r" {2,}", " ", _GROUP.sub(repl, rest)).strip()
         # no own citation; or the line describes the vendor whose citation was stripped (a
-        # workload sharing a vendor's name comes without that vendor's marker); or it states
-        # what the vendor does not do
-        if (own == 0 or any(_names(v, f"{products or ''} {rest}") for v in foreign)
-                or _NEGATIVE.search(rest)):
+        # workload vendor is exempt: its own chunks are co-cited for the workload it names)
+        if own == 0 or any(_names(v, f"{products or ''} {rest}")
+                           for v in foreign - WORKLOAD_VENDORS):
             dropped += 1
             continue
         if _names_other(vendor, products, rest, corpus):
