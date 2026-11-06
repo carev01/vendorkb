@@ -2408,7 +2408,6 @@
   - 'Microsoft: documented: Azure Backup can seed large initial MARS agent backups offline to a Recovery
     Services vault with Azure Data Box; the Azure Import/Export service is the other offline option.'
   - 'AWS: no evidence in the corpus'
-  - 'Cohesity: no evidence in the corpus'
   gold_sources:
   - article_id: e4a4f400-b14f-4cd2-b966-5e5b936b0636
     section: Adding AWS Snowball Edge Storage
@@ -2971,7 +2970,6 @@
     source, defined in ScriptingConfig.xml on the protected computer and executed under the local system
     account.'
   - 'AWS: no evidence in the corpus'
-  - 'Cohesity: no evidence in the corpus'
   gold_sources:
   - article_id: 04f8571c-2c83-456b-8dd6-3e82cc551056
     section: Backup Job Scripts

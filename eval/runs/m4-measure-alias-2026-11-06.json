@@ -1,0 +1,1961 @@
+{
+ "summary": {
+  "table": {
+   "all": {
+    "recall": 0.846,
+    "precision": 0.913,
+    "found_per_q": 16.6
+   },
+   "calibration": {
+    "recall": 0.722,
+    "precision": 0.948,
+    "found_per_q": 18.2
+   },
+   "holdout": {
+    "recall": 0.958,
+    "precision": 0.882,
+    "found_per_q": 15.2
+   }
+  },
+  "table_without_c_only": {
+   "all": {
+    "recall": 0.821,
+    "precision": 0.949,
+    "found_per_q": 15.4
+   },
+   "calibration": {
+    "recall": 0.692,
+    "precision": 0.976,
+    "found_per_q": 16.9
+   },
+   "holdout": {
+    "recall": 0.939,
+    "precision": 0.925,
+    "found_per_q": 14.0
+   }
+  },
+  "retrieval": {
+   "all": {
+    "recall": 0.952,
+    "precision": 0.877,
+    "found_per_q": 19.7
+   },
+   "calibration": {
+    "recall": 0.952,
+    "precision": 0.906,
+    "found_per_q": 23.9
+   },
+   "holdout": {
+    "recall": 0.952,
+    "precision": 0.851,
+    "found_per_q": 15.8
+   }
+  },
+  "union": {
+   "all": {
+    "recall": 0.984,
+    "precision": 0.842,
+    "found_per_q": 21.2
+   },
+   "calibration": {
+    "recall": 0.987,
+    "precision": 0.894,
+    "found_per_q": 25.3
+   },
+   "holdout": {
+    "recall": 0.982,
+    "precision": 0.793,
+    "found_per_q": 17.4
+   }
+  },
+  "unresolved_questions": []
+ },
+ "per_question": [
+  {
+   "id": "ex-rt-10",
+   "holdout": false,
+   "features": {
+    "immutable": [
+     "immutable_backups",
+     "nn",
+     0.92
+    ],
+    "immutability": [
+     "immutable_backups",
+     "alias",
+     1.0
+    ],
+    "WORM": [
+     "immutable_archives",
+     "nn",
+     0.856
+    ],
+    "object lock": [
+     "object_lock",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {
+    "object lock": [
+     "s3_compatible.object_lock",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.943,
+    "precision": 0.971,
+    "found": 34,
+    "tp": 33,
+    "missed": [
+     "Eon",
+     "IBM"
+    ],
+    "extra": [
+     "Spanning"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.943,
+    "precision": 1.0,
+    "found": 33,
+    "tp": 33,
+    "missed": [
+     "Eon",
+     "IBM"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.657,
+    "precision": 0.92,
+    "found": 25,
+    "tp": 23,
+    "missed": [
+     "AWS",
+     "Arcserve",
+     "Arctera",
+     "Atempo",
+     "CloudCasa",
+     "Commvault",
+     "Dell",
+     "Eon",
+     "IBM",
+     "NinjaOne (Dropsuite)",
+     "Red Hat",
+     "Storware"
+    ],
+    "extra": [
+     "Spanning",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 0.943,
+    "precision": 0.943,
+    "found": 35,
+    "tp": 33,
+    "missed": [
+     "Eon",
+     "IBM"
+    ],
+    "extra": [
+     "Spanning",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "ex-rt-12",
+   "holdout": false,
+   "features": {
+    "cross-region copy": [
+     "cross_region_cross_account_copy",
+     "alias",
+     1.0
+    ],
+    "offsite copy": [
+     "offsite_backup_copy",
+     "alias",
+     1.0
+    ],
+    "secondary site": [
+     "offsite_backup_copy",
+     "nn",
+     0.904
+    ],
+    "backup copy": [
+     "backup_copy",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {
+    "cross-region copy": [
+     "storage_targets.cloud_backup_copy",
+     "nn",
+     0.86
+    ],
+    "offsite copy": [
+     "storage_targets.backup_copy_target",
+     "nn",
+     0.968
+    ],
+    "backup copy": [
+     "backup.data",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.875,
+    "precision": 0.966,
+    "found": 29,
+    "tp": 28,
+    "missed": [
+     "CloudCasa",
+     "Eon",
+     "GRAX",
+     "Zerto"
+    ],
+    "extra": [
+     "Keepit"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.812,
+    "precision": 0.963,
+    "found": 27,
+    "tp": 26,
+    "missed": [
+     "Arcserve",
+     "CloudCasa",
+     "Eon",
+     "GRAX",
+     "Slide",
+     "Zerto"
+    ],
+    "extra": [
+     "Keepit"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.941,
+    "found": 34,
+    "tp": 32,
+    "missed": [],
+    "extra": [
+     "Keepit",
+     "Salesforce"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.941,
+    "found": 34,
+    "tp": 32,
+    "missed": [],
+    "extra": [
+     "Keepit",
+     "Salesforce"
+    ]
+   }
+  },
+  {
+   "id": "cv-01",
+   "holdout": false,
+   "features": {
+    "multi-person approval": [
+     "quorum_approval",
+     "alias",
+     1.0
+    ],
+    "dual authorization": [
+     "quorum_approval",
+     "alias",
+     1.0
+    ],
+    "quorum": [
+     "quorum_approval",
+     "nn",
+     0.921
+    ]
+   },
+   "targets": {
+    "dual authorization": [
+     "security.multi_user_authorization",
+     "nn",
+     0.85
+    ]
+   },
+   "table": {
+    "recall": 0.25,
+    "precision": 1.0,
+    "found": 3,
+    "tp": 3,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "AvePoint",
+     "Commvault",
+     "Eon",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Rubrik",
+     "Veeam"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.25,
+    "precision": 1.0,
+    "found": 3,
+    "tp": 3,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "AvePoint",
+     "Commvault",
+     "Eon",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Rubrik",
+     "Veeam"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv-02",
+   "holdout": false,
+   "features": {
+    "Kubernetes": [
+     "kubernetes_support",
+     "nn",
+     0.906
+    ],
+    "persistent volume": [
+     "persistent_volume_protection",
+     "nn",
+     0.924
+    ]
+   },
+   "targets": {
+    "Kubernetes": [
+     "kubernetes.cluster",
+     "alias",
+     1.0
+    ],
+    "persistent volume": [
+     "kubernetes.persistent_volume",
+     "nn",
+     0.983
+    ],
+    "OpenShift": [
+     "platforms.kubernetes.openshift",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.824,
+    "precision": 0.933,
+    "found": 15,
+    "tp": 14,
+    "missed": [
+     "AvePoint",
+     "IBM",
+     "Microsoft"
+    ],
+    "extra": [
+     "HYCU"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.824,
+    "precision": 1.0,
+    "found": 14,
+    "tp": 14,
+    "missed": [
+     "AvePoint",
+     "IBM",
+     "Microsoft"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.944,
+    "found": 18,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.895,
+    "found": 19,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "HYCU"
+    ]
+   }
+  },
+  {
+   "id": "cv-03",
+   "holdout": false,
+   "features": {
+    "Hyper-V": [
+     "hyperv_vm_protection",
+     "nn",
+     0.872
+    ]
+   },
+   "targets": {
+    "Hyper-V": [
+     "platforms.hypervisor.windows_server",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.957,
+    "precision": 0.957,
+    "found": 23,
+    "tp": 22,
+    "missed": [
+     "HYCU"
+    ],
+    "extra": [
+     "Slide"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.957,
+    "precision": 1.0,
+    "found": 22,
+    "tp": 22,
+    "missed": [
+     "HYCU"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.885,
+    "found": 26,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Slide"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.885,
+    "found": 26,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Slide"
+    ]
+   }
+  },
+  {
+   "id": "cv-04",
+   "holdout": false,
+   "features": {
+    "seeding": [
+     "initial_seed_backup",
+     "alias",
+     1.0
+    ],
+    "removable drive": [
+     "device_control",
+     "nn",
+     0.891
+    ]
+   },
+   "targets": {
+    "Snowball": [
+     "snowflake",
+     "nn",
+     0.852
+    ],
+    "Data Box": [
+     "saas.box",
+     "nn",
+     0.874
+    ],
+    "removable drive": [
+     "removable_media",
+     "nn",
+     0.985
+    ]
+   },
+   "table": {
+    "recall": 0.615,
+    "precision": 0.667,
+    "found": 12,
+    "tp": 8,
+    "missed": [
+     "Datto",
+     "Druva",
+     "Microsoft",
+     "Nakivo",
+     "Veeam"
+    ],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "CloudAlly",
+     "Slide"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.538,
+    "precision": 0.778,
+    "found": 9,
+    "tp": 7,
+    "missed": [
+     "Acronis",
+     "Datto",
+     "Druva",
+     "Microsoft",
+     "Nakivo",
+     "Veeam"
+    ],
+    "extra": [
+     "Atempo",
+     "AvePoint"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.765,
+    "found": 17,
+    "tp": 13,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Bacula",
+     "Dell",
+     "IBM"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.65,
+    "found": 20,
+    "tp": 13,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "CloudAlly",
+     "Dell",
+     "IBM",
+     "Slide"
+    ]
+   }
+  },
+  {
+   "id": "cv-05",
+   "holdout": false,
+   "features": {
+    "bandwidth throttling": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ],
+    "network throttling": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ],
+    "bandwidth limit": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {},
+   "table": {
+    "recall": 0.875,
+    "precision": 1.0,
+    "found": 21,
+    "tp": 21,
+    "missed": [
+     "Arcserve",
+     "CloudCasa",
+     "Unitrends"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.875,
+    "precision": 1.0,
+    "found": 21,
+    "tp": 21,
+    "missed": [
+     "Arcserve",
+     "CloudCasa",
+     "Unitrends"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.774,
+    "found": 31,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Flosum",
+     "Keepit",
+     "Salesforce",
+     "Storware",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.774,
+    "found": 31,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Flosum",
+     "Keepit",
+     "Salesforce",
+     "Storware",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "cv-06",
+   "holdout": false,
+   "features": {
+    "Exchange Online": [
+     "microsoft_exchange_support",
+     "nn",
+     0.87
+    ],
+    "OneDrive": [
+     "onedrive_backup",
+     "nn",
+     0.898
+    ],
+    "SharePoint Online": [
+     "microsoft_365_sharepoint_online_protection",
+     "nn",
+     0.857
+    ]
+   },
+   "targets": {
+    "Exchange Online": [
+     "email.mailbox",
+     "alias",
+     1.0
+    ],
+    "OneDrive": [
+     "microsoft365.onedrive",
+     "alias",
+     1.0
+    ],
+    "SharePoint Online": [
+     "microsoft.sharepoint",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.931,
+    "found": 29,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "IBM"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 27,
+    "tp": 27,
+    "missed": [],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.931,
+    "found": 29,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "IBM"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.931,
+    "found": 29,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "IBM"
+    ]
+   }
+  },
+  {
+   "id": "cv-07",
+   "holdout": false,
+   "features": {
+    "scheduled report": [
+     "scheduled_reports",
+     "nn",
+     0.976
+    ],
+    "email report": [
+     "email_reports",
+     "alias",
+     1.0
+    ],
+    "report schedule": [
+     "scheduled_reports",
+     "nn",
+     0.967
+    ]
+   },
+   "targets": {
+    "email report": [
+     "management.notifications.email",
+     "nn",
+     0.925
+    ]
+   },
+   "table": {
+    "recall": 0.667,
+    "precision": 1.0,
+    "found": 20,
+    "tp": 20,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "CloudAlly",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Keepit",
+     "Nakivo",
+     "NinjaOne (Dropsuite)",
+     "Spanning",
+     "Storware"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.633,
+    "precision": 1.0,
+    "found": 19,
+    "tp": 19,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "Barracuda",
+     "CloudAlly",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Keepit",
+     "Nakivo",
+     "NinjaOne (Dropsuite)",
+     "Spanning",
+     "Storware"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.909,
+    "found": 33,
+    "tp": 30,
+    "missed": [],
+    "extra": [
+     "Red Hat",
+     "Slide",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.909,
+    "found": 33,
+    "tp": 30,
+    "missed": [],
+    "extra": [
+     "Red Hat",
+     "Slide",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "cv-08",
+   "holdout": false,
+   "features": {},
+   "targets": {
+    "AIX": [
+     "unix.aix",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.727,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [
+     "Arctera",
+     "Atempo",
+     "Veeam"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.636,
+    "precision": 1.0,
+    "found": 7,
+    "tp": 7,
+    "missed": [
+     "Arctera",
+     "Atempo",
+     "Unitrends",
+     "Veeam"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.818,
+    "precision": 0.9,
+    "found": 10,
+    "tp": 9,
+    "missed": [
+     "Arctera",
+     "Bacula"
+    ],
+    "extra": [
+     "Storware"
+    ]
+   },
+   "union": {
+    "recall": 0.909,
+    "precision": 0.909,
+    "found": 11,
+    "tp": 10,
+    "missed": [
+     "Arctera"
+    ],
+    "extra": [
+     "Storware"
+    ]
+   }
+  },
+  {
+   "id": "cv-09",
+   "holdout": false,
+   "features": {
+    "pre-job script": [
+     "pre_post_job_scripts",
+     "alias",
+     1.0
+    ],
+    "post-job script": [
+     "pre_post_job_scripts",
+     "alias",
+     1.0
+    ],
+    "pre-freeze script": [
+     "pre_freeze_post_thaw_scripts",
+     "alias",
+     1.0
+    ],
+    "pre-backup script": [
+     "pre_and_post_backup_commands",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {},
+   "table": {
+    "recall": 0.214,
+    "precision": 1.0,
+    "found": 6,
+    "tp": 6,
+    "missed": [
+     "Acronis",
+     "Arctera",
+     "Atempo",
+     "Bacula",
+     "CloudCasa",
+     "Cohesity",
+     "Datto",
+     "Dell",
+     "Druva",
+     "Google",
+     "HYCU",
+     "Microsoft",
+     "N-Able",
+     "Portworx",
+     "Red Hat",
+     "Slide",
+     "Storware",
+     "Synology",
+     "Trilio",
+     "Unitrends",
+     "Veeam",
+     "Velero"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.143,
+    "precision": 1.0,
+    "found": 4,
+    "tp": 4,
+    "missed": [
+     "Acronis",
+     "Arcserve",
+     "Arctera",
+     "Atempo",
+     "Bacula",
+     "CloudCasa",
+     "Cohesity",
+     "Datto",
+     "Dell",
+     "Druva",
+     "Google",
+     "HYCU",
+     "IBM",
+     "Microsoft",
+     "N-Able",
+     "Portworx",
+     "Red Hat",
+     "Slide",
+     "Storware",
+     "Synology",
+     "Trilio",
+     "Unitrends",
+     "Veeam",
+     "Velero"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 28,
+    "tp": 28,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 28,
+    "tp": 28,
+    "missed": [],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv43-01",
+   "holdout": true,
+   "features": {
+    "Oracle RMAN": [
+     "oracle_database_backup",
+     "nn",
+     0.949
+    ],
+    "RMAN": [
+     "oracle_database_backup",
+     "nn",
+     0.93
+    ],
+    "Oracle agent": [
+     "database_agent_installation",
+     "nn",
+     0.86
+    ]
+   },
+   "targets": {
+    "Oracle RMAN": [
+     "oracle.database",
+     "alias",
+     1.0
+    ],
+    "RMAN": [
+     "oracle.database",
+     "nn",
+     0.948
+    ],
+    "Oracle agent": [
+     "oracle.database",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "HYCU",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Synology"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.833,
+    "found": 12,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "Microsoft"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 10,
+    "tp": 10,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "HYCU",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Synology"
+    ]
+   }
+  },
+  {
+   "id": "cv43-02",
+   "holdout": true,
+   "features": {},
+   "targets": {
+    "OpenStack": [
+     "openstack",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv43-03",
+   "holdout": true,
+   "features": {},
+   "targets": {
+    "Proxmox VE": [
+     "platforms.hypervisor.proxmox_ve",
+     "alias",
+     1.0
+    ],
+    "Proxmox": [
+     "platforms.hypervisor.proxmox_ve",
+     "alias",
+     1.0
+    ],
+    "PVE": [
+     "proxmox.ve",
+     "alias",
+     1.0
+    ],
+    "QEMU": [
+     "platforms.kvm.qemu",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.846,
+    "found": 13,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Cohesity",
+     "Slide"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.917,
+    "found": 12,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Cohesity"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.786,
+    "found": 14,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Portworx",
+     "Slide",
+     "Synology"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.733,
+    "found": 15,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Cohesity",
+     "Portworx",
+     "Slide",
+     "Synology"
+    ]
+   }
+  },
+  {
+   "id": "cv43-04",
+   "holdout": true,
+   "features": {
+    "tape library": [
+     "tape_library_support",
+     "nn",
+     0.92
+    ],
+    "tape drive": [
+     "virtual_tape_library_support",
+     "nn",
+     0.913
+    ]
+   },
+   "targets": {
+    "tape library": [
+     "tape.lto",
+     "alias",
+     1.0
+    ],
+    "tape drive": [
+     "tape.lto",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.933,
+    "precision": 1.0,
+    "found": 14,
+    "tp": 14,
+    "missed": [
+     "Barracuda"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.867,
+    "precision": 1.0,
+    "found": 13,
+    "tp": 13,
+    "missed": [
+     "Arctera",
+     "Barracuda"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.8,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [
+     "Barracuda",
+     "IBM",
+     "Microsoft"
+    ],
+    "extra": []
+   },
+   "union": {
+    "recall": 0.933,
+    "precision": 1.0,
+    "found": 14,
+    "tp": 14,
+    "missed": [
+     "Barracuda"
+    ],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv43-05",
+   "holdout": true,
+   "features": {
+    "screenshot verification": [
+     "screenshot_verification",
+     "alias",
+     1.0
+    ],
+    "boot verification": [
+     "backup_boot_verification",
+     "alias",
+     1.0
+    ],
+    "VM verification": [
+     "backup_verification",
+     "alias",
+     1.0
+    ],
+    "recovery assurance": [
+     "recovery_plan",
+     "nn",
+     0.901
+    ]
+   },
+   "targets": {
+    "recovery assurance": [
+     "recovery",
+     "nn",
+     0.883
+    ]
+   },
+   "table": {
+    "recall": 0.909,
+    "precision": 0.556,
+    "found": 18,
+    "tp": 10,
+    "missed": [
+     "N-Able"
+    ],
+    "extra": [
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Dell",
+     "Keepit",
+     "Microsoft",
+     "Storware",
+     "Zerto"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.909,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [
+     "N-Able"
+    ],
+    "extra": [
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Microsoft",
+     "Storware"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.909,
+    "precision": 0.833,
+    "found": 12,
+    "tp": 10,
+    "missed": [
+     "Unitrends"
+    ],
+    "extra": [
+     "Bacula",
+     "Commvault"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.55,
+    "found": 20,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Bacula",
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Dell",
+     "Keepit",
+     "Microsoft",
+     "Storware",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-06",
+   "holdout": true,
+   "features": {
+    "bare metal restore": [
+     "bare_metal_recovery",
+     "alias",
+     1.0
+    ],
+    "universal restore": [
+     "universal_restore",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {
+    "bare metal restore": [
+     "recovery.bare_metal",
+     "alias",
+     1.0
+    ],
+    "universal restore": [
+     "recovery.one_click",
+     "nn",
+     0.886
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.769,
+    "found": 13,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Microsoft",
+     "Slide",
+     "Synology"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.769,
+    "found": 13,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Microsoft",
+     "Slide",
+     "Synology"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.625,
+    "found": 16,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Slide",
+     "Synology",
+     "Zerto"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.625,
+    "found": 16,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Slide",
+     "Synology",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-07",
+   "holdout": true,
+   "features": {
+    "Google Workspace": [
+     "google_workspace_protection",
+     "nn",
+     0.851
+    ],
+    "Google Drive": [
+     "google_workspace_backup",
+     "nn",
+     0.888
+    ],
+    "shared drives": [
+     "shared_drive_discovery",
+     "nn",
+     0.914
+    ]
+   },
+   "targets": {
+    "Google Workspace": [
+     "microsoft365.google_workspace",
+     "alias",
+     1.0
+    ],
+    "G Suite": [
+     "microsoft365.google_workspace",
+     "alias",
+     1.0
+    ],
+    "Gmail": [
+     "google_workspace.gmail",
+     "alias",
+     1.0
+    ],
+    "Google Drive": [
+     "google_workspace.google_drive",
+     "alias",
+     1.0
+    ],
+    "shared drives": [
+     "google_workspace.google_drive",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.944,
+    "found": 18,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Veeam"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 17,
+    "tp": 17,
+    "missed": [],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.895,
+    "found": 19,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Google",
+     "Veeam"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.895,
+    "found": 19,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Google",
+     "Veeam"
+    ]
+   }
+  },
+  {
+   "id": "cv43-08",
+   "holdout": true,
+   "features": {
+    "Salesforce metadata": [
+     "salesforce_backup",
+     "nn",
+     0.899
+    ],
+    "metadata restore": [
+     "metadata_restore",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {
+    "Salesforce metadata": [
+     "salesforce.metadata",
+     "alias",
+     1.0
+    ],
+    "custom objects": [
+     "salesforce.custom_object",
+     "nn",
+     0.959
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 11,
+    "tp": 11,
+    "missed": [],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.909,
+    "precision": 1.0,
+    "found": 10,
+    "tp": 10,
+    "missed": [
+     "Gearset"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 11,
+    "tp": 11,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 11,
+    "tp": 11,
+    "missed": [],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv43-09",
+   "holdout": true,
+   "features": {
+    "Nutanix AHV": [
+     "nutanix_ahv_backup",
+     "nn",
+     0.862
+    ]
+   },
+   "targets": {
+    "Nutanix AHV": [
+     "nutanix.ahv",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.933,
+    "precision": 0.933,
+    "found": 15,
+    "tp": 14,
+    "missed": [
+     "IBM"
+    ],
+    "extra": [
+     "Barracuda"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.933,
+    "precision": 1.0,
+    "found": 14,
+    "tp": 14,
+    "missed": [
+     "IBM"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.933,
+    "precision": 0.7,
+    "found": 20,
+    "tp": 14,
+    "missed": [
+     "HYCU"
+    ],
+    "extra": [
+     "Arctera",
+     "Axcient",
+     "Barracuda",
+     "Datto",
+     "Microsoft",
+     "Synology"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.714,
+    "found": 21,
+    "tp": 15,
+    "missed": [],
+    "extra": [
+     "Arctera",
+     "Axcient",
+     "Barracuda",
+     "Datto",
+     "Microsoft",
+     "Synology"
+    ]
+   }
+  },
+  {
+   "id": "cv43-10",
+   "holdout": true,
+   "features": {
+    "legal hold": [
+     "legal_hold",
+     "alias",
+     1.0
+    ],
+    "litigation hold": [
+     "legal_hold",
+     "alias",
+     1.0
+    ],
+    "eDiscovery": [
+     "ediscovery",
+     "alias",
+     1.0
+    ]
+   },
+   "targets": {
+    "legal hold": [
+     "data_protection.legal_hold",
+     "alias",
+     1.0
+    ],
+    "litigation hold": [
+     "data_protection.legal_hold",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.9,
+    "precision": 1.0,
+    "found": 9,
+    "tp": 9,
+    "missed": [
+     "Axcient"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.9,
+    "precision": 1.0,
+    "found": 9,
+    "tp": 9,
+    "missed": [
+     "Axcient"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.9,
+    "precision": 0.529,
+    "found": 17,
+    "tp": 9,
+    "missed": [
+     "Axcient"
+    ],
+    "extra": [
+     "Afi.ai",
+     "Arctera",
+     "Dell",
+     "Eon",
+     "Flosum",
+     "IBM",
+     "Keepit",
+     "Portworx"
+    ]
+   },
+   "union": {
+    "recall": 0.9,
+    "precision": 0.529,
+    "found": 17,
+    "tp": 9,
+    "missed": [
+     "Axcient"
+    ],
+    "extra": [
+     "Afi.ai",
+     "Arctera",
+     "Dell",
+     "Eon",
+     "Flosum",
+     "IBM",
+     "Keepit",
+     "Portworx"
+    ]
+   }
+  },
+  {
+   "id": "cv43-11",
+   "holdout": true,
+   "features": {
+    "two-factor authentication": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "2FA": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "MFA": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "authenticator": [
+     "multi_factor_authentication",
+     "nn",
+     0.897
+    ],
+    "OTP": [
+     "multi_factor_authentication",
+     "nn",
+     0.91
+    ]
+   },
+   "targets": {
+    "authenticator": [
+     "security.identity_provider",
+     "nn",
+     0.895
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.963,
+    "found": 27,
+    "tp": 26,
+    "missed": [],
+    "extra": [
+     "Microsoft"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.962,
+    "precision": 0.962,
+    "found": 26,
+    "tp": 25,
+    "missed": [
+     "Dell"
+    ],
+    "extra": [
+     "Microsoft"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.923,
+    "precision": 0.96,
+    "found": 25,
+    "tp": 24,
+    "missed": [
+     "Salesforce",
+     "Zerto"
+    ],
+    "extra": [
+     "Microsoft"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.963,
+    "found": 27,
+    "tp": 26,
+    "missed": [],
+    "extra": [
+     "Microsoft"
+    ]
+   }
+  },
+  {
+   "id": "cv43-12",
+   "holdout": true,
+   "features": {
+    "anomaly detection": [
+     "anomaly_detection",
+     "alias",
+     1.0
+    ],
+    "ransomware detection": [
+     "ransomware_detection",
+     "alias",
+     1.0
+    ],
+    "threat detection": [
+     "threat_hunting",
+     "alias",
+     1.0
+    ],
+    "entropy": [
+     "ransomware_file_entropy_analysis",
+     "nn",
+     0.865
+    ]
+   },
+   "targets": {
+    "anomaly detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.893
+    ],
+    "ransomware detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.956
+    ],
+    "threat detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.94
+    ]
+   },
+   "table": {
+    "recall": 0.826,
+    "precision": 0.905,
+    "found": 21,
+    "tp": 19,
+    "missed": [
+     "AWS",
+     "Atempo",
+     "Bacula",
+     "Nakivo"
+    ],
+    "extra": [
+     "Slide",
+     "Trilio"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.783,
+    "precision": 0.947,
+    "found": 19,
+    "tp": 18,
+    "missed": [
+     "AWS",
+     "Atempo",
+     "Bacula",
+     "Microsoft",
+     "Nakivo"
+    ],
+    "extra": [
+     "Slide"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.957,
+    "precision": 0.88,
+    "found": 25,
+    "tp": 22,
+    "missed": [
+     "Nakivo"
+    ],
+    "extra": [
+     "Hornetsecurity (Altaro)",
+     "Storware",
+     "Trilio"
+    ]
+   },
+   "union": {
+    "recall": 0.957,
+    "precision": 0.846,
+    "found": 26,
+    "tp": 22,
+    "missed": [
+     "Nakivo"
+    ],
+    "extra": [
+     "Hornetsecurity (Altaro)",
+     "Slide",
+     "Storware",
+     "Trilio"
+    ]
+   }
+  }
+ ]
+}

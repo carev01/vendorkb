@@ -90,6 +90,13 @@ VENDORKB_DSN="postgresql://vendorkb:${PG_PASSWORD}@127.0.0.1:55443/vendorkb" uv 
 
 Counts must match the local database (32,282 chunks before the re-chunk below).
 
+Access over the port-forward needs the password. The chart mounts its own `pg_hba.conf`
+(`postgres.hba` in `values.yaml`): TCP connections, including those arriving through
+`kubectl port-forward` (they look like 127.0.0.1 inside the pod, which the image's default
+trusts without a password), must authenticate with `scram-sha-256`. Only the unix socket stays
+trusted, and reaching it needs `kubectl exec`. Always use the DSN with `PG_PASSWORD` or
+`PGPASSWORD`, as above. Changing `postgres.hba` rolls the Postgres pod (checksum annotation).
+
 **Schema note.** The dump still has the old `graph_content_hash` column. The first
 `vendorkb sync` runs `init_schema`, which drops it. Do not follow the restore with any
 older vendorkb version (it would not know the schema).

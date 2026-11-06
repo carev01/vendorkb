@@ -25,7 +25,7 @@ that follow from each:
 **What the user wants from a "which vendors" question (their words):** the answer should
 list *all* the known vendors that support it. Both kinds of error are bad, but naming a
 vendor that does not support it is worse than omitting one that does. And the answer
-should also say which vendors it checked and found nothing documented for.
+should also say which vendors it checked and found no supporting passage for.
 
 ## 2. Goals, non-goals, anti-goals
 
@@ -34,7 +34,7 @@ should also say which vendors it checked and found nothing documented for.
    so the retrieval changes are measured against it.
 2. Enumeration questions: retrieval considers every vendor, and the answer lists each vendor
    whose documents support the claim, with citations. It ends with a deterministic line
-   naming the vendors checked with nothing documented.
+   naming the vendors with no supporting passage found.
 3. Comparison questions: each named vendor or product gets a fair share of the pool.
 4. No regression on single-vendor and multi-article questions.
 
@@ -49,7 +49,7 @@ should also say which vendors it checked and found nothing documented for.
   by a cited chunk *from that vendor*. This is checked deterministically after the model
   answers, not left to the prompt.
 - **"Not documented" stated as "not supported".** The closing line says what the corpus
-  lacks, never what a product cannot do.
+  lacks, never what a product cannot do (the line never says "not supported").
 - **Paid runs without a go-ahead.** Retrieval checks are free (one query embedding per
   question). Rerank and answer runs are paid, and each one needs the user's OK.
 - **Grading the eval with the system under test.** Labelling candidates must come from a
@@ -104,7 +104,7 @@ The free retrieval check is a new mode of `eval/retrieval_compare.py`, or a sibl
 The paid answer eval (later, with an OK) adds:
 - **Answer vendor precision:** named vendors that are in `expected_vendors`.
 - **Answer vendor recall.**
-- **Closing-line accuracy:** no expected vendor listed as "nothing documented".
+- **Closing-line accuracy:** no expected vendor listed as "no supporting passage found".
 
 ## 4. Retrieval and answer changes
 
@@ -155,9 +155,10 @@ committed change.)*
 - **Deterministic check after the reply.** A vendor line is kept only when at least one of
   its markers resolves to a chunk whose `vendor` is that vendor. Other lines are dropped,
   and the drop is counted in the result.
-- **Closing line, built in code, not by the model:** "Checked with nothing documented: …".
+- **Closing line, built in code, not by the model:** "No supporting passage found for: …" (was "Checked with nothing
+  documented: …" until the 2026-11-06 review: that was false when the model skipped a vendor whose evidence it had).
   It names the vendors that were searched and not kept, both those below the floor and
-  those the model did not list. The wording is "nothing documented", never "not
+  those the model did not list. The wording is "no supporting passage found", never "not
   supported".
 - If every line is dropped, refuse as today.
 
@@ -229,7 +230,7 @@ eval questions show a miss. *(My call: no speculative alias list.)*
    - "Unclear" vendors are excluded from scoring. They count neither as expected nor as a
      false vendor.
 7. **A comparison facet with no hits** goes in the result envelope (`facets_empty`) and in
-   the deterministic closing line ("nothing documented for: X"). The comparison prompt is
+   the deterministic closing line ("No supporting passage found for: X"). The comparison prompt is
    otherwise unchanged.
 8. **Vendor matching.** The prompt lists the exact vendor names. A line must start with one
    of them, otherwise it is dropped. No fuzzy matching.

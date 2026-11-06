@@ -1,0 +1,2528 @@
+{
+ "summary": {
+  "table": {
+   "all": {
+    "recall": 0.954,
+    "precision": 0.728,
+    "found_per_q": 24.1
+   },
+   "calibration": {
+    "recall": 0.927,
+    "precision": 0.834,
+    "found_per_q": 26.4
+   },
+   "holdout": {
+    "recall": 0.978,
+    "precision": 0.631,
+    "found_per_q": 22.0
+   }
+  },
+  "table_without_c_only": {
+   "all": {
+    "recall": 0.933,
+    "precision": 0.813,
+    "found_per_q": 20.8
+   },
+   "calibration": {
+    "recall": 0.887,
+    "precision": 0.889,
+    "found_per_q": 23.4
+   },
+   "holdout": {
+    "recall": 0.975,
+    "precision": 0.744,
+    "found_per_q": 18.4
+   }
+  },
+  "retrieval": {
+   "all": {
+    "recall": 0.952,
+    "precision": 0.877,
+    "found_per_q": 19.7
+   },
+   "calibration": {
+    "recall": 0.952,
+    "precision": 0.906,
+    "found_per_q": 23.9
+   },
+   "holdout": {
+    "recall": 0.952,
+    "precision": 0.851,
+    "found_per_q": 15.8
+   }
+  },
+  "union": {
+   "all": {
+    "recall": 0.991,
+    "precision": 0.705,
+    "found_per_q": 25.5
+   },
+   "calibration": {
+    "recall": 0.992,
+    "precision": 0.806,
+    "found_per_q": 28.5
+   },
+   "holdout": {
+    "recall": 0.991,
+    "precision": 0.614,
+    "found_per_q": 22.8
+   }
+  },
+  "unresolved_questions": []
+ },
+ "per_question": [
+  {
+   "id": "ex-rt-10",
+   "holdout": false,
+   "features": {
+    "immutable": [
+     "immutable_backups",
+     "nn",
+     0.92
+    ],
+    "immutability": [
+     "immutable_backups",
+     "alias",
+     1.0
+    ],
+    "WORM": [
+     "immutable_archives",
+     "nn",
+     0.856
+    ],
+    "object lock": [
+     "object_lock",
+     "alias",
+     1.0
+    ],
+    "Which backup vendors support immutable backups, and how do their approaches differ?": [
+     "provider_side_retention_protection",
+     "nn",
+     0.77
+    ]
+   },
+   "targets": {
+    "immutable": [
+     "s3_compatible.object_lock",
+     "nn",
+     0.821
+    ],
+    "immutability": [
+     "data_protection.legal_hold",
+     "nn",
+     0.819
+    ],
+    "WORM": [
+     "s3_compatible.object_lock",
+     "nn",
+     0.809
+    ],
+    "object lock": [
+     "s3_compatible.object_lock",
+     "alias",
+     1.0
+    ],
+    "Which backup vendors support immutable backups, and how do their approaches differ?": [
+     "azure.virtual_machines",
+     "nn",
+     0.759
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.921,
+    "found": 38,
+    "tp": 35,
+    "missed": [],
+    "extra": [
+     "Spanning",
+     "Unitrends",
+     "Velero"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.972,
+    "found": 36,
+    "tp": 35,
+    "missed": [],
+    "extra": [
+     "Unitrends"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.657,
+    "precision": 0.92,
+    "found": 25,
+    "tp": 23,
+    "missed": [
+     "AWS",
+     "Arcserve",
+     "Arctera",
+     "Atempo",
+     "CloudCasa",
+     "Commvault",
+     "Dell",
+     "Eon",
+     "IBM",
+     "NinjaOne (Dropsuite)",
+     "Red Hat",
+     "Storware"
+    ],
+    "extra": [
+     "Spanning",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.921,
+    "found": 38,
+    "tp": 35,
+    "missed": [],
+    "extra": [
+     "Spanning",
+     "Unitrends",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "ex-rt-12",
+   "holdout": false,
+   "features": {
+    "cross-region copy": [
+     "cross_region_cross_account_copy",
+     "alias",
+     1.0
+    ],
+    "offsite copy": [
+     "offsite_backup_copy",
+     "alias",
+     1.0
+    ],
+    "secondary site": [
+     "offsite_backup_copy",
+     "nn",
+     0.904
+    ],
+    "backup copy": [
+     "backup_copy",
+     "alias",
+     1.0
+    ],
+    "Which backup vendors can keep a copy of backups in another region or at another site?": [
+     "cross_region_copy",
+     "nn",
+     0.824
+    ]
+   },
+   "targets": {
+    "cross-region copy": [
+     "storage_targets.cloud_backup_copy",
+     "nn",
+     0.86
+    ],
+    "offsite copy": [
+     "storage_targets.backup_copy_target",
+     "nn",
+     0.968
+    ],
+    "secondary site": [
+     "data_protection.replication",
+     "nn",
+     0.823
+    ],
+    "backup copy": [
+     "backup.data",
+     "alias",
+     1.0
+    ],
+    "Which backup vendors can keep a copy of backups in another region or at another site?": [
+     "cloud.managed_backup_storage",
+     "nn",
+     0.771
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.889,
+    "found": 36,
+    "tp": 32,
+    "missed": [],
+    "extra": [
+     "CloudAlly",
+     "Keepit",
+     "NinjaOne (Dropsuite)",
+     "Salesforce"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.906,
+    "precision": 0.967,
+    "found": 30,
+    "tp": 29,
+    "missed": [
+     "Eon",
+     "GRAX",
+     "Zerto"
+    ],
+    "extra": [
+     "Keepit"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.941,
+    "found": 34,
+    "tp": 32,
+    "missed": [],
+    "extra": [
+     "Keepit",
+     "Salesforce"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.889,
+    "found": 36,
+    "tp": 32,
+    "missed": [],
+    "extra": [
+     "CloudAlly",
+     "Keepit",
+     "NinjaOne (Dropsuite)",
+     "Salesforce"
+    ]
+   }
+  },
+  {
+   "id": "cv-01",
+   "holdout": false,
+   "features": {
+    "four-eyes": [
+     "four_eyes_approval",
+     "nn",
+     0.774
+    ],
+    "multi-person approval": [
+     "quorum_approval",
+     "alias",
+     1.0
+    ],
+    "dual authorization": [
+     "quorum_approval",
+     "alias",
+     1.0
+    ],
+    "quorum": [
+     "quorum_approval",
+     "nn",
+     0.921
+    ]
+   },
+   "targets": {
+    "multi-person approval": [
+     "security.multi_user_authorization",
+     "nn",
+     0.824
+    ],
+    "dual authorization": [
+     "security.multi_user_authorization",
+     "nn",
+     0.85
+    ]
+   },
+   "table": {
+    "recall": 0.75,
+    "precision": 1.0,
+    "found": 9,
+    "tp": 9,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "Commvault"
+    ],
+    "extra": []
+   },
+   "table_without_c_only": {
+    "recall": 0.667,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [
+     "AWS",
+     "Afi.ai",
+     "Commvault",
+     "Eon"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [],
+    "extra": []
+   }
+  },
+  {
+   "id": "cv-02",
+   "holdout": false,
+   "features": {
+    "Kubernetes": [
+     "kubernetes_support",
+     "nn",
+     0.906
+    ],
+    "persistent volume": [
+     "persistent_volume_protection",
+     "nn",
+     0.924
+    ],
+    "OpenShift": [
+     "openshift_authentication_integration",
+     "nn",
+     0.81
+    ],
+    "Which of the documented backup products can protect Kubernetes workloads, and how does each one go about it?": [
+     "kubernetes_backup",
+     "nn",
+     0.796
+    ]
+   },
+   "targets": {
+    "Kubernetes": [
+     "kubernetes.cluster",
+     "alias",
+     1.0
+    ],
+    "persistent volume": [
+     "kubernetes.persistent_volume",
+     "nn",
+     0.983
+    ],
+    "OpenShift": [
+     "platforms.kubernetes.openshift",
+     "alias",
+     1.0
+    ],
+    "Which of the documented backup products can protect Kubernetes workloads, and how does each one go about it?": [
+     "platforms.kubernetes",
+     "nn",
+     0.828
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.773,
+    "found": 22,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Druva",
+     "Google",
+     "HYCU",
+     "Unitrends"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.773,
+    "found": 22,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Druva",
+     "Google",
+     "HYCU",
+     "Unitrends"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.944,
+    "found": 18,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.773,
+    "found": 22,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Druva",
+     "Google",
+     "HYCU",
+     "Unitrends"
+    ]
+   }
+  },
+  {
+   "id": "cv-03",
+   "holdout": false,
+   "features": {
+    "Hyper-V": [
+     "hyperv_vm_protection",
+     "nn",
+     0.872
+    ],
+    "SCVMM": [
+     "vm_agent",
+     "nn",
+     0.776
+    ],
+    "A lot of our on-prem estate still runs on Microsoft Hyper-V. Which of these vendors document backing up Hyper-V virtual machines?": [
+     "virtual_machine_backup",
+     "nn",
+     0.84
+    ]
+   },
+   "targets": {
+    "Hyper-V": [
+     "platforms.hypervisor.windows_server",
+     "alias",
+     1.0
+    ],
+    "SCVMM": [
+     "vmware.vsphere",
+     "nn",
+     0.828
+    ],
+    "A lot of our on-prem estate still runs on Microsoft Hyper-V. Which of these vendors document backing up Hyper-V virtual machines?": [
+     "microsoft.hyperv",
+     "nn",
+     0.834
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.676,
+    "found": 34,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "AvePoint",
+     "CloudCasa",
+     "Google",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Slide",
+     "Spanning",
+     "Trilio"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.767,
+    "found": 30,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "AvePoint",
+     "Google",
+     "Portworx",
+     "Red Hat",
+     "Trilio"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.885,
+    "found": 26,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Slide"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.676,
+    "found": 34,
+    "tp": 23,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "AvePoint",
+     "CloudCasa",
+     "Google",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Slide",
+     "Spanning",
+     "Trilio"
+    ]
+   }
+  },
+  {
+   "id": "cv-04",
+   "holdout": false,
+   "features": {
+    "seeding": [
+     "initial_seed_backup",
+     "alias",
+     1.0
+    ],
+    "Data Box": [
+     "data_archiving",
+     "nn",
+     0.792
+    ],
+    "removable drive": [
+     "device_control",
+     "nn",
+     0.891
+    ]
+   },
+   "targets": {
+    "Snowball": [
+     "snowflake",
+     "nn",
+     0.852
+    ],
+    "Data Box": [
+     "saas.box",
+     "nn",
+     0.874
+    ],
+    "removable drive": [
+     "removable_media",
+     "nn",
+     0.985
+    ]
+   },
+   "table": {
+    "recall": 0.769,
+    "precision": 0.526,
+    "found": 19,
+    "tp": 10,
+    "missed": [
+     "Datto",
+     "Nakivo",
+     "Veeam"
+    ],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "CloudAlly",
+     "HYCU",
+     "Keepit",
+     "Rubrik",
+     "Slide",
+     "Velero"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.769,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [
+     "Datto",
+     "Nakivo",
+     "Veeam"
+    ],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "Rubrik",
+     "Slide"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.765,
+    "found": 17,
+    "tp": 13,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Bacula",
+     "Dell",
+     "IBM"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.542,
+    "found": 24,
+    "tp": 13,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "CloudAlly",
+     "Dell",
+     "HYCU",
+     "IBM",
+     "Keepit",
+     "Rubrik",
+     "Slide",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "cv-05",
+   "holdout": false,
+   "features": {
+    "bandwidth throttling": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ],
+    "network throttling": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ],
+    "bandwidth limit": [
+     "bandwidth_throttling",
+     "alias",
+     1.0
+    ],
+    "How can I stop backup traffic from saturating our network links? Which products let me cap or schedule the bandwidth backups use?": [
+     "backup_bandwidth_throttling",
+     "nn",
+     0.836
+    ]
+   },
+   "targets": {
+    "bandwidth throttling": [
+     "cloud.network_security_group",
+     "nn",
+     0.759
+    ],
+    "network throttling": [
+     "cloud.network_security_group",
+     "nn",
+     0.76
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.96,
+    "found": 25,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "AvePoint"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.96,
+    "found": 25,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "AvePoint"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.774,
+    "found": 31,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Flosum",
+     "Keepit",
+     "Salesforce",
+     "Storware",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.774,
+    "found": 31,
+    "tp": 24,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Flosum",
+     "Keepit",
+     "Salesforce",
+     "Storware",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "cv-06",
+   "holdout": false,
+   "features": {
+    "Exchange Online": [
+     "microsoft_exchange_support",
+     "nn",
+     0.87
+    ],
+    "OneDrive": [
+     "onedrive_backup",
+     "nn",
+     0.899
+    ],
+    "SharePoint Online": [
+     "microsoft_365_sharepoint_online_protection",
+     "nn",
+     0.857
+    ],
+    "Which vendors offer a way to back up Microsoft 365 data such as Exchange Online mailboxes, OneDrive and SharePoint?": [
+     "microsoft_365_backup",
+     "nn",
+     0.835
+    ]
+   },
+   "targets": {
+    "Exchange Online": [
+     "email.mailbox",
+     "alias",
+     1.0
+    ],
+    "OneDrive": [
+     "microsoft365.onedrive",
+     "alias",
+     1.0
+    ],
+    "SharePoint Online": [
+     "microsoft.sharepoint",
+     "alias",
+     1.0
+    ],
+    "Which vendors offer a way to back up Microsoft 365 data such as Exchange Online mailboxes, OneDrive and SharePoint?": [
+     "microsoft365",
+     "nn",
+     0.834
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.771,
+    "found": 35,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "Gearset",
+     "Google",
+     "IBM",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Slide"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.931,
+    "found": 29,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Google",
+     "Red Hat"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.931,
+    "found": 29,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "IBM"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.771,
+    "found": 35,
+    "tp": 27,
+    "missed": [],
+    "extra": [
+     "Dell",
+     "Gearset",
+     "Google",
+     "IBM",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Slide"
+    ]
+   }
+  },
+  {
+   "id": "cv-07",
+   "holdout": false,
+   "features": {
+    "scheduled report": [
+     "scheduled_reports",
+     "nn",
+     0.976
+    ],
+    "email report": [
+     "email_reports",
+     "alias",
+     1.0
+    ],
+    "report schedule": [
+     "scheduled_reports",
+     "nn",
+     0.967
+    ],
+    "Management wants backup status reports delivered automatically on a schedule. Which products can do that, and where do the reports end up?": [
+     "backup_report_email_notifications",
+     "nn",
+     0.791
+    ]
+   },
+   "targets": {
+    "scheduled report": [
+     "backup.reporting.job_reports",
+     "nn",
+     0.842
+    ],
+    "email report": [
+     "management.notifications.email",
+     "nn",
+     0.925
+    ],
+    "report schedule": [
+     "backup.reporting.job_reports",
+     "nn",
+     0.839
+    ]
+   },
+   "table": {
+    "recall": 0.9,
+    "precision": 0.964,
+    "found": 28,
+    "tp": 27,
+    "missed": [
+     "Afi.ai",
+     "CloudAlly",
+     "Keepit"
+    ],
+    "extra": [
+     "Eon"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.867,
+    "precision": 0.963,
+    "found": 27,
+    "tp": 26,
+    "missed": [
+     "Afi.ai",
+     "CloudAlly",
+     "Keepit",
+     "NinjaOne (Dropsuite)"
+    ],
+    "extra": [
+     "Eon"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.909,
+    "found": 33,
+    "tp": 30,
+    "missed": [],
+    "extra": [
+     "Red Hat",
+     "Slide",
+     "Velero"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.882,
+    "found": 34,
+    "tp": 30,
+    "missed": [],
+    "extra": [
+     "Eon",
+     "Red Hat",
+     "Slide",
+     "Velero"
+    ]
+   }
+  },
+  {
+   "id": "cv-08",
+   "holdout": false,
+   "features": {
+    "AIX": [
+     "ibm_power_support",
+     "nn",
+     0.778
+    ]
+   },
+   "targets": {
+    "AIX": [
+     "unix.aix",
+     "alias",
+     1.0
+    ]
+   },
+   "table": {
+    "recall": 0.818,
+    "precision": 0.9,
+    "found": 10,
+    "tp": 9,
+    "missed": [
+     "Arctera",
+     "Atempo"
+    ],
+    "extra": [
+     "Red Hat"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.727,
+    "precision": 0.889,
+    "found": 9,
+    "tp": 8,
+    "missed": [
+     "Arctera",
+     "Atempo",
+     "Unitrends"
+    ],
+    "extra": [
+     "Red Hat"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.818,
+    "precision": 0.9,
+    "found": 10,
+    "tp": 9,
+    "missed": [
+     "Arctera",
+     "Bacula"
+    ],
+    "extra": [
+     "Storware"
+    ]
+   },
+   "union": {
+    "recall": 0.909,
+    "precision": 0.833,
+    "found": 12,
+    "tp": 10,
+    "missed": [
+     "Arctera"
+    ],
+    "extra": [
+     "Red Hat",
+     "Storware"
+    ]
+   }
+  },
+  {
+   "id": "cv-09",
+   "holdout": false,
+   "features": {
+    "pre-job script": [
+     "pre_post_job_scripts",
+     "alias",
+     1.0
+    ],
+    "post-job script": [
+     "pre_post_job_scripts",
+     "alias",
+     1.0
+    ],
+    "pre-freeze script": [
+     "pre_freeze_post_thaw_scripts",
+     "alias",
+     1.0
+    ],
+    "pre-backup script": [
+     "pre_and_post_backup_commands",
+     "alias",
+     1.0
+    ],
+    "I need to run my own scripts right before and after each backup, for example to quiesce an application. Which products support custom pre- and post-backup scripts?": [
+     "pre_post_backup_scripts",
+     "nn",
+     0.774
+    ]
+   },
+   "targets": {
+    "post-job script": [
+     "data_protection.backup_job",
+     "nn",
+     0.773
+    ],
+    "pre-backup script": [
+     "backup.data",
+     "nn",
+     0.85
+    ]
+   },
+   "table": {
+    "recall": 0.964,
+    "precision": 0.794,
+    "found": 34,
+    "tp": 27,
+    "missed": [
+     "Trilio"
+    ],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Axcient",
+     "Flosum",
+     "Gearset",
+     "NinjaOne (Dropsuite)",
+     "Salesforce"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.821,
+    "precision": 0.885,
+    "found": 26,
+    "tp": 23,
+    "missed": [
+     "CloudCasa",
+     "Portworx",
+     "Slide",
+     "Synology",
+     "Trilio"
+    ],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Flosum"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 28,
+    "tp": 28,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.8,
+    "found": 35,
+    "tp": 28,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Axcient",
+     "Flosum",
+     "Gearset",
+     "NinjaOne (Dropsuite)",
+     "Salesforce"
+    ]
+   }
+  },
+  {
+   "id": "cv43-01",
+   "holdout": true,
+   "features": {
+    "Oracle RMAN": [
+     "oracle_database_backup",
+     "nn",
+     0.949
+    ],
+    "RMAN": [
+     "oracle_database_backup",
+     "nn",
+     0.931
+    ],
+    "Oracle agent": [
+     "database_agent_installation",
+     "nn",
+     0.859
+    ],
+    "Which backup products integrate with Oracle RMAN so the DBA's RMAN backups go straight into the backup system?": [
+     "oracle_database_backup",
+     "nn",
+     0.826
+    ]
+   },
+   "targets": {
+    "Oracle RMAN": [
+     "oracle.database",
+     "alias",
+     1.0
+    ],
+    "RMAN": [
+     "oracle.database",
+     "nn",
+     0.949
+    ],
+    "Oracle agent": [
+     "oracle.database",
+     "alias",
+     1.0
+    ],
+    "Which backup products integrate with Oracle RMAN so the DBA's RMAN backups go straight into the backup system?": [
+     "oracle.database",
+     "nn",
+     0.79
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "HYCU",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Synology"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.833,
+    "found": 12,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "Microsoft"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 10,
+    "tp": 10,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.667,
+    "found": 15,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Acronis",
+     "HYCU",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Synology"
+    ]
+   }
+  },
+  {
+   "id": "cv43-02",
+   "holdout": true,
+   "features": {
+    "OpenStack": [
+     "vmware_platform_support",
+     "nn",
+     0.777
+    ],
+    "Glance": [
+     "rapid_malware_scan_of_backups",
+     "nn",
+     0.794
+    ],
+    "Which backup tools can protect OpenStack instances and their Cinder volumes?": [
+     "block_storage_volume_backup",
+     "nn",
+     0.857
+    ]
+   },
+   "targets": {
+    "OpenStack": [
+     "openstack",
+     "alias",
+     1.0
+    ],
+    "Nova instance": [
+     "openstack",
+     "nn",
+     0.798
+    ],
+    "Glance": [
+     "storage.file_share",
+     "nn",
+     0.777
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.471,
+    "found": 17,
+    "tp": 8,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "AvePoint",
+     "GRAX",
+     "Hornetsecurity (Altaro)",
+     "IBM",
+     "Nakivo",
+     "Spanning",
+     "Synology",
+     "Unitrends"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.727,
+    "found": 11,
+    "tp": 8,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Spanning",
+     "Synology"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 8,
+    "tp": 8,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.471,
+    "found": 17,
+    "tp": 8,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "AvePoint",
+     "GRAX",
+     "Hornetsecurity (Altaro)",
+     "IBM",
+     "Nakivo",
+     "Spanning",
+     "Synology",
+     "Unitrends"
+    ]
+   }
+  },
+  {
+   "id": "cv43-03",
+   "holdout": true,
+   "features": {
+    "Proxmox VE": [
+     "proxmox_ve_backup",
+     "nn",
+     0.822
+    ],
+    "Proxmox": [
+     "proxmox_ve_backup",
+     "nn",
+     0.826
+    ],
+    "QEMU": [
+     "kvm_hypervisor_backup",
+     "nn",
+     0.773
+    ],
+    "We are moving our VMs to Proxmox. Which backup products can back up Proxmox VE virtual machines?": [
+     "proxmox_ve_backup",
+     "nn",
+     0.853
+    ]
+   },
+   "targets": {
+    "Proxmox VE": [
+     "platforms.hypervisor.proxmox_ve",
+     "alias",
+     1.0
+    ],
+    "Proxmox": [
+     "platforms.hypervisor.proxmox_ve",
+     "alias",
+     1.0
+    ],
+    "PVE": [
+     "proxmox.ve",
+     "alias",
+     1.0
+    ],
+    "QEMU": [
+     "platforms.kvm.qemu",
+     "alias",
+     1.0
+    ],
+    "We are moving our VMs to Proxmox. Which backup products can back up Proxmox VE virtual machines?": [
+     "platforms.proxmox_ve",
+     "nn",
+     0.847
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.647,
+    "found": 17,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "CloudCasa",
+     "Cohesity",
+     "Red Hat",
+     "Slide",
+     "Zerto"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.786,
+    "found": 14,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "CloudCasa",
+     "Cohesity",
+     "Red Hat"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.786,
+    "found": 14,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Portworx",
+     "Slide",
+     "Synology"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.579,
+    "found": 19,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "CloudCasa",
+     "Cohesity",
+     "Portworx",
+     "Red Hat",
+     "Slide",
+     "Synology",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-04",
+   "holdout": true,
+   "features": {
+    "tape library": [
+     "tape_library_support",
+     "nn",
+     0.92
+    ],
+    "LTO": [
+     "lto_tape_support",
+     "nn",
+     0.808
+    ],
+    "tape drive": [
+     "virtual_tape_library_support",
+     "nn",
+     0.913
+    ],
+    "Which backup products can write backups to a physical LTO tape library or autoloader?": [
+     "lto_tape_support",
+     "nn",
+     0.804
+    ]
+   },
+   "targets": {
+    "tape library": [
+     "tape.lto",
+     "alias",
+     1.0
+    ],
+    "LTO": [
+     "tape.lto",
+     "nn",
+     0.814
+    ],
+    "tape drive": [
+     "tape.lto",
+     "alias",
+     1.0
+    ],
+    "Which backup products can write backups to a physical LTO tape library or autoloader?": [
+     "data_protection.application_plugin_backup",
+     "nn",
+     0.798
+    ]
+   },
+   "table": {
+    "recall": 0.933,
+    "precision": 0.875,
+    "found": 16,
+    "tp": 14,
+    "missed": [
+     "Barracuda"
+    ],
+    "extra": [
+     "AvePoint",
+     "Slide"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.933,
+    "precision": 0.875,
+    "found": 16,
+    "tp": 14,
+    "missed": [
+     "Barracuda"
+    ],
+    "extra": [
+     "AvePoint",
+     "Slide"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.8,
+    "precision": 1.0,
+    "found": 12,
+    "tp": 12,
+    "missed": [
+     "Barracuda",
+     "IBM",
+     "Microsoft"
+    ],
+    "extra": []
+   },
+   "union": {
+    "recall": 0.933,
+    "precision": 0.875,
+    "found": 16,
+    "tp": 14,
+    "missed": [
+     "Barracuda"
+    ],
+    "extra": [
+     "AvePoint",
+     "Slide"
+    ]
+   }
+  },
+  {
+   "id": "cv43-05",
+   "holdout": true,
+   "features": {
+    "screenshot verification": [
+     "screenshot_verification",
+     "alias",
+     1.0
+    ],
+    "boot verification": [
+     "backup_boot_verification",
+     "alias",
+     1.0
+    ],
+    "VM verification": [
+     "backup_verification",
+     "alias",
+     1.0
+    ],
+    "recovery assurance": [
+     "recovery_plan",
+     "nn",
+     0.9
+    ],
+    "Which backup products automatically test-boot each backup and give you a screenshot or report proving the machine actually starts?": [
+     "backup_boot_verification_self_healing",
+     "nn",
+     0.811
+    ]
+   },
+   "targets": {
+    "screenshot verification": [
+     "recovery.verification",
+     "nn",
+     0.791
+    ],
+    "boot verification": [
+     "recovery.verification",
+     "nn",
+     0.827
+    ],
+    "VM verification": [
+     "gcp.virtual_machine",
+     "nn",
+     0.829
+    ],
+    "recovery assurance": [
+     "recovery",
+     "nn",
+     0.883
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.367,
+    "found": 30,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Dell",
+     "Eon",
+     "GRAX",
+     "Google",
+     "Keepit",
+     "Microsoft",
+     "NinjaOne (Dropsuite)",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Storware",
+     "Trilio",
+     "Zerto"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.44,
+    "found": 25,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Eon",
+     "Google",
+     "Keepit",
+     "Microsoft",
+     "Portworx",
+     "Red Hat",
+     "Storware",
+     "Trilio"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.909,
+    "precision": 0.833,
+    "found": 12,
+    "tp": 10,
+    "missed": [
+     "Unitrends"
+    ],
+    "extra": [
+     "Bacula",
+     "Commvault"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.367,
+    "found": 30,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "AvePoint",
+     "Bacula",
+     "Barracuda",
+     "Cohesity",
+     "Commvault",
+     "Dell",
+     "Eon",
+     "GRAX",
+     "Google",
+     "Keepit",
+     "Microsoft",
+     "NinjaOne (Dropsuite)",
+     "Portworx",
+     "Red Hat",
+     "Salesforce",
+     "Storware",
+     "Trilio",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-06",
+   "holdout": true,
+   "features": {
+    "dissimilar hardware": [
+     "hardware_independent_restore",
+     "nn",
+     0.848
+    ],
+    "bare metal restore": [
+     "bare_metal_recovery",
+     "alias",
+     1.0
+    ],
+    "universal restore": [
+     "universal_restore",
+     "alias",
+     1.0
+    ],
+    "driver injection": [
+     "tape_drive_support",
+     "nn",
+     0.787
+    ],
+    "Our server died and the replacement is a different model. Which products can do a bare-metal restore onto different hardware?": [
+     "bare_metal_recovery_dissimilar_hardware",
+     "nn",
+     0.839
+    ]
+   },
+   "targets": {
+    "dissimilar hardware": [
+     "platforms.physical_machine",
+     "nn",
+     0.754
+    ],
+    "bare metal restore": [
+     "recovery.bare_metal",
+     "alias",
+     1.0
+    ],
+    "universal restore": [
+     "recovery.one_click",
+     "nn",
+     0.885
+    ],
+    "driver injection": [
+     "saas.cloud_drive",
+     "nn",
+     0.76
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.476,
+    "found": 21,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Druva",
+     "Hornetsecurity (Altaro)",
+     "Keepit",
+     "Microsoft",
+     "Red Hat",
+     "Slide",
+     "Storware",
+     "Synology",
+     "Zerto"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.526,
+    "found": 19,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Druva",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Red Hat",
+     "Slide",
+     "Storware",
+     "Synology"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.625,
+    "found": 16,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Slide",
+     "Synology",
+     "Zerto"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.476,
+    "found": 21,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "AvePoint",
+     "Druva",
+     "Hornetsecurity (Altaro)",
+     "Keepit",
+     "Microsoft",
+     "Red Hat",
+     "Slide",
+     "Storware",
+     "Synology",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-07",
+   "holdout": true,
+   "features": {
+    "Google Workspace": [
+     "google_workspace_protection",
+     "nn",
+     0.851
+    ],
+    "G Suite": [
+     "google_workspace_protection",
+     "nn",
+     0.821
+    ],
+    "Gmail": [
+     "email_mailbox_backup",
+     "nn",
+     0.815
+    ],
+    "Google Drive": [
+     "google_workspace_backup",
+     "nn",
+     0.888
+    ],
+    "shared drives": [
+     "shared_drive_discovery",
+     "nn",
+     0.914
+    ],
+    "Which products can back up our Google Workspace (Gmail, Drive, Calendar, Shared drives)?": [
+     "google_workspace_backup",
+     "nn",
+     0.839
+    ]
+   },
+   "targets": {
+    "Google Workspace": [
+     "microsoft365.google_workspace",
+     "alias",
+     1.0
+    ],
+    "G Suite": [
+     "microsoft365.google_workspace",
+     "alias",
+     1.0
+    ],
+    "Gmail": [
+     "google_workspace.gmail",
+     "alias",
+     1.0
+    ],
+    "Google Drive": [
+     "google_workspace.google_drive",
+     "alias",
+     1.0
+    ],
+    "shared drives": [
+     "google_workspace.google_drive",
+     "alias",
+     1.0
+    ],
+    "Which products can back up our Google Workspace (Gmail, Drive, Calendar, Shared drives)?": [
+     "google_workspace",
+     "nn",
+     0.84
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.607,
+    "found": 28,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Arctera",
+     "Atempo",
+     "CloudCasa",
+     "GRAX",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "N-Able",
+     "Nakivo",
+     "Storware",
+     "Veeam"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.708,
+    "found": 24,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Arctera",
+     "Atempo",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "Storware",
+     "Veeam"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 0.895,
+    "found": 19,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Google",
+     "Veeam"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.607,
+    "found": 28,
+    "tp": 17,
+    "missed": [],
+    "extra": [
+     "Arctera",
+     "Atempo",
+     "CloudCasa",
+     "GRAX",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "Microsoft",
+     "N-Able",
+     "Nakivo",
+     "Storware",
+     "Veeam"
+    ]
+   }
+  },
+  {
+   "id": "cv43-08",
+   "holdout": true,
+   "features": {
+    "Salesforce metadata": [
+     "salesforce_backup",
+     "nn",
+     0.9
+    ],
+    "metadata restore": [
+     "metadata_restore",
+     "alias",
+     1.0
+    ],
+    "custom objects": [
+     "object_comments",
+     "nn",
+     0.807
+    ],
+    "Which tools can back up and restore Salesforce metadata (Apex classes, flows, custom objects), not just records?": [
+     "salesforce_backup",
+     "nn",
+     0.84
+    ]
+   },
+   "targets": {
+    "Salesforce metadata": [
+     "salesforce.metadata",
+     "alias",
+     1.0
+    ],
+    "metadata restore": [
+     "backup_software.control_plane",
+     "nn",
+     0.844
+    ],
+    "Apex": [
+     "information_governance.records_management",
+     "nn",
+     0.758
+    ],
+    "custom objects": [
+     "salesforce.custom_object",
+     "nn",
+     0.959
+    ],
+    "Which tools can back up and restore Salesforce metadata (Apex classes, flows, custom objects), not just records?": [
+     "salesforce.backup",
+     "nn",
+     0.775
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.647,
+    "found": 17,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Atempo",
+     "Bacula",
+     "Dell",
+     "Storware"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.733,
+    "found": 15,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "Atempo",
+     "Bacula",
+     "Dell",
+     "Storware"
+    ]
+   },
+   "retrieval": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "found": 11,
+    "tp": 11,
+    "missed": [],
+    "extra": []
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.647,
+    "found": 17,
+    "tp": 11,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Afi.ai",
+     "Atempo",
+     "Bacula",
+     "Dell",
+     "Storware"
+    ]
+   }
+  },
+  {
+   "id": "cv43-09",
+   "holdout": true,
+   "features": {
+    "Nutanix AHV": [
+     "nutanix_ahv_backup",
+     "nn",
+     0.861
+    ],
+    "Which backup products support Nutanix AHV virtual machines natively, without installing agents in each VM?": [
+     "nutanix_ahv_backup",
+     "nn",
+     0.798
+    ]
+   },
+   "targets": {
+    "Nutanix AHV": [
+     "nutanix.ahv",
+     "alias",
+     1.0
+    ],
+    "Which backup products support Nutanix AHV virtual machines natively, without installing agents in each VM?": [
+     "hypervisor.backup_proxy",
+     "nn",
+     0.784
+    ]
+   },
+   "table": {
+    "recall": 0.933,
+    "precision": 0.778,
+    "found": 18,
+    "tp": 14,
+    "missed": [
+     "IBM"
+    ],
+    "extra": [
+     "AWS",
+     "Barracuda",
+     "CloudCasa",
+     "Synology"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.933,
+    "precision": 1.0,
+    "found": 14,
+    "tp": 14,
+    "missed": [
+     "IBM"
+    ],
+    "extra": []
+   },
+   "retrieval": {
+    "recall": 0.933,
+    "precision": 0.7,
+    "found": 20,
+    "tp": 14,
+    "missed": [
+     "HYCU"
+    ],
+    "extra": [
+     "Arctera",
+     "Axcient",
+     "Barracuda",
+     "Datto",
+     "Microsoft",
+     "Synology"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.652,
+    "found": 23,
+    "tp": 15,
+    "missed": [],
+    "extra": [
+     "AWS",
+     "Arctera",
+     "Axcient",
+     "Barracuda",
+     "CloudCasa",
+     "Datto",
+     "Microsoft",
+     "Synology"
+    ]
+   }
+  },
+  {
+   "id": "cv43-10",
+   "holdout": true,
+   "features": {
+    "legal hold": [
+     "legal_hold",
+     "alias",
+     1.0
+    ],
+    "litigation hold": [
+     "legal_hold",
+     "alias",
+     1.0
+    ],
+    "preserve": [
+     "alternate_location_restore",
+     "nn",
+     0.822
+    ],
+    "eDiscovery": [
+     "ediscovery",
+     "alias",
+     1.0
+    ],
+    "Legal asked us to keep a user's backups indefinitely for litigation. Which products let me put backup data on legal hold?": [
+     "ediscovery",
+     "nn",
+     0.842
+    ]
+   },
+   "targets": {
+    "legal hold": [
+     "data_protection.legal_hold",
+     "alias",
+     1.0
+    ],
+    "litigation hold": [
+     "data_protection.legal_hold",
+     "alias",
+     1.0
+    ],
+    "preserve": [
+     "data_protection.legal_hold",
+     "nn",
+     0.821
+    ],
+    "eDiscovery": [
+     "security.sensitive_data",
+     "nn",
+     0.822
+    ],
+    "Legal asked us to keep a user's backups indefinitely for litigation. Which products let me put backup data on legal hold?": [
+     "data_protection.legal_hold",
+     "nn",
+     0.783
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.312,
+    "found": 32,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "Arcserve",
+     "Arctera",
+     "Bacula",
+     "CloudAlly",
+     "Dell",
+     "Eon",
+     "Flosum",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "IBM",
+     "Keepit",
+     "Microsoft",
+     "N-Able",
+     "Nakivo",
+     "Portworx",
+     "Red Hat",
+     "Storware",
+     "Synology",
+     "Trilio",
+     "Velero",
+     "Zerto"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 1.0,
+    "precision": 0.455,
+    "found": 22,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "Arcserve",
+     "Arctera",
+     "Bacula",
+     "Eon",
+     "Hornetsecurity (Altaro)",
+     "Keepit",
+     "Microsoft",
+     "N-Able",
+     "Red Hat",
+     "Storware",
+     "Velero"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.9,
+    "precision": 0.529,
+    "found": 17,
+    "tp": 9,
+    "missed": [
+     "Axcient"
+    ],
+    "extra": [
+     "Afi.ai",
+     "Arctera",
+     "Dell",
+     "Eon",
+     "Flosum",
+     "IBM",
+     "Keepit",
+     "Portworx"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.312,
+    "found": 32,
+    "tp": 10,
+    "missed": [],
+    "extra": [
+     "Afi.ai",
+     "Arcserve",
+     "Arctera",
+     "Bacula",
+     "CloudAlly",
+     "Dell",
+     "Eon",
+     "Flosum",
+     "Google",
+     "Hornetsecurity (Altaro)",
+     "IBM",
+     "Keepit",
+     "Microsoft",
+     "N-Able",
+     "Nakivo",
+     "Portworx",
+     "Red Hat",
+     "Storware",
+     "Synology",
+     "Trilio",
+     "Velero",
+     "Zerto"
+    ]
+   }
+  },
+  {
+   "id": "cv43-11",
+   "holdout": true,
+   "features": {
+    "two-factor authentication": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "2FA": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "MFA": [
+     "multi_factor_authentication",
+     "alias",
+     1.0
+    ],
+    "authenticator": [
+     "multi_factor_authentication",
+     "nn",
+     0.897
+    ],
+    "OTP": [
+     "multi_factor_authentication",
+     "nn",
+     0.91
+    ],
+    "Which backup consoles support two-factor authentication (authenticator app codes) for admin logins?": [
+     "two_factor_backup_codes",
+     "nn",
+     0.785
+    ]
+   },
+   "targets": {
+    "two-factor authentication": [
+     "identity.security_cloud",
+     "nn",
+     0.796
+    ],
+    "MFA": [
+     "management.managed_service_provider",
+     "nn",
+     0.768
+    ],
+    "authenticator": [
+     "security.identity_provider",
+     "nn",
+     0.895
+    ]
+   },
+   "table": {
+    "recall": 1.0,
+    "precision": 0.897,
+    "found": 29,
+    "tp": 26,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Google",
+     "Microsoft"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.962,
+    "precision": 0.893,
+    "found": 28,
+    "tp": 25,
+    "missed": [
+     "Dell"
+    ],
+    "extra": [
+     "AvePoint",
+     "Google",
+     "Microsoft"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.923,
+    "precision": 0.96,
+    "found": 25,
+    "tp": 24,
+    "missed": [
+     "Salesforce",
+     "Zerto"
+    ],
+    "extra": [
+     "Microsoft"
+    ]
+   },
+   "union": {
+    "recall": 1.0,
+    "precision": 0.897,
+    "found": 29,
+    "tp": 26,
+    "missed": [],
+    "extra": [
+     "AvePoint",
+     "Google",
+     "Microsoft"
+    ]
+   }
+  },
+  {
+   "id": "cv43-12",
+   "holdout": true,
+   "features": {
+    "anomaly detection": [
+     "anomaly_detection",
+     "alias",
+     1.0
+    ],
+    "ransomware detection": [
+     "ransomware_detection",
+     "alias",
+     1.0
+    ],
+    "threat detection": [
+     "threat_hunting",
+     "alias",
+     1.0
+    ],
+    "entropy": [
+     "ransomware_file_entropy_analysis",
+     "nn",
+     0.865
+    ],
+    "Which backup products can scan backups for signs of ransomware, such as unusual changes or encryption, and alert on them?": [
+     "threat_scanning_of_backups",
+     "nn",
+     0.833
+    ]
+   },
+   "targets": {
+    "anomaly detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.893
+    ],
+    "ransomware detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.956
+    ],
+    "threat detection": [
+     "security.storage_threat_detection",
+     "nn",
+     0.94
+    ]
+   },
+   "table": {
+    "recall": 0.87,
+    "precision": 0.833,
+    "found": 24,
+    "tp": 20,
+    "missed": [
+     "Atempo",
+     "Bacula",
+     "Nakivo"
+    ],
+    "extra": [
+     "Hornetsecurity (Altaro)",
+     "Portworx",
+     "Slide",
+     "Trilio"
+    ]
+   },
+   "table_without_c_only": {
+    "recall": 0.87,
+    "precision": 0.952,
+    "found": 21,
+    "tp": 20,
+    "missed": [
+     "Atempo",
+     "Bacula",
+     "Nakivo"
+    ],
+    "extra": [
+     "Slide"
+    ]
+   },
+   "retrieval": {
+    "recall": 0.957,
+    "precision": 0.88,
+    "found": 25,
+    "tp": 22,
+    "missed": [
+     "Nakivo"
+    ],
+    "extra": [
+     "Hornetsecurity (Altaro)",
+     "Storware",
+     "Trilio"
+    ]
+   },
+   "union": {
+    "recall": 0.957,
+    "precision": 0.815,
+    "found": 27,
+    "tp": 22,
+    "missed": [
+     "Nakivo"
+    ],
+    "extra": [
+     "Hornetsecurity (Altaro)",
+     "Portworx",
+     "Slide",
+     "Storware",
+     "Trilio"
+    ]
+   }
+  }
+ ]
+}

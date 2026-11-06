@@ -203,3 +203,28 @@ def test_two_facets_with_comparison_wording_stay_comparison():
 ])
 def test_subject_vendor_and_owned_vendor_are_single(q):
     assert detect_shape(q, INDEX).kind == "single", q
+
+
+def test_workload_vendors_in_an_or_pair_are_not_comparison_sides():
+    s = detect_shape("Can Veeam back up to AWS or Microsoft Azure?", INDEX)
+    assert s == Shape("single", [("vendor", "Veeam")])
+
+
+def test_or_pair_of_non_workload_facets_stays_a_comparison():
+    s = detect_shape("Is Veeam or Microsoft 365 Backup better for Exchange Online?", INDEX)
+    assert s.kind == "comparison"
+    assert ("product", "Microsoft 365 Backup") in s.facets
+
+
+def test_workload_vendors_with_explicit_comparison_wording_stay_a_comparison():
+    s = detect_shape("Compare AWS and Google for backup", INDEX)
+    assert s.kind == "comparison"
+    assert detect_shape("Compare AWS Backup and Azure Backup", INDEX).kind == "comparison"
+
+
+def test_or_pair_of_two_workload_vendors_keeps_both_facets():
+    s = detect_shape("Is Microsoft or Google better for email archiving?", INDEX)
+    assert s == Shape("comparison", [("vendor", "Microsoft"), ("vendor", "Google")])
+    s = detect_shape("Can I back up to AWS or Google?", INDEX)
+    assert s.kind == "single"
+    assert sorted(s.facets) == [("vendor", "AWS"), ("vendor", "Google")]

@@ -21,6 +21,7 @@ Implements `specs/2026-11-06-cross-vendor-retrieval-design.md` (plan
     chunk from its own vendor. Product groups are checked against that vendor's hits.
   - A line that cites another, non-workload vendor and names it is dropped.
   - The closing line is deterministic: "Checked with nothing documented: …".
+    (Wording changed after this run to "No supporting passage found for: …".)
 - **Eval.** 23 enumeration questions are labelled for all 43 vendors: 11 existing and 12 new
   held-out ones. Opus subagents did the labelling, and a 10% independent re-label agreed on
   87% of pairs. The 13 disagreements are marked unclear and excluded from scoring. The result
@@ -92,3 +93,41 @@ Adopting it needs one paid enumeration re-calibration (about 1.85M rerank tokens
    evidence it had. Consider "no supporting passage found for: …".
 5. A workload vendor in "X or Y" wording ("Can Veeam back up to AWS or Microsoft Azure?")
    still counts as a comparison side.
+
+## Follow-ups (2026-11-06, second night)
+
+All six open items above were worked on.
+
+1. **Keyword weighting and floor.** `FTS_WEIGHT` is now 0.25, and the enumeration floor was
+   re-calibrated to 0.54 (paid rerank run, 1.47M tokens).
+   - Vendor recall is 0.952 on both the calibration and held-out questions, with about 2.5 noise
+     vendors per question. That is half the noise of 0.46 at weight 1.0.
+   - Single-vendor recall@10 rose from 0.833 to 0.933, and multi-article from 0.737 to 0.895
+     (free). Pool recall is unchanged.
+2. **Comparison facet recall with the rerank.** Legacy 0.722, new at FTS 1.0 0.722, new at FTS
+   0.25 **0.833**. The 0.9 target is still not met.
+3. **Postgres memory.** Applied to production (helm revision 6): shared_buffers 1536MB,
+   work_mem 16MB, a 6Gi limit. With a warm cache, enumeration retrieval takes 5.5–7.6 s, down
+   from 6.9–9.2 s.
+4. **Closing line.** It now reads "No supporting passage found for: …".
+5. **Workload vendor in "X or Y".** "Can Veeam back up to AWS or Microsoft Azure?" is now
+   single-vendor Veeam.
+6. **Port-forward authentication.** A pg_hba ConfigMap requires scram for every TCP connection,
+   port-forward included. The unix socket stays trusted, since it needs `kubectl exec`.
+   Verified: no password is refused, the password works, and the sync job is fine.
+
+### Full answer-quality run (131 questions, final code, $0.25, 4.07M rerank tokens)
+
+| Type | n | Fact coverage | Unsupported claims | Fully correct (all facts, no unsupported) |
+|---|---|---|---|---|
+| single_vendor | 60 | 0.884 | 1 | 40 |
+| multi_article | 19 | 0.824 | 0 | 7 |
+| cross_vendor | 32 | 0.853 | 9 | 14 |
+| unanswerable | 20 | — | 0 | 20/20 refused correctly |
+
+- **Enumeration (23):** vendor precision 0.962, vendor recall 0.917. 31 expected vendors landed
+  in the closing line instead of the list, across 23 questions.
+- **Comparison (10):** every side answered in 9 of 10.
+- Grades come from Opus subagents (`eval/runs/answer-grades-full-2026-11-06.jsonl`).
+- Two stale gold facts ("Cohesity: no evidence" on cv-04 and cv-09) contradicted the new labels
+  and were removed.

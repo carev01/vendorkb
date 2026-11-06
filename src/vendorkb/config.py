@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +35,22 @@ class VendorkbSettings(BaseSettings):
     docext_read_key: str = ""
     docext_verify_tls: bool = True
     sync_page_size: int = 200  # feed records per embed call + transaction in `vendorkb sync`
+    # Claim extraction (M3): Claude Haiku 5.5 via the Anthropic SDK. The key falls back to
+    # the ANTHROPIC_API_KEY environment variable when empty. The budget is a hard cap on the
+    # estimated spend recorded in `extractions` (all runs together). The prompt version is
+    # not a setting: it is `claims.extract.PROMPT_VERSION`, bumped with the prompt in code.
+    anthropic_api_key: str = ""
+    extract_model: str = "claude-haiku-5-5"
+    extract_budget_usd: float = 25.0
+    # "openai": any OpenAI-compatible endpoint (e.g. OpenRouter, extract_model
+    # "anthropic/claude-haiku-5.5:batch"), sync mode only, extract_concurrency calls at once.
+    extract_backend: Literal["anthropic", "openai"] = "anthropic"
+    extract_base_url: str = ""
+    extract_api_key: str = ""
+    extract_concurrency: int = 16
+    # max_tokens per extraction request (both backends; thinking counts against it). Chunks
+    # cut off at it are retried with `vendorkb extract --retry-errored` after raising it.
+    extract_max_tokens: int = 2000
 
 
 @lru_cache

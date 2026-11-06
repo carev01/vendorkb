@@ -15,7 +15,7 @@ RRF_K = 60
 RERANK_CANDIDATES = 40
 # RRF weight of the full-text ranking (the vector ranking weighs 1.0). Read at call time, so
 # an eval can set ``search.FTS_WEIGHT`` to try down-weighting keyword search.
-FTS_WEIGHT = 1.0
+FTS_WEIGHT = 0.25  # 2026-11-06: single recall@10 0.833 -> 0.933, multi 0.737 -> 0.895, pool recall kept
 # Rows of the one corpus-wide vector query an enumeration makes over all its vendors; a vendor
 # with fewer than its share there gets its own scoped query (vendor_candidates).
 ENUM_VEC_POOL = 2000

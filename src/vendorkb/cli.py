@@ -1,4 +1,5 @@
-"""``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding."""
+"""``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding /
+extract / claims (regate) / taxonomy (propose, load, map) / capabilities (build, query)."""
 from __future__ import annotations
 
 import argparse
@@ -7,6 +8,7 @@ import dataclasses
 import json
 import logging
 import sys
+from typing import TYPE_CHECKING, Literal
 
 import psycopg
 from openai import AsyncOpenAI
@@ -19,6 +21,12 @@ from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
 from vendorkb.sync import sync
+
+if TYPE_CHECKING:
+    import anthropic
+
+# The claims and taxonomy stacks (anthropic, numpy, scipy, sklearn) are imported inside their
+# command handlers: `vendorkb sync` runs in a 1 Gi pod and never needs them.
 
 MAX_TOKENS = 1200
 
@@ -152,6 +160,125 @@ async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
+EXTRACT_MAX_RETRIES = 5  # the SDKs back off on 429, 5xx and connection errors
+
+
+def _extract_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncOpenAI:
+    """The extraction client for ``extract_backend``. anthropic: with no ANTHROPIC_API_KEY
+    setting the SDK reads the env var. openai: EXTRACT_BASE_URL + EXTRACT_API_KEY."""
+    if settings.extract_backend == "openai":
+        return AsyncOpenAI(base_url=settings.extract_base_url or None,
+                           api_key=settings.extract_api_key or None,
+                           max_retries=EXTRACT_MAX_RETRIES)
+    import anthropic
+
+    return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None,
+                                    max_retries=EXTRACT_MAX_RETRIES)
+
+
+def _read_ids(path: str, limit: int | None) -> list[str]:
+    with open(path, encoding="utf-8") as f:
+        ids = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    return ids[:limit] if limit is not None else ids
+
+
+async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.claims import extract
+
+    if args.backend:
+        settings = settings.model_copy(update={"extract_backend": args.backend})
+    mode: Literal["sync", "batch"] = args.mode or (
+        "batch" if settings.extract_backend == "anthropic" else "sync")
+    ids = _read_ids(args.ids_file, args.limit)
+    conn = await connect(settings.vendorkb_dsn)
+    client = _extract_client(settings)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        report = await extract.run(conn, ids, client=client, settings=settings, mode=mode,
+                                   retry_truncated=args.retry_errored)
+    finally:
+        close = getattr(client, "close", None)
+        if close is not None:
+            await close()
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    if report.locked:
+        print("another `vendorkb extract` run holds the extract lock; nothing done",
+              file=sys.stderr)
+        return 0
+    # Errored chunks are retried by the next run; a budget stop is a clean exit.
+    return 0 if report.errored == 0 else 1
+
+
+async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.claims import regate
+
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        report = await regate.regate(conn, batch_size=args.batch_size, dry_run=args.dry_run)
+    finally:
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    return 0
+
+
+async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.taxonomy import load, mapper, propose
+
+    if args.backend:
+        settings = settings.model_copy(update={"extract_backend": args.backend})
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        if args.taxonomy_cmd == "load":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            print(json.dumps(await load.load_taxonomy(conn, args.path)))
+            return 0
+        if args.taxonomy_cmd == "map":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            async with Embedder(settings) as embedder:
+                report = await mapper.map_claims(conn, embedder=embedder,
+                                                 threshold=args.threshold)
+            print(json.dumps(dataclasses.asdict(report)))
+            return 0
+        client = _extract_client(settings)
+        try:
+            async with Embedder(settings) as embedder:
+                prep = await propose.propose(
+                    conn, client=client, embedder=embedder, settings=settings,
+                    kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
+                    max_usd=args.max_usd, limit=args.limit)
+        finally:
+            close = getattr(client, "close", None)
+            if close is not None:
+                await close()
+    finally:
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(prep)))
+    # A budget stop is a clean exit (re-run with a higher --max-usd to continue).
+    return 0 if prep.invalid == 0 else 1
+
+
+async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.taxonomy import capabilities, load
+
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        if args.capabilities_cmd == "build":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            rows = await capabilities.build(conn)
+            print(json.dumps({"rows": rows,
+                              "taxonomy_version": await load.current_version(conn)}))
+            return 0
+        found = await capabilities.query(conn, args.feature, target=args.target,
+                                         vendor=args.vendor, support=args.support)
+    finally:
+        await conn.close()
+    for row in found:
+        print(json.dumps(dataclasses.asdict(row)))
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -178,11 +305,62 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("promote-embedding",
                        help="replace chunks.embedding with chunks.embedding_next")
     s.add_argument("--yes", action="store_true")
+    s = sub.add_parser("extract", help="extract capability claims from chunks with "
+                                       "EXTRACT_MODEL (resumable; budget-capped)")
+    s.add_argument("--ids-file", required=True, help="chunk ids, one per line")
+    s.add_argument("--backend", choices=("anthropic", "openai"), default=None,
+                   help="override EXTRACT_BACKEND (openai: EXTRACT_BASE_URL/EXTRACT_API_KEY)")
+    s.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="sync: one call per chunk, EXTRACT_CONCURRENCY at once; batch: the "
+                        "Message Batches API (anthropic only). Default: batch for anthropic, "
+                        "sync for openai")
+    s.add_argument("--limit", type=int, default=None, help="only the first N ids (smoke)")
+    s.add_argument("--retry-errored", action="store_true",
+                   help="first reset the chunks (of these ids) whose last error was a "
+                        "max_tokens truncation, so they run again (raise EXTRACT_MAX_TOKENS)")
+    s = sub.add_parser("claims", help="maintain stored claims")
+    cl = s.add_subparsers(dest="claims_cmd", required=True)
+    c = cl.add_parser("regate", help="re-run the current evidence gate over every raw claim; "
+                                     "claims that now fail move to rejected_claims")
+    c.add_argument("--batch-size", type=int, default=1000)
+    c.add_argument("--dry-run", action="store_true", help="count only; change nothing")
+    s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
+    tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
+    t = tax.add_parser("propose", help="cluster raw claim strings and propose entries with "
+                                       "EXTRACT_MODEL into the YAML (budget-capped)")
+    t.add_argument("--kind", choices=("feature", "target"), required=True)
+    t.add_argument("--threshold", type=float, default=0.25,
+                   help="cosine distance threshold for clustering (default 0.25)")
+    t.add_argument("--out", default="taxonomy/taxonomy.yaml",
+                   help="the taxonomy YAML; the long tail goes next to it (long_tail.yaml)")
+    t.add_argument("--max-usd", type=float, default=2.0,
+                   help="stop before the estimated spend exceeds this (default 2.0)")
+    t.add_argument("--backend", choices=("anthropic", "openai"), default=None,
+                   help="override EXTRACT_BACKEND")
+    t.add_argument("--limit", type=int, default=None,
+                   help="send at most N clusters, biggest first (smoke run)")
+    t = tax.add_parser("load", help="load the reviewed YAML into features/targets/aliases")
+    t.add_argument("path")
+    t.set_defaults(backend=None)
+    t = tax.add_parser("map", help="map every raw claim to a feature and target")
+    t.add_argument("--threshold", type=float, default=0.80,
+                   help="minimum cosine for a nearest-neighbour match (default 0.80)")
+    t.set_defaults(backend=None)
+    s = sub.add_parser("capabilities", help="build or query the capabilities table")
+    cap = s.add_subparsers(dest="capabilities_cmd", required=True)
+    cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
+    c = cap.add_parser("query", help="capability rows for a feature (JSON lines)")
+    c.add_argument("feature", help="feature id, alias or name")
+    c.add_argument("--target", default=None, help="target id, alias or name (with children)")
+    c.add_argument("--vendor", default=None)
+    c.add_argument("--support", default=None,
+                   choices=("supported", "partial", "not_supported", "unclear"))
     return p
 
 
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
-             "reembed": _reembed, "promote-embedding": _promote}
+             "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
+             "claims": _claims, "taxonomy": _taxonomy, "capabilities": _capabilities}
 
 
 def main(argv: list[str] | None = None) -> int:
