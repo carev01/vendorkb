@@ -193,3 +193,26 @@ CREATE TABLE IF NOT EXISTS capabilities (
 CREATE INDEX IF NOT EXISTS capabilities_feature_idx ON capabilities (feature_id);
 CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (vendor);
+
+-- M4 mapping (taxonomy map): each raw claim's feature and target under the taxonomy
+-- version it was mapped with. ``*_method`` is 'alias' (exact normalized alias or name),
+-- 'nn' (embedding nearest neighbour at or above the threshold) or 'unmapped'; a claim with
+-- no target_raw has a NULL target_method. ``*_conf`` is the cosine (1.0 for an alias).
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS feature_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS feature_method text
+    CHECK (feature_method IN ('alias', 'nn', 'unmapped'));
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS feature_conf real;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_method text
+    CHECK (target_method IN ('alias', 'nn', 'unmapped'));
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_conf real;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS mapped_version text;
+-- 'alias' when the feature (and the target, if any) matched an alias; else 'nn'.
+ALTER TABLE capabilities ADD COLUMN IF NOT EXISTS mapping_method text;
+
+-- The loaded taxonomy's version (key 'taxonomy_version'): the YAML's ``version``.
+CREATE TABLE IF NOT EXISTS taxonomy_meta (
+    key text PRIMARY KEY,
+    value text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);

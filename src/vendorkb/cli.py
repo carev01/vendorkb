@@ -1,5 +1,5 @@
 """``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding /
-extract."""
+extract / taxonomy (propose, load, map) / capabilities (build, query)."""
 from __future__ import annotations
 
 import argparse
@@ -23,6 +23,7 @@ from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
 from vendorkb.sync import sync
+from vendorkb.taxonomy import capabilities, load, mapper, propose
 
 MAX_TOKENS = 1200
 
@@ -201,6 +202,58 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0 if report.errored == 0 else 1
 
 
+async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    if args.backend:
+        settings = settings.model_copy(update={"extract_backend": args.backend})
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        if args.taxonomy_cmd == "load":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            print(json.dumps(await load.load_taxonomy(conn, args.path)))
+            return 0
+        if args.taxonomy_cmd == "map":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            async with Embedder(settings) as embedder:
+                report = await mapper.map_claims(conn, embedder=embedder,
+                                                 threshold=args.threshold)
+            print(json.dumps(dataclasses.asdict(report)))
+            return 0
+        client = _extract_client(settings)
+        try:
+            async with Embedder(settings) as embedder:
+                prep = await propose.propose(
+                    conn, client=client, embedder=embedder, settings=settings,
+                    kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
+                    max_usd=args.max_usd)
+        finally:
+            close = getattr(client, "close", None)
+            if close is not None:
+                await close()
+    finally:
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(prep)))
+    # A budget stop is a clean exit (re-run with a higher --max-usd to continue).
+    return 0 if prep.invalid == 0 else 1
+
+
+async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        if args.capabilities_cmd == "build":
+            await init_schema(conn, embed_dim=settings.embed_dim)
+            rows = await capabilities.build(conn)
+            print(json.dumps({"rows": rows,
+                              "taxonomy_version": await load.current_version(conn)}))
+            return 0
+        found = await capabilities.query(conn, args.feature, target=args.target,
+                                         vendor=args.vendor, support=args.support)
+    finally:
+        await conn.close()
+    for row in found:
+        print(json.dumps(dataclasses.asdict(row)))
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -237,11 +290,40 @@ def _parser() -> argparse.ArgumentParser:
                         "Message Batches API (anthropic only). Default: batch for anthropic, "
                         "sync for openai")
     s.add_argument("--limit", type=int, default=None, help="only the first N ids (smoke)")
+    s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
+    tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
+    t = tax.add_parser("propose", help="cluster raw claim strings and propose entries with "
+                                       "EXTRACT_MODEL into the YAML (budget-capped)")
+    t.add_argument("--kind", choices=("feature", "target"), required=True)
+    t.add_argument("--threshold", type=float, default=0.25,
+                   help="cosine distance threshold for clustering (default 0.25)")
+    t.add_argument("--out", default="taxonomy/taxonomy.yaml")
+    t.add_argument("--max-usd", type=float, default=2.0,
+                   help="stop before the estimated spend exceeds this (default 2.0)")
+    t.add_argument("--backend", choices=("anthropic", "openai"), default=None,
+                   help="override EXTRACT_BACKEND")
+    t = tax.add_parser("load", help="load the reviewed YAML into features/targets/aliases")
+    t.add_argument("path")
+    t.set_defaults(backend=None)
+    t = tax.add_parser("map", help="map every raw claim to a feature and target")
+    t.add_argument("--threshold", type=float, default=0.80,
+                   help="minimum cosine for a nearest-neighbour match (default 0.80)")
+    t.set_defaults(backend=None)
+    s = sub.add_parser("capabilities", help="build or query the capabilities table")
+    cap = s.add_subparsers(dest="capabilities_cmd", required=True)
+    cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
+    c = cap.add_parser("query", help="capability rows for a feature (JSON lines)")
+    c.add_argument("feature", help="feature id, alias or name")
+    c.add_argument("--target", default=None, help="target id, alias or name (with children)")
+    c.add_argument("--vendor", default=None)
+    c.add_argument("--support", default=None,
+                   choices=("supported", "partial", "not_supported", "unclear"))
     return p
 
 
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
-             "reembed": _reembed, "promote-embedding": _promote, "extract": _extract}
+             "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
+             "taxonomy": _taxonomy, "capabilities": _capabilities}
 
 
 def main(argv: list[str] | None = None) -> int:
