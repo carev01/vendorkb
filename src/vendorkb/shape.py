@@ -36,6 +36,8 @@ def _starts_with(text: str, prefix: str) -> bool:
 def _vendor_of(product: str, index: ScopeIndex) -> set[str]:
     owners = {v for v in index.vendors
               if any(_starts_with(product, s) for s in _surfaces(v, index))}
+    if product in index.product_vendors:
+        owners.add(index.product_vendors[product])
     for source, products in index.source_products.items():
         if product in products and source in index.source_vendors:
             owners.add(index.source_vendors[source])

@@ -14,13 +14,13 @@ VENDORS = [
     "Velero", "Zerto"]
 PRODUCTS = ["AWS Backup", "Azure Backup", "Microsoft 365 Backup", "Entra ID Backup", "FortKnox",
             "Veeam Backup & Replication", "Veeam Backup for Microsoft 365", "Veeam Data Cloud"]
-PRODUCTS += ["Veeam Service Provider Console", "Veeam Kasten for Kubernetes"]
+PRODUCTS += ["Own", "Veeam Service Provider Console", "Veeam Kasten for Kubernetes"]
 PRODUCT_VENDORS = {
     "AWS Backup": "AWS", "Azure Backup": "Microsoft", "Microsoft 365 Backup": "Microsoft",
     "Entra ID Backup": "Microsoft", "FortKnox": "Cohesity",
     "Veeam Backup & Replication": "Veeam", "Veeam Backup for Microsoft 365": "Veeam",
     "Veeam Data Cloud": "Veeam", "Veeam Service Provider Console": "Veeam",
-    "Veeam Kasten for Kubernetes": "Veeam"}
+    "Veeam Kasten for Kubernetes": "Veeam", "Own": "Salesforce"}
 INDEX = load_scope_index(VENDORS, PRODUCTS, product_vendors=PRODUCT_VENDORS)
 QUESTIONS = Path(__file__).resolve().parents[2] / "eval" / "questions.yaml"
 
@@ -126,3 +126,12 @@ def test_sweep_wording_with_one_facet():
     assert detect_shape("Which tools can back up Salesforce metadata?", INDEX).kind == "enumeration"
     # original vendors rule unchanged
     assert detect_shape("Which vendors does Veeam compete with?", INDEX).kind == "enumeration"
+
+
+def test_ordinary_word_names_match_case_sensitively():
+    by_id = {q["id"]: q for q in _load()}
+    assert detect_shape(by_id["cv-09"]["question"], INDEX).kind == "enumeration"
+    assert detect_shape(by_id["sv-b-10"]["question"], INDEX).kind == "single"
+    assert detect_shape("Does Own back up Salesforce metadata?", INDEX).facets[0] == ("product", "Own")
+    assert ("product", "Own") not in detect_shape("I run my own scripts", INDEX).facets
+    assert detect_shape("does veeam support tape?", INDEX).facets == [("vendor", "Veeam")]

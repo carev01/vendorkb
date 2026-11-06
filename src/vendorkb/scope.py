@@ -87,8 +87,15 @@ def _resolve(name: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
     return [], []
 
 
+# single-word names that are also ordinary words: matched with their exact capitalization
+_WORD_NAMES = frozenset({
+    "own", "fly", "slide", "spanning", "security", "platform", "insights", "support", "snapshot",
+    "monday", "application", "infrastructure", "documentation", "docs", "notices", "sentinel"})
+
+
 def _pattern(name: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<!\w){re.escape(name)}(?!\w)", re.IGNORECASE)
+    flags = 0 if name.lower() in _WORD_NAMES else re.IGNORECASE
+    return re.compile(rf"(?<!\w){re.escape(name)}(?!\w)", flags)
 
 
 def is_cross_vendor(question: str) -> bool:
