@@ -30,6 +30,7 @@ ENUMERATION_RULES = (
     "exactly in the form `Vendor (Product, ...): how it is done [n]`.\n"
     "- Begin each line with one of the exact vendor names listed after \"Vendors:\" in the "
     "user message; never an alias or a product name.\n"
+    "- Each line describes only its own vendor and never mentions other vendors.\n"
     "- Write no line for a vendor whose sources do not state the capability.\n"
     "- Add nothing after the lines."
 )
@@ -56,27 +57,84 @@ def closing_line(names: list[str]) -> str:
     return "Checked with nothing documented: " + ", ".join(sorted(names)) + "."
 
 
+_BULLET = re.compile(r"^(?:[-*\u2022]|\d+[.)])\s+")
+_EMPHASIS = re.compile(r"^(?:\*\*|__|\*)")
+_PRODUCTS = re.compile(r"^ ?\(([^()]*)\)")
+
+
+def _parse_line(line: str, vendors: list[str]) -> tuple[str, str | None, str] | None:
+    """(vendor, products, rest) when the line is ``Vendor [(Product, ...)]: rest`` with the
+    vendor an exact name from ``vendors`` (longest match first), allowing a leading bullet or
+    number and markdown emphasis around the name; else None."""
+    s = _BULLET.sub("", line.strip())
+    s = _EMPHASIS.sub("", s)
+    for v in sorted(vendors, key=len, reverse=True):
+        if not s.startswith(v):
+            continue
+        rest = _EMPHASIS.sub("", s[len(v):])
+        m = _PRODUCTS.match(rest)
+        products = m.group(1).strip() if m else None
+        if m:
+            rest = _EMPHASIS.sub("", rest[m.end():])
+        if rest.startswith(":"):
+            return v, products or None, _EMPHASIS.sub("", rest[1:]).strip()
+    return None
+
+
+def _canonical(vendor: str, products: str | None, rest: str) -> str:
+    return f"{vendor}{f' ({products})' if products else ''}: {rest}"
+
+
 def check_enumeration_lines(text: str, hits: list[Hit],
                             vendors: list[str]) -> tuple[str, list[str], int]:
-    """Keep a line only when its leading name is exactly one of ``vendors`` and one of its
-    [n] markers resolves to a hit of that vendor. Returns (kept_text, vendors_listed, dropped)."""
+    """Keep a line only when it leads with exactly one of ``vendors`` and one of its [n]
+    markers resolves to a hit of that vendor; markers resolving to another vendor's hit are
+    removed. Kept lines are rewritten as ``Vendor (Product, ...): text [n]``.
+    Returns (kept_text, vendors_listed, dropped)."""
     kept: list[str] = []
     listed: list[str] = []
     dropped = 0
+
     for line in text.splitlines():
         if line.strip() == "":
             continue
-        name = re.split(r" \(|:", line.strip(), maxsplit=1)[0].strip()
-        nums = [int(x) for m in _GROUP.finditer(line) for x in re.split(r"\s*,\s*", m.group(2))]
-        ok = name in vendors and any(
-            1 <= n <= len(hits) and hits[n - 1].vendor == name for n in nums)
-        if ok:
-            kept.append(line.strip())
-            if name not in listed:
-                listed.append(name)
-        else:
+        parsed = _parse_line(line, vendors)
+        if parsed is None:
             dropped += 1
+            continue
+        vendor, products, rest = parsed
+        own = 0
+
+        def repl(m: re.Match[str]) -> str:
+            nonlocal own
+            nums = [int(x) for x in re.split(r"\s*,\s*", m.group(2))]
+            keep = [n for n in nums if not (1 <= n <= len(hits)) or hits[n - 1].vendor == vendor]
+            own += sum(1 for n in keep if 1 <= n <= len(hits))
+            return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]" if keep else m.group(1)
+
+        rest = re.sub(r" {2,}", " ", _GROUP.sub(repl, rest)).strip()
+        if own == 0:
+            dropped += 1
+            continue
+        kept.append(_canonical(vendor, products, rest))
+        if vendor not in listed:
+            listed.append(vendor)
     return "\n".join(kept), listed, dropped
+
+
+def count_lines_naming_other_vendors(text: str, corpus_vendors: list[str]) -> int:
+    """Kept (canonical) lines whose text names another corpus vendor, whole word, any case.
+    Counted, not dropped: a workload can share a vendor's name."""
+    count = 0
+    for line in text.splitlines():
+        parsed = _parse_line(line, corpus_vendors)
+        if parsed is None:
+            continue
+        vendor, _, rest = parsed
+        if any(re.search(rf"(?<!\w){re.escape(v)}(?!\w)", rest, re.IGNORECASE)
+               for v in corpus_vendors if v != vendor):
+            count += 1
+    return count
 
 
 def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
@@ -192,7 +250,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     if shape.kind == "comparison":
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":
-        out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0)
+        out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0, lines_naming_other_vendors=0)
 
     def closing() -> str:
         if shape.kind == "enumeration":
@@ -213,11 +271,13 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     if content is None:
         out["error"] = error
         return out
-    if _is_refusal(content):
+    if shape.kind != "enumeration" and _is_refusal(content):
         return finish(content.strip())
     if shape.kind == "enumeration":
+        # never short-circuit on the refusal sentence: it is just a non-vendor line here
         content, listed, dropped = check_enumeration_lines(content, result.hits, kept)
-        out.update(vendors_listed=listed, lines_dropped=dropped)
+        out.update(vendors_listed=listed, lines_dropped=dropped,
+                   lines_naming_other_vendors=count_lines_naming_other_vendors(content, checked))
         if content == "":
             return finish(REFUSAL)
     text, citations, unknown = resolve_markers(content, result.hits)
