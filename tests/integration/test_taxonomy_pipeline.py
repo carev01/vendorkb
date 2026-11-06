@@ -74,6 +74,10 @@ VECTORS = {
     "gold": _axis(9, 0.05, 20),
     "other vault": _axis(21),
     "other vault service": _axis(21, 0.05, 22),
+    "switch states": _axis(23),
+    "switch state": _axis(23, 0.05, 24),
+    "null tier": _axis(25),
+    "null tiers": _axis(25, 0.05, 26),
 }
 
 REPLIES = {
@@ -99,6 +103,9 @@ REPLIES = {
     "gold tier": {"action": "new", "id": None, "new": {
         "offering": "examplevendor.cloud_suite", "id": "gold", "name": "Gold"}},
     "other vault": {"action": "new", "id": None, "new": {"id": "Vault", "name": "Other Vault"}},
+    "switch states": {"action": "new", "id": None, "new": {"id": "On", "name": "On"}},
+    "null tier": {"action": "new", "id": None, "new": {
+        "offering": "examplevendor.cloud_suite", "id": "null", "name": "null"}},
     "orphan edition": {"action": "new", "id": None, "new": {
         "offering": "othervendor.missing", "id": "orphan", "name": "Orphan"}},
 }
@@ -237,7 +244,7 @@ async def test_dimension_aliases_merge_in_place_and_new_entries_append(vkb_dsn, 
         req = next(c for c in client.chat.completions.calls
                    if "longest backup retention" in _phrasings(c["messages"][-1]["content"]))
         assert req["model"] == "anthropic/claude-haiku-5.5"
-        assert req["max_tokens"] == propose.MAX_TOKENS
+        assert req["max_tokens"] == _settings().extract_max_tokens
         assert req["response_format"]["json_schema"]["strict"] is True
         schema = req["response_format"]["json_schema"]["schema"]
         assert schema["required"] == ["action", "id", "new"]
@@ -534,5 +541,37 @@ async def test_anthropic_backend_request_shape(vkb_dsn, tmp_path):
         assert calls[0]["model"] == "claude-haiku-5-5"
         assert calls[0]["output_config"]["format"]["type"] == "json_schema"
         assert abs(report.spent_usd - (400 * 0.10 + 80 * 0.50) / 1e6) < 1e-12
+    finally:
+        await conn.close()
+
+
+async def test_ids_yaml_1_1_would_misread_are_quoted(vkb_dsn, tmp_path):
+    """"on" and "null" are valid snake ids, but PyYAML reads them unquoted as True and None:
+    the run must still complete and write a file the loader reads back."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _pair(conn, "c", target="Okta", target_scope="switch states")
+        await _pair(conn, "c", target="Okta", target_scope="switch state")
+        out = _copy_fixture(tmp_path)
+        report = await propose.propose(conn, client=FakeOpenAI(REPLIES),
+                                       embedder=FakeEmbedder(VECTORS), settings=_settings(),
+                                       kind="object_type", distance_threshold=0.2,
+                                       out_path=out, max_usd=2.0, limit=None)
+        assert (report.added, report.invalid) == (1, 0)
+        for text in ("null tier", "null tiers"):
+            for _ in range(2):
+                await _claim(conn, "examplevendor", edition=text)
+        report = await propose.propose(conn, client=FakeOpenAI(REPLIES),
+                                       embedder=FakeEmbedder(VECTORS), settings=_settings(),
+                                       kind="offering", distance_threshold=0.2,
+                                       out_path=out, max_usd=2.0, limit=None)
+        assert (report.added, report.invalid) == (1, 0)
+        tax = _validated(out)  # load.parse_doc (PyYAML) + validate
+        identity = {o.id: o for o in tax.object_types("saas.identity")}
+        assert identity["on"].name == "On"
+        suite = next(f for f in tax.offerings if f.id == "examplevendor.cloud_suite")
+        assert (suite.editions[-1].id, suite.editions[-1].name) == ("null", "null")
+        assert "      - id: 'on'\n        name: 'On'\n" in out.read_text()
     finally:
         await conn.close()

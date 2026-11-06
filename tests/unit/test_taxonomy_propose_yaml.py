@@ -87,3 +87,19 @@ def test_add_aliases_dedupes_and_quotes():
     assert "  definition: d\n  aliases: [clouds]\n\ntargets:" in doc.dump()
     undo()
     assert doc.dump() == TEXT
+
+
+def test_add_aliases_with_nothing_new_changes_nothing():
+    doc = propose._Doc(TEXT)
+    cloud = doc.data["classes"][1]
+    propose._add_aliases(cloud, [])()
+    propose._add_aliases(doc.data["targets"][0], ["a thing"])
+    assert "aliases" not in cloud and doc.dump() == TEXT
+
+
+def test_reads_back_catches_what_yaml_1_1_misreads():
+    doc = propose._Doc(TEXT)
+    assert not propose._reads_back(doc, _entry(("id", "on"), ("name", "null")))
+    assert propose._reads_back(doc, _entry(("id", propose._scalar("on")),
+                                           ("name", propose._scalar("null"))))
+    assert propose._reads_back(doc, propose._flow_seq(["a b", propose._scalar("yes")]))

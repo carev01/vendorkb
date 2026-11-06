@@ -33,12 +33,14 @@ and order for a PR review (a ruamel round trip):
 - ``new`` appends an entry at the end of its section (a class's object types, an offering's
   editions) with ``proposed: true`` and the strings as its aliases. A new id that already
   exists merges into that entry instead (``merged_into_existing``).
-- After each change the whole document is validated (``load.validate``); a change that would
-  break it is undone and counted in ``invalid``. The file must exist and be valid before any
+- After each change the whole document is validated (``load.validate``), and the node
+  written must read back unchanged through PyYAML (YAML 1.1, as the loader reads the file:
+  every written string is quoted where it would read as a bool, null or number); a change
+  that fails either check is undone and counted in ``invalid``. The file must exist and be valid before any
   paid work, and the file written is validated again as the loader reads it.
 
 The budget guard stops dispatching before a call whose estimate (prompt chars / 3 in, the
-full ``MAX_TOKENS`` out, at ``extract.price_per_mtok`` for the model), added to the spend so
+full ``extract_max_tokens`` out, at ``extract.price_per_mtok`` for the model), added to the spend so
 far and the estimates in flight, would exceed ``max_usd``. Spend is the provider's
 ``usage.cost`` when reported, else the token price. Clusters not sent are counted in
 ``unproposed``; the file still gets what was proposed. A 400 stops dispatching and is raised
@@ -80,9 +82,6 @@ Kind = Literal["dimension", "target", "object_type", "offering"]
 KINDS: tuple[Kind, ...] = ("dimension", "target", "object_type", "offering")
 Section = Literal["dimension", "target", "object_type", "offering", "edition"]
 PROMPT_FAMILY = "claims-v3%"  # claims-v3, claims-v3.1, ...
-# OpenRouter turns reasoning effort into a thinking budget (>= 1024 tokens on Anthropic
-# models), so the reply needs headroom above it.
-MAX_TOKENS = 2000
 MAX_CLUSTER_STRINGS = 15_000  # ~1.8 GB of distance matrices
 CHARS_PER_TOKEN = 3
 MAX_MEMBERS_IN_PROMPT = 40
@@ -392,7 +391,7 @@ def _request(system: str, schema: dict[str, Any], user: str, settings: VendorkbS
              ) -> dict[str, Any]:
     if settings.extract_backend == "openai":
         return {
-            "model": settings.extract_model, "max_tokens": MAX_TOKENS,
+            "model": settings.extract_model, "max_tokens": settings.extract_max_tokens,
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": user}],
             "response_format": {"type": "json_schema", "json_schema": {
@@ -400,7 +399,8 @@ def _request(system: str, schema: dict[str, Any], user: str, settings: VendorkbS
             "extra_body": {"usage": {"include": True}, "reasoning": {"effort": "low"}},
         }
     return {
-        "model": settings.extract_model, "max_tokens": MAX_TOKENS, "system": system,
+        "model": settings.extract_model, "max_tokens": settings.extract_max_tokens,
+        "system": system,
         "messages": [{"role": "user", "content": user}],
         "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": schema}},
     }
@@ -572,6 +572,10 @@ def _add_aliases(entry: CommentedMap, texts: list[str]) -> Callable[[], None]:
     """Append ``texts`` not already there to the entry's aliases (the key added after the
     name / class / definition when missing); returns the undo."""
     seq = entry.get("aliases")
+    have = {normalize(str(a)) for a in seq} if isinstance(seq, list) else set()
+    fresh = [t for t in dict.fromkeys(texts) if t not in have]
+    if not fresh:
+        return lambda: None
     created = not isinstance(seq, list)
     taken = None
     if created:
@@ -584,8 +588,7 @@ def _add_aliases(entry: CommentedMap, texts: list[str]) -> Callable[[], None]:
         if taken is not None:
             entry.ca.items["aliases"] = [None, None, taken[1], None]
     start = len(seq)
-    have = {normalize(str(a)) for a in seq}
-    seq.extend(_scalar(t) for t in dict.fromkeys(texts) if t not in have)
+    seq.extend(_scalar(t) for t in fresh)
 
     def undo() -> None:
         if created:
@@ -645,20 +648,21 @@ def _new_entry(doc: _Doc, group: _Group, new: dict[str, Any]
         raw = new["id"]
         raw = raw[len(family) + 1:] if raw.lower().startswith(f"{family}.") else raw
         eid = f"{family}.{_snake(raw)}"
-        _set(m, ("id", eid), ("name", _scalar(new["name"])),
+        _set(m, ("id", _scalar(eid)), ("name", _scalar(new["name"])),
              ("definition", _scalar(new["definition"])))
-        applies = list(dict.fromkeys(new["applies_to"]))
+        applies = [_scalar(a) for a in dict.fromkeys(new["applies_to"])]
         m["applies_to"] = _flow_seq(applies) if applies else "all"
         if new["value_unit"]:
             m["value_unit"] = _scalar(new["value_unit"])
         return eid, doc.data, "dimensions", m, False
     if s == "target":
         eid = _dotted(new["id"])
-        _set(m, ("id", eid), ("name", _scalar(new["name"])), ("class", _scalar(new["class"])))
+        _set(m, ("id", _scalar(eid)), ("name", _scalar(new["name"])),
+             ("class", _scalar(new["class"])))
         return eid, doc.data, "targets", m, False
     if s == "object_type":
         eid = _snake(new["id"])
-        _set(m, ("id", eid), ("name", _scalar(new["name"])))
+        _set(m, ("id", _scalar(eid)), ("name", _scalar(new["name"])))
         owner = _find(doc.data["classes"], group.scope)
         assert owner is not None
         return eid, owner, "object_types", m, True
@@ -666,7 +670,8 @@ def _new_entry(doc: _Doc, group: _Group, new: dict[str, Any]
         prefixes = {i.partition(".")[0] for i, _ in group.offerings}
         prefix = prefixes.pop() if len(prefixes) == 1 else _snake(group.vendor)
         eid = f"{prefix}.{_snake(new['id'].rpartition('.')[2])}"
-        _set(m, ("vendor", _scalar(group.vendor)), ("id", eid), ("name", _scalar(new["name"])))
+        _set(m, ("vendor", _scalar(group.vendor)), ("id", _scalar(eid)),
+             ("name", _scalar(new["name"])))
         return eid, doc.data, "offerings", m, False
     offering_id = new["offering"]
     if offering_id not in {i for i, _ in group.offerings}:
@@ -674,7 +679,7 @@ def _new_entry(doc: _Doc, group: _Group, new: dict[str, Any]
     offering = _find(doc.data["offerings"], offering_id)
     assert offering is not None
     eid = _snake(new["id"].rpartition(".")[2])
-    _set(m, ("id", eid), ("name", _scalar(new["name"])))
+    _set(m, ("id", _scalar(eid)), ("name", _scalar(new["name"])))
     return f"{offering_id}.{eid}", offering, "editions", m, True
 
 
@@ -684,11 +689,32 @@ def _alias_scope(group: _Group, eid: str) -> str:
     return eid.rpartition(".")[0] if group.section == "edition" else group.scope
 
 
+def _plain(node: Any) -> Any:
+    """``node`` as plain Python: what a reader of the dumped YAML should get back."""
+    if isinstance(node, dict):
+        return {_plain(k): _plain(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_plain(v) for v in node]
+    return str(node) if isinstance(node, str) else node
+
+
+def _reads_back(doc: _Doc, node: Any) -> bool:
+    """Whether PyYAML (YAML 1.1, as the loader reads the file) reads ``node``, dumped by
+    ruamel (YAML 1.2), back as the same data: ``id: on`` would come back as True."""
+    buf = io.StringIO()
+    doc.yaml.dump(node, buf)
+    try:
+        return bool(yaml.safe_load(buf.getvalue()) == _plain(node))
+    except yaml.YAMLError:
+        return False
+
+
 def _apply(doc: _Doc, tax: Taxonomy, c: _Cluster, reply: dict[str, Any],
            owned: dict[tuple[str, str], str]
-           ) -> tuple[str, bool, list[str], Callable[[], None]]:
-    """Apply one reply to the document: (entry id, created, aliases added, undo). A "new"
-    whose id the group already has merges into that entry (created false)."""
+           ) -> tuple[str, bool, list[str], Callable[[], None], Any]:
+    """Apply one reply to the document: (entry id, created, aliases added, undo, the node
+    written). A "new" whose id the group already has merges into that entry (created
+    false)."""
     group = c.group
     if reply["action"] == "new":
         eid, owner, key, entry, named = _new_entry(doc, group, reply["new"])
@@ -700,12 +726,13 @@ def _apply(doc: _Doc, tax: Taxonomy, c: _Cluster, reply: dict[str, Any],
             if group.section == "offering":
                 entry["editions"] = _flow_seq([])
             entry["proposed"] = True
-            return eid, True, texts, _append(owner, key, entry, named=named)
+            return eid, True, texts, _append(owner, key, entry, named=named), entry
     else:
         eid = reply["id"]
     scope = _alias_scope(group, eid)
     texts = [m.text for m in c.members if (scope, m.text) not in owned]
-    return eid, False, texts, _add_aliases(doc.entry(group, eid, tax), texts)
+    entry = doc.entry(group, eid, tax)
+    return eid, False, texts, _add_aliases(entry, texts), entry.get("aliases")
 
 
 # ---- the long tail --------------------------------------------------------------------------
@@ -754,6 +781,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
     text = path.read_text(encoding="utf-8")
     tax = validate(parse_doc(text.encode("utf-8"), path))
     doc = _Doc(text)
+    validate(doc.data)  # the view propose edits and validates after each change
     price = price_per_mtok(settings.extract_model, settings)
 
     groups = _Groups(tax)
@@ -827,8 +855,8 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
         async with sem:
             user = _user_message(c)
             system = systems[c.group.section]
-            estimate = cost_usd((len(system) + len(user)) // CHARS_PER_TOKEN + 1, MAX_TOKENS,
-                                batch=False, price=price)
+            estimate = cost_usd((len(system) + len(user)) // CHARS_PER_TOKEN + 1,
+                                settings.extract_max_tokens, batch=False, price=price)
             if stop or spent + in_flight + estimate > max_usd:
                 if not stop and fatal is None:
                     report.stopped_by_budget = True
@@ -847,6 +875,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
                 report.errors.append(f"{first}: {e}")
                 return None
             except Exception as e:  # API errors and any odd provider shape: this cluster only
+                spent += estimate  # it may have been billed: count it against the cap
                 report.invalid += 1
                 report.errors.append(f"{first}: {type(e).__name__}: {e}")
                 log.warning("taxonomy propose: call failed for %r: %s", first, e)
@@ -881,12 +910,14 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
             continue
         first = c.members[0].text
         try:
-            eid, created, added, undo = _apply(doc, tax, c, reply, owned)
+            eid, created, added, undo, node = _apply(doc, tax, c, reply, owned)
         except Exception as e:  # nothing is changed before _apply's last step
             report.invalid += 1
             report.errors.append(f"{first}: {e}")
             continue
         try:
+            if node is not None and not _reads_back(doc, node):
+                raise TaxonomyError([f"{_plain(node)!r} would not read back as written"])
             validate(doc.data)
         except TaxonomyError as e:
             undo()
