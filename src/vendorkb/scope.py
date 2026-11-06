@@ -17,7 +17,9 @@ _CROSS_VENDOR = re.compile(
     r"|\b(which|what|any|other|different|competing) vendor\b(?!-)"
     r"|\bacross (\w+ )?(vendors|providers|clouds|platforms|products|solutions)\b"
     r"|\bthird[- ]party (vendors?|tools|products|solutions|backup)\b"
-    r"|\b(all|other|alternative|competing) (backup )?(products|solutions|vendors)\b",
+    r"|\b(all|other|alternative|competing) (backup )?(products|solutions|vendors)\b"
+    r"|\bwhich (of (these|the documented) )?(backup )?(vendors|products)\b"
+    r"|\b(what|any) products\b",
     re.IGNORECASE)
 
 
@@ -79,9 +81,18 @@ def _pattern(name: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\w){re.escape(name)}(?!\w)", re.IGNORECASE)
 
 
+def is_cross_vendor(question: str) -> bool:
+    return bool(_CROSS_VENDOR.search(question))
+
+
 def detect_scope(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
-    if _CROSS_VENDOR.search(question):
+    if is_cross_vendor(question):
         return [], []
+    return find_facets(question, index)
+
+
+def find_facets(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
+    """(vendors, products) the question names, in question order; ignores cross-vendor wording."""
     # surface text -> list of target names (direct names target themselves)
     surfaces: dict[str, list[str]] = {}
     for name in [*index.vendors, *index.products]:
