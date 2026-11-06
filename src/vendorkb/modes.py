@@ -13,6 +13,10 @@ from vendorkb.shape import Facet
 
 # Placeholder until the eval calibrates it (plan Task 6): 0.0 keeps every vendor whose
 # evidence the reranker scored.
+# Chunks per vendor sent to the rerank. 3/5 (the spec's default) cost ~115K rerank tokens per
+# question on the 43-vendor corpus, over the spec's 100K trigger (§9.5), so it shrinks to 2/3.
+ENUM_PER_VENDOR = 2
+ENUM_PER_VENDOR_MULTI = 3
 ENUMERATION_MIN_SCORE = 0.0
 
 
@@ -60,7 +64,7 @@ def _truncate(groups: list[list[Hit]], max_hits: int) -> list[list[Hit]]:
 
 async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                             reranker: Reranker | None, vendors: list[str],
-                            per_vendor: int = 3, per_vendor_multi: int = 5,
+                            per_vendor: int = ENUM_PER_VENDOR, per_vendor_multi: int = ENUM_PER_VENDOR_MULTI,
                             min_score: float = ENUMERATION_MIN_SCORE, max_hits: int = 60,
                             use_rerank: bool = True) -> EnumerationResult:
     """Search every vendor (one batched candidate step, ``search.vendor_candidates``), rerank

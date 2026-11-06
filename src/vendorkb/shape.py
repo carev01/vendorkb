@@ -49,6 +49,12 @@ def _product_vendor(product: str, index: ScopeIndex) -> str:
     return next(iter(owners)) if len(owners) == 1 else f"?{product}"  # unknown: its own vendor
 
 
+def _is_source_of(vendor: str, question: str, index: ScopeIndex) -> bool:
+    """The vendor is the subject being asked about ("does Veeam", "from Veeam"), not a workload."""
+    return any(re.search(rf"\b(does|do|did|from|by|of|in|at)\s+{re.escape(surface)}(?!\w)",
+                         question, re.IGNORECASE) for surface in _surfaces(vendor, index))
+
+
 def _has_or_pair(question: str, facets: list[Facet]) -> bool:
     names = [re.escape(n) for _, n in facets]
     return any(re.search(rf"(?<!\w){a} or {b}(?!\w)", question, re.IGNORECASE)
@@ -69,6 +75,12 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
         if is_cross_vendor(question) or _SWEEP.search(question):
             return Shape("enumeration", facets)
         return Shape("single", facets)
-    if is_cross_vendor(question) or _SWEEP.search(question):
+    if is_cross_vendor(question):
+        return Shape("enumeration", facets)
+    if _SWEEP.search(question):
+        # one facet is usually a workload ("our Google Workspace"), unless it is what is asked about
+        if len(facets) == 1 and (facets[0][0] == "product"
+                                 or _is_source_of(facets[0][1], question, index)):
+            return Shape("single", facets)
         return Shape("enumeration", facets)
     return Shape("single", facets)

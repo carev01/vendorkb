@@ -393,7 +393,8 @@ async def test_enumeration_per_vendor_cap(vkb_dsn):
                                           ("P5", 1), ("P6", 1)])
         rr = FakeReranker(lambda t: 0.5)
         res = await enumerate_vendors(conn, "qqqabsent", embedder=FakeEmbedder(_vec(0)),
-                                      reranker=rr, vendors=["VS", "VM3", "VM6"])
+                                      reranker=rr, vendors=["VS", "VM3", "VM6"],
+                                      per_vendor=3, per_vendor_multi=5)
         by = {v: [h for h in res.hits if h.vendor == v] for v in ("VS", "VM3", "VM6")}
         assert len(by["VS"]) == 3
         assert len(by["VM3"]) == 5 and {h.product for h in by["VM3"]} == {"P1", "P2", "P3"}

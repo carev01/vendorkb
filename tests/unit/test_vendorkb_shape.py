@@ -90,7 +90,7 @@ def test_product_wording_enumerates_only_without_facets():
         "enumeration", [])
     assert detect_shape("Which of these vendors support tape?", INDEX).kind == "enumeration"
     s = detect_shape("Which products does Veeam offer for Kubernetes?", INDEX)
-    assert s == Shape("enumeration", [("vendor", "Veeam")])
+    assert s == Shape("single", [("vendor", "Veeam")])
     assert detect_scope("Which products does Veeam offer for Kubernetes?", INDEX) == (
         ["Veeam"], [])
 
@@ -110,3 +110,19 @@ def test_difference_between_is_comparison_wording():
 
 def test_which_version_is_single():
     assert detect_shape("Which version of VBR supports immutable repositories?", INDEX).kind == "single"
+
+
+def test_sweep_wording_with_one_facet():
+    # product facet -> single
+    q = "Which tools can I use to keep an eye on AWS Backup jobs?"
+    assert detect_shape(q, INDEX) == Shape("single", [("product", "AWS Backup")])
+    # vendor preceded by does/from/by/of/in/at -> single
+    for q in ("Which tools does Veeam ship for tape?", "Which products from Veeam do this?",
+              "Which consoles by Veeam support MFA?", "Which tools in Veeam do X?"):
+        assert detect_shape(q, INDEX).kind == "single", q
+    # vendor as a workload -> enumeration
+    q = "Which products can back up our Google Workspace?"
+    assert detect_shape(q, INDEX) == Shape("enumeration", [("vendor", "Google")])
+    assert detect_shape("Which tools can back up Salesforce metadata?", INDEX).kind == "enumeration"
+    # original vendors rule unchanged
+    assert detect_shape("Which vendors does Veeam compete with?", INDEX).kind == "enumeration"
