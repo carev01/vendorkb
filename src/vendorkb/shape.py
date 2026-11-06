@@ -12,6 +12,10 @@ Facet = tuple[Literal["vendor", "product"], str]
 _COMPARISON_WORDING = re.compile(
     r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdifference between\b|\bbetter\b|\bworse\b"
     r"|\bwhich one\b", re.IGNORECASE)
+# the wording that compares on its own; "better"/"worse" and "X or Y" can sit in a workload phrase
+_STRONG_COMPARISON = re.compile(
+    r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdifference between\b|\bwhich one\b",
+    re.IGNORECASE)
 # "which tools/products/..." wording: an enumeration unless the comparison rules hold
 _SWEEP = re.compile(
     r"\b(which|what)\s+(of (these|the documented)\s+)?(backup\s+)?"
@@ -87,6 +91,16 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
         cross = len({_product_vendor(p, index) for p in products}) >= 2
         if (cross or _COMPARISON_WORDING.search(question)
                 or _has_or_pair(question, facets)):
+            if not cross and not _STRONG_COMPARISON.search(question):
+                # "back up to AWS or Azure": a workload vendor is no side on a weak signal
+                sides = [f for f in facets
+                         if not (f[0] == "vendor" and f[1] in WORKLOAD_VENDORS)]
+                if len(sides) < 2:
+                    return Shape("single", sides)
+                if len(sides) < len(facets):
+                    facets = sides
+                    if not (_COMPARISON_WORDING.search(question) or _has_or_pair(question, sides)):
+                        return Shape("single", facets)
             return Shape("comparison", facets)
         return Shape("single", facets)
     if not facets:
