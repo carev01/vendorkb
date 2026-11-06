@@ -239,3 +239,102 @@ def test_citations_carry_the_cited_chunk_text():
     hits = [_hit(1), _hit(2)]
     _text, cites, _unknown = resolve_markers("A [2].", hits)
     assert cites[0]["text"] == hits[1].text
+
+
+# --- shape-aware answers -------------------------------------------------------------
+
+def _patch_enum(monkeypatch, hits, kept, dropped=(), empty=()):
+    from vendorkb.modes import EnumerationResult
+
+    async def fake(conn, query, **kw):
+        return EnumerationResult(hits, list(kept), list(dropped), list(empty), True)
+
+    monkeypatch.setattr(ans, "enumerate_vendors", fake)
+
+
+async def _run_enum(client, index, question="Which vendors support immutable backups?"):
+    return await ans.answer(None, question, settings=_settings(), embedder=None,
+                            reranker=None, scope_index=index, client=client)
+
+
+@pytest.mark.asyncio
+async def test_enumeration_drops_wrong_vendor_line(monkeypatch):
+    idx = ScopeIndex(vendors=["Veeam", "Commvault"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "Commvault"), _hit(2, "Veeam")], ["Veeam", "Commvault"])
+    reply = "Veeam (VBR): does X [1]\nCommvault (VBR): does Y [1]"
+    r = await _run_enum(FakeClient([reply]), idx)
+    assert r["shape"] == "enumeration"
+    assert r["lines_dropped"] == 1
+    assert r["vendors_listed"] == ["Commvault"]
+    assert r["vendors_checked"] == ["Veeam", "Commvault"]
+    assert "does X" not in r["answer"]
+
+
+@pytest.mark.asyncio
+async def test_enumeration_drops_alias_line(monkeypatch):
+    idx = ScopeIndex(vendors=["Microsoft"], products=[], aliases={"Azure Backup": ["Microsoft"]})
+    _patch_enum(monkeypatch, [_hit(1, "Microsoft"), _hit(2, "Microsoft")], ["Microsoft"])
+    r = await _run_enum(FakeClient(["Azure Backup: does X [2]"]), idx)
+    assert r["lines_dropped"] == 1 and r["vendors_listed"] == []
+    assert r["answer"].startswith(REFUSAL)
+
+
+@pytest.mark.asyncio
+async def test_enumeration_closing_line_lists_unlisted_vendors(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B", "C", "D"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"], dropped=["C"], empty=["D"])
+    r = await _run_enum(FakeClient(["A (VBR): does X [1]"]), idx)
+    assert r["vendors_listed"] == ["A"]
+    assert r["answer"].endswith("Checked with nothing documented: B, C, D.")
+    assert r["citations"][0]["chunk_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_enumeration_all_lines_dropped_refuses(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "B")], ["A", "B"])
+    r = await _run_enum(FakeClient(["A (VBR): does X [1]\nZ: nope [1]"]), idx)
+    assert r["lines_dropped"] == 2
+    assert r["answer"] == REFUSAL + "\nChecked with nothing documented: A, B."
+
+
+@pytest.mark.asyncio
+async def test_enumeration_prompt_lists_kept_vendors(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    client = FakeClient(["A (VBR): x [1]"])
+    await _run_enum(client, idx)
+    msgs = client.calls[0]["messages"]
+    assert ans.ENUMERATION_RULES in msgs[0]["content"]
+    assert "Vendors: A" in msgs[1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_comparison_closing_line_for_empty_facet(monkeypatch):
+    from vendorkb.modes import ComparisonResult
+    idx = ScopeIndex(vendors=["Veeam", "AWS Backup"], products=[], aliases={})
+
+    async def fake(conn, query, **kw):
+        return ComparisonResult([_hit(1)], ["AWS Backup"], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    r = await ans.answer(None, "Compare Veeam vs AWS Backup", settings=_settings(),
+                         embedder=None, reranker=None, scope_index=idx,
+                         client=FakeClient(["Veeam does X [1]."]))
+    assert r["shape"] == "comparison" and r["facets_empty"] == ["AWS Backup"]
+    assert r["answer"].endswith("Checked with nothing documented: AWS Backup.")
+
+
+def test_closing_line_and_check_lines_units():
+    assert ans.closing_line([]) == ""
+    assert ans.closing_line(["b", "a"]) == "Checked with nothing documented: a, b."
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "A: x [1]\n\nB (P): y [9]", [_hit(1, "A")], ["A", "B"])
+    assert kept == "A: x [1]" and listed == ["A"] and dropped == 1
+
+
+@pytest.mark.asyncio
+async def test_single_shape_reports_shape(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FakeClient(["Fact [1]."]))
+    assert r["shape"] == "single" and r["answer"] == "Fact [1]."

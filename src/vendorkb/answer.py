@@ -5,8 +5,10 @@ import re
 
 from openai import AsyncOpenAI
 
+from vendorkb.modes import compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, detect_scope
-from vendorkb.search import Hit, search_docs
+from vendorkb.search import Hit, SearchResult, search_docs
+from vendorkb.shape import detect_shape
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +25,15 @@ SYSTEM_RULES = (
     f"nothing else: {REFUSAL}"
 )
 
+ENUMERATION_RULES = (
+    "\n- This question asks which vendors do something. Answer with one line per vendor, "
+    "exactly in the form `Vendor (Product, ...): how it is done [n]`.\n"
+    "- Begin each line with one of the exact vendor names listed after \"Vendors:\" in the "
+    "user message; never an alias or a product name.\n"
+    "- Write no line for a vendor whose sources do not state the capability.\n"
+    "- Add nothing after the lines."
+)
+
 _GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
 
 
@@ -33,6 +44,39 @@ def build_prompt(question: str, hits: list[Hit]) -> str:
         trail = " > ".join(h.section_path)
         blocks.append(f"[{n}] {h.title} | {trail}\n{h.text}")
     return "Sources:\n\n" + "\n\n".join(blocks) + f"\n\nQuestion: {question}\n"
+
+
+def build_enumeration_prompt(question: str, hits: list[Hit], vendors: list[str]) -> str:
+    return build_prompt(question, hits) + "Vendors: " + "; ".join(vendors) + "\n"
+
+
+def closing_line(names: list[str]) -> str:
+    if not names:
+        return ""
+    return "Checked with nothing documented: " + ", ".join(sorted(names)) + "."
+
+
+def check_enumeration_lines(text: str, hits: list[Hit],
+                            vendors: list[str]) -> tuple[str, list[str], int]:
+    """Keep a line only when its leading name is exactly one of ``vendors`` and one of its
+    [n] markers resolves to a hit of that vendor. Returns (kept_text, vendors_listed, dropped)."""
+    kept: list[str] = []
+    listed: list[str] = []
+    dropped = 0
+    for line in text.splitlines():
+        if line.strip() == "":
+            continue
+        name = re.split(r" \(|:", line.strip(), maxsplit=1)[0].strip()
+        nums = [int(x) for m in _GROUP.finditer(line) for x in re.split(r"\s*,\s*", m.group(2))]
+        ok = name in vendors and any(
+            1 <= n <= len(hits) and hits[n - 1].vendor == name for n in nums)
+        if ok:
+            kept.append(line.strip())
+            if name not in listed:
+                listed.append(name)
+        else:
+            dropped += 1
+    return "\n".join(kept), listed, dropped
 
 
 def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
@@ -70,7 +114,8 @@ def _is_refusal(text: str) -> bool:
     return text.strip().startswith(REFUSAL)
 
 
-async def _call_model(client: AsyncOpenAI, settings, user: str) -> tuple[str | None, dict, str | None]:
+async def _call_model(client: AsyncOpenAI, settings, user: str,
+                      system: str = SYSTEM_RULES) -> tuple[str | None, dict, str | None]:
     """One model call with a single retry. Returns (content, usage_totals, error)."""
     totals: dict = {"prompt_tokens": 0, "completion_tokens": 0, "cost": None}
     error: str | None = None
@@ -78,7 +123,7 @@ async def _call_model(client: AsyncOpenAI, settings, user: str) -> tuple[str | N
         try:
             resp = await client.chat.completions.create(
                 model=settings.judge_model,
-                messages=[{"role": "system", "content": SYSTEM_RULES},
+                messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user}],
                 temperature=0,
                 max_tokens=4000,
@@ -110,36 +155,76 @@ async def _call_model(client: AsyncOpenAI, settings, user: str) -> tuple[str | N
 
 async def answer(conn, question: str, *, settings, embedder, reranker,
                  scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
+    shape = detect_shape(question, scope_index)
     vendors, products = detect_scope(question, scope_index)
     relaxed = False
-    scoped = bool(vendors or products)
-    result = await search_docs(conn, question, embedder=embedder, reranker=reranker,
-                               vendor=vendors or None, product=products or None)
-    if scoped and not result.hits:
-        relaxed = True
-        result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
+    facets_empty: list[str] = []
+    checked: list[str] = []
+    kept: list[str] = []
+    system = SYSTEM_RULES
+    if shape.kind == "enumeration":
+        checked = list(scope_index.vendors)
+        er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
+                                     vendors=checked)
+        result = SearchResult(er.hits, er.rerank_ok)
+        kept = er.kept
+        system = SYSTEM_RULES + ENUMERATION_RULES
+        vendors, products = [], []
+    elif shape.kind == "comparison":
+        cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
+                                  facets=shape.facets)
+        result = SearchResult(cr.hits, cr.rerank_ok)
+        facets_empty = cr.facets_empty
+        vendors = [n for k, n in shape.facets if k == "vendor"]
+        products = [n for k, n in shape.facets if k == "product"]
+    else:
+        scoped = bool(vendors or products)
+        result = await search_docs(conn, question, embedder=embedder, reranker=reranker,
+                                   vendor=vendors or None, product=products or None)
+        if scoped and not result.hits:
+            relaxed = True
+            result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
     out: dict = {"query": question, "answer": None, "citations": [], "unknown_markers": 0,
-                 "uncited": False,
+                 "uncited": False, "shape": shape.kind,
                  "scope": {"vendors": vendors, "products": products, "relaxed": relaxed},
                  "rerank_ok": result.rerank_ok, "retrieved": len(result.hits),
                  "usage": None, "error": None}
-    if not result.hits:
-        out["answer"] = REFUSAL
+    if shape.kind == "comparison":
+        out["facets_empty"] = facets_empty
+    if shape.kind == "enumeration":
+        out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0)
+
+    def closing() -> str:
+        if shape.kind == "enumeration":
+            return closing_line([v for v in checked if v not in out["vendors_listed"]])
+        return closing_line(facets_empty)
+
+    def finish(body: str) -> dict:
+        tail = closing()
+        out["answer"] = f"{body}\n{tail}" if tail else body
         return out
-    content, usage, error = await _call_model(client, settings, build_prompt(question, result.hits))
+
+    if not result.hits:
+        return finish(REFUSAL)
+    prompt = (build_enumeration_prompt(question, result.hits, kept)
+              if shape.kind == "enumeration" else build_prompt(question, result.hits))
+    content, usage, error = await _call_model(client, settings, prompt, system)
     out["usage"] = usage
     if content is None:
         out["error"] = error
         return out
     if _is_refusal(content):
-        out["answer"] = content.strip()
-        return out
+        return finish(content.strip())
+    if shape.kind == "enumeration":
+        content, listed, dropped = check_enumeration_lines(content, result.hits, kept)
+        out.update(vendors_listed=listed, lines_dropped=dropped)
+        if content == "":
+            return finish(REFUSAL)
     text, citations, unknown = resolve_markers(content, result.hits)
     text = text.strip()
     if text == "":
         out["unknown_markers"] = unknown
         out["error"] = "empty reply"
         return out
-    out.update(answer=text, citations=citations, unknown_markers=unknown,
-               uncited=not citations)
-    return out
+    out.update(citations=citations, unknown_markers=unknown, uncited=not citations)
+    return finish(text)
