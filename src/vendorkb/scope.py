@@ -28,6 +28,7 @@ class ScopeIndex:
     aliases: dict[str, list[str]]
     source_products: dict[str, list[str]] = field(default_factory=dict)
     source_vendors: dict[str, str] = field(default_factory=dict)
+    product_vendors: dict[str, str] = field(default_factory=dict)
 
 
 def _read_aliases(path: Path | None) -> dict[str, list[str]]:
@@ -37,9 +38,11 @@ def _read_aliases(path: Path | None) -> dict[str, list[str]]:
 
 def load_scope_index(vendors: list[str], products: list[str], aliases_path: Path | None = None,
                      source_products: dict[str, list[str]] | None = None,
-                     source_vendors: dict[str, str] | None = None) -> ScopeIndex:
+                     source_vendors: dict[str, str] | None = None,
+                     product_vendors: dict[str, str] | None = None) -> ScopeIndex:
     return ScopeIndex(list(vendors), list(products), _read_aliases(aliases_path),
-                      dict(source_products or {}), dict(source_vendors or {}))
+                      dict(source_products or {}), dict(source_vendors or {}),
+                      dict(product_vendors or {}))
 
 
 async def scope_index_from_db(conn, aliases_path: Path | None = None) -> ScopeIndex:
@@ -61,7 +64,16 @@ async def scope_index_from_db(conn, aliases_path: Path | None = None) -> ScopeIn
         by_source.setdefault(source, set()).add(vendor)
     # a source shared by several vendors is not unique, hence never a direct surface
     source_vendors = {s: next(iter(v)) for s, v in by_source.items() if len(v) == 1}
-    return load_scope_index(vendors, products, aliases_path, source_products, source_vendors)
+    cur = await conn.execute(
+        "SELECT DISTINCT product, vendor FROM documents"
+        " WHERE product IS NOT NULL AND vendor IS NOT NULL")
+    by_product: dict[str, set[str]] = {}
+    for product, vendor in await cur.fetchall():
+        by_product.setdefault(product, set()).add(vendor)
+    # a product name under several vendors maps to none
+    product_vendors = {p: next(iter(v)) for p, v in by_product.items() if len(v) == 1}
+    return load_scope_index(vendors, products, aliases_path, source_products, source_vendors,
+                            product_vendors)
 
 
 def _resolve(name: str, index: ScopeIndex) -> tuple[list[str], list[str]]:

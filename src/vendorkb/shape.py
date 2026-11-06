@@ -10,12 +10,13 @@ from vendorkb.scope import ScopeIndex, find_facets, is_cross_vendor
 Facet = tuple[Literal["vendor", "product"], str]
 
 _COMPARISON_WORDING = re.compile(
-    r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdiffer\w*|\beach\b|\bboth\b|\bbetter\b|\bworse\b"
+    r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdifference between\b|\beach\b|\bboth\b|\bbetter\b|\bworse\b"
     r"|\bwhich one\b", re.IGNORECASE)
-# product-style cross-vendor wording; only an enumeration when the question names nothing
-_PRODUCT_SWEEP = re.compile(
-    r"\b(which|what|any) products\b|\bwhich (of (these|the documented) )?(backup )?(vendors|products)\b",
-    re.IGNORECASE)
+# "which tools/products/..." wording: an enumeration unless the comparison rules hold
+_SWEEP = re.compile(
+    r"\b(which|what)\s+(of (these|the documented)\s+)?(backup\s+)?"
+    r"(vendors?|products?|tools?|solutions?|consoles?|platforms?|software|offerings?)\b"
+    r"|\bany products\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,13 @@ def _vendor_of(product: str, index: ScopeIndex) -> set[str]:
     return owners
 
 
+def _product_vendor(product: str, index: ScopeIndex) -> str:
+    if product in index.product_vendors:
+        return index.product_vendors[product]
+    owners = _vendor_of(product, index)
+    return next(iter(owners)) if len(owners) == 1 else f"?{product}"  # unknown: its own vendor
+
+
 def _has_or_pair(question: str, facets: list[Facet]) -> bool:
     names = [re.escape(n) for _, n in facets]
     return any(re.search(rf"(?<!\w){a} or {b}(?!\w)", question, re.IGNORECASE)
@@ -54,11 +62,13 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
     facets: list[Facet] = [("vendor", v) for v in vendors if v not in owners]
     facets += [("product", p) for p in products]
     if len(facets) >= 2:
-        if (len(products) >= 2 or _COMPARISON_WORDING.search(question)
+        cross = len({_product_vendor(p, index) for p in products}) >= 2
+        if (cross or _COMPARISON_WORDING.search(question)
                 or _has_or_pair(question, facets)):
             return Shape("comparison", facets)
+        if is_cross_vendor(question) or _SWEEP.search(question):
+            return Shape("enumeration", facets)
         return Shape("single", facets)
-    if (is_cross_vendor(question) and len(facets) <= 1) or (
-            not facets and _PRODUCT_SWEEP.search(question)):
+    if is_cross_vendor(question) or _SWEEP.search(question):
         return Shape("enumeration", facets)
     return Shape("single", facets)
