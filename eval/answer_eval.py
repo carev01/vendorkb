@@ -6,9 +6,10 @@
         --grades eval/runs/answer-grades-2026-11-06.jsonl
 
 ``run`` is resumable (ids already in --out are skipped, a torn last line is ignored) and
-stops before the next question once summed ``usage.cost`` reaches --max-usd or the rerank
-tokens used this process reach --max-rerank-tokens. A missing cost counts as 0 and is
-warned about. Each citation line carries the cited chunk text, url and vendor (looked up by
+stops before the next question once the cumulative charge (rows already in --out count)
+reaches --max-usd or cumulative rerank tokens reach --max-rerank-tokens. Charge = usage.cost;
+else $3/M prompt + $12/M completion tokens; else $0.05 (3 such questions stop the run, exit 1).
+An exception row is charged at least $0.05. Each citation line carries the cited chunk text, url and vendor (looked up by
 doc_id, one query per question) so graders need no DB access. Settings come from .env.
 
 Grades JSONL (written by the grading step), one object per question::
@@ -46,16 +47,42 @@ _ENUM_KEYS = ("vendors_listed", "vendors_checked", "facets_empty", "lines_droppe
               "lines_naming_other_vendors")
 
 
-def load_done_ids(path: Path) -> set[str]:
+PROMPT_USD_PER_TOKEN = 3 / 1_000_000
+COMPLETION_USD_PER_TOKEN = 12 / 1_000_000
+UNKNOWN_CHARGE = 0.05  # no cost and no tokens, or an exception row
+MAX_UNKNOWN_STRIKES = 3
+
+
+def _read_rows(path: Path) -> list[dict]:
     if not path.exists():
-        return set()
-    ids: set[str] = set()
+        return []
+    rows = []
     for line in path.read_text(encoding="utf-8").splitlines():
         try:
-            ids.add(json.loads(line)["id"])
-        except (json.JSONDecodeError, KeyError):
+            row = json.loads(line)
+        except json.JSONDecodeError:
             continue
-    return ids
+        if isinstance(row, dict) and "id" in row:
+            rows.append(row)
+    return rows
+
+
+def load_done_ids(path: Path) -> set[str]:
+    return {r["id"] for r in _read_rows(path)}
+
+
+def charge_for(usage: dict | None, *, exception: bool = False) -> tuple[float, bool]:
+    """(USD to charge against the cap, True when it is a no-information strike).
+    Reported cost wins; else tokens x conservative prices; else a flat 0.05 (a strike).
+    An exception row is charged at least 0.05 and is not a strike."""
+    usage = usage or {}
+    if usage.get("cost") is not None:
+        return (max(UNKNOWN_CHARGE, usage["cost"]) if exception else usage["cost"]), False
+    pt, ct = usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0
+    if pt or ct:
+        est = pt * PROMPT_USD_PER_TOKEN + ct * COMPLETION_USD_PER_TOKEN
+        return (max(UNKNOWN_CHARGE, est) if exception else est), False
+    return UNKNOWN_CHARGE, not exception
 
 
 async def run_questions(questions: list[dict], answer_fn: Callable[[str], Awaitable[dict]],
@@ -65,12 +92,19 @@ async def run_questions(questions: list[dict], answer_fn: Callable[[str], Awaita
                         max_usd: float = 10.0, max_rerank_tokens: int = 3_000_000,
                         log: Callable[[str], None] = print) -> dict:
     out.parent.mkdir(parents=True, exist_ok=True)
-    done = load_done_ids(out)
+    prior = _read_rows(out)
+    done = {r["id"] for r in prior}
     todo = [q for q in questions if (ids is None or q["id"] in ids) and q["id"] not in done]
     if limit is not None:
         todo = todo[:limit]
-    totals: dict = {"cost": 0.0, "rerank_tokens": 0, "embed_tokens": 0, "questions": 0,
-                    "missing_cost": 0, "stopped": None}
+    # caps are cumulative: rows already in OUT (errored ones too) count against them
+    totals: dict = {
+        "cost": sum(r["charge"] if r.get("charge") is not None
+                    else charge_for(r.get("usage"), exception=bool(r.get("error")))[0]
+                    for r in prior),
+        "rerank_tokens": sum(r.get("rerank_tokens") or 0 for r in prior),
+        "embed_tokens": sum(r.get("embed_tokens") or 0 for r in prior),
+        "questions": 0, "unknown_cost": 0, "stopped": None}
     for q in todo:
         if totals["cost"] >= max_usd:
             totals["stopped"] = "max_usd"
@@ -78,17 +112,24 @@ async def run_questions(questions: list[dict], answer_fn: Callable[[str], Awaita
         if totals["rerank_tokens"] >= max_rerank_tokens:
             totals["stopped"] = "max_rerank_tokens"
             break
+        if totals["unknown_cost"] >= MAX_UNKNOWN_STRIKES:
+            totals["stopped"] = "unknown_cost"
+            break
         e0, r0, t0 = embedder.tokens_used, reranker.tokens_used, time.perf_counter()
+        res: dict = {}
+        cites: list[dict] = []
+        vendors: dict[str, str] = {}
+        error: str | None = None
         try:
             res = await answer_fn(q["question"])
+            cites = res.get("citations") or []
+            if cites:
+                vendors = await vendor_lookup(sorted({c["doc_id"] for c in cites}))
         except Exception as exc:  # recorded in the output, never swallowed
-            res = {"answer": None, "citations": [], "usage": None, "shape": None,
-                   "error": f"{type(exc).__name__}: {exc}"}
+            error = f"{type(exc).__name__}: {exc}"
         seconds = round(time.perf_counter() - t0, 3)
-        cites = res.get("citations") or []
-        vendors = await vendor_lookup(sorted({c["doc_id"] for c in cites})) if cites else {}
         row = {"id": q["id"], "type": q["type"], "holdout": bool(q.get("holdout")),
-               "shape": res.get("shape"), "question": q["question"],
+               "shape": res.get("shape") or q.get("shape"), "question": q["question"],
                "answer": res.get("answer"),
                "citations": [{"marker": c.get("marker"), "chunk_id": c.get("chunk_id"),
                               "doc_id": c.get("doc_id"), "vendor": vendors.get(c["doc_id"]),
@@ -96,25 +137,23 @@ async def run_questions(questions: list[dict], answer_fn: Callable[[str], Awaita
                               "text": c.get("text")} for c in cites]}
         for k in _ENUM_KEYS:
             row[k] = res.get(k)
+        charge, strike = charge_for(res.get("usage"), exception=error is not None)
         row.update(rerank_ok=res.get("rerank_ok"), scope=res.get("scope"),
-                   usage=res.get("usage"), error=res.get("error"), seconds=seconds,
+                   usage=res.get("usage"), error=error or res.get("error"), seconds=seconds,
                    rerank_tokens=reranker.tokens_used - r0,
-                   embed_tokens=embedder.tokens_used - e0)
+                   embed_tokens=embedder.tokens_used - e0, charge=round(charge, 6))
+        torn = out.exists() and out.stat().st_size > 0 and not out.read_bytes().endswith(b"\n")
         with out.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(row, default=str) + "\n")
-        cost = (row["usage"] or {}).get("cost")
-        if cost is None:
-            totals["missing_cost"] += 1
-            if row["usage"] is not None:
-                log(f"warning: {q['id']}: usage carries no cost (counted as 0)")
-        totals["cost"] += cost or 0.0
+            f.write(("\n" if torn else "") + json.dumps(row, default=str) + "\n")
+        if strike:
+            totals["unknown_cost"] += 1
+            log(f"warning: {q['id']}: no cost and no tokens reported; charged ${charge}")
+        totals["cost"] += charge
         totals["rerank_tokens"] += row["rerank_tokens"]
         totals["embed_tokens"] += row["embed_tokens"]
         totals["questions"] += 1
         log(f"{q['id']}: {seconds}s error={row['error']} | totals cost=${totals['cost']:.4f} "
             f"rerank_tokens={totals['rerank_tokens']}")
-    if totals["missing_cost"]:
-        log(f"warning: {totals['missing_cost']} question(s) had no cost; the cap undercounts")
     if totals["stopped"]:
         log(f"STOPPED: {totals['stopped']} cap reached after {totals['questions']} questions")
     return totals
@@ -146,7 +185,7 @@ def summarize_grades(answers: Path, grades: Path) -> dict:
         try:
             r = json.loads(line)
             holdout[r["id"]] = bool(r.get("holdout"))
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError, TypeError):
             continue
     rows = [json.loads(x) for x in grades.read_text(encoding="utf-8").splitlines() if x.strip()]
     out: dict = {"overall": _agg(rows), "by_shape": {}, "by_holdout": {}}
@@ -185,7 +224,7 @@ async def cmd_run(args, base: VendorkbSettings) -> int:
         await client.close()
         await conn.close()
     print(json.dumps(totals, indent=2))
-    return 0
+    return 1 if totals["stopped"] == "unknown_cost" else 0
 
 
 def main(argv: list[str] | None = None) -> int:

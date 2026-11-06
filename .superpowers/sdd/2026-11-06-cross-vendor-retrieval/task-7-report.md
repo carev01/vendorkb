@@ -15,3 +15,10 @@ Summarize:
 - Resume skips every id present, including errored lines (an errored paid call is not silently repeated); delete the line to retry.
 - The rerank cap counts tokens used in this process only; subtract Task 6 usage when passing --max-rerank-tokens (cap is 3M across Tasks 6-7).
 - Caps are checked before each question, so the last one can overshoot slightly.
+
+## Fix round 1
+- Caps (--max-usd, --max-rerank-tokens) are cumulative: seeded from rows already in --out (errored included; each row stores its `charge`).
+- Charge per question: usage.cost; else $3/M prompt + $12/M completion tokens; else $0.05. Three no-information questions stop the run (exit 1, "STOPPED: unknown_cost").
+- Exception rows (answer() or vendor lookup raising; lookup is now inside the per-question try) are written with the error and charged max($0.05, known cost); a lookup failure keeps the answer and usage.
+- Also: torn last line no longer glues onto the next row; non-object JSON lines tolerated; error rows keep the yaml shape.
+- Tests added for seeding, token estimate, $0.05 charge, 3-strike stop, vendor-lookup failure, torn line.

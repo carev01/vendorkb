@@ -96,10 +96,86 @@ def test_rerank_cap_stops(tmp_path):
     assert len(calls) == 2 and totals["stopped"] == "max_rerank_tokens"
 
 
-def test_missing_cost_counted_and_warned(tmp_path):
+def test_missing_cost_estimated_from_tokens(tmp_path):
+    # usage has 5 prompt + 2 completion tokens: 5*3e-6 + 2*12e-6
     out, calls, totals, lines = _run(tmp_path, cost=None, qs=QS[:2])
-    assert len(calls) == 2 and totals["missing_cost"] == 2
+    assert len(calls) == 2 and totals["unknown_cost"] == 0
+    assert abs(totals["cost"] - 2 * 39e-6) < 1e-9
+    assert abs(_rows(out)[0]["charge"] - 3.9e-05) < 1e-9
+
+
+def test_no_cost_no_tokens_charges_flat_and_stops_after_three(tmp_path):
+    emb, rr = Tok(), Tok()
+    calls = []
+
+    async def fake(q):
+        calls.append(q)
+        return {"answer": "a", "citations": [], "usage": {"cost": None}, "shape": "single"}
+    qs = QS + [{"id": "q5", "type": "single_vendor", "question": "question 5"}]
+    lines = []
+    totals = asyncio.run(run_questions(qs, fake, tmp_path / "a.jsonl", embedder=emb,
+                                       reranker=rr, vendor_lookup=_vendors, log=lines.append))
+    assert len(calls) == 3 and totals["stopped"] == "unknown_cost"
+    assert abs(totals["cost"] - 0.15) < 1e-9
     assert any("warning" in s.lower() for s in lines)
+
+
+def test_exception_row_charged_flat_not_a_strike(tmp_path):
+    emb, rr = Tok(), Tok()
+
+    async def boom(q):
+        raise RuntimeError("x")
+    out = tmp_path / "a.jsonl"
+    totals = asyncio.run(run_questions(QS, boom, out, embedder=emb, reranker=rr,
+                                       vendor_lookup=_vendors, log=lambda s: None))
+    assert totals["questions"] == 4 and totals["stopped"] is None
+    assert abs(totals["cost"] - 0.20) < 1e-9
+    assert _rows(out)[0]["charge"] == 0.05
+
+
+def test_vendor_lookup_failure_writes_row(tmp_path):
+    emb, rr = Tok(), Tok()
+    fake, _ = _answer_factory(embedder=emb, reranker=rr)
+
+    async def bad(ids):
+        raise ConnectionError("db gone")
+    out = tmp_path / "a.jsonl"
+    asyncio.run(run_questions(QS[:1], fake, out, embedder=emb, reranker=rr,
+                              vendor_lookup=bad, log=lambda s: None))
+    r = _rows(out)[0]
+    assert "ConnectionError" in r["error"] and r["charge"] == 1.0 and r["answer"] == "a [1]"
+
+
+def test_caps_seed_from_existing_rows(tmp_path):
+    out = tmp_path / "a.jsonl"
+    out.write_text(json.dumps({"id": "q1", "usage": {"cost": 6.0}, "rerank_tokens": 150,
+                               "error": None}) + "\n"
+                   + json.dumps({"id": "q2", "usage": None, "rerank_tokens": 0,
+                                 "error": "RuntimeError: x"}) + "\n")
+    _, calls, totals, _ = _run(tmp_path, cost=2.0, max_usd=8.0)
+    # prior 6.0 + 0.05 (errored row); one new question reaches 8.05
+    assert calls == ["question 3"] and totals["stopped"] == "max_usd"
+    out.write_text(json.dumps({"id": "q1", "usage": {"cost": 0.1}, "rerank_tokens": 150,
+                               "error": None}) + "\n")
+    _, calls, totals, _ = _run(tmp_path, max_rerank_tokens=250, rerank=100)
+    assert len(calls) == 1 and totals["stopped"] == "max_rerank_tokens"
+
+
+def test_torn_line_then_append_stays_valid(tmp_path):
+    out = tmp_path / "a.jsonl"
+    out.write_text('{"id": "q9"')
+    _run(tmp_path, qs=QS[:1])
+    assert _rows_ok(out) == ["q1"]
+
+
+def _rows_ok(p):
+    ids = []
+    for x in p.read_text().splitlines():
+        try:
+            ids.append(json.loads(x)["id"])
+        except json.JSONDecodeError:
+            pass
+    return ids
 
 
 def test_running_totals_printed(tmp_path):
