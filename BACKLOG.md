@@ -85,9 +85,9 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     review whether every `init_schema` call needs the exclusive locks that
     `ADD COLUMN IF NOT EXISTS` takes.
 
-## Local extractor (DESIGN.md M5, now 9B on Vast)
+## Local extractor (DESIGN.md M5: trained on Vast, served on Azure)
 
-18. **Fine-tune Qwen3.5-9B as the corpus extractor, distilled from Opus** (user decision,
+18. **Fine-tune a local corpus extractor, distilled from Opus** (user decision,
     2026-11-06). The project aims for near-perfect claims, so the teacher is Claude Opus 5.5,
     not the Haiku pilot output. Training and the full-corpus run both happen on Vast.
     - **Why distil:** running Opus over the whole corpus directly would cost an estimated
@@ -100,5 +100,12 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       few chunks and measure real cost per chunk before sizing the set.
     - **Teacher quality bar:** a ≥95% spot-check before any training. Opus must not grade its
       own output alone: use a human-checked sample, or a grader that is not the teacher.
+    - **Student candidates:** Qwen3.5-9B and Qwen3.8-27B. Train both LoRAs on the same Opus
+      data, which is the expensive part and is shared, and pick by held-out agreement. 27B in
+      bf16 needs about 56 GB, so it fits one 80 GB A100 (Azure Container Apps, validated
+      2026-11-06) but not the P6000.
+    - **Serving:** vLLM's OpenAI-compatible API on Azure Container Apps (A100, scale to zero) for
+      incremental extraction, through the existing `openai` extract backend. Batch the deltas
+      to amortise cold starts.
     - **Student bar:** ≥90% agreement with Opus on a held-out set, and precision within a few
       points of it. Then run the full corpus on Vast, replacing item 4's API route.
