@@ -107,8 +107,8 @@ async def _must_rows(conn, must: list[dict[str, Any]]) -> list[tuple[str, str]]:
             " WHERE (%s::text IS NULL OR lower(d.vendor) = lower(%s))"
             " AND (%s::text IS NULL OR d.product ILIKE %s)"
             " AND (%s::text IS NULL OR d.title ILIKE %s)",
-            (entry.get("vendor"), entry.get("vendor"), entry.get("product_like"), entry.get("product_like"),
-             entry.get("title_like"), entry.get("title_like")))
+            (entry.get("vendor"), entry.get("vendor"), entry.get("product_like"),
+             entry.get("product_like"), entry.get("title_like"), entry.get("title_like")))
         for doc_id, chunk_id in await cur.fetchall():
             found[chunk_id] = doc_id
     return sorted((doc_id, chunk_id) for chunk_id, doc_id in found.items())

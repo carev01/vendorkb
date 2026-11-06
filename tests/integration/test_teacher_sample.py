@@ -18,11 +18,11 @@ LAYOUT = {
 }
 
 
-async def _seed(conn) -> dict[str, list[str]]:
+async def _seed(conn, layout=LAYOUT) -> dict[str, list[str]]:
     await conn.execute("DROP TABLE IF EXISTS chunks, documents CASCADE")
     await init_schema(conn, embed_dim=768)
     by_vendor: dict[str, list[str]] = {}
-    for vendor, docs in LAYOUT.items():
+    for vendor, docs in layout.items():
         by_vendor[vendor] = []
         for product, title, n in docs:
             doc_id = str(uuid.uuid4())
@@ -99,6 +99,22 @@ async def test_sqrt_allocation_and_round_robin_over_documents(vkb_dsn):
         await conn.close()
 
 
+async def test_sqrt_allocation_with_the_floor_in_play(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        layout = {"a": [("P", "a1", 250), ("P", "a2", 150)], "b": [("P", "b1", 100)],
+                  "c": [("P", "c1", 30)], "d": [("P", "d1", 10)]}
+        await _seed(conn, layout)
+        _, _, stats = await _select(conn, total=200, heldout_frac=0.0)
+        got = stats["per_vendor"]
+        # c and d sit at their floors (all they have); a and b split the rest by sqrt: 2 : 1
+        assert (got["c"], got["d"]) == (30, 10)
+        assert got["a"] + got["b"] == 160
+        assert abs(got["a"] - 2 * got["b"]) <= 1
+    finally:
+        await conn.close()
+
+
 async def test_must_include_present_and_capped(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -114,15 +130,19 @@ async def test_must_include_present_and_capped(vkb_dsn):
         assert len(wanted) == 40 and wanted <= chosen
         assert stats["must_include"] == 40
         # overflow: cap is total // 2, sampled across documents
-        train, heldout, stats = await _select(conn, must=[{"vendor": "big", "product_like": None,
-                                                           "title_like": None}], total=40,
+        everything_big = [{"vendor": "big", "product_like": None, "title_like": None}]
+        train, heldout, stats = await _select(conn, must=everything_big, total=40,
                                               heldout_frac=0.0)
         assert stats["must_include"] == 20
         assert stats["must_include_matched"] == 170
         cur = await conn.execute("SELECT doc_id::text, chunk_id::text FROM chunks")
         doc_of = {c: d for d, c in await cur.fetchall()}
-        assert len({doc_of[c] for c in train}) >= 3
-        assert all(_vendor_of(by_vendor, c) for c in train)
+        # with no held-out split, train lists the must-include chunks first
+        per_doc: dict[str, int] = {}
+        for c in train[:stats["must_include"]]:
+            per_doc[doc_of[c]] = per_doc.get(doc_of[c], 0) + 1
+        assert sorted(per_doc.values()) == [6, 7, 7]  # 20 chunks over big's 3 documents
+        assert all(_vendor_of(by_vendor, c) == "big" for c in train[:20])
     finally:
         await conn.close()
 
