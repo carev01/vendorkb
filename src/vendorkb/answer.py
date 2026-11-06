@@ -85,15 +85,18 @@ def _canonical(vendor: str, products: str | None, rest: str) -> str:
     return f"{vendor}{f' ({products})' if products else ''}: {rest}"
 
 
-def check_enumeration_lines(text: str, hits: list[Hit],
-                            vendors: list[str]) -> tuple[str, list[str], int]:
-    """Keep a line only when it leads with exactly one of ``vendors`` and one of its [n]
-    markers resolves to a hit of that vendor; markers resolving to another vendor's hit are
-    removed. Kept lines are rewritten as ``Vendor (Product, ...): text [n]``.
-    Returns (kept_text, vendors_listed, dropped)."""
+def _names_other(vendor: str, products: str | None, rest: str, corpus: list[str]) -> bool:
+    text = f"{products or ''} {rest}"
+    return any(re.search(rf"(?<!\w){re.escape(v)}(?!\w)", text, re.IGNORECASE)
+               for v in corpus if v != vendor)
+
+
+def _check_lines(text: str, hits: list[Hit], vendors: list[str],
+                 corpus: list[str]) -> tuple[str, list[str], int, int]:
     kept: list[str] = []
     listed: list[str] = []
     dropped = 0
+    other = 0
 
     for line in text.splitlines():
         if line.strip() == "":
@@ -116,23 +119,36 @@ def check_enumeration_lines(text: str, hits: list[Hit],
         if own == 0:
             dropped += 1
             continue
+        if _names_other(vendor, products, rest, corpus):
+            other += 1
+        if products is not None:
+            known = {(h.product or "").lower() for h in hits if h.vendor == vendor}
+            if not all(p.strip().lower() in known for p in products.split(",")):
+                products = None
         kept.append(_canonical(vendor, products, rest))
         if vendor not in listed:
             listed.append(vendor)
-    return "\n".join(kept), listed, dropped
+    return "\n".join(kept), listed, dropped, other
+
+
+def check_enumeration_lines(text: str, hits: list[Hit],
+                            vendors: list[str]) -> tuple[str, list[str], int]:
+    """Keep a line only when it leads with exactly one of ``vendors`` and one of its [n]
+    markers resolves to a hit of that vendor; markers resolving to another vendor's hit are
+    removed. Kept lines are rewritten as ``Vendor (Product, ...): text [n]``; the product
+    group stays only when every product is the ``product`` of a hit of that vendor.
+    Returns (kept_text, vendors_listed, dropped)."""
+    kept, listed, dropped, _ = _check_lines(text, hits, vendors, [])
+    return kept, listed, dropped
 
 
 def count_lines_naming_other_vendors(text: str, corpus_vendors: list[str]) -> int:
-    """Kept (canonical) lines whose text names another corpus vendor, whole word, any case.
-    Counted, not dropped: a workload can share a vendor's name."""
+    """Lines (``Vendor (...): text``) whose product group or text names another corpus
+    vendor, whole word, any case. Counted, not dropped: a workload can share a vendor's name."""
     count = 0
     for line in text.splitlines():
         parsed = _parse_line(line, corpus_vendors)
-        if parsed is None:
-            continue
-        vendor, _, rest = parsed
-        if any(re.search(rf"(?<!\w){re.escape(v)}(?!\w)", rest, re.IGNORECASE)
-               for v in corpus_vendors if v != vendor):
+        if parsed is not None and _names_other(*parsed, corpus_vendors):
             count += 1
     return count
 
@@ -275,9 +291,9 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         return finish(content.strip())
     if shape.kind == "enumeration":
         # never short-circuit on the refusal sentence: it is just a non-vendor line here
-        content, listed, dropped = check_enumeration_lines(content, result.hits, kept)
+        content, listed, dropped, other = _check_lines(content, result.hits, kept, checked)
         out.update(vendors_listed=listed, lines_dropped=dropped,
-                   lines_naming_other_vendors=count_lines_naming_other_vendors(content, checked))
+                   lines_naming_other_vendors=other)
         if content == "":
             return finish(REFUSAL)
     text, citations, unknown = resolve_markers(content, result.hits)

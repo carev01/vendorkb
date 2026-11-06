@@ -349,10 +349,10 @@ _H = [_hit(1, "Veeam"), _hit(2, "Commvault"), _hit(3, "Hornetsecurity (Altaro)")
 
 @pytest.mark.parametrize("line,expected,listed", [
     ("Hornetsecurity (Altaro) (VM Backup): X [3]",
-     "Hornetsecurity (Altaro) (VM Backup): X [3]", ["Hornetsecurity (Altaro)"]),
+     "Hornetsecurity (Altaro): X [3]", ["Hornetsecurity (Altaro)"]),
     ("Hornetsecurity (Altaro): X [3]", "Hornetsecurity (Altaro): X [3]",
      ["Hornetsecurity (Altaro)"]),
-    ("NinjaOne (Dropsuite) (Backup): X [4]", "NinjaOne (Dropsuite) (Backup): X [4]",
+    ("NinjaOne (Dropsuite) (Backup): X [4]", "NinjaOne (Dropsuite): X [4]",
      ["NinjaOne (Dropsuite)"]),
     ("- Veeam (VBR): X [1]", "Veeam (VBR): X [1]", ["Veeam"]),
     ("* Veeam: X [1]", "Veeam: X [1]", ["Veeam"]),
@@ -361,7 +361,7 @@ _H = [_hit(1, "Veeam"), _hit(2, "Commvault"), _hit(3, "Hornetsecurity (Altaro)")
     ("**Veeam:** X [1]", "Veeam: X [1]", ["Veeam"]),
     ("__Veeam__: X [1]", "Veeam: X [1]", ["Veeam"]),
     ("1. Veeam: X [1]", "Veeam: X [1]", ["Veeam"]),
-    ("2) Veeam (VBR, VB365): X [1]", "Veeam (VBR, VB365): X [1]", ["Veeam"]),
+    ("2) Veeam (VBR, vbr): X [1]", "Veeam (VBR, vbr): X [1]", ["Veeam"]),
     ("   Veeam (VBR): X [1]", "Veeam (VBR): X [1]", ["Veeam"]),
     ("Veeam: X [2, 1]", "Veeam: X [1]", ["Veeam"]),
 ])
@@ -440,3 +440,29 @@ async def test_enumeration_reports_lines_naming_other_vendors(monkeypatch):
 
 def test_enumeration_rules_forbid_other_vendors():
     assert "only its own vendor" in ans.ENUMERATION_RULES
+
+
+def test_product_group_kept_only_when_every_product_is_cited_for_the_vendor():
+    hits = [Hit("c1", "d1", "t", ["A"], "Veeam", "Veeam Backup & Replication", "T", "u", 1, 0.5),
+            _hit(2, "Commvault")]
+    v = ["Veeam", "Commvault"]
+    kept, _, dropped = ans.check_enumeration_lines(
+        "Veeam (Veeam Backup & Replication): X [1]", hits, v)
+    assert kept == "Veeam (Veeam Backup & Replication): X [1]" and dropped == 0
+    kept, _, _ = ans.check_enumeration_lines("Veeam (veeam backup & replication): X [1]", hits, v)
+    assert kept.startswith("Veeam (veeam backup & replication):")
+    kept, _, _ = ans.check_enumeration_lines(
+        "Veeam (Veeam Backup & Replication, VBR): X [1]", hits, v)
+    assert kept == "Veeam: X [1]"
+    # a product that belongs to another vendor's hit is not this vendor's
+    kept, _, _ = ans.check_enumeration_lines("Veeam (VBR): X [1]", hits, v)
+    assert kept == "Veeam: X [1]"
+
+
+@pytest.mark.asyncio
+async def test_other_vendor_in_product_group_is_dropped_and_counted(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    r = await _run_enum(FakeClient(["Veeam (Rubrik, Commvault): X [1]"]), idx)
+    assert r["answer"].startswith("Veeam: X [1]")
+    assert r["lines_naming_other_vendors"] == 1 and r["vendors_listed"] == ["Veeam"]
