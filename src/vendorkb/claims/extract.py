@@ -38,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeGuard, cast
@@ -144,7 +145,13 @@ _ENUMS: dict[str, tuple[tuple[str, ...], bool]] = {  # field -> (values, nullabl
 
 
 def _is_number(value: Any) -> TypeGuard[int | float]:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    """A finite int or float (never a bool, inf, NaN, or an int too large for a float)."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:  # an int beyond float range
+        return False
 
 
 def validate_claim(claim: dict[str, Any]) -> str | None:
@@ -200,9 +207,10 @@ it needs prerequisites, setup steps, permissions, an API or service enabled, a l
 minimum version, or is off by default and can be turned on. Record those in conditions, \
 edition or default_state. A licensing or service fact the text states is "supported".
   - "partial": the capability itself is restricted: it works for only part of the target \
-(some object types, some versions or editions, some regions or platforms), it is in preview, \
-beta or early access, or limited to some customers, or the text names a functional \
-limitation of it. A prerequisite or a default setting is never a reason for "partial".
+(some object types, some versions of the target, some regions or platforms), or the text names \
+a functional limitation of it. Preview, beta, early access or "limited to some customers" go \
+in availability, and an edition limit goes in edition; neither makes a capability partial. A \
+prerequisite or a default setting is never a reason for "partial".
   - "not_supported": ONLY when the text explicitly says it is not supported or not possible. \
 Never infer it from silence.
   - "unclear": the text names the capability but gives nothing showing the product does it. \
@@ -453,8 +461,10 @@ V3_COLUMNS = ", ".join((*_V3_TEXT, "value", *_V3_TAIL))
 
 
 def _v3_values(claim: Any) -> tuple[str | float | None, ...]:
+    """The v3 column values; a null ``value`` stores ``unit`` and ``bound`` as NULL too."""
+    no_value = isinstance(claim, dict) and claim.get("value") is None
     return (*(_field(claim, k) for k in _V3_TEXT), _number(claim),
-            *(_field(claim, k) for k in _V3_TAIL))
+            *(None if no_value else _field(claim, k) for k in _V3_TAIL))
 
 
 async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow | None,

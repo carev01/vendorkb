@@ -187,13 +187,19 @@ def test_validate_claim_names_the_first_invalid_field():
     missing = dict(GOOD)
     del missing["target_scope"]
     assert extract.validate_claim(missing) == "schema:target_scope"
+    # a value that is not a finite float is invalid, and checking it never raises
+    for bad in (float("inf"), float("-inf"), float("nan"), 10**400):
+        assert extract.validate_claim({**GOOD, "value": bad}) == "schema:value", bad
+        assert extract._number({"value": bad}) is None
+    assert extract._number({"value": 10**15}) == 1e15
     # the first invalid field in schema order wins
     assert extract.validate_claim({**GOOD, "kind": None, "value": "99"}) == "schema:kind"
 
 
 def test_prompt_states_the_v3_rules():
     prompt = extract.SYSTEM_PROMPT
-    for phrase in ("licensing", "service", "one claim per object type", "never a price"):
+    for phrase in ("licensing", "service", "one claim per object type", "never a price",
+                   "neither makes a capability partial"):
         assert phrase in prompt
     assert "requires" not in prompt
     for field in extract.CLAIM_SCHEMA["properties"]["claims"]["items"]["required"]:
@@ -221,6 +227,22 @@ async def test_v3_claim_fields_are_stored(vkb_dsn):
     finally:
         await conn.close()
 
+
+
+async def test_unit_and_bound_without_a_value_are_stored_null(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        claim = {**GOOD, "value": None, "unit": "years", "bound": "max"}
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [claim]})})
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.claims_accepted, report.claims_rejected) == (1, 0)
+        assert await _rows(conn, "SELECT value, unit, bound FROM raw_claims") == [
+            (None, None, None)]
+    finally:
+        await conn.close()
 
 async def test_invalid_qualifier_rejects_only_that_claim(vkb_dsn):
     conn = await connect(vkb_dsn)
