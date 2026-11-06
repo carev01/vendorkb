@@ -1679,6 +1679,7 @@
   origin: router_golden_tier1
 - id: ex-rt-07
   type: cross_vendor
+  shape: comparison
   question: Compare Veeam backup copy jobs with AWS Backup cross-Region copy for keeping an off-site copy.
   gold_facts:
   - 'Veeam: documented: backup copy is a job-driven process that creates instances of the same backup
@@ -1705,6 +1706,7 @@
   origin: router_golden_tier1
 - id: ex-rt-08
   type: cross_vendor
+  shape: comparison
   question: How do Veeam Backup & Replication and Azure Backup each protect backups against ransomware?
   gold_facts:
   - 'Veeam: documented: inline entropy analysis during backup and file system activity analysis of indexing
@@ -1745,6 +1747,7 @@
   origin: router_golden_tier1
 - id: ex-rt-09
   type: cross_vendor
+  shape: comparison
   question: How does immutability in Veeam Backup for Microsoft 365 compare with soft delete in Azure
     Backup?
   gold_facts:
@@ -1779,6 +1782,12 @@
   origin: router_golden_tier1
 - id: ex-rt-10
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - immutable
+  - immutability
+  - WORM
+  - object lock
   question: Which backup vendors support immutable backups, and how do their approaches differ?
   gold_facts:
   - 'Veeam: documented: a hardened (Linux) repository keeps backup files immutable for a set period, during
@@ -1810,6 +1819,12 @@
   origin: router_golden_tier1
 - id: ex-rt-12
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - cross-region copy
+  - offsite copy
+  - secondary site
+  - backup copy
   question: Which backup vendors can keep a copy of backups in another region or at another site?
   gold_facts:
   - 'Veeam: documented: backup copy jobs create copies of backup data in other on-site or off-site locations
@@ -1843,6 +1858,12 @@
   origin: router_golden_tier1
 - id: cv-01
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - four-eyes
+  - multi-person approval
+  - dual authorization
+  - quorum
   question: We want a second person to sign off before anyone can delete backups or do other destructive
     operations. Which of these vendors' products offer that kind of multi-person approval, and how does
     each one implement it?
@@ -1879,6 +1900,11 @@
   origin: new
 - id: cv-02
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - Kubernetes
+  - persistent volume
+  - OpenShift
   question: Which of the documented backup products can protect Kubernetes workloads, and how does each
     one go about it?
   gold_facts:
@@ -1913,6 +1939,10 @@
   origin: new
 - id: cv-03
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - Hyper-V
+  - SCVMM
   question: A lot of our on-prem estate still runs on Microsoft Hyper-V. Which of these vendors document
     backing up Hyper-V virtual machines?
   gold_facts:
@@ -1942,6 +1972,12 @@
   origin: new
 - id: cv-04
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - seeding
+  - Snowball
+  - Data Box
+  - removable drive
   question: Our WAN link is too slow to push the first full copy of our data to the cloud. Which products
     let us ship the initial backup data on a physical device instead?
   gold_facts:
@@ -1972,6 +2008,11 @@
   origin: new
 - id: cv-05
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - bandwidth throttling
+  - network throttling
+  - bandwidth limit
   question: How can I stop backup traffic from saturating our network links? Which products let me cap
     or schedule the bandwidth backups use?
   gold_facts:
@@ -2009,6 +2050,11 @@
   origin: new
 - id: cv-06
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - Exchange Online
+  - OneDrive
+  - SharePoint Online
   question: Which vendors offer a way to back up Microsoft 365 data such as Exchange Online mailboxes,
     OneDrive and SharePoint?
   gold_facts:
@@ -2038,6 +2084,11 @@
   origin: new
 - id: cv-07
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - scheduled report
+  - email report
+  - report schedule
   question: Management wants backup status reports delivered automatically on a schedule. Which products
     can do that, and where do the reports end up?
   gold_facts:
@@ -2072,6 +2123,9 @@
   origin: new
 - id: cv-08
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - AIX
   question: We still have some IBM AIX servers. Which of these vendors can protect AIX machines?
   gold_facts:
   - 'Veeam: documented: Veeam Agent for IBM AIX backs up directories and files of AIX machines (installed
@@ -2096,6 +2150,12 @@
   origin: new
 - id: cv-09
   type: cross_vendor
+  shape: enumeration
+  key_terms:
+  - pre-job script
+  - post-job script
+  - pre-freeze script
+  - pre-backup script
   question: I need to run my own scripts right before and after each backup, for example to quiesce an
     application. Which products support custom pre- and post-backup scripts?
   gold_facts:
@@ -2123,6 +2183,7 @@
   origin: new
 - id: cv-10
   type: cross_vendor
+  shape: comparison
   question: How is Microsoft 365 Backup billed compared with how Veeam Backup for Microsoft 365 is licensed?
   gold_facts:
   - 'Microsoft: Microsoft 365 Backup is a pay-as-you-go offering charged by consumption rather than per
@@ -2146,6 +2207,7 @@
   origin: new
 - id: cv-11
   type: cross_vendor
+  shape: comparison
   question: Can I bring my own encryption key to a Cohesity FortKnox vault and to an AWS Backup vault,
     and can I switch keys after the vault exists?
   gold_facts:
@@ -2170,6 +2232,7 @@
   origin: new
 - id: cv-12
   type: cross_vendor
+  shape: comparison
   question: How long can I keep Entra ID backups with Microsoft's built-in Entra Backup and Recovery compared
     with Veeam Data Cloud for Entra ID, and can I trigger a backup myself?
   gold_facts:
@@ -2198,6 +2261,7 @@
   origin: new
 - id: cv-13
   type: cross_vendor
+  shape: comparison
   question: What does the "backup window" actually control in Cohesity FortKnox, and how is that different
     from the backup window in an AWS Backup plan?
   gold_facts:
@@ -2225,6 +2289,7 @@
   origin: new
 - id: cv-14
   type: cross_vendor
+  shape: comparison
   question: How do AWS Backup and Azure Backup each integrate with SAP HANA, and what restrictions should
     I plan around?
   gold_facts:
@@ -2253,6 +2318,7 @@
   origin: new
 - id: cv-15
   type: cross_vendor
+  shape: comparison
   question: We want our on-prem backup traffic to Azure to stay off the public internet. How do Cohesity
     FortKnox Azure vaults and Azure Backup Recovery Services vaults handle private connectivity?
   gold_facts:
@@ -2598,3 +2664,287 @@
     ''%quorum%'', grep of Cohesity articles for ''expir|time limit|valid for'': ''Quorum Approvals'' and
     ''No Response from Quorum Group Members'' say the workflow starts ''after the time defined in Quorum
     Group settings'' and show an ''Expires on'' column, but give no default or maximum expiry time.'
+- id: cv43-01
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup products integrate with Oracle RMAN so the DBA's RMAN backups go straight into the backup system?"
+  gold_facts:
+    - "Arcserve: documented: Oracle RMAN backups can be submitted from the Backup Manager or the RMAN Console (UNIX/Linux agent)."
+    - "Atempo: documented: Tina's Oracle backup drives RMAN, with RMAN trace variables documented."
+    - "Bacula: documented: The Bacula Enterprise Oracle Plugin has an RMAN mode configuration."
+    - "Dell: documented: PowerProtect Data Manager provides an Oracle RMAN agent for standalone and RAC."
+    - "Druva: documented: Oracle protection via Phoenix Backup Store uses RMAN to back up to the backup store."
+  gold_sources:
+    - {article_id: "62a618ff-37b4-414b-b711-fd3f35f5bc3b", section: "Backups Appear to Fail in the RMAN Console", chunk_id: "0d6159d6-1be2-4833-9546-0488f93e5688"}
+    - {article_id: "eadc567d-28e5-44db-8d4d-f4cbc57efea3", section: "Oracle > Data Backup[](https://documentation.atempo.com/tina-4.9.5/tina-4.9.5-en/administration-guide/backup/oracle#data-backup) > Starting a Backup[](https://documentation.atempo.com/tina-4.9.5/tina-4.9.5-en/administration-guide/backup/oracle#starting-a-backup)", chunk_id: "9f424011-edef-4f55-9b4b-76c92c9dd39d"}
+    - {article_id: "049d2ab2-ab9e-4b3e-a752-e472fc7d4c52", section: "Oracle Plugin > [Using Oracle Plugin](#id10) > RMAN Mode Configuration", chunk_id: "1dfccda8-f43e-4c4b-b259-ea51361272f3"}
+    - {article_id: "5bb1cfd0-c533-4493-911e-c6ba881483d9", section: "Enabling the Oracle RMAN agent > Topics:", chunk_id: "839144d2-d548-4e3b-b51d-7d4fdb4229dd"}
+    - {article_id: "663ecc18-3aa7-4bea-96e1-8968739bc0c2", section: "About data protection for Oracle using Phoenix Backup Store > Druva components for Oracle", chunk_id: "99bc245d-8fd0-499c-a84f-e2dd92f6d491"}
+  vendors: ["Arcserve", "Atempo", "Bacula", "Dell", "Druva"]
+  written_from: ["62a618ff-37b4-414b-b711-fd3f35f5bc3b", "eadc567d-28e5-44db-8d4d-f4cbc57efea3", "049d2ab2-ab9e-4b3e-a752-e472fc7d4c52", "5bb1cfd0-c533-4493-911e-c6ba881483d9", "663ecc18-3aa7-4bea-96e1-8968739bc0c2"]
+  key_terms: ["Oracle RMAN", "RMAN", "Oracle agent", "SBT"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-02
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup tools can protect OpenStack instances and their Cinder volumes?"
+  gold_facts:
+    - "Bacula: documented: Bacula Enterprise backs up OpenStack Cinder volumes attached to an instance."
+    - "Commvault: documented: Commvault performs streaming backups and recovery of OpenStack instances and images."
+    - "Druva: documented: Druva backs up OpenStack instances with attached Cinder volumes (OpenStack error reference)."
+    - "Rubrik: documented: RSC provides SLA Domain protection and recovery for OpenStack VMs and Glance images."
+    - "Storware: documented: Storware protects OpenStack instances, with a Horizon plugin."
+  gold_sources:
+    - {article_id: "5402e9c9-bd32-438c-a34c-7bfda620cf42", section: "Backup in Openstack Cinder > Example", chunk_id: "b4ae182e-c1d8-4ade-abc7-f097599344a6"}
+    - {article_id: "016f6d89-1fe4-42ed-93ad-47bdac4f4607", section: "OpenStack > Key Features", chunk_id: "d12a2669-120d-4158-a343-30eb655c4dae"}
+    - {article_id: "46b6ef60-f085-4fe6-86dd-d43a00fa60ca", section: "OpenStack Error Reference > OPENSTACK 1013", chunk_id: "e8e29901-6069-45fe-994b-1300fd6c5b7d"}
+    - {article_id: "b2d22ebc-d439-4150-ab1a-60b1c0b1dc2c", section: "OpenStack virtual machines", chunk_id: "b39a3bda-4eb8-4673-a5f8-266d371f9d6c"}
+    - {article_id: "51b7c177-e850-42e0-9241-62ed6b35af0c", section: "OpenStack Horizon Plugin > Virtual Environments[](https://docs.storware.eu/integrations-plugins/openstack-plugin#virtual-environments) > Instances[](https://docs.storware.eu/integrations-plugins/openstack-plugin#instances)", chunk_id: "a173c549-2568-4e7a-9d47-031a68c897d1"}
+  vendors: ["Bacula", "Commvault", "Druva", "Rubrik", "Storware"]
+  written_from: ["5402e9c9-bd32-438c-a34c-7bfda620cf42", "016f6d89-1fe4-42ed-93ad-47bdac4f4607", "46b6ef60-f085-4fe6-86dd-d43a00fa60ca", "b2d22ebc-d439-4150-ab1a-60b1c0b1dc2c", "51b7c177-e850-42e0-9241-62ed6b35af0c"]
+  key_terms: ["OpenStack", "Cinder", "Nova instance", "Glance"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-03
+  type: cross_vendor
+  shape: enumeration
+  question: "We are moving our VMs to Proxmox. Which backup products can back up Proxmox VE virtual machines?"
+  gold_facts:
+    - "Bacula: documented: Bacula Enterprise has Proxmox and QEMU plugins for Proxmox VE VMs and containers."
+    - "Barracuda: documented: Barracuda Backup protects Proxmox VE as a data source."
+    - "Hornetsecurity (Altaro): documented: Altaro VM Backup documents application-consistent backups of Proxmox VE VMs."
+    - "Nakivo: documented: NAKIVO Backup & Replication supports Proxmox VE."
+    - "Storware: documented: Storware backs up Proxmox VE VMs (export storage repository method)."
+  gold_sources:
+    - {article_id: "065b4e49-b8a7-4836-94bc-fbc66c892eeb", section: "Features > Proxmox and QEMU Plugins Comparison", chunk_id: "406e0e8e-e753-4e2d-bd70-d2b237a4e62b"}
+    - {article_id: "311f9cae-66f4-4503-b6cf-cbe98b499e71", section: "Protecting Proxmox VE > Configure the Proxmox VE data source", chunk_id: "a834ad87-a673-4982-b86e-1bc2b5ec52d5"}
+    - {article_id: "5133aa20-8361-4fa5-8877-8d6c156f473a", section: "How to enable Application-Consistent backups on Proxmox VE?", chunk_id: "65e6e649-0a3d-4d7c-b258-4afc3828d68f"}
+    - {article_id: "d63de9f5-ed44-47cf-bca8-ce4f9c38d070", section: "Feature Requirements > Proxmox VE Support", chunk_id: "498d31c5-e4cf-4f2a-bd39-2c770bf6f229"}
+    - {article_id: "a1c188a8-1d6c-4ebb-95c6-1edb2d9e7e3a", section: "Proxmox VE > How to set up export storage repository backup[](https://docs.storware.eu/protecting-virtual-machines/virtual-machines/proxmox-ve#how-to-set-up-export-storage-repository-backup)", chunk_id: "98342b78-c3c8-49ac-851d-add14aed7d62"}
+  vendors: ["Bacula", "Barracuda", "Hornetsecurity (Altaro)", "Nakivo", "Storware"]
+  written_from: ["065b4e49-b8a7-4836-94bc-fbc66c892eeb", "311f9cae-66f4-4503-b6cf-cbe98b499e71", "5133aa20-8361-4fa5-8877-8d6c156f473a", "d63de9f5-ed44-47cf-bca8-ce4f9c38d070", "a1c188a8-1d6c-4ebb-95c6-1edb2d9e7e3a"]
+  key_terms: ["Proxmox VE", "Proxmox", "PVE", "QEMU"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-04
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup products can write backups to a physical LTO tape library or autoloader?"
+  gold_facts:
+    - "Acronis: documented: Acronis Cyber Protect supports backing up to tape devices (with documented limitations)."
+    - "Arcserve: documented: Arcserve Backup configures tape libraries, including mixed-media virtual libraries."
+    - "Arctera: documented: Backup Exec supports tape storage devices listed in its hardware compatibility list."
+    - "Atempo: documented: Tina configures tape storage with physical or virtual drives."
+    - "Bacula: documented: Bacula's Storage Daemon drives tape autochangers, tested with btape."
+    - "IBM: documented: IBM Storage Protect defines LTO device classes for tape libraries."
+  gold_sources:
+    - {article_id: "b1d59475-a52e-412f-a60e-04a361bed73f", section: "Limitations for tape devices", chunk_id: "c912c5ab-a01f-4119-be8c-f2bd2ec46a46"}
+    - {article_id: "ccb77d1b-821f-4e76-86e3-0bc8c8841663", section: "Configure Mixed Media, Arcserve Backup Virtual Libraries", chunk_id: "9d79a427-626e-4268-894c-930a0b1d870f"}
+    - {article_id: "3e7be4df-a274-4d07-908e-a0eb170fec33", section: "Troubleshooting hardware-related issues in Backup Exec > Troubleshooting hardware\\-related issues in Backup Exec", chunk_id: "e98a6e84-2d68-4a1f-8dcb-723b3a2941c0"}
+    - {article_id: "23a8975a-8dc2-48ab-a6e6-4488414638cf", section: "Tape Storage > Drive configuration guide[](https://documentation.atempo.com/tina-4.9.5/tina-4.9.5-en/administration-guide/getting-started/getting-started-with-tina/create-a-storage/tape-storage#drive-configuration-guide)", chunk_id: "adff6998-3773-4568-9600-abdf7007aa7e"}
+    - {article_id: "3a5f44ac-60a6-47a8-a14d-f935299ef702", section: "Testing Tape Autochanger/Drives > Performing a Writing/Reading Device Check", chunk_id: "61591ec8-4204-4068-9706-f931c946f497"}
+    - {article_id: "00ebd788-9275-46f3-a310-67702466e785", section: "LTO > UPDATE DEVCLASS (Update an LTO device class) > Parameters", chunk_id: "97dab760-8635-4148-ba8a-704efd3a80d7"}
+  vendors: ["Acronis", "Arcserve", "Arctera", "Atempo", "Bacula", "IBM"]
+  written_from: ["b1d59475-a52e-412f-a60e-04a361bed73f", "ccb77d1b-821f-4e76-86e3-0bc8c8841663", "3e7be4df-a274-4d07-908e-a0eb170fec33", "23a8975a-8dc2-48ab-a6e6-4488414638cf", "3a5f44ac-60a6-47a8-a14d-f935299ef702", "00ebd788-9275-46f3-a310-67702466e785"]
+  key_terms: ["tape library", "LTO", "autochanger", "tape drive"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-05
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup products automatically test-boot each backup and give you a screenshot or report proving the machine actually starts?"
+  gold_facts:
+    - "Arcserve: documented: Verification history shows the boot log and a screenshot of the booted image."
+    - "Axcient: documented: x360Recover BootVM / AutoVerify boots protected systems and reports chkdsk and heartbeat results."
+    - "Datto: documented: Screenshot Verification boots backups and uses AI detection to confirm they are healthy."
+    - "N-Able: documented: Standby Image verification shows a screenshot of the booted standby image."
+    - "Nakivo: documented: VM Verification flash-boots the backup and takes a screenshot once the OS has booted."
+    - "Slide: documented: Every backup runs a boot verification to the login screen; failures alert with a screenshot."
+  gold_sources:
+    - {article_id: "051dc74f-18b9-4a2e-abee-61223d417490", section: "Verification History", chunk_id: "d5e0b279-9e2e-4b90-ba95-09876f788ea7"}
+    - {article_id: "cbc499e0-baa5-4293-a049-be15b5bada5c", section: "Vault and appliance health checks > BootVM > BootVM details > To view BootVM report:", chunk_id: "b12ddc51-5fd3-4cf2-b169-d418c4556047"}
+    - {article_id: "a30f173a-cbad-419d-bba9-3d043c2eaa2c", section: "Introduction to Screenshot Verification > Description", chunk_id: "7404831b-b8c8-4e4c-acdd-a4f0c6db54c9"}
+    - {article_id: "f0bc0cc3-6a1d-449a-8c30-e24db0d8e827", section: "Monitor Standby Image Devices > Accessing device properties > Standby Image Verification Tab > From Standby Image Overview > Screenshot column", chunk_id: "9add9511-f7b9-4aef-b9dc-a27bf26b1b2c"}
+    - {article_id: "777a2124-f987-4652-be92-243afe0e5666", section: "Backup Copy Job Wizard: Options > Job Options > VM Verification", chunk_id: "cc4cf232-cc83-4e1b-91f4-05253b506be3"}
+    - {article_id: "cb645b97-a986-41c5-906a-86d731af6838", section: "Alerts > Alerts[\u00b6](#alerts \"Permanent link\") > Alert types[\u00b6](#alert-types \"Permanent link\") > Slide Agent alerts[\u00b6](#slide-agent-alerts \"Permanent link\") > Boot Verification Alerts[\u00b6](#boot-verification-alerts \"Permanent link\")", chunk_id: "8802be0c-ba03-4d40-8e2a-155e9288c0c9"}
+  vendors: ["Arcserve", "Axcient", "Datto", "N-Able", "Nakivo", "Slide"]
+  written_from: ["051dc74f-18b9-4a2e-abee-61223d417490", "cbc499e0-baa5-4293-a049-be15b5bada5c", "a30f173a-cbad-419d-bba9-3d043c2eaa2c", "f0bc0cc3-6a1d-449a-8c30-e24db0d8e827", "777a2124-f987-4652-be92-243afe0e5666", "cb645b97-a986-41c5-906a-86d731af6838"]
+  key_terms: ["screenshot verification", "boot verification", "VM verification", "recovery assurance"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-06
+  type: cross_vendor
+  shape: enumeration
+  question: "Our server died and the replacement is a different model. Which products can do a bare-metal restore onto different hardware?"
+  gold_facts:
+    - "Acronis: documented: Universal Restore updates drivers so a system recovered to dissimilar hardware boots."
+    - "Arctera: documented: Arctera System Recovery performs bare metal recovery to dissimilar hardware and virtual environments."
+    - "Axcient: documented: The x360Recover BMR utility's driver injector makes Windows boot after recovery to dissimilar hardware."
+    - "Datto: documented: Bare Metal Restore injects storage controllers; other drivers are installed when restoring to dissimilar hardware."
+    - "Unitrends: documented: Unified and image-based BMR; dissimilar-hardware recovery documented (Windows 2003 needs image-based)."
+  gold_sources:
+    - {article_id: "9e5acfbf-a385-48cb-a66b-af7a315da75c", section: "Using Universal Restore", chunk_id: "098f9f81-74b0-44e9-981c-4d84a4b8e907"}
+    - {article_id: "333f549d-32d6-46f8-ab66-96c96dfb7145", section: "About Arctera System Recovery", chunk_id: "27b19517-5c45-4390-aa07-a63b196ed6e7"}
+    - {article_id: "f1b67cbd-2a0c-4525-92be-7769d6cf388b", section: "BMR Vault without Local Cache > Tools, Requirements, Limitations for BMR", chunk_id: "eed6d569-032f-4eda-9855-89340a4bbd81"}
+    - {article_id: "1098c88c-42ab-40cf-9bea-5f6451699f14", section: "Getting Started > Bare Metal Restore (BMR): Getting Started > Prerequisites > General", chunk_id: "4a293276-a3bc-475b-8659-7281bfa79e4e"}
+    - {article_id: "8fa4da5d-26eb-4ee1-a14a-6b52affc976a", section: "WINDOWS BARE METAL PROTECTION AND RECOVERY", chunk_id: "1b2c4f93-d48f-4722-90b9-4cdaeabf4370"}
+  vendors: ["Acronis", "Arctera", "Axcient", "Datto", "Unitrends"]
+  written_from: ["9e5acfbf-a385-48cb-a66b-af7a315da75c", "333f549d-32d6-46f8-ab66-96c96dfb7145", "f1b67cbd-2a0c-4525-92be-7769d6cf388b", "1098c88c-42ab-40cf-9bea-5f6451699f14", "8fa4da5d-26eb-4ee1-a14a-6b52affc976a"]
+  key_terms: ["dissimilar hardware", "bare metal restore", "universal restore", "driver injection"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-07
+  type: cross_vendor
+  shape: enumeration
+  question: "Which products can back up our Google Workspace (Gmail, Drive, Calendar, Shared drives)?"
+  gold_facts:
+    - "Acronis: documented: Cloud-to-cloud backup and recovery of Google Workspace data."
+    - "Afi.ai: documented: Afi SaaS backup covers Gmail, Drive incl. Shared drives, Contacts, Calendar."
+    - "AvePoint: documented: Cloud Backup for Google Workspace protects Gmail, Drive, Calendar, Contacts, Chat, shared drives."
+    - "Axcient: documented: x360Cloud backs up Microsoft 365 and Google Workspace."
+    - "Druva: documented: Druva documents Google Workspace backup and restore setup."
+    - "Keepit: documented: Keepit's Google Workspace connector backup/restore coverage table."
+    - "NinjaOne (Dropsuite): documented: NinjaOne SaaS Backup offers backup and archiving plans for Google Workspace and M365."
+    - "Spanning: documented: Spanning Backup for Google Workspace (admin and license settings)."
+  gold_sources:
+    - {article_id: "efb22526-2f50-4014-a12b-d014c85e583e", section: "Protecting Google Workspace data", chunk_id: "877f60b5-b058-4f5c-abeb-b20b8adb2c35"}
+    - {article_id: "fbbcbb8d-ab2c-4643-9993-356bc90e2bf3", section: "What's supported > What's supported[\u00b6](#whats-supported \"Permanent link\")", chunk_id: "3d7b3be0-b907-4a2c-a72a-6af16727a447"}
+    - {article_id: "f675d46c-7a69-4570-9202-e1308ee7686c", section: "Overview > [\\#](#about-cloud-backup-for-google-workspace)About Cloud Backup for Google Workspace", chunk_id: "cad19729-6408-4d17-b2c6-9b4a1b76eff8"}
+    - {article_id: "c4885c64-150f-4fc8-95f6-6649ea6a13f6", section: "Value Proposition and Data Sheet > Overview", chunk_id: "253decf8-4381-44a4-82bd-ffc1d38426f5"}
+    - {article_id: "54f5cf35-acd2-464c-bf10-24590874efe7", section: "Preparing the environment for successful Google Workspace backups and restore > 1\\. What is Google Workspace (formerly G Suite) in your environment?", chunk_id: "e494b7cd-425c-495e-978e-0151e1967062"}
+    - {article_id: "3e7064bd-4a53-4b40-bf5b-273c221e48e5", section: "Google Workspace data coverage > Google Workspace backup coverage", chunk_id: "0f9f939d-aa0b-43fe-96f6-8b0db5c042f0"}
+    - {article_id: "912e26e9-bc91-4294-a9c5-f09eab503c0e", section: "NinjaOne SaaS Backup: Product Introduction > Description > Product Comparison", chunk_id: "2cc04f03-d6a9-4224-bac0-7b1e62cb6933"}
+    - {article_id: "107a1dda-5adc-4c8d-ad5a-b47dee4df395", section: "Configuring administrator settings > Archived License Settings", chunk_id: "ca5bff9c-ebe5-401c-a939-76605b92bae7"}
+  vendors: ["Acronis", "Afi.ai", "AvePoint", "Axcient", "Druva", "Keepit", "NinjaOne (Dropsuite)", "Spanning"]
+  written_from: ["efb22526-2f50-4014-a12b-d014c85e583e", "fbbcbb8d-ab2c-4643-9993-356bc90e2bf3", "f675d46c-7a69-4570-9202-e1308ee7686c", "c4885c64-150f-4fc8-95f6-6649ea6a13f6", "54f5cf35-acd2-464c-bf10-24590874efe7", "3e7064bd-4a53-4b40-bf5b-273c221e48e5", "912e26e9-bc91-4294-a9c5-f09eab503c0e", "107a1dda-5adc-4c8d-ad5a-b47dee4df395"]
+  key_terms: ["Google Workspace", "G Suite", "Gmail", "Google Drive", "shared drives"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-08
+  type: cross_vendor
+  shape: enumeration
+  question: "Which tools can back up and restore Salesforce metadata (Apex classes, flows, custom objects), not just records?"
+  gold_facts:
+    - "AvePoint: documented: Restore of Salesforce metadata types (ApexClass, ApexTrigger, CustomObject...) in place."
+    - "Flosum: documented: Backup metadata restore jobs."
+    - "Gearset: documented: Metadata restoration from a backup job's metadata history."
+    - "GRAX: documented: Incremental Salesforce metadata backups."
+    - "Keepit: documented: Salesforce metadata backup/restore coverage table."
+    - "Spanning: documented: Spanning Backup for Salesforce restores specific metadata types."
+  gold_sources:
+    - {article_id: "53939543-791d-4573-b5d5-c0283b31faf8", section: "Restore Metadata > [\\#](#restore-metadata)Restore Metadata > [\\#](#in-place-restore)In Place Restore", chunk_id: "985c4600-544b-44de-bd8c-a22b62df90ce"}
+    - {article_id: "5fa40be1-86d6-468a-a490-61420a4c7d2e", section: "Creating and Running a Backup Metadata Restore Job > Execute the Restore Job[](https://docs.flosum.com/backup-and-archive/restore/execute-restore/creating-a-backup-metadata-restore-job-preparation#execute-the-restore-job)", chunk_id: "98c43f2d-6906-4f72-9bb4-70b1f04cb59a"}
+    - {article_id: "498f8706-ecaa-46a4-94ad-243052959d1f", section: "Restoring metadata from a data backup job > Restoring metadata via Metadata History", chunk_id: "ce0127f8-6973-4cd6-add0-bedd7266a7f3"}
+    - {article_id: "f875d337-e5b0-4a89-bd07-df51d1c4e36f", section: "Salesforce Metadata Backup", chunk_id: "0b17ebbb-e3bf-42cd-9ecf-86bae9724adb"}
+    - {article_id: "b6eeb9f1-3e16-4c13-9074-f9ebf6468859", section: "Salesforce data coverage > Salesforce backup coverage > Metadata > Metadata Limitations", chunk_id: "e8ec15e4-39c6-4de8-89ce-093dfb83d961"}
+    - {article_id: "3f19ea0d-3d92-4028-aa1c-be35f5b5819e", section: "Restoring metadata", chunk_id: "f83bfc6e-1265-4f63-9e10-2c6d62af8087"}
+  vendors: ["AvePoint", "Flosum", "Gearset", "GRAX", "Keepit", "Spanning"]
+  written_from: ["53939543-791d-4573-b5d5-c0283b31faf8", "5fa40be1-86d6-468a-a490-61420a4c7d2e", "498f8706-ecaa-46a4-94ad-243052959d1f", "f875d337-e5b0-4a89-bd07-df51d1c4e36f", "b6eeb9f1-3e16-4c13-9074-f9ebf6468859", "3f19ea0d-3d92-4028-aa1c-be35f5b5819e"]
+  key_terms: ["Salesforce metadata", "metadata restore", "Apex", "custom objects"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-09
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup products support Nutanix AHV virtual machines natively, without installing agents in each VM?"
+  gold_facts:
+    - "Druva: documented: Nutanix AHV VMs are backed up per backup policy schedule or on demand."
+    - "HYCU: documented: HYCU data protection tasks for Nutanix AHV via Prism Central permissions."
+    - "Nakivo: documented: NAKIVO deploys as a Nutanix AHV virtual appliance to protect AHV."
+    - "Rubrik: documented: RSC takes application- or crash-consistent snapshots of AHV VMs."
+    - "Storware: documented: Storware protects Nutanix Acropolis Hypervisor (AHV) VMs."
+    - "Unitrends: documented: Create a Nutanix AHV backup job."
+  gold_sources:
+    - {article_id: "1d71c168-9549-4986-875f-81072d0fedbe", section: "Nutanix AHV backup workflow", chunk_id: "112ed853-afd9-41ce-91d1-6124bbfa7657"}
+    - {article_id: "c395d9f2-178a-4d23-92ca-bea5ba7ea98e", section: "Configuring Prism Central user permissions > Nutanix AHV", chunk_id: "bbda19fe-0fc3-46af-bad3-7a2a1abd4fac"}
+    - {article_id: "2a571c2a-f7f7-47d7-8eee-62e2ebb34c0d", section: "Deploying Nutanix AHV Virtual Appliance > Deploying Nutanix AHV Virtual Appliance", chunk_id: "9ab22b71-7117-4421-95d9-9041b3786a26"}
+    - {article_id: "bf35a203-73a0-44e2-aaa9-adbc77ee469f", section: "Configuring AHV snapshot consistency for an AHV VM", chunk_id: "ce73ab45-9bd4-498b-adf1-ac54b499767b"}
+    - {article_id: "2cd63c69-0723-486f-ac09-79e4bcf1ba8b", section: "Nutanix Acropolis Hypervisor (AHV)", chunk_id: "e3152cee-e322-4238-bc53-a556efb5c787"}
+    - {article_id: "0681a797-502d-43ef-8385-caf19f07b0f9", section: "Create an AHV backup job > Create a Nutanix AHV backup job > Create a Nutanix AHV backup job", chunk_id: "cf7ce856-8972-4873-9a9c-1b4a9851aff2"}
+  vendors: ["Druva", "HYCU", "Nakivo", "Rubrik", "Storware", "Unitrends"]
+  written_from: ["1d71c168-9549-4986-875f-81072d0fedbe", "c395d9f2-178a-4d23-92ca-bea5ba7ea98e", "2a571c2a-f7f7-47d7-8eee-62e2ebb34c0d", "bf35a203-73a0-44e2-aaa9-adbc77ee469f", "2cd63c69-0723-486f-ac09-79e4bcf1ba8b", "0681a797-502d-43ef-8385-caf19f07b0f9"]
+  key_terms: ["Nutanix AHV", "AHV", "Acropolis", "Prism"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-10
+  type: cross_vendor
+  shape: enumeration
+  question: "Legal asked us to keep a user's backups indefinitely for litigation. Which products let me put backup data on legal hold?"
+  gold_facts:
+    - "Acronis: documented: Legal hold rules from the email archive or cloud applications protection."
+    - "Commvault: documented: Legal Hold blocks retention and deletion of laptop backup data."
+    - "HYCU: documented: Emails can be marked for legal hold, retained indefinitely."
+    - "NinjaOne (Dropsuite): documented: Account-level legal hold for email accounts in NinjaOne SaaS Backup."
+    - "Rubrik: documented: Legal hold retains snapshots indefinitely, overriding SLA Domain expiry."
+    - "Salesforce: documented: Legal hold requests in the Archive app stop records being unarchived or deleted."
+    - "Unitrends: documented: Legal Hold Backups report lists backups on legal hold."
+  gold_sources:
+    - {article_id: "399c4c94-46eb-4cd5-bccd-d474ca7c0570", section: "Creating a legal hold rule", chunk_id: "b9acfc28-517c-4e5c-9044-bb31ba0560e8"}
+    - {article_id: "54912347-067c-4f75-aa49-d939d3c65118", section: "Legal Hold > Managing Legal Hold for Laptop Backups", chunk_id: "af4f7dbd-4f9c-4210-9d4e-ecf8e1df6e31"}
+    - {article_id: "5313eee6-47be-428b-a893-caca11eb8c8f", section: "Legal hold > Legal hold", chunk_id: "74cd2c14-4ab0-4608-bcfc-2e2ba6563adc"}
+    - {article_id: "2a82501e-0911-489d-bb9b-1d722cec88ed", section: "Legal Hold > Description > Create an Account\\-Level Legal Hold for Email Accounts", chunk_id: "fa25ac84-f240-46c8-bde2-5ad9b1a65a64"}
+    - {article_id: "cba9146d-3bb5-48ab-a178-6bf22f8336da", section: "Legal hold for snapshot retention", chunk_id: "d735b962-ac6f-4f10-a46d-85a76ba8f580"}
+    - {article_id: "1bc3a751-ce33-4f66-89dc-efba32c544b2", section: "Manage Legal Hold Requests in the Archive App", chunk_id: "b2b989ce-9a26-4259-8a54-21abb660c7da"}
+    - {article_id: "a6be8833-8b5b-4c77-93ca-c5fd16b9db58", section: "Legal Hold Backups report", chunk_id: "72b372e4-43d5-4daf-bd50-4b11e80be255"}
+  vendors: ["Acronis", "Commvault", "HYCU", "NinjaOne (Dropsuite)", "Rubrik", "Salesforce", "Unitrends"]
+  written_from: ["399c4c94-46eb-4cd5-bccd-d474ca7c0570", "54912347-067c-4f75-aa49-d939d3c65118", "5313eee6-47be-428b-a893-caca11eb8c8f", "2a82501e-0911-489d-bb9b-1d722cec88ed", "cba9146d-3bb5-48ab-a178-6bf22f8336da", "1bc3a751-ce33-4f66-89dc-efba32c544b2", "a6be8833-8b5b-4c77-93ca-c5fd16b9db58"]
+  key_terms: ["legal hold", "litigation hold", "preserve", "eDiscovery"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-11
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup consoles support two-factor authentication (authenticator app codes) for admin logins?"
+  gold_facts:
+    - "Atempo: documented: Miria can set two-factor authentication as optional or mandatory for users."
+    - "HYCU: documented: Users can enable TOTP two-factor authentication (Google/Microsoft Authenticator)."
+    - "Nakivo: documented: Two-factor authentication can be enabled per local user."
+    - "NinjaOne (Dropsuite): documented: Multi-factor authentication with two-factor setup and reset."
+    - "Unitrends: documented: Two Factor Authentication (2FA) at appliance login."
+  gold_sources:
+    - {article_id: "591f6986-aada-4117-a9ad-54868caaa1aa", section: "Manage users and Security > Configuring a Two-Factor Authentication Set as Optional[](https://documentation.atempo.com/miria-4.6/admin-guide/settings/manage-users-and-security#configuring-a-two-factor-authentication-set-as-optional)", chunk_id: "8d183c37-2089-44d0-9dd1-74fe841eb30d"}
+    - {article_id: "330358cd-e7a9-4e38-9c51-dddc3fb94e5b", section: "Enabling two-factor authentication > Enabling two-factor authentication", chunk_id: "3d0f43c5-094f-4054-b5b1-d657349a5b2e"}
+    - {article_id: "50c38b7d-2654-4ea8-a0f2-da3ae3f5746b", section: "Enabling Two-Factor Authentication > Enabling Two\\-Factor Authentication", chunk_id: "727f9a1b-eace-47ab-8c52-3746af643007"}
+    - {article_id: "0ae3db26-fb33-4724-a439-45af7a8dc58f", section: "Multi-Factor Authentication > Description > Reset Your MFA > Reset your MFA for End User Portal Users", chunk_id: "225b74f4-80f1-4e39-bab8-c167fb699bb7"}
+    - {article_id: "870b4a8d-0a8e-4468-b222-57b93b502844", section: "Two Factor Authentication > Two Factor Authentication (2FA) > First 2FA login", chunk_id: "955331ae-5e1f-4f2b-9464-d08c04eeb03a"}
+  vendors: ["Atempo", "HYCU", "Nakivo", "NinjaOne (Dropsuite)", "Unitrends"]
+  written_from: ["591f6986-aada-4117-a9ad-54868caaa1aa", "330358cd-e7a9-4e38-9c51-dddc3fb94e5b", "50c38b7d-2654-4ea8-a0f2-da3ae3f5746b", "0ae3db26-fb33-4724-a439-45af7a8dc58f", "870b4a8d-0a8e-4468-b222-57b93b502844"]
+  key_terms: ["two-factor authentication", "2FA", "MFA", "authenticator", "OTP"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
+- id: cv43-12
+  type: cross_vendor
+  shape: enumeration
+  question: "Which backup products can scan backups for signs of ransomware, such as unusual changes or encryption, and alert on them?"
+  gold_facts:
+    - "Commvault: documented: Threat Detection for Databases flags anomalous activity in database backups."
+    - "Dell: documented: Anomaly Detection alerts."
+    - "Druva: documented: Ransomware Detection is a multi-stage detection feature."
+    - "IBM: documented: IBM Storage Defender correlates threat detection sources."
+    - "Keepit: documented: Anomaly Monitoring dashboard alerts on significant changes in backup data."
+    - "Rubrik: documented: Anomaly Detection detects ransomware attacks in backups."
+  gold_sources:
+    - {article_id: "a399b1ce-f05d-4e93-91ec-f0d0b9d2ce1e", section: "Threat Detection for Databases", chunk_id: "ea1593fc-411e-4bcf-a902-374ae7851448"}
+    - {article_id: "9b787a33-4514-404a-97af-9d33236df671", section: "Anomaly Detection alerts > Anomaly Detection alert descriptions > Table 57. Anomaly Detection mode or alert categories", chunk_id: "8394df81-e9eb-456c-a606-468540e3ae7f"}
+    - {article_id: "b6b0e66b-6ed0-437f-b8f5-cf5bbd77eb1a", section: "FAQ's for Ransomware Detection", chunk_id: "7eb6f541-cb5f-4ecd-90dd-b3f21ff4d6a2"}
+    - {article_id: "117feda3-b345-4aa2-b06a-e13797d53eee", section: "Threat management > Concepts", chunk_id: "73ab3b54-3df6-4a2a-81da-3553bca5ee39"}
+    - {article_id: "31eab101-1e45-43a9-a687-74e8523a4152", section: "Using the Anomaly Monitoring dashboard", chunk_id: "3c55d782-187b-457b-8ee6-17f94e042c5a"}
+    - {article_id: "68abbff2-1517-4fee-bac9-0a7dd4101dda", section: "Data Observability for Azure virtual machines and managed disks", chunk_id: "bd79cc54-b02f-4eff-a89e-638491e14f4d"}
+  vendors: ["Commvault", "Dell", "Druva", "IBM", "Keepit", "Rubrik"]
+  written_from: ["a399b1ce-f05d-4e93-91ec-f0d0b9d2ce1e", "9b787a33-4514-404a-97af-9d33236df671", "b6b0e66b-6ed0-437f-b8f5-cf5bbd77eb1a", "117feda3-b345-4aa2-b06a-e13797d53eee", "31eab101-1e45-43a9-a687-74e8523a4152", "68abbff2-1517-4fee-bac9-0a7dd4101dda"]
+  key_terms: ["anomaly detection", "ransomware detection", "threat detection", "entropy"]
+  holdout: true
+  decides: false
+  origin: cross_vendor_43
