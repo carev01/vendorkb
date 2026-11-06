@@ -39,6 +39,13 @@ postgres:
     shared_buffers: 1536MB
     effective_cache_size: 4GB
     work_mem: 16MB
+  # pg_hba.conf. A `kubectl port-forward` connection arrives from 127.0.0.1 inside the pod, where
+  # the image's default pg_hba.conf trusts it (no password). Here only the unix socket is
+  # trusted (reaching it needs `kubectl exec`, a stronger permission); every TCP connection,
+  # port-forward included, must present the password.
+  hba: |
+    local all all trust
+    host  all all all scram-sha-256
 
 sync:
   schedule: "*/30 * * * *"
