@@ -105,14 +105,23 @@ async def _pgvector_version(conn: psycopg.AsyncConnection) -> tuple[int, ...]:
 
 async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) -> list[tuple]:
     """Vector query with HNSW iterative scan, so a WHERE filter cannot starve the result."""
+    return (await _vector_rows_many(conn, [(sql, params)]))[0]
+
+
+async def _vector_rows_many(conn: psycopg.AsyncConnection,
+                            queries: list[tuple[str, list]]) -> list[list[tuple]]:
+    """Several vector queries in one transaction under one HNSW iterative-scan setting."""
     ver = await _pgvector_version(conn)
+    out = []
     async with conn.transaction():
         if ver >= (0, 8):
             await conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
         else:
             await conn.execute("SET LOCAL hnsw.ef_search = 1000")
-        cur = await conn.execute(sql, params)
-        return await cur.fetchall()
+        for sql, params in queries:
+            cur = await conn.execute(sql, params)
+            out.append(await cur.fetchall())
+    return out
 
 
 def _vec_sql(vector_column: str, where: str) -> str:
@@ -147,6 +156,48 @@ async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]],
                 weights=[FTS_WEIGHT, 1.0])
     return [_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)]
+
+
+async def facet_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
+                           facets: list[tuple[str, str]], *, limit: int,
+                           vector_column: str = "embedding") -> list[list[Hit]]:
+    """``hybrid_candidates(vendor=[name])`` (kind "vendor") or ``(product=[name])`` (kind
+    "product") for every facet, in facet order ([] for a facet with no candidates).
+
+    ONE full-text query ranked per facet (the OR'd full-text query is a seq scan, so it runs
+    once, not once per facet), then one transaction holding one SET LOCAL and a scoped
+    vector query per facet (an HNSW scan each, cheap next to the full-text scan)."""
+    if vector_column not in VECTOR_COLUMNS:
+        raise ValueError(f"unknown vector column {vector_column!r}")
+    if not facets:
+        return []
+    kinds = [k for k, _ in facets]
+    names = [n for _, n in facets]
+    fts_sql = (f"SELECT * FROM (SELECT f.idx, {_COLS}, row_number() OVER (PARTITION BY f.idx "
+               "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
+               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q, "
+               "unnest(%s::text[], %s::text[]) WITH ORDINALITY AS f(kind, name, idx) "
+               "WHERE c.tsv @@ q.tsq AND ((f.kind = 'vendor' AND d.vendor = f.name) "
+               "OR (f.kind = 'product' AND d.product = f.name))) t "
+               "WHERE rn <= %s ORDER BY idx, rn")
+    cur = await conn.execute(fts_sql, [query, kinds, names, FTS_LIMIT])
+    fts: list[list[tuple]] = [[] for _ in facets]
+    for r in await cur.fetchall():
+        fts[r[0] - 1].append(r[1:-1])
+    queries = []
+    for kind, name in facets:
+        where, fparams = _filters([name] if kind == "vendor" else None,
+                                  [name] if kind == "product" else None)
+        queries.append((_vec_sql(vector_column, where),
+                        [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT]))
+    vecs = await _vector_rows_many(conn, queries)
+    out = []
+    for fts_rows, vec_rows in zip(fts, vecs):
+        rows = {r[0]: r for r in [*fts_rows, *vec_rows]}
+        order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]],
+                    weights=[FTS_WEIGHT, 1.0])
+        out.append([_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)])
+    return out
 
 
 async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],

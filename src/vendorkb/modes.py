@@ -1,18 +1,18 @@
 """Cross-vendor retrieval: per-vendor enumeration and per-facet comparison, both on top of
-``search.hybrid_candidates`` with one query embedding reused across the fan-out."""
+batched hybrid candidate steps (``search.vendor_candidates``, ``search.facet_candidates``)
+with one query embedding reused across the fan-out."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+import asyncio
+from dataclasses import dataclass, field, replace
 
 import psycopg
 
 from vendorkb.clients import Embedder, Reranker
-from vendorkb.search import RERANK_CANDIDATES, Hit, hybrid_candidates, vendor_candidates
+from vendorkb.search import RERANK_CANDIDATES, Hit, facet_candidates, vendor_candidates
 from vendorkb.shape import Facet
 
-# Placeholder until the eval calibrates it (plan Task 6): 0.0 keeps every vendor whose
-# evidence the reranker scored.
 # Chunks per vendor that answer() and the eval send to the rerank. 3/5 (the spec's default and
 # this module's) cost ~115K rerank tokens per question on the 43-vendor corpus, over the spec's
 # 100K trigger (§9.5), so callers shrink it to 2/3.
@@ -28,6 +28,8 @@ class EnumerationResult:
     dropped: list[str]  # vendors whose best score fell below the floor
     empty: list[str]  # vendors with no candidates
     rerank_ok: bool
+    # each scored vendor's best rerank score, dropped vendors included ({} without a rerank)
+    best_scores: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -106,37 +108,38 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     groups = _truncate([sorted(scored[v], key=lambda h: -(h.rerank_score or 0.0))
                         for v in survivors] + [picked[v] for v in unscored], max_hits)
     return EnumerationResult(hits=[h for g in groups for h in g], kept=survivors + unscored,
-                             dropped=dropped, empty=empty, rerank_ok=not unscored)
+                             dropped=dropped, empty=empty, rerank_ok=not unscored,
+                             best_scores=best)
 
 
 async def compare_facets(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                          reranker: Reranker | None, facets: list[Facet], per_facet: int = 5,
                          use_rerank: bool = True) -> ComparisonResult:
-    """Search each facet with an equal share of the candidate pool and rerank each facet
-    separately, so every facet's quota survives the rerank. Hits interleave facet by facet;
+    """Search each facet with an equal share of the candidate pool (one batched candidate
+    step, ``search.facet_candidates``) and rerank each facet separately, the reranks running
+    concurrently, so every facet's quota survives the rerank. Hits interleave facet by facet;
     a facet with no candidates is reported in ``facets_empty``, never relaxed."""
     if not facets:
         return ComparisonResult(hits=[], facets_empty=[], rerank_ok=False)
     # An embedder failure propagates: the caller records it.
     qvec = (await embedder.embed([query], input_type="query"))[0]
     limit = max(1, RERANK_CANDIDATES // len(facets))
-    per: list[list[Hit]] = []
-    facets_empty: list[str] = []
+    cands = await facet_candidates(conn, query, qvec, list(facets), limit=limit)
+    facets_empty = [name for (_, name), c in zip(facets, cands) if not c]
+    found = [c for c in cands if c]
     rerank_ok = use_rerank and reranker is not None
-    for kind, name in facets:
-        cands = await hybrid_candidates(conn, query, qvec, limit=limit,
-                                        vendor=[name] if kind == "vendor" else None,
-                                        product=[name] if kind == "product" else None)
-        if not cands:
-            facets_empty.append(name)
-            continue
-        ranked = None
-        if use_rerank and reranker is not None:
-            ranked = await reranker.rerank(query, [h.text for h in cands], per_facet)
+
+    async def rerank(c: list[Hit]) -> list[tuple[int, float]] | None:
+        if not use_rerank or reranker is None:
+            return None
+        return await reranker.rerank(query, [h.text for h in c], per_facet)
+
+    per: list[list[Hit]] = []
+    for c, ranked in zip(found, await asyncio.gather(*(rerank(c) for c in found))):
         if ranked:
-            per.append([replace(cands[i], rerank_score=s) for i, s in ranked[:per_facet]])
+            per.append([replace(c[i], rerank_score=s) for i, s in ranked[:per_facet]])
         else:  # None (outage) and [] for non-empty candidates are both failures
             rerank_ok = False
-            per.append(cands[:per_facet])
+            per.append(c[:per_facet])
     hits = [g[n] for n in range(max(map(len, per), default=0)) for g in per if n < len(g)]
     return ComparisonResult(hits=hits, facets_empty=facets_empty, rerank_ok=rerank_ok)

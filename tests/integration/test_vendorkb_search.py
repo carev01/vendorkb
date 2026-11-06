@@ -757,3 +757,105 @@ async def test_vendor_candidates_fuse_fifty_rows_per_list(vkb_dsn):
         assert texts[0] != "alpha " * 60 and len(texts) == 10
     finally:
         await conn.close()
+
+
+# --- final fix wave: batched comparison candidates, best scores --------------------------
+
+async def test_enumeration_best_scores_cover_dropped_vendors(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for v, score in (("VA", 0.9), ("VC", 0.1)):
+            d = await _doc(conn, v, f"{v}-P")
+            await _chunk(conn, d, 0, f"alpha {v} s{score}", 0)
+        rr = FakeReranker(lambda t: float(t.split(" s")[-1]))
+        res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                      reranker=rr, vendors=["VA", "VC"], min_score=0.5)
+        assert res.dropped == ["VC"] and res.best_scores == {"VA": 0.9, "VC": 0.1}
+        res = await enumerate_vendors(conn, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                      reranker=FakeReranker(fail=True), vendors=["VA", "VC"])
+        assert res.best_scores == {}
+    finally:
+        await conn.close()
+
+
+async def _facet_corpus(conn):
+    for vendor, product, n, mult in (("BIG", "BIG-P", 60, 7), ("MID", "MID-P", 30, 11),
+                                     ("MID", "MID-Q", 8, 3), ("SMALL", "SMALL-P", 6, 1)):
+        d = await _doc(conn, vendor, product)
+        for j in range(n):
+            text = " ".join(["alpha"] * max(1, (n - j) // 3) + ["filler"] * j)
+            await _raw_chunk(conn, d, j, f"{vendor} {product} {j} {text}", _fine((j * mult) % n))
+
+
+async def test_facet_candidates_equal_scoped_hybrid_search(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _facet_corpus(conn)
+        facets = [("vendor", "BIG"), ("product", "MID-Q"), ("vendor", "MID"),
+                  ("vendor", "ABSENT")]
+        for limit in (20, 10):
+            got = await search.facet_candidates(conn, "alpha", _vec(0), facets, limit=limit)
+            assert len(got) == len(facets)
+            for (kind, name), hits in zip(facets, got):
+                scoped = await hybrid_candidates(
+                    conn, "alpha", _vec(0), limit=limit,
+                    vendor=[name] if kind == "vendor" else None,
+                    product=[name] if kind == "product" else None)
+                assert [(h.chunk_id, h.rrf_rank) for h in hits] == [
+                    (h.chunk_id, h.rrf_rank) for h in scoped], name
+            assert got[3] == []
+    finally:
+        await conn.close()
+
+
+async def test_comparison_statement_count_has_one_full_text_query(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _facet_corpus(conn)
+        rr = FakeReranker(lambda t: 0.5)
+        for facets in ([("vendor", "BIG"), ("vendor", "MID")],
+                       [("vendor", "BIG"), ("vendor", "MID"), ("vendor", "SMALL")]):
+            cc = CountingConn(conn)
+            await search._pgvector_version(cc)  # read once per connection
+            cc.executes = 0
+            res = await compare_facets(cc, "alpha", embedder=FakeEmbedder(_vec(0)),
+                                       reranker=rr, facets=facets)
+            assert len(res.hits) == 5 * len(facets)
+            # ONE full-text query, one SET LOCAL, one vector query per facet
+            assert cc.executes == 2 + len(facets)
+    finally:
+        await conn.close()
+
+
+async def test_comparison_reranks_run_concurrently(vkb_dsn):
+    import asyncio
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _facet_corpus(conn)
+
+        class Barrier(FakeReranker):
+            """Each call waits until both facets' calls have started: a serial loop hangs."""
+            def __init__(self):
+                super().__init__(lambda t: 0.5)
+                self.started = 0
+                self.both = asyncio.Event()
+
+            async def rerank(self, query, documents, top_k):
+                self.started += 1
+                if self.started == 2:
+                    self.both.set()
+                await self.both.wait()
+                return await super().rerank(query, documents, top_k)
+
+        rr = Barrier()
+        res = await asyncio.wait_for(
+            compare_facets(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                           facets=[("vendor", "BIG"), ("vendor", "MID")]), timeout=10)
+        assert [h.vendor for h in res.hits] == ["BIG", "MID"] * 5 and res.rerank_ok is True
+    finally:
+        await conn.close()
