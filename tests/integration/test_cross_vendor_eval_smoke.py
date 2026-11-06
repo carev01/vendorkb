@@ -69,8 +69,9 @@ async def test_score_paths_and_candidates(vkb_dsn, tmp_path):
         r = await cross_vendor._run_question(conn, single_q, **kw)
         assert r["pool_rank"] == 1, r
 
-        records = await cross_vendor._fts_hits(conn, "immutability", "Alpha", 5)
-        assert [h.vendor for h in records] == ["Alpha"]
+        by_vendor = await cross_vendor._fts_hits_by_vendor(conn, "immutability", ["Alpha"], 5)
+        assert list(by_vendor) == ["Alpha"]
+        assert all(h.vendor == "Alpha" for h in by_vendor["Alpha"])
     finally:
         await conn.close()
     json.dumps(r)  # results are JSON-serialisable

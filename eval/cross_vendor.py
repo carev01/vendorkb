@@ -26,7 +26,6 @@ import time
 from pathlib import Path
 
 import yaml
-from pgvector import Vector
 
 from vendorkb import search
 from vendorkb.clients import Embedder, Reranker
@@ -36,12 +35,11 @@ from vendorkb.modes import ENUMERATION_MIN_SCORE, compare_facets, enumerate_vend
 from vendorkb.scope import ScopeIndex, detect_scope, scope_index_from_db
 from vendorkb.search import (
     _COLS,
-    _TSQUERY,
     RERANK_CANDIDATES,
-    _filters,
     _hit,
     hybrid_candidates,
     search_docs,
+    vendor_candidates,
 )
 from vendorkb.shape import Facet, detect_shape
 
@@ -150,13 +148,19 @@ def _record(h) -> dict:
             "section_path": h.section_path, "text": h.text, "url": h.url}
 
 
-async def _fts_hits(conn, term: str, vendor: str, limit: int) -> list:
-    where, fparams = _filters([vendor], None)
-    sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id), "
-           f"(SELECT {_TSQUERY} AS tsq) q WHERE c.tsv @@ q.tsq{where} "
-           "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id LIMIT %s")
-    cur = await conn.execute(sql, [term, *fparams, limit])
-    return [_hit(r, n) for n, r in enumerate(await cur.fetchall(), start=1)]
+async def _fts_hits_by_vendor(conn, term: str, vendors: list[str], limit: int) -> dict[str, list]:
+    """Top ``limit`` full-text hits per vendor for one key term, in one query. The term is a
+    phrase (phraseto_tsquery), so "pre-job script" matches the phrase, not any of its words."""
+    sql = (f"SELECT * FROM (SELECT {_COLS}, row_number() OVER (PARTITION BY d.vendor "
+           "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
+           "FROM chunks c JOIN documents d USING (doc_id), "
+           "(SELECT phraseto_tsquery('english', %s) AS tsq) q "
+           "WHERE c.tsv @@ q.tsq AND d.vendor = ANY(%s)) t WHERE rn <= %s")
+    cur = await conn.execute(sql, [term, list(vendors), limit])
+    out: dict[str, list] = {}
+    for r in await cur.fetchall():
+        out.setdefault(r[4], []).append(_hit(r[:-1], r[-1]))
+    return out
 
 
 async def _doc_rows(conn, doc_ids: set[str]) -> dict[str, tuple[str | None, str | None]]:
@@ -298,17 +302,18 @@ async def cmd_candidates(args, base: VendorkbSettings) -> int:
         async with Embedder(base) as embedder:
             for q in questions:
                 qvec = (await embedder.embed([q["question"]], input_type="query"))[0]
+                # Batched: per-vendor scoped searches cost ~4 s each on the full corpus.
+                tops = await vendor_candidates(conn, q["question"], qvec, vendors, limit=10)
+                by_term = {t: await _fts_hits_by_vendor(conn, t, vendors, 5)
+                           for t in q.get("key_terms") or []}
                 for v in vendors:
-                    top = await hybrid_candidates(conn, q["question"], qvec, vendor=[v],
-                                                  limit=10)
-                    terms = {}
-                    for t in q.get("key_terms") or []:
-                        terms[t] = [_record(h) for h in await _fts_hits(conn, t, v, 5)]
                     out = Path(args.out) / q["id"] / f"{_safe(v)}.json"
                     out.parent.mkdir(parents=True, exist_ok=True)
                     out.write_text(json.dumps(
                         {"question_id": q["id"], "vendor": v,
-                         "candidates": [_record(h) for h in top], "key_term_hits": terms},
+                         "candidates": [_record(h) for h in tops.get(v, [])],
+                         "key_term_hits": {t: [_record(h) for h in hits.get(v, [])]
+                                           for t, hits in by_term.items()}},
                         indent=2), encoding="utf-8")
                 print(f"{q['id']}: {len(vendors)} vendors written")
     finally:
