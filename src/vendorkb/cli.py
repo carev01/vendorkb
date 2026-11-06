@@ -1,4 +1,5 @@
-"""``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding."""
+"""``python -m vendorkb.cli`` -- search / answer / stats / sync / reembed / promote-embedding /
+extract."""
 from __future__ import annotations
 
 import argparse
@@ -8,10 +9,12 @@ import json
 import logging
 import sys
 
+import anthropic
 import psycopg
 from openai import AsyncOpenAI
 
 from vendorkb.answer import answer
+from vendorkb.claims import extract
 from vendorkb.clients import DocExtractor, Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -152,6 +155,35 @@ async def _promote(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _anthropic_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic:
+    """The extraction client; with no ANTHROPIC_API_KEY setting the SDK reads the env var."""
+    return anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key or None)
+
+
+def _read_ids(path: str, limit: int | None) -> list[str]:
+    with open(path, encoding="utf-8") as f:
+        ids = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    return ids[:limit] if limit is not None else ids
+
+
+async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    ids = _read_ids(args.ids_file, args.limit)
+    conn = await connect(settings.vendorkb_dsn)
+    client = _anthropic_client(settings)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        report = await extract.run(conn, ids, client=client, settings=settings,
+                                   mode=args.mode)
+    finally:
+        close = getattr(client, "close", None)
+        if close is not None:
+            await close()
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    # Errored chunks are retried by the next run; a budget stop is a clean exit.
+    return 0 if report.errored == 0 else 1
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vendorkb")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -178,11 +210,17 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("promote-embedding",
                        help="replace chunks.embedding with chunks.embedding_next")
     s.add_argument("--yes", action="store_true")
+    s = sub.add_parser("extract", help="extract capability claims from chunks with "
+                                       "EXTRACT_MODEL (resumable; budget-capped)")
+    s.add_argument("--ids-file", required=True, help="chunk ids, one per line")
+    s.add_argument("--mode", choices=("sync", "batch"), default="batch",
+                   help="sync: one call per chunk (smoke tests); batch: Message Batches API")
+    s.add_argument("--limit", type=int, default=None, help="only the first N ids (smoke)")
     return p
 
 
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
-             "reembed": _reembed, "promote-embedding": _promote}
+             "reembed": _reembed, "promote-embedding": _promote, "extract": _extract}
 
 
 def main(argv: list[str] | None = None) -> int:

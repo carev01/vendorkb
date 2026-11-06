@@ -9,6 +9,8 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "pgvector>=0.3",
   "pydantic-settings>=2.3",
+  "anthropic>=2.6.0",
+  "rapidfuzz>=3.14.6",
 ]
 
 [project.optional-dependencies]
