@@ -204,7 +204,11 @@ licensing", "soc 2 type ii attestation". Lowercase, no product names.
 - target: the workload, platform, service or storage the claim applies to, as a short phrase \
 (e.g. "Amazon RDS", "Microsoft 365", "VMware vSphere", "S3-compatible storage"), or null when \
 the claim is general. Never the product's own components (its proxy, agent, appliance, \
-gateway, console or a version number): name what they protect or connect to, or use null.
+gateway, console or a version number): name what they protect or connect to, or use null. \
+It is never a standard, protocol, framework, specification or file format that a feature \
+implements or supports (e.g. a consent framework, an encryption standard): name the workload, \
+platform, service or storage, or use null, and mention the standard in capability or \
+conditions if needed.
 - target_scope: the object type or variant within the target, e.g. "users", "conditional \
 access policies", "sandbox orgs", "FSx for Lustre", "RDS for Oracle", or null when the claim \
 covers the whole target. Give one claim per object type: a sentence that lists six object types \
@@ -214,13 +218,16 @@ a storage location of the product.
 - support: one of
   - "supported": the text says the product does it. A capability is still "supported" when \
 it needs prerequisites, setup steps, permissions, an API or service enabled, a license or a \
-minimum version, or is off by default and can be turned on. Record those in conditions, \
-edition or default_state. A licensing or service fact the text states is "supported".
+minimum version, or is off by default and can be turned on. Record prerequisites in \
+conditions, a license tier in edition, and a stated default in default_state. A licensing or \
+service fact the text states is "supported".
   - "partial": the capability itself is restricted: it works for only part of the target \
 (some object types, some versions of the target, some regions or platforms), or the text names \
 a functional limitation of it. Preview, beta, early access or "limited to some customers" go \
 in availability, and an edition limit goes in edition; neither makes a capability partial. A \
-prerequisite or a default setting is never a reason for "partial".
+limit that the target itself implies is not partial either (clipboard control for the Windows \
+clipboard is Windows-only by nature): "partial" needs the capability to be restricted relative \
+to its stated target. A prerequisite or a default setting is never a reason for "partial".
   - "not_supported": ONLY when the text explicitly says it is not supported or not possible. \
 Never infer it from silence.
   - "unclear": the text names the capability but gives nothing showing the product does it. \
@@ -240,8 +247,11 @@ conditions). Never the product on the Product line, an edition or a version.
 "planned" or "deprecated", only when the text says so; otherwise "unstated". A plain \
 present-tense statement ("Backups of Amazon RDS are supported") is "unstated", not \
 "generally_available".
-- default_state: "on" or "off" only when the text says the capability is enabled or disabled \
-by default; otherwise null. "You can enable compression" says nothing about the default: null.
+- default_state: "on" or "off" only when the text states the default outright ("enabled by \
+default", "disabled by default", "on by default", "is off unless ..."); otherwise null. "You can \
+enable compression" or "you must enable X first" says nothing about the default: null. A \
+default selection in a list or form ("all items are selected by default") is not the \
+capability's default_state.
 - value: the number for a limit or a measure, only when the evidence_quote states it \
 explicitly, e.g. 99 for "retention of up to 99 years", 10 for "an RPO of 10 minutes"; \
 otherwise null. Never a version, build or step number, and never a number you work out.
@@ -251,11 +261,12 @@ value is null.
 "max". "As often as every 15 minutes" is "min" (the smallest interval), not "max". A plain \
 number is "exact".
 - conditions: everything else the text attaches to this claim, as a short phrase, or null: \
-platforms ("VMware and Hyper-V only"), prerequisites, permissions, a minimum version, a \
-dependency on another product or service that the text states outright, or the reason for a \
-"not_supported". Never infer a dependency the text does not state, and do not repeat what the \
-other fields hold. Only conditions the text ties to this claim; do not carry over conditions \
-from other sentences about other things.
+platforms ("VMware and Hyper-V only"), prerequisites, permissions, a minimum version, a limit \
+that value cannot hold, a dependency on another product or service that the text states \
+outright, or the reason for a "not_supported". What the capability lets you configure or \
+customize (its options) is not a condition. Never infer a dependency the text does not \
+state, and do not repeat what the other fields hold. Only conditions the text ties to this \
+claim; do not carry over conditions from other sentences about other things.
 - evidence_quote: the full sentence, or the full table row including its row label, copied \
 exactly from the chunk text, that states the claim; it must contain the words naming the \
 capability and the target, and the number when value is set. Never quote a bare cell such as \
@@ -275,7 +286,9 @@ fails in some case). A sentence explicitly saying something is not supported is 
 - prices, discounts and billing amounts: a licensing claim says what a license covers or how \
 it is counted, never a price;
 - announcements about documentation, blueprints, guides or training being available;
-- version and build tables that list component releases, not what the product protects.
+- version and build tables that list component releases, not what the product protects;
+- changelog or release-note lines that only name a new setting, directive, parameter or option \
+without saying what the product does with it (e.g. "Add AllowIncompleteJobs Job directive").
 
 The Vendor, Product and Version lines before the chunk are context, not chunk text: never \
 quote them. The claims are about that vendor and product. Extract only what the chunk \

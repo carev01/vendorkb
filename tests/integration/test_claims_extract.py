@@ -205,7 +205,10 @@ def test_prompt_states_the_v3_rules():
     for phrase in ("licensing", "service", "one claim per object type", "never a price",
                    "neither makes a capability partial", "never a feature or backup method",
                    "installation and sizing requirements",
-                   "a hardware appliance sold as its own deployment form"):
+                   "a hardware appliance sold as its own deployment form",
+                   "states the default outright", "default selection in a list or form",
+                   "only name a new setting", "never a standard, protocol",
+                   "the target itself implies", "(its options) is not a condition"):
         assert phrase in prompt
     assert "requires" not in prompt
     for field in extract.CLAIM_SCHEMA["properties"]["claims"]["items"]["required"]:
