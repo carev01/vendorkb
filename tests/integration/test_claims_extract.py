@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import anthropic
 import httpx
+import pytest
 from pgvector import Vector
 
 from vendorkb.claims import extract
@@ -148,7 +149,7 @@ def test_schema_and_request_shape():
     assert "thinking" not in req and "temperature" not in req
     assert req["messages"][0]["role"] == "user" and TEXT in req["messages"][0]["content"]
     assert "rubrik" in req["messages"][0]["content"]
-    assert extract.PROMPT_VERSION == "claims-v1"
+    assert extract.PROMPT_VERSION == "claims-v2"
 
 
 async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn):
@@ -170,10 +171,10 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
             " ORDER BY capability_raw")
         assert accepted == [
             ("rubrik", "Rubrik Security Cloud", None, "cross-region copy", None, "partial",
-             "Enterprise edition", "claude-haiku-5-5", "claims-v1"),
+             "Enterprise edition", "claude-haiku-5-5", extract.PROMPT_VERSION),
             ("rubrik", "Rubrik Security Cloud", None, "immutable snapshots",
              "Amazon RDS for PostgreSQL", "supported", None, "claude-haiku-5-5",
-             "claims-v1")]
+             extract.PROMPT_VERSION)]
         quotes = await _rows(conn, "SELECT evidence_quote, model_quote, gate FROM raw_claims"
                                    " ORDER BY capability_raw")
         assert quotes == [
@@ -816,9 +817,46 @@ def test_max_tokens_follows_the_setting_on_both_backends():
     req = extract.build_request(chunk, _settings(extract_max_tokens=4000))
     assert req["max_tokens"] == 4000
     assert extract.build_openai_request(chunk, _oa(extract_max_tokens=4000))["max_tokens"] == 4000
-    small = extract._estimate(extract.build_request(chunk, _settings()), batch=False)
-    large = extract._estimate(req, batch=False)
+    small = extract._estimate(extract.build_request(chunk, _settings()), batch=False,
+                              settings=_settings())
+    large = extract._estimate(req, batch=False, settings=_settings())
     assert abs((large - small) - 2000 * 0.50 / 1e6) < 1e-12  # reserves the larger output
+
+
+def test_prices_follow_the_model_and_refuse_an_unknown_one():
+    assert extract.price_per_mtok("claude-haiku-5-5") == (0.10, 0.50)
+    assert extract.price_per_mtok("claude-opus-5-5") == (4.00, 20.00)
+    assert extract.price_per_mtok("anthropic/claude-opus-5.5:batch") == (4.00, 20.00)
+    with pytest.raises(ValueError, match="no price known"):
+        extract.price_per_mtok("qwen/qwen3.5-9b")
+    override = _settings(extract_price_in_per_mtok=0.2, extract_price_out_per_mtok=0.6)
+    assert extract.price_per_mtok("qwen/qwen3.5-9b", override) == (0.2, 0.6)
+    chunk = extract.ChunkRow(chunk_id="c1", doc_id="d1", vendor="rubrik", product=None,
+                             version=None, title="T", section_path=["A"], text=TEXT)
+    opus = _settings(extract_model="claude-opus-5-5")
+    haiku_est = extract._estimate(extract.build_request(chunk, _settings()), batch=False,
+                                  settings=_settings())
+    opus_est = extract._estimate(extract.build_request(chunk, opus), batch=False, settings=opus)
+    assert abs(opus_est / haiku_est - 40) < 1e-9
+
+
+def test_effort_follows_the_setting_on_both_backends():
+    chunk = extract.ChunkRow(chunk_id="c1", doc_id="d1", vendor="rubrik", product=None,
+                             version=None, title="T", section_path=["A"], text=TEXT)
+    assert extract.build_request(chunk, _settings(extract_effort="medium"))[
+        "output_config"]["effort"] == "medium"
+    assert extract.build_openai_request(chunk, _oa(extract_effort="high"))[
+        "extra_body"]["reasoning"] == {"effort": "high"}
+
+
+async def test_run_refuses_a_model_without_a_price(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        with pytest.raises(ValueError, match="no price known"):
+            await extract.run(conn, [], client=None, mode="sync",
+                              settings=_settings(extract_model="mystery-model"))
+    finally:
+        await conn.close()
 
 
 async def _extraction(conn, cid, *, status, error, model, attempts=3) -> None:

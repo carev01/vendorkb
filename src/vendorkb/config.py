@@ -51,6 +51,12 @@ class VendorkbSettings(BaseSettings):
     # max_tokens per extraction request (both backends; thinking counts against it). Chunks
     # cut off at it are retried with `vendorkb extract --retry-errored` after raising it.
     extract_max_tokens: int = 2000
+    # Claude's effort ("low" .. "max"); Opus 5.5 always thinks, so effort is its only control.
+    extract_effort: str = "low"
+    # Price override (USD per million tokens) for a model not in extract.PRICES_PER_MTOK;
+    # both must be set (> 0) to take effect.
+    extract_price_in_per_mtok: float = 0.0
+    extract_price_out_per_mtok: float = 0.0
 
 
 @lru_cache

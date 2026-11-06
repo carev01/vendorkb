@@ -53,7 +53,7 @@ from vendorkb.config import VendorkbSettings
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = "claims-v1"
+PROMPT_VERSION = "claims-v2"
 MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 # Errors that mean the reply was cut off at max_tokens ("length": OpenAI-compatible
 # finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets
@@ -64,9 +64,14 @@ SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
 LOCK_KEY = 0x766B63  # single-flight across extract runs (sync uses 0x766B62)
 SYNC_LEDGER_PREFIX = "sync-"
 
-# Haiku 5.5 list prices (USD per million tokens); the Batches API halves both.
-PRICE_IN_PER_MTOK = 0.10
-PRICE_OUT_PER_MTOK = 0.50
+# List prices (USD per million tokens, input / output); the Batches API halves both. Haiku's
+# is the rate for prompts of 100K tokens or fewer, which every chunk prompt is. A model not
+# listed here is refused by ``run`` (its spend could not be capped) unless
+# EXTRACT_PRICE_IN_PER_MTOK / EXTRACT_PRICE_OUT_PER_MTOK are set.
+PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-haiku-5-5": (0.10, 0.50),
+    "claude-opus-5-5": (4.00, 20.00),
+}
 BATCH_DISCOUNT = 0.5
 # The pre-submit estimate: prompt characters / 3 (generous for the tokenizer) in, and the
 # full extract_max_tokens out (thinking is billed as output), so the cap holds in the worst case.
@@ -107,33 +112,55 @@ CLAIM_SCHEMA: dict[str, Any] = {
 SYSTEM_PROMPT = """\
 You extract capability claims from one chunk of a backup vendor's product documentation.
 
-A capability is something the product can do: a feature, a supported workload or platform, a \
-storage target, a limit, or a security control. Each claim has:
+A capability is something the product itself can do: a feature, a supported workload or \
+platform, a storage target, a limit, or a security control. Each claim has:
 - capability: a short, normalized phrase for the capability, e.g. "immutable backups", \
 "instant VM recovery", "object lock", "file-level restore", "maximum retention period". \
 Lowercase, no product names.
 - target: the workload, platform or storage the capability applies to, as a short phrase \
 (e.g. "Amazon RDS", "Microsoft 365", "VMware vSphere", "S3-compatible storage"), or null when \
-the capability is general.
-- support: "supported" when the text says the product does it; "partial" when it does with \
-notable restrictions or only in some editions or versions; "not_supported" ONLY when the text \
-explicitly says it is not supported or not possible; "unclear" when the text mentions the \
-capability but does not settle whether it is supported. Never infer "not_supported" from \
-silence.
-- conditions: prerequisites, limits, editions, versions or licensing the text attaches to the \
-claim, as a short phrase, or null. Put numeric limits here: "maximum retention period" with \
-conditions "up to 7 years".
+the capability is general. Never the product's own components (its proxy, agent, appliance, \
+gateway, console or a version number): name what they protect or connect to, or use null.
+- support: one of
+  - "supported": the text says the product does it. A capability is still "supported" when \
+it needs prerequisites, setup steps, permissions, an API or service enabled, a license or a \
+minimum version, or is off by default and can be turned on. Put those requirements in \
+conditions.
+  - "partial": the capability itself is restricted: it works for only part of the target \
+(some object types, some versions or editions, some regions or platforms), it is in preview, \
+beta or early access, or limited to some customers, or the text names a functional \
+limitation of it. A prerequisite or a default setting is never a reason for "partial".
+  - "not_supported": ONLY when the text explicitly says it is not supported or not possible. \
+Never infer it from silence.
+  - "unclear": the text names the capability but gives nothing showing the product does it. \
+Text that explains how to configure, use, size, manage or monitor the capability shows that \
+it does: that is "supported".
+- conditions: the prerequisites, limits, editions, versions or licensing the text attaches \
+to this claim, as a short phrase, or null. Put numeric limits here: "maximum retention \
+period" with conditions "up to 7 years". Only conditions the text ties to this capability; \
+do not carry over conditions from other sentences about other things.
 - evidence_quote: the full sentence, or the full table row including its row label, copied \
 exactly from the chunk text, that states the capability; it must contain the words naming the \
 capability and the target. Never quote a bare cell such as "Yes" or "Supported". At most \
 about 300 characters. Copy it character for character; do not paraphrase, shorten with \
 ellipses, or join separate sentences.
 
+Not capabilities, so never extract them:
+- procedures and steps: how to install, configure or troubleshoot, unless a sentence states \
+what the product can do;
+- actions the user performs in another system (a workaround in Salesforce, a setting in \
+Azure), even when they are needed for the product to work;
+- known issues, bugs, fixed defects and odd behaviour (data converted on restore, a job that \
+fails in some case). A sentence explicitly saying something is not supported is still a \
+"not_supported" claim;
+- licensing, billing, subscription terms and how licenses are counted;
+- announcements about documentation, blueprints, guides or training being available;
+- version and build tables that list component releases, not what the product protects.
+
 The Vendor, Product and Version lines before the chunk are context, not chunk text: never \
 quote them. The claims are about that vendor and product. Extract only what the chunk \
-states, one claim per distinct capability and target. Skip navigation text, boilerplate, and \
-steps that do not state a capability. If the chunk states no capability, return \
-{"claims": []}.\
+states, one claim per distinct capability and target. Skip navigation text and \
+boilerplate. If the chunk states no capability, return {"claims": []}.\
 """
 
 
@@ -179,8 +206,26 @@ class _Outcome:
     cost: float | None = None  # as the provider reported it; None: priced from the tokens
 
 
-def cost_usd(input_tokens: int, output_tokens: int, *, batch: bool) -> float:
-    cost = (input_tokens * PRICE_IN_PER_MTOK + output_tokens * PRICE_OUT_PER_MTOK) / 1e6
+def _price_key(model: str) -> str:
+    """'anthropic/claude-opus-5.5:batch' (OpenRouter) -> 'claude-opus-5-5'."""
+    return model.split("/")[-1].split(":")[0].replace(".", "-")
+
+
+def price_per_mtok(model: str, settings: VendorkbSettings | None = None) -> tuple[float, float]:
+    """(input, output) USD per million tokens; an explicit settings override wins."""
+    if settings is not None and settings.extract_price_in_per_mtok > 0 \
+            and settings.extract_price_out_per_mtok > 0:
+        return settings.extract_price_in_per_mtok, settings.extract_price_out_per_mtok
+    try:
+        return PRICES_PER_MTOK[_price_key(model)]
+    except KeyError:
+        raise ValueError(f"no price known for model {model!r}: set EXTRACT_PRICE_IN_PER_MTOK"
+                         " and EXTRACT_PRICE_OUT_PER_MTOK") from None
+
+
+def cost_usd(input_tokens: int, output_tokens: int, *, batch: bool,
+             price: tuple[float, float] = PRICES_PER_MTOK["claude-haiku-5-5"]) -> float:
+    cost = (input_tokens * price[0] + output_tokens * price[1]) / 1e6
     return cost * BATCH_DISCOUNT if batch else cost
 
 
@@ -195,15 +240,16 @@ def build_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]
         "max_tokens": settings.extract_max_tokens,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": content}],
-        "output_config": {"effort": "low",
+        "output_config": {"effort": settings.extract_effort,
                           "format": {"type": "json_schema", "schema": CLAIM_SCHEMA}},
     }
 
 
-def _cost(outcome: _Outcome, *, batch: bool) -> float:
+def _cost(outcome: _Outcome, *, batch: bool, settings: VendorkbSettings) -> float:
     if outcome.cost is not None:
         return outcome.cost
-    return cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch)
+    return cost_usd(outcome.input_tokens, outcome.output_tokens, batch=batch,
+                    price=price_per_mtok(settings.extract_model, settings))
 
 
 def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[str, Any]:
@@ -215,13 +261,14 @@ def build_openai_request(chunk: ChunkRow, settings: VendorkbSettings) -> dict[st
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}, *req["messages"]],
         "response_format": {"type": "json_schema", "json_schema": {
             "name": "claims", "strict": True, "schema": CLAIM_SCHEMA}},
-        "extra_body": {"usage": {"include": True}, "reasoning": {"effort": "low"}},
+        "extra_body": {"usage": {"include": True}, "reasoning": {"effort": settings.extract_effort}},
     }
 
 
-def _estimate(request: dict[str, Any], *, batch: bool) -> float:
+def _estimate(request: dict[str, Any], *, batch: bool, settings: VendorkbSettings) -> float:
     chars = len(request["system"]) + sum(len(m["content"]) for m in request["messages"])
-    return cost_usd(chars // CHARS_PER_TOKEN + 1, request["max_tokens"], batch=batch)
+    return cost_usd(chars // CHARS_PER_TOKEN + 1, request["max_tokens"], batch=batch,
+                    price=price_per_mtok(request["model"], settings))
 
 
 def _usage(message: Any) -> tuple[int, int]:
@@ -303,8 +350,8 @@ def _field(claim: Any, key: str) -> str | None:
 
 
 async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow | None,
-                  outcome: _Outcome, *, model: str, ledger_id: str, batch: bool,
-                  report: ExtractReport) -> None:
+                  outcome: _Outcome, *, settings: VendorkbSettings, ledger_id: str,
+                  batch: bool, report: ExtractReport) -> None:
     """Write one chunk's result in one transaction.
 
     The result's tokens and cost always count (they were paid for); in sync mode they are
@@ -313,7 +360,8 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
     'errored' extraction row is (re)written, and never twice by the same batch, so a resumed
     batch is idempotent and 'done' / 'failed' rows are final.
     """
-    cost = _cost(outcome, batch=batch)
+    model = settings.extract_model
+    cost = _cost(outcome, batch=batch, settings=settings)
     report.input_tokens += outcome.input_tokens
     report.output_tokens += outcome.output_tokens
     report.est_cost_usd += cost
@@ -465,9 +513,9 @@ async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, c
             outcome, fatal = await _call(client, chunk, settings)
             async with db:
                 await _record(conn, chunk.chunk_id, chunk, outcome,
-                              model=settings.extract_model, ledger_id=ledger_id, batch=False,
+                              settings=settings, ledger_id=ledger_id, batch=False,
                               report=report)
-            spent += _cost(outcome, batch=False)
+            spent += _cost(outcome, batch=False, settings=settings)
             if fatal is not None:
                 errors.append(fatal)
         except Exception as e:  # re-raised by the dispatcher once the others finish
@@ -482,7 +530,7 @@ async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, c
             if errors:
                 slots.release()
                 break
-            estimate = _estimate(build_request(chunk, settings), batch=False)
+            estimate = _estimate(build_request(chunk, settings), batch=False, settings=settings)
             if spent + in_flight + estimate > settings.extract_budget_usd:
                 slots.release()
                 report.stopped_by_budget = True
@@ -572,12 +620,12 @@ async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids
         seen.add(cid)
         outcome = (_parse(result.result.message) if result.result.type == "succeeded"
                    else _Outcome("errored", _batch_error(result.result)))
-        actual += _cost(outcome, batch=True)
-        await _record(conn, cid, rows.get(cid), outcome, model=settings.extract_model,
+        actual += _cost(outcome, batch=True, settings=settings)
+        await _record(conn, cid, rows.get(cid), outcome, settings=settings,
                       ledger_id=batch_id, batch=True, report=report)
     for cid in sorted(expected - seen):
         await _record(conn, cid, rows.get(cid), _Outcome("errored", "batch:no-result"),
-                      model=settings.extract_model, ledger_id=batch_id, batch=True,
+                      settings=settings, ledger_id=batch_id, batch=True,
                       report=report)
     await conn.execute(
         "UPDATE extract_batches SET status='processed', actual_cost_usd=%s, ended_at=now()"
@@ -607,7 +655,7 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
     estimate = spent
     for chunk in pending:
         request = build_request(chunk, settings)
-        estimate += _estimate(request, batch=True)
+        estimate += _estimate(request, batch=True, settings=settings)
         if estimate > settings.extract_budget_usd:
             report.stopped_by_budget = True
             log.warning("extract: budget $%.2f admits %d of %d chunks (spent $%.4f)",
@@ -624,7 +672,7 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
             "INSERT INTO extract_batches (batch_id, extractor_model, prompt_version, chunk_ids,"
             " est_cost_usd, status) VALUES (%s,%s,%s,%s,%s,'submitted')",
             (batch.id, settings.extract_model, PROMPT_VERSION, chunk_ids,
-             sum(_estimate(r, batch=True) for _, r in group)))
+             sum(_estimate(r, batch=True, settings=settings) for _, r in group)))
         log.info("extract: submitted batch %s (%d requests)", batch.id, len(group))
         await _process_batch(conn, batch.id, chunk_ids, client=client, settings=settings,
                              report=report, poll_seconds=poll_seconds)
@@ -641,6 +689,7 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
     if mode == "batch" and settings.extract_backend != "anthropic":
         raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
                          " sync mode (OpenRouter's ':batch' model is already half price)")
+    price_per_mtok(settings.extract_model, settings)  # refuse a model whose spend can't be capped
     ids = list(dict.fromkeys(str(uuid.UUID(str(i))) for i in chunk_ids))
     report = ExtractReport(chunks=len(ids))
     cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
