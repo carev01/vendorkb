@@ -17,9 +17,7 @@ _CROSS_VENDOR = re.compile(
     r"|\b(which|what|any|other|different|competing) vendor\b(?!-)"
     r"|\bacross (\w+ )?(vendors|providers|clouds|platforms|products|solutions)\b"
     r"|\bthird[- ]party (vendors?|tools|products|solutions|backup)\b"
-    r"|\b(all|other|alternative|competing) (backup )?(products|solutions|vendors)\b"
-    r"|\bwhich (of (these|the documented) )?(backup )?(vendors|products)\b"
-    r"|\b(what|any) products\b",
+    r"|\b(all|other|alternative|competing) (backup )?(products|solutions|vendors)\b",
     re.IGNORECASE)
 
 
