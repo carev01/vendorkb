@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import weakref
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -15,6 +16,9 @@ RERANK_CANDIDATES = 40
 # RRF weight of the full-text ranking (the vector ranking weighs 1.0). Read at call time, so
 # an eval can set ``search.FTS_WEIGHT`` to try down-weighting keyword search.
 FTS_WEIGHT = 1.0
+# Rows of the one corpus-wide vector query an enumeration makes over all its vendors; a vendor
+# with fewer than its share there gets its own scoped query (vendor_candidates).
+ENUM_VEC_POOL = 2000
 # The live column, and the candidate column `vendorkb reembed` fills for an embedding A/B.
 VECTOR_COLUMNS = ("embedding", "embedding_next")
 
@@ -85,11 +89,23 @@ _TSQUERY = ("NULLIF(replace(websearch_to_tsquery('english', %s)::text, ' & ', ' 
             "::tsquery")
 
 
+_PGVECTOR_VERSION: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+async def _pgvector_version(conn: psycopg.AsyncConnection) -> tuple[int, ...]:
+    """The pgvector version, read once per connection."""
+    ver = _PGVECTOR_VERSION.get(conn)
+    if ver is None:
+        cur = await conn.execute("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+        row = await cur.fetchone()
+        ver = tuple(int(x) for x in (row[0] if row else "0").split(".")[:2])
+        _PGVECTOR_VERSION[conn] = ver
+    return ver
+
+
 async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) -> list[tuple]:
     """Vector query with HNSW iterative scan, so a WHERE filter cannot starve the result."""
-    cur = await conn.execute("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
-    row = await cur.fetchone()
-    ver = tuple(int(x) for x in (row[0] if row else "0").split(".")[:2])
+    ver = await _pgvector_version(conn)
     async with conn.transaction():
         if ver >= (0, 8):
             await conn.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
@@ -97,6 +113,14 @@ async def _vector_rows(conn: psycopg.AsyncConnection, sql: str, params: list) ->
             await conn.execute("SET LOCAL hnsw.ef_search = 1000")
         cur = await conn.execute(sql, params)
         return await cur.fetchall()
+
+
+def _vec_sql(vector_column: str, where: str) -> str:
+    # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
+    # there forces an exact scan); the outer sort makes the order of equal distances stable.
+    return (f"SELECT * FROM (SELECT {_COLS}, c.{vector_column} <=> %s AS dist "
+            f"FROM chunks c JOIN documents d USING (doc_id) WHERE true{where} "
+            f"ORDER BY c.{vector_column} <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
 
 
 async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float], *,
@@ -114,11 +138,7 @@ async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
                f"(SELECT {_TSQUERY} AS tsq) q "
                "WHERE c.tsv @@ q.tsq" + where +
                " ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id LIMIT %s")
-    # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
-    # there forces an exact scan); the outer sort makes the order of equal distances stable.
-    vec_sql = (f"SELECT * FROM (SELECT {_COLS}, c.{vector_column} <=> %s AS dist "
-               f"FROM chunks c JOIN documents d USING (doc_id) WHERE true{where} "
-               f"ORDER BY c.{vector_column} <=> %s LIMIT %s) t ORDER BY dist, chunk_id")
+    vec_sql = _vec_sql(vector_column, where)
     cur = await conn.execute(fts_sql, [query, *fparams, FTS_LIMIT])
     fts_rows = await cur.fetchall()
     vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
@@ -127,6 +147,50 @@ async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     order = rrf([[r[0] for r in fts_rows], [r[0] for r in vec_rows]],
                 weights=[FTS_WEIGHT, 1.0])
     return [_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)]
+
+
+async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
+                            vendors: list[str], *, limit: int) -> dict[str, list[Hit]]:
+    """``hybrid_candidates`` for every vendor at once, keyed by vendor (vendors with no
+    candidates are absent), each list in its own RRF order cut to ``limit``.
+
+    The statement count does not grow with the vendor count: ONE full-text query ranked once
+    and cut per vendor, ONE vector query over all the vendors (``ENUM_VEC_POOL`` rows), then a
+    scoped vector query only for each vendor short of ``limit`` rows in that pool (a small
+    vendor, so a cheap scan). Per-vendor scoped searches cost ~4 s each on the full corpus,
+    the OR'd full-text query being a parallel seq scan every time."""
+    vendors = list(dict.fromkeys(vendors))
+    if not vendors:
+        return {}
+    fts_sql = (f"SELECT * FROM (SELECT {_COLS}, row_number() OVER (PARTITION BY d.vendor "
+               "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
+               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q "
+               "WHERE c.tsv @@ q.tsq AND d.vendor = ANY(%s)) t "
+               "WHERE rn <= %s ORDER BY vendor, rn")
+    cur = await conn.execute(fts_sql, [query, list(vendors), limit])
+    fts: dict[str, list[tuple]] = {}
+    for r in await cur.fetchall():
+        fts.setdefault(r[4], []).append(r)
+
+    vec: dict[str, list[tuple]] = {v: [] for v in vendors}
+    where = " AND d.vendor = ANY(%s)"
+    for r in await _vector_rows(conn, _vec_sql("embedding", where),
+                                [Vector(qvec), list(vendors), Vector(qvec), ENUM_VEC_POOL]):
+        if len(vec[r[4]]) < limit:
+            vec[r[4]].append(r)
+    for v in vendors:
+        if len(vec[v]) < limit:
+            vec[v] = await _vector_rows(conn, _vec_sql("embedding", where),
+                                        [Vector(qvec), [v], Vector(qvec), limit])
+
+    out: dict[str, list[Hit]] = {}
+    for v in vendors:
+        rows = {r[0]: r for r in [*fts.get(v, []), *vec[v]]}
+        order = rrf([[r[0] for r in fts.get(v, [])], [r[0] for r in vec[v]]],
+                    weights=[FTS_WEIGHT, 1.0])
+        if order:
+            out[v] = [_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)]
+    return out
 
 
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
