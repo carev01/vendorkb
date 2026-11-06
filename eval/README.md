@@ -170,3 +170,8 @@ summary: enumeration vendor recall and noise, comparison facet recall, single-ve
 multi-article pool recall, rerank tokens per question, p50/p90 latency per shape. Without
 `--rerank` the pool is the 40 RRF candidates; with it (or `--legacy --rerank`) it is the
 reranked top 10.
+
+`score` appends each question to `OUT.jsonl` as it finishes (`--resume` skips those already
+done there; errored and rerank-failed ones rerun). With `--rerank` it exits 1 if any question
+was not actually reranked (`rerank_failures` in the summary). Enumeration recall and noise cover
+labelled questions only (`n_unlabelled` counts the rest); `n_errors` counts failed questions.

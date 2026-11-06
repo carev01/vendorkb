@@ -103,17 +103,21 @@ def summarize(results: list[dict], *, rerank: bool) -> dict:
     """Metrics per split (calibration = holdout false, holdout = holdout true)."""
     out: dict = {}
     for split, flag in (("calibration", False), ("holdout", True)):
-        rs = [r for r in results if bool(r.get("holdout")) == flag]
-        if not rs:
+        all_rs = [r for r in results if bool(r.get("holdout")) == flag]
+        if not all_rs:
             continue
-        s: dict = {}
+        rs = [r for r in all_rs if "error" not in r]
+        s: dict = {"n_errors": len(all_rs) - len(rs)}
         enum = [r for r in rs if r.get("shape") == "enumeration" and "vendor_recall" in r]
         if enum:
-            scored = [r["vendor_recall"] for r in enum if r["vendor_recall"] is not None]
-            s["enumeration"] = {"n": len(enum), "n_scored": len(scored),
-                                "vendor_recall": _mean(scored),
-                                "noise_per_question": _mean(
-                                    [len(r["vendor_noise"]) for r in enum])}
+            # recall and noise cover labelled questions only (expected vendors beyond the
+            # unclear ones); an unlabelled question's every hit vendor would count as noise
+            labelled = [r for r in enum if r["vendor_recall"] is not None]
+            s["enumeration"] = {
+                "n": len(enum), "n_scored": len(labelled),
+                "n_unlabelled": len(enum) - len(labelled),
+                "vendor_recall": _mean([r["vendor_recall"] for r in labelled]),
+                "noise_per_question": _mean([len(r["vendor_noise"]) for r in labelled])}
         comp = [r for r in rs if r.get("shape") == "comparison" and "facet_recall" in r]
         if comp:
             scored = [r["facet_recall"] for r in comp if r["facet_recall"] is not None]
@@ -128,6 +132,7 @@ def summarize(results: list[dict], *, rerank: bool) -> dict:
                           "recall@10": _mean([1.0 if v and v <= 10 else 0.0 for v in ranks])}
         if rerank:
             s["rerank_tokens_per_question"] = _mean([r.get("rerank_tokens", 0) for r in rs])
+            s["rerank_failures"] = sum(1 for r in rs if r.get("rerank_ok") is False)
         lat: dict = {}
         for shape in sorted({r["shape"] for r in rs if "latency_s" in r}):
             vals = [r["latency_s"] for r in rs if r["shape"] == shape and "latency_s" in r]
@@ -140,7 +145,8 @@ def summarize(results: list[dict], *, rerank: bool) -> dict:
 # ---------------------------------------------------------------- DB-backed pieces
 
 def _record(h) -> dict:
-    return {"chunk_id": h.chunk_id, "doc_id": h.doc_id, "title": h.title,
+    return {"chunk_id": h.chunk_id, "doc_id": h.doc_id, "vendor": h.vendor,
+            "product": h.product, "title": h.title,
             "section_path": h.section_path, "text": h.text, "url": h.url}
 
 
@@ -173,81 +179,100 @@ async def _single(conn, embedder, question, scope_index, *, legacy: bool,
         k = 10 if rerank else RERANK_CANDIDATES
 
         async def run(v, p):
-            return (await search_docs(conn, question, embedder=embedder, reranker=reranker,
-                                      vendor=v or None, product=p or None, k=k,
-                                      use_rerank=rerank)).hits
-        hits = await run(vendors, products)
-        if (vendors or products) and not hits:
-            hits = await run([], [])
-        return hits
+            return await search_docs(conn, question, embedder=embedder, reranker=reranker,
+                                     vendor=v or None, product=p or None, k=k,
+                                     use_rerank=rerank)
+        res = await run(vendors, products)
+        if (vendors or products) and not res.hits:
+            res = await run([], [])
+        return res.hits, res.rerank_ok or not res.hits
     qvec = (await embedder.embed([question], input_type="query"))[0]
     hits = await hybrid_candidates(conn, question, qvec, vendor=vendors or None,
                                    product=products or None)
     if (vendors or products) and not hits:
         hits = await hybrid_candidates(conn, question, qvec)
-    return hits
+    return hits, True
 
 
 async def _run_question(conn, q: dict, *, embedder, reranker, scope_index: ScopeIndex,
                         args) -> dict:
     question = q["question"]
-    detected = detect_shape(question, scope_index)
-    shape = q.get("shape") or detected.kind
     rerank = bool(args.rerank)
-    res: dict = {"id": q["id"], "type": q["type"], "shape": shape,
-                 "holdout": bool(q.get("holdout")), "detected_shape": detected.kind}
+    res: dict = {"id": q["id"], "type": q["type"], "holdout": bool(q.get("holdout")),
+                 "shape": q.get("shape")}
     e0 = embedder.tokens_used
     r0 = reranker.tokens_used if reranker else 0
     t0 = time.perf_counter()
-    error = None
-    hits: list = []
     try:
+        detected = detect_shape(question, scope_index)
+        shape = q.get("shape") or detected.kind
+        res.update(shape=shape, detected_shape=detected.kind)
+        rerank_ok: bool | None = None
+        hits: list = []
         if args.legacy:
-            hits = await _single(conn, embedder, question, scope_index, legacy=True,
-                                 reranker=reranker, rerank=rerank)
+            hits, rerank_ok = await _single(conn, embedder, question, scope_index,
+                                            legacy=True, reranker=reranker, rerank=rerank)
         elif shape == "enumeration":
             er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
                                          vendors=scope_index.vendors, min_score=args.min_score,
                                          use_rerank=rerank)
-            hits = er.hits
+            hits, rerank_ok = er.hits, er.rerank_ok
             res.update(kept=len(er.kept), dropped=len(er.dropped), empty=len(er.empty),
-                       dropped_vendors=er.dropped, rerank_ok=er.rerank_ok)
+                       dropped_vendors=er.dropped)
         elif shape == "comparison":
             cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                       facets=detected.facets, use_rerank=rerank)
-            hits = cr.hits
-            res.update(facets=[n for _, n in detected.facets], facets_empty=cr.facets_empty,
-                       rerank_ok=cr.rerank_ok)
+            hits, rerank_ok = cr.hits, cr.rerank_ok or not cr.hits
+            res.update(facets=[n for _, n in detected.facets], facets_empty=cr.facets_empty)
+            if len(detected.facets) < 2:
+                res["shape_mismatch"] = "comparison with fewer than 2 detected facets"
         else:
-            hits = await _single(conn, embedder, question, scope_index, legacy=False,
-                                 reranker=reranker, rerank=rerank)
-    except Exception as exc:  # recorded, never swallowed silently: it is in the output
-        error = f"{type(exc).__name__}: {exc}"
+            hits, rerank_ok = await _single(conn, embedder, question, scope_index,
+                                            legacy=False, reranker=reranker, rerank=rerank)
+        if rerank:  # only meaningful when a rerank was asked for
+            res["rerank_ok"] = bool(rerank_ok)
+        res["pool_depth"] = "top10-reranked" if rerank else f"top{RERANK_CANDIDATES}-rrf"
+        res["hit_doc_ids"] = [h.doc_id for h in hits]
+        res["hit_vendors"] = sorted({h.vendor for h in hits})
+
+        gold = _gold_ids(q)
+        if q["type"] == "cross_vendor" and shape == "enumeration":
+            expected = {e["vendor"] for e in q.get("expected_vendors") or []}
+            unclear = set(q.get("unclear_vendors") or [])
+            got = {h.vendor for h in hits}
+            res["vendor_recall"] = vendor_recall(expected, unclear, got)
+            res["vendor_noise"] = vendor_noise(expected, unclear, got)
+            res["missing_vendors"] = sorted(expected - unclear - got)
+        elif q["type"] == "cross_vendor" and shape == "comparison":
+            gbf = gold_by_facet(detected.facets, gold, await _doc_rows(conn, gold))
+            res["facet_recall"] = facet_recall(gbf, hits)
+            res["facets_without_gold"] = sorted(f for f, ids in gbf.items() if not ids)
+        elif q["type"] == "cross_vendor":
+            res["shape_mismatch"] = f"cross_vendor question resolved to shape {shape}"
+        if q["type"] in ("single_vendor", "multi_article") and gold:
+            res["pool_rank"] = first_gold([h.doc_id for h in hits], gold)
+    except Exception as exc:  # recorded in the output, never swallowed
+        res["error"] = f"{type(exc).__name__}: {exc}"
     res["latency_s"] = round(time.perf_counter() - t0, 3)
     res["rerank_tokens"] = (reranker.tokens_used - r0) if reranker else 0
     res["embed_tokens"] = embedder.tokens_used - e0
-    if error:
-        res["error"] = error
-        return res
-    res["hit_doc_ids"] = [h.doc_id for h in hits]
-    res["hit_vendors"] = sorted({h.vendor for h in hits})
-
-    gold = _gold_ids(q)
-    if q["type"] == "cross_vendor" and shape == "enumeration":
-        expected = {e["vendor"] for e in q.get("expected_vendors") or []}
-        unclear = set(q.get("unclear_vendors") or [])
-        got = {h.vendor for h in hits}
-        res["vendor_recall"] = vendor_recall(expected, unclear, got)
-        res["vendor_noise"] = vendor_noise(expected, unclear, got)
-        res["missing_vendors"] = sorted(expected - unclear - got)
-    elif q["type"] == "cross_vendor" and shape == "comparison":
-        facets = detected.facets
-        gbf = gold_by_facet(facets, gold, await _doc_rows(conn, gold))
-        res["facet_recall"] = facet_recall(gbf, hits)
-        res["facets_without_gold"] = sorted(f for f, ids in gbf.items() if not ids)
-    if q["type"] in ("single_vendor", "multi_article") and gold:
-        res["pool_rank"] = first_gold([h.doc_id for h in hits], gold)
     return res
+
+
+def load_done(path: Path) -> list[dict]:
+    """Results already written to the JSONL (errored and rerank-failed ones are not done: they run again).
+    A torn last line (killed mid-write) is ignored."""
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if "error" not in row and row.get("rerank_ok") is not False:
+            rows.append(row)
+    return rows
 
 
 # ---------------------------------------------------------------- commands
@@ -293,36 +318,52 @@ async def cmd_candidates(args, base: VendorkbSettings) -> int:
 
 async def cmd_score(args, base: VendorkbSettings) -> int:
     search.FTS_WEIGHT = args.fts_weight
+    if args.min_score != ENUMERATION_MIN_SCORE and not args.rerank:
+        print("warning: --min-score has no effect without --rerank", file=sys.stderr)
     questions = [q for q in _load(args.questions) if q["type"] != "unanswerable"]
     if args.question_ids:
         questions = [q for q in questions if q["id"] in set(args.question_ids)]
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    jsonl = out.with_suffix(out.suffix + "l")  # FILE.json -> FILE.jsonl
+    results: list[dict] = load_done(jsonl) if args.resume else []
+    # rewrite the JSONL so it holds exactly the kept rows, then append as questions finish
+    jsonl.write_text("".join(json.dumps(r) + "\n" for r in results), encoding="utf-8")
+    done = {r["id"] for r in results}
     conn = await connect(base.vendorkb_dsn)
-    results: list[dict] = []
     try:
         scope_index = await scope_index_from_db(conn)
         async with Embedder(base) as embedder:
             reranker = Reranker(base) if args.rerank else None
             try:
                 for q in questions:
-                    results.append(await _run_question(
-                        conn, q, embedder=embedder, reranker=reranker,
-                        scope_index=scope_index, args=args))
+                    if q["id"] in done:
+                        continue
+                    r = await _run_question(conn, q, embedder=embedder, reranker=reranker,
+                                            scope_index=scope_index, args=args)
+                    results.append(r)
+                    with jsonl.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(r) + "\n")
             finally:
                 if reranker:
                     await reranker.aclose()
     finally:
         await conn.close()
+    order = {q["id"]: i for i, q in enumerate(questions)}
+    results.sort(key=lambda r: order.get(r["id"], len(order)))
     report = {"mode": "legacy" if args.legacy else "new", "rerank": bool(args.rerank),
               "min_score": args.min_score, "fts_weight": args.fts_weight,
               "summary": summarize(results, rerank=bool(args.rerank)),
               "per_question": results}
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report["summary"], indent=2))
     errors = [r["id"] for r in results if "error" in r]
     if errors:
         print(f"errors on: {errors}", file=sys.stderr)
-    return 1 if errors else 0
+    failed = [r["id"] for r in results if r.get("rerank_ok") is False]
+    if failed:
+        print(f"RERANK FAILED (results not reranked) on: {failed}", file=sys.stderr)
+    return 1 if errors or failed else 0
 
 
 async def main(argv: list[str] | None = None) -> int:
@@ -339,6 +380,8 @@ async def main(argv: list[str] | None = None) -> int:
     s.add_argument("--min-score", type=float, default=ENUMERATION_MIN_SCORE)
     s.add_argument("--fts-weight", type=float, default=search.FTS_WEIGHT)
     s.add_argument("--question-ids", nargs="+")
+    s.add_argument("--resume", action="store_true",
+                   help="skip questions already (successfully) in OUT's .jsonl")
     s.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     base = VendorkbSettings()
