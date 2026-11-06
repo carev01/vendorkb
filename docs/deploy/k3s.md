@@ -241,6 +241,25 @@ uv run vendorkb stats
 uv run python eval/retrieval_compare.py   # see eval/README.md for arguments
 ```
 
+## Upgrading to taxonomy v2 (one-way)
+
+The first `init_schema` after deploying the taxonomy v2 image drops the v1 taxonomy tables
+(`features`, the v1 `targets`, `aliases`, `capabilities`) and creates the v2 ones. **This cannot
+be undone by an image rollback.** The previous image's `schema.sql` fails on a v2 database (it
+indexes `capabilities.feature_id`), so every sync run would fail. To go back, restore the
+database from a backup taken before the upgrade.
+
+Before upgrading:
+1. Take a database backup (`pg_dump` through the port-forward or `kubectl exec`).
+2. Check that nothing outside the v1 tables depends on them:
+   `SELECT classid::regclass, objid, refobjid::regclass FROM pg_depend WHERE refobjid IN
+   ('features'::regclass, 'capabilities'::regclass);`
+3. Check `\d raw_claims`. The v3 claim columns were added to production by hand before the
+   upgrade. `kind` must be `NOT NULL DEFAULT 'capability'`.
+
+After upgrading, load the reviewed taxonomy, map, and build capabilities (`vendorkb taxonomy
+load|map`, `vendorkb capabilities build`).
+
 ## Development access
 
 ```

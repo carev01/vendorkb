@@ -139,10 +139,13 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     not aliased. Add aliases, or adjudicate offerings like dimensions.
 22. **Production rollout of v2.** The order matters, because the branch's `init_schema` drops
     the v1 tables:
-    1. Check `pg_depend` for objects depending on the v1 tables.
-    2. Merge and deploy.
-    3. Load the reviewed taxonomy, then map and build capabilities.
-    4. Re-measure findability.
+    1. Take a database backup first. The upgrade is one-way: the old image's schema fails on a
+       v2 database, so an image rollback breaks every sync run (see `docs/deploy/k3s.md`,
+       "Upgrading to taxonomy v2").
+    2. Check `pg_depend` for objects depending on the v1 tables.
+    3. Merge and deploy.
+    4. Load the reviewed taxonomy, then map and build capabilities.
+    5. Re-measure findability.
 
     The teacher and precision claims are already in production under claims-v3 and claims-v3.1.
 23. **Persist mapper adjudications** so re-runs and a lower `--max-usd` do not redo paid calls.
