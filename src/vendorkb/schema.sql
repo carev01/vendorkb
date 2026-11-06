@@ -169,6 +169,56 @@ ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS model_quote text;
 CREATE INDEX IF NOT EXISTS rejected_claims_extraction_idx ON rejected_claims (extraction_id);
 CREATE INDEX IF NOT EXISTS rejected_claims_chunk_idx ON rejected_claims (chunk_id);
 
+-- claims-v3 qualifiers (``claims.extract.CLAIM_SCHEMA``). Rows from earlier prompt versions
+-- keep kind 'capability' and NULL for the rest. The checks mirror KIND_VALUES,
+-- AVAILABILITY_VALUES, DEFAULT_STATE_VALUES and BOUND_VALUES; rejected_claims has the same
+-- columns with no checks (a claim can be rejected for an invalid value).
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'capability';
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_scope text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS offering text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS edition text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS availability text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS default_state text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS value double precision;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS unit text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS bound text;
+-- Each check added only when absent (never re-added on every init_schema).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_kind_check'
+                     AND conrelid = 'raw_claims'::regclass) THEN
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_kind_check
+            CHECK (kind IN ('capability', 'licensing', 'service'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_availability_check'
+                     AND conrelid = 'raw_claims'::regclass) THEN
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_availability_check
+            CHECK (availability IN ('generally_available', 'preview', 'early_access',
+                                    'limited_availability', 'planned', 'deprecated',
+                                    'unstated'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_default_state_check'
+                     AND conrelid = 'raw_claims'::regclass) THEN
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_default_state_check
+            CHECK (default_state IN ('on', 'off'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_bound_check'
+                     AND conrelid = 'raw_claims'::regclass) THEN
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_bound_check
+            CHECK (bound IN ('max', 'min', 'exact'));
+    END IF;
+END
+$$;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS kind text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS target_scope text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS offering text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS edition text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS availability text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS default_state text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS value double precision;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS unit text;
+ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS bound text;
+
 -- Taxonomy, loaded from taxonomy/taxonomy.yaml (the source of truth is git).
 CREATE TABLE IF NOT EXISTS features (
     feature_id text PRIMARY KEY,

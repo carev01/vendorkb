@@ -40,7 +40,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeGuard, cast
 
 import anthropic
 import openai
@@ -53,7 +53,7 @@ from vendorkb.config import VendorkbSettings
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = "claims-v2"
+PROMPT_VERSION = "claims-v3"
 MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 # Errors that mean the reply was cut off at max_tokens ("length": OpenAI-compatible
 # finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets
@@ -61,6 +61,11 @@ MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 TRUNCATION_ERRORS = ("length", "max_tokens")
 MAX_ATTEMPTS = 3  # an errored chunk is 'failed' (never retried) after this many attempts
 SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
+KIND_VALUES = ("capability", "licensing", "service")
+AVAILABILITY_VALUES = ("generally_available", "preview", "early_access", "limited_availability",
+                       "planned", "deprecated", "unstated")
+DEFAULT_STATE_VALUES = ("on", "off")
+BOUND_VALUES = ("max", "min", "exact")
 LOCK_KEY = 0x766B63  # single-flight across extract runs (sync uses 0x766B62)
 SYNC_LEDGER_PREFIX = "sync-"
 
@@ -85,6 +90,33 @@ MAX_POLL_BACKOFF_SECONDS = 600.0
 
 _NULLABLE_STRING = {"anyOf": [{"type": "string"}, {"type": "null"}]}
 
+
+def _enum(values: tuple[str, ...]) -> dict[str, Any]:
+    return {"type": "string", "enum": list(values)}
+
+
+def _nullable_enum(values: tuple[str, ...]) -> dict[str, Any]:
+    return {"anyOf": [_enum(values), {"type": "null"}]}
+
+
+# One claim's fields, in the order the model writes them (and ``validate_claim`` checks them).
+_CLAIM_PROPERTIES: dict[str, Any] = {
+    "kind": _enum(KIND_VALUES),
+    "capability": {"type": "string"},
+    "target": _NULLABLE_STRING,
+    "target_scope": _NULLABLE_STRING,
+    "support": _enum(SUPPORT_VALUES),
+    "offering": _NULLABLE_STRING,
+    "edition": _NULLABLE_STRING,
+    "availability": _enum(AVAILABILITY_VALUES),
+    "default_state": _nullable_enum(DEFAULT_STATE_VALUES),
+    "value": {"anyOf": [{"type": "number"}, {"type": "null"}]},
+    "unit": _NULLABLE_STRING,
+    "bound": _nullable_enum(BOUND_VALUES),
+    "conditions": _NULLABLE_STRING,
+    "evidence_quote": {"type": "string"},
+}
+
 CLAIM_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -92,15 +124,8 @@ CLAIM_SCHEMA: dict[str, Any] = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {
-                    "capability": {"type": "string"},
-                    "target": _NULLABLE_STRING,
-                    "support": {"type": "string", "enum": list(SUPPORT_VALUES)},
-                    "conditions": _NULLABLE_STRING,
-                    "evidence_quote": {"type": "string"},
-                },
-                "required": ["capability", "target", "support", "conditions",
-                             "evidence_quote"],
+                "properties": _CLAIM_PROPERTIES,
+                "required": list(_CLAIM_PROPERTIES),
                 "additionalProperties": False,
             },
         },
@@ -109,23 +134,71 @@ CLAIM_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-SYSTEM_PROMPT = """\
-You extract capability claims from one chunk of a backup vendor's product documentation.
+_ENUMS: dict[str, tuple[tuple[str, ...], bool]] = {  # field -> (values, nullable)
+    "kind": (KIND_VALUES, False),
+    "support": (SUPPORT_VALUES, False),
+    "availability": (AVAILABILITY_VALUES, False),
+    "default_state": (DEFAULT_STATE_VALUES, True),
+    "bound": (BOUND_VALUES, True),
+}
 
-A capability is something the product itself can do: a feature, a supported workload or \
-platform, a storage target, a limit, or a security control. Each claim has:
-- capability: a short, normalized phrase for the capability, e.g. "immutable backups", \
-"instant VM recovery", "object lock", "file-level restore", "maximum retention period". \
-Lowercase, no product names.
-- target: the workload, platform or storage the capability applies to, as a short phrase \
+
+def _is_number(value: Any) -> TypeGuard[int | float]:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def validate_claim(claim: dict[str, Any]) -> str | None:
+    """``"schema:<field>"`` for the first field (in schema order) that is missing or invalid.
+
+    Every field is required, as in ``CLAIM_SCHEMA``; ``capability`` must be non-blank. The
+    evidence quote's content is the gate's job, not this check's.
+    """
+    for key, spec in _CLAIM_PROPERTIES.items():
+        if key not in claim:
+            return f"schema:{key}"
+        value = claim[key]
+        if key in _ENUMS:
+            values, nullable = _ENUMS[key]
+            ok = value in values or (nullable and value is None)
+        elif key == "value":
+            ok = value is None or _is_number(value)
+        elif spec == _NULLABLE_STRING:
+            ok = value is None or isinstance(value, str)
+        else:  # capability, evidence_quote
+            ok = isinstance(value, str) and (key != "capability" or bool(value.strip()))
+        if not ok:
+            return f"schema:{key}"
+    return None
+
+
+SYSTEM_PROMPT = """\
+You extract claims from one chunk of a backup vendor's product documentation.
+
+A claim is one fact the chunk states about the product. Each claim has:
+- kind: one of
+  - "capability": what the product itself does, or explicitly does not do: a feature, a \
+supported workload or platform, a storage target, a limit, or a security control.
+  - "licensing": the license metric (per user, per VM, per TB), what an edition or license \
+includes, free tiers or editions, license portability.
+  - "service": technical support terms, certifications and compliance attestations, release \
+cadence, marketplace availability.
+- capability: a short, normalized phrase for the fact, e.g. "immutable backups", "instant VM \
+recovery", "object lock", "file-level restore", "maximum retention period", "per-user \
+licensing", "soc 2 type ii attestation". Lowercase, no product names.
+- target: the workload, platform, service or storage the claim applies to, as a short phrase \
 (e.g. "Amazon RDS", "Microsoft 365", "VMware vSphere", "S3-compatible storage"), or null when \
-the capability is general. Never the product's own components (its proxy, agent, appliance, \
+the claim is general. Never the product's own components (its proxy, agent, appliance, \
 gateway, console or a version number): name what they protect or connect to, or use null.
+- target_scope: the object type or variant within the target, e.g. "users", "conditional \
+access policies", "sandbox orgs", "FSx for Lustre", "RDS for Oracle", or null when the claim \
+covers the whole target. Give one claim per object type: a sentence that lists six object types \
+gives six claims, each with one target_scope and the same evidence_quote. Never a setting or \
+one of the product's own components.
 - support: one of
   - "supported": the text says the product does it. A capability is still "supported" when \
 it needs prerequisites, setup steps, permissions, an API or service enabled, a license or a \
-minimum version, or is off by default and can be turned on. Put those requirements in \
-conditions.
+minimum version, or is off by default and can be turned on. Record those in conditions, \
+edition or default_state. A licensing or service fact the text states is "supported".
   - "partial": the capability itself is restricted: it works for only part of the target \
 (some object types, some versions or editions, some regions or platforms), it is in preview, \
 beta or early access, or limited to some customers, or the text names a functional \
@@ -135,17 +208,39 @@ Never infer it from silence.
   - "unclear": the text names the capability but gives nothing showing the product does it. \
 Text that explains how to configure, use, size, manage or monitor the capability shows that \
 it does: that is "supported".
-- conditions: the prerequisites, limits, editions, versions or licensing the text attaches \
-to this claim, as a short phrase, or null. Put numeric limits here: "maximum retention \
-period" with conditions "up to 7 years". Only conditions the text ties to this capability; \
-do not carry over conditions from other sentences about other things.
+- offering: the vendor's offering or deployment variant, only when the text names one \
+narrower than the Product line, e.g. "Veeam Data Cloud", "self-managed", "Grid appliance", \
+"Express"; otherwise null. Never the product on the Product line, an edition or a version.
+- edition: the edition or license tier the text attaches to this claim, e.g. "Premium", \
+"Advanced and above", only when the text says so; otherwise null. A license metric such as \
+"per user" is not an edition.
+- availability: "generally_available", "preview", "early_access", "limited_availability", \
+"planned" or "deprecated", only when the text says so; otherwise "unstated". A plain \
+present-tense statement ("Backups of Amazon RDS are supported") is "unstated", not \
+"generally_available".
+- default_state: "on" or "off" only when the text says the capability is enabled or disabled \
+by default; otherwise null. "You can enable compression" says nothing about the default: null.
+- value: the number for a limit or a measure, only when the evidence_quote states it \
+explicitly, e.g. 99 for "retention of up to 99 years", 10 for "an RPO of 10 minutes"; \
+otherwise null. Never a version, build or step number, and never a number you work out.
+- unit: the unit of value, e.g. "years", "minutes", "regions", "records per job"; null when \
+value is null.
+- bound: "max", "min" or "exact" for value; null when value is null. "Up to 99 years" is \
+"max". "As often as every 15 minutes" is "min" (the smallest interval), not "max". A plain \
+number is "exact".
+- conditions: everything else the text attaches to this claim, as a short phrase, or null: \
+platforms ("VMware and Hyper-V only"), prerequisites, permissions, a minimum version, a \
+dependency on another product or service that the text states outright, or the reason for a \
+"not_supported". Never infer a dependency the text does not state, and do not repeat what the \
+other fields hold. Only conditions the text ties to this claim; do not carry over conditions \
+from other sentences about other things.
 - evidence_quote: the full sentence, or the full table row including its row label, copied \
-exactly from the chunk text, that states the capability; it must contain the words naming the \
-capability and the target. Never quote a bare cell such as "Yes" or "Supported". At most \
-about 300 characters. Copy it character for character; do not paraphrase, shorten with \
-ellipses, or join separate sentences.
+exactly from the chunk text, that states the claim; it must contain the words naming the \
+capability and the target, and the number when value is set. Never quote a bare cell such as \
+"Yes" or "Supported". At most about 300 characters. Copy it character for character; do not \
+paraphrase, shorten with ellipses, or join separate sentences.
 
-Not capabilities, so never extract them:
+Never extract these:
 - procedures and steps: how to install, configure or troubleshoot, unless a sentence states \
 what the product can do;
 - actions the user performs in another system (a workaround in Salesforce, a setting in \
@@ -153,14 +248,15 @@ Azure), even when they are needed for the product to work;
 - known issues, bugs, fixed defects and odd behaviour (data converted on restore, a job that \
 fails in some case). A sentence explicitly saying something is not supported is still a \
 "not_supported" claim;
-- licensing, billing, subscription terms and how licenses are counted;
+- prices, discounts and billing amounts: a licensing claim says what a license covers or how \
+it is counted, never a price;
 - announcements about documentation, blueprints, guides or training being available;
 - version and build tables that list component releases, not what the product protects.
 
 The Vendor, Product and Version lines before the chunk are context, not chunk text: never \
 quote them. The claims are about that vendor and product. Extract only what the chunk \
-states, one claim per distinct capability and target. Skip navigation text and \
-boilerplate. If the chunk states no capability, return {"claims": []}.\
+states, one claim per distinct fact, target and object type. Skip navigation text and \
+boilerplate. If the chunk states no claim, return {"claims": []}.\
 """
 
 
@@ -330,23 +426,35 @@ def _parse_openai(response: Any) -> _Outcome:
 
 
 def _judge(claim: Any, text: str) -> gate.GateResult:
-    """Validate one claim's fields, then gate its evidence quote against the chunk."""
+    """Validate one claim's fields (``validate_claim``), then gate its evidence quote."""
     if not isinstance(claim, dict):
-        return gate.GateResult(False, "invalid-claim")
-    if not isinstance(claim.get("capability"), str) or not claim["capability"].strip():
-        return gate.GateResult(False, "invalid-claim:capability")
-    if claim.get("support") not in SUPPORT_VALUES:
-        return gate.GateResult(False, "invalid-claim:support")
-    for key in ("target", "conditions"):
-        if claim.get(key) is not None and not isinstance(claim[key], str):
-            return gate.GateResult(False, f"invalid-claim:{key}")
-    quote = claim.get("evidence_quote")
-    return gate.match(quote if isinstance(quote, str) else "", text)
+        return gate.GateResult(False, "schema:claim")
+    invalid = validate_claim(claim)
+    if invalid is not None:
+        return gate.GateResult(False, invalid)
+    return gate.match(claim["evidence_quote"], text)
 
 
 def _field(claim: Any, key: str) -> str | None:
     value = claim.get(key) if isinstance(claim, dict) else None
     return value if isinstance(value, str) else (None if value is None else str(value))
+
+
+def _number(claim: Any) -> float | None:
+    """``value`` when it is a number (a rejected claim's may not be), else None."""
+    value = claim.get("value") if isinstance(claim, dict) else None
+    return float(value) if _is_number(value) else None
+
+
+# The v3 qualifier columns, in the same order in raw_claims and rejected_claims inserts.
+_V3_TEXT = ("kind", "target_scope", "offering", "edition", "availability", "default_state")
+_V3_TAIL = ("unit", "bound")
+V3_COLUMNS = ", ".join((*_V3_TEXT, "value", *_V3_TAIL))
+
+
+def _v3_values(claim: Any) -> tuple[str | float | None, ...]:
+    return (*(_field(claim, k) for k in _V3_TEXT), _number(claim),
+            *(_field(claim, k) for k in _V3_TAIL))
 
 
 async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow | None,
@@ -409,21 +517,25 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
                 await c.executemany(
                     "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor, product,"
                     " version, capability_raw, target_raw, support, conditions, evidence_quote,"
-                    " model_quote, gate, extractor_model, prompt_version)"
-                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    f" model_quote, gate, extractor_model, prompt_version, {V3_COLUMNS})"
+                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                    " %s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, cl["capability"].strip(), _field(cl, "target"),
                       cl["support"], _field(cl, "conditions"), r.span,
-                      cl["evidence_quote"], r.reason, model, PROMPT_VERSION)
+                      cl["evidence_quote"], r.reason, model, PROMPT_VERSION, *_v3_values(cl))
                      for cl, r in accepted])
             if rejected:
                 await c.executemany(
                     "INSERT INTO rejected_claims (claim_id, extraction_id, chunk_id, vendor,"
                     " product, version, capability_raw, target_raw, support, conditions,"
-                    " evidence_quote, model_quote, reason, extractor_model, prompt_version)"
-                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    " evidence_quote, model_quote, reason, extractor_model, prompt_version,"
+                    f" {V3_COLUMNS})"
+                    " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                    " %s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     [(uuid.uuid4(), *meta, _field(cl, "capability"), _field(cl, "target"),
                       _field(cl, "support"), _field(cl, "conditions"), None,
-                      _field(cl, "evidence_quote"), r.reason, model, PROMPT_VERSION)
+                      _field(cl, "evidence_quote"), r.reason, model, PROMPT_VERSION,
+                      *_v3_values(cl))
                      for cl, r in rejected])
     if status == "done":
         report.done += 1

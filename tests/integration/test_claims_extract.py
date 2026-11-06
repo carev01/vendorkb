@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import anthropic
 import httpx
+import psycopg
 import pytest
 from pgvector import Vector
 
@@ -15,13 +16,17 @@ TEXT = ("Protecting Databases / Amazon RDS\n\n"
         "Backups of Amazon RDS for PostgreSQL instances are supported with immutable "
         "snapshots. Cross-region copy requires the Enterprise edition.")
 
-GOOD = {"capability": "immutable snapshots", "target": "Amazon RDS for PostgreSQL",
+# The v3 qualifiers, all unstated: every claim in a reply carries every field.
+V3 = {"kind": "capability", "target_scope": None, "offering": None, "edition": None,
+      "availability": "unstated", "default_state": None, "value": None, "unit": None,
+      "bound": None}
+GOOD = {**V3, "capability": "immutable snapshots", "target": "Amazon RDS for PostgreSQL",
         "support": "supported", "conditions": None,
         "evidence_quote": "Backups of Amazon RDS for PostgreSQL instances are supported"}
-PARTIAL = {"capability": "cross-region copy", "target": None, "support": "partial",
+PARTIAL = {**V3, "capability": "cross-region copy", "target": None, "support": "partial",
            "conditions": "Enterprise edition",
            "evidence_quote": "cross-region   copy requires the ENTERPRISE edition."}
-INVENTED = {"capability": "tape backup", "target": None, "support": "supported",
+INVENTED = {**V3, "capability": "tape backup", "target": None, "support": "supported",
             "conditions": None, "evidence_quote": "Tape backup is fully supported for LTO-9."}
 
 
@@ -135,8 +140,7 @@ def test_schema_and_request_shape():
     item = extract.CLAIM_SCHEMA["properties"]["claims"]["items"]
     assert extract.CLAIM_SCHEMA["additionalProperties"] is False
     assert item["additionalProperties"] is False
-    assert set(item["required"]) == set(item["properties"]) == {
-        "capability", "target", "support", "conditions", "evidence_quote"}
+    assert set(item["required"]) == set(item["properties"])
     assert item["properties"]["support"]["enum"] == [
         "supported", "partial", "not_supported", "unclear"]
     chunk = extract.ChunkRow(chunk_id="c1", doc_id="d1", vendor="rubrik", product=None,
@@ -149,8 +153,95 @@ def test_schema_and_request_shape():
     assert "thinking" not in req and "temperature" not in req
     assert req["messages"][0]["role"] == "user" and TEXT in req["messages"][0]["content"]
     assert "rubrik" in req["messages"][0]["content"]
-    assert extract.PROMPT_VERSION == "claims-v2"
+    assert extract.PROMPT_VERSION == "claims-v3"
 
+
+
+def test_schema_has_the_v3_fields():
+    item = extract.CLAIM_SCHEMA["properties"]["claims"]["items"]
+    assert item["required"] == [
+        "kind", "capability", "target", "target_scope", "support", "offering", "edition",
+        "availability", "default_state", "value", "unit", "bound", "conditions",
+        "evidence_quote"]
+    assert item["additionalProperties"] is False
+    props = item["properties"]
+    assert props["kind"] == {"type": "string", "enum": ["capability", "licensing", "service"]}
+    assert props["availability"]["enum"] == list(extract.AVAILABILITY_VALUES)
+    assert "unstated" in extract.AVAILABILITY_VALUES
+    for key, values in (("default_state", ["on", "off"]), ("bound", ["max", "min", "exact"])):
+        assert props[key] == {"anyOf": [{"type": "string", "enum": values},
+                                        {"type": "null"}]}
+    assert props["value"] == {"anyOf": [{"type": "number"}, {"type": "null"}]}
+
+
+def test_validate_claim_names_the_first_invalid_field():
+    assert extract.validate_claim(GOOD) is None
+    assert extract.validate_claim({**GOOD, "kind": "pricing"}) == "schema:kind"
+    assert extract.validate_claim({**GOOD, "capability": " "}) == "schema:capability"
+    assert extract.validate_claim({**GOOD, "availability": None}) == "schema:availability"
+    assert extract.validate_claim({**GOOD, "default_state": "enabled"}) == \
+        "schema:default_state"
+    assert extract.validate_claim({**GOOD, "value": True}) == "schema:value"
+    assert extract.validate_claim({**GOOD, "value": 1.5, "bound": "up to"}) == "schema:bound"
+    assert extract.validate_claim({**GOOD, "unit": 7}) == "schema:unit"
+    missing = dict(GOOD)
+    del missing["target_scope"]
+    assert extract.validate_claim(missing) == "schema:target_scope"
+    # the first invalid field in schema order wins
+    assert extract.validate_claim({**GOOD, "kind": None, "value": "99"}) == "schema:kind"
+
+
+def test_prompt_states_the_v3_rules():
+    prompt = extract.SYSTEM_PROMPT
+    for phrase in ("licensing", "service", "one claim per object type", "never a price"):
+        assert phrase in prompt
+    assert "requires" not in prompt
+    for field in extract.CLAIM_SCHEMA["properties"]["claims"]["items"]["required"]:
+        assert f"- {field}:" in prompt
+
+
+async def test_v3_claim_fields_are_stored(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        claim = {**GOOD, "kind": "licensing", "target_scope": "users",
+                 "offering": "self-managed", "edition": "Premium",
+                 "availability": "preview", "default_state": "off", "value": 99,
+                 "unit": "years", "bound": "max"}
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [claim]})})
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.claims_accepted, report.claims_rejected) == (1, 0)
+        rows = await _rows(
+            conn, "SELECT kind, target_scope, offering, edition, availability, default_state,"
+            " value, unit, bound, prompt_version FROM raw_claims")
+        assert rows == [("licensing", "users", "self-managed", "Premium", "preview", "off",
+                         99.0, "years", "max", "claims-v3")]
+    finally:
+        await conn.close()
+
+
+async def test_invalid_qualifier_rejects_only_that_claim(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        bad = {**GOOD, "value": "99", "unit": "years", "bound": "max", "edition": "Premium"}
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [bad, PARTIAL]})})
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.claims_accepted, report.claims_rejected) == (1, 1)
+        assert await _rows(conn, "SELECT capability_raw, kind, availability"
+                                 " FROM raw_claims") == [
+            ("cross-region copy", "capability", "unstated")]
+        assert await _rows(
+            conn, "SELECT capability_raw, reason, evidence_quote, model_quote, kind, value,"
+            " unit, bound, edition FROM rejected_claims") == [
+            ("immutable snapshots", "schema:value", None, GOOD["evidence_quote"],
+             "capability", None, "years", "max", "Premium")]
+    finally:
+        await conn.close()
 
 async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn):
     conn = await connect(vkb_dsn)
@@ -936,6 +1027,38 @@ async def test_init_schema_keeps_the_status_check_and_indexes_the_cascades(vkb_d
         await conn.close()
 
 
+async def _v3_checks(conn):
+    return await _rows(conn, "SELECT conname, oid FROM pg_constraint"
+                             " WHERE conrelid = 'raw_claims'::regclass AND conname IN"
+                             " ('raw_claims_kind_check', 'raw_claims_availability_check',"
+                             " 'raw_claims_default_state_check', 'raw_claims_bound_check')"
+                             " ORDER BY conname")
+
+
+async def test_init_schema_upgrades_pre_v3_claims(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for table in ("raw_claims", "rejected_claims"):
+            await conn.execute(f"ALTER TABLE {table} DROP COLUMN kind, DROP COLUMN target_scope,"
+                               " DROP COLUMN offering, DROP COLUMN edition,"
+                               " DROP COLUMN availability, DROP COLUMN default_state,"
+                               " DROP COLUMN value, DROP COLUMN unit, DROP COLUMN bound")
+        _, ids = await _seed_regate(conn)  # claims-v1 rows, stored before v3
+        await init_schema(conn, embed_dim=768)
+        assert await _rows(conn, "SELECT DISTINCT kind, availability, value FROM raw_claims") \
+            == [("capability", None, None)]
+        checks = await _v3_checks(conn)
+        assert len(checks) == 4
+        await init_schema(conn, embed_dim=768)
+        assert await _v3_checks(conn) == checks  # not dropped and re-added
+        with pytest.raises(psycopg.errors.CheckViolation):
+            await conn.execute("UPDATE raw_claims SET bound = 'up to' WHERE claim_id = %s",
+                               (ids["good"],))
+    finally:
+        await conn.close()
+
+
 REGATE_TEXT = ("Agents\n\nInstant recovery is unsupported on Linux servers. Backups of Amazon "
                "RDS for PostgreSQL instances are supported with immutable snapshots.")
 
@@ -976,6 +1099,10 @@ async def test_regate_moves_claims_the_current_gate_rejects(vkb_dsn):
     try:
         await _fresh(conn)
         ext, ids = await _seed_regate(conn)
+        await conn.execute(
+            "UPDATE raw_claims SET kind='licensing', target_scope='users', offering='Express',"
+            " edition='Premium', availability='preview', default_state='off', value=99,"
+            " unit='years', bound='max' WHERE claim_id=%s", (ids["flip"],))
         dry = await regate.regate(conn, batch_size=2, dry_run=True)
         assert (dry.checked, dry.kept, dry.moved, dry.updated) == (3, 2, 1, 1)
         assert await _rows(conn, "SELECT count(*) FROM raw_claims") == [(3,)]
@@ -992,6 +1119,10 @@ async def test_regate_moves_claims_the_current_gate_rejects(vkb_dsn):
         assert cid == ids["flip"] and reason.startswith("regate:no-match")
         assert (evidence, model_quote, cap) == (None, "supported on Linux servers",
                                                 "instant recovery")
+        assert await _rows(conn, "SELECT kind, target_scope, offering, edition, availability,"
+                                 " default_state, value, unit, bound FROM rejected_claims") == [
+            ("licensing", "users", "Express", "Premium", "preview", "off", 99.0, "years",
+             "max")]
         assert await _rows(conn, "SELECT n_claims FROM extractions WHERE extraction_id=%s",
                            ext) == [(2,)]
         again = await regate.regate(conn)

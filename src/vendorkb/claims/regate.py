@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import psycopg
 
 from vendorkb.claims import gate
+from vendorkb.claims.extract import V3_COLUMNS
 
 
 @dataclass
@@ -62,11 +63,12 @@ async def regate(conn: psycopg.AsyncConnection, *, batch_size: int = 1000,
                 await c.executemany(
                     "INSERT INTO rejected_claims (claim_id, extraction_id, chunk_id, vendor,"
                     " product, version, capability_raw, target_raw, support, conditions,"
-                    " evidence_quote, model_quote, reason, extractor_model, prompt_version)"
+                    " evidence_quote, model_quote, reason, extractor_model, prompt_version,"
+                    f" {V3_COLUMNS})"
                     " SELECT claim_id, extraction_id, chunk_id, vendor, product, version,"
                     " capability_raw, target_raw, support, conditions, NULL,"
                     " coalesce(model_quote, evidence_quote), %s, extractor_model,"
-                    " prompt_version FROM raw_claims WHERE claim_id = %s"
+                    f" prompt_version, {V3_COLUMNS} FROM raw_claims WHERE claim_id = %s"
                     " ON CONFLICT (claim_id) DO NOTHING", moved)
                 await c.execute("DELETE FROM raw_claims WHERE claim_id = ANY(%s)",
                                 ([cid for _, cid in moved],))
