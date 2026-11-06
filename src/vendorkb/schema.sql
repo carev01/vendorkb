@@ -334,3 +334,34 @@ ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_method text
     CHECK (target_method IN ('alias', 'nn', 'unmapped'));
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_conf real;
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS mapped_version text;
+
+-- Taxonomy v2 mapping (taxonomy map, ``taxonomy.mapper``), on v3 claims only: the dimension,
+-- the target (target_id, kept from v1) with its class, variant and object type, and the
+-- offering and edition, under ``mapped_version``. ``dimension_method`` and ``target_method``
+-- are 'alias' (exact normalized alias), 'llm' (adjudicated among nearest candidates) or
+-- 'unmapped'; target_method is NULL for a claim with no target text. 'nn' stays allowed in
+-- target_method for v1 rows mapped before v2.
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS dimension_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS dimension_method text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS class_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS variant_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS object_type_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS offering_id text;
+ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS edition_id text;
+-- Each check added only when absent, or (target_method) when it predates 'llm'.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_dimension_method_check'
+                     AND conrelid = 'raw_claims'::regclass) THEN
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_dimension_method_check
+            CHECK (dimension_method IN ('alias', 'llm', 'unmapped'));
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'raw_claims_target_method_check'
+                     AND conrelid = 'raw_claims'::regclass
+                     AND pg_get_constraintdef(oid) LIKE '%llm%') THEN
+        ALTER TABLE raw_claims DROP CONSTRAINT IF EXISTS raw_claims_target_method_check;
+        ALTER TABLE raw_claims ADD CONSTRAINT raw_claims_target_method_check
+            CHECK (target_method IN ('alias', 'nn', 'llm', 'unmapped'));
+    END IF;
+END
+$$;

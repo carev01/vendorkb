@@ -77,16 +77,42 @@ def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     async def fake_load(conn, path):
         return {"version": "2-ab12cd34", "path": path}
 
-    async def fake_map(conn, *, embedder, threshold):
-        return mapper.MapReport(taxonomy_version="1", claims=int(threshold * 100))
+    async def fake_map(conn, *, embedder, client, settings, max_usd):
+        stubbed.update(map_backend=settings.map_backend,
+                       extract_backend=settings.extract_backend)
+        return mapper.MapReport(taxonomy_version="1", claims=int(max_usd * 100))
 
     monkeypatch.setattr(load, "load_taxonomy", fake_load)
     monkeypatch.setattr(mapper, "map_claims", fake_map)
     assert cli.main(["taxonomy", "load", "t.yaml"]) == 0
     assert json.loads(capsys.readouterr().out) == {"version": "2-ab12cd34", "path": "t.yaml"}
-    assert cli.main(["taxonomy", "map", "--threshold", "0.7"]) == 0
+    assert cli.main(["taxonomy", "map", "--max-usd", "0.7", "--backend", "openai"]) == 0
     assert json.loads(capsys.readouterr().out)["claims"] == 70
+    assert (stubbed["map_backend"], stubbed["extract_backend"]) == ("openai", "anthropic")
+    assert cli.main(["taxonomy", "map"]) == 0
+    assert json.loads(capsys.readouterr().out)["claims"] == 100  # default --max-usd 1.0
     assert stubbed["init_schema"]
+
+
+def test_taxonomy_map_exit_code_on_invalid_replies(stubbed, monkeypatch, capsys):
+    async def fake_map(conn, **kw):
+        return mapper.MapReport(llm_invalid=2)
+
+    monkeypatch.setattr(mapper, "map_claims", fake_map)
+    assert cli.main(["taxonomy", "map"]) == 1
+
+
+def test_taxonomy_map_client_uses_the_map_backend(stubbed, monkeypatch, capsys):
+    built = []
+    monkeypatch.setattr(cli, "_extract_client", lambda s: built.append(s.extract_backend))
+
+    async def fake_map(conn, **kw):
+        return mapper.MapReport()
+
+    monkeypatch.setattr(mapper, "map_claims", fake_map)
+    monkeypatch.setenv("MAP_BACKEND", "openai")
+    assert cli.main(["taxonomy", "map"]) == 0
+    assert built == ["openai"]
 
 
 def test_taxonomy_load_lists_every_problem(stubbed, monkeypatch, capsys):

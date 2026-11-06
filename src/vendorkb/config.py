@@ -57,6 +57,13 @@ class VendorkbSettings(BaseSettings):
     # both must be set (> 0) to take effect.
     extract_price_in_per_mtok: float = 0.0
     extract_price_out_per_mtok: float = 0.0
+    # Taxonomy map (v2): the model that adjudicates nearest-neighbour candidates for a claim's
+    # target and dimension (it may answer "none"), and how many candidates it sees. The
+    # openai backend reuses EXTRACT_BASE_URL / EXTRACT_API_KEY; concurrency is
+    # extract_concurrency. Price overrides: extract_price_*_per_mtok.
+    map_model: str = "claude-haiku-5-5"
+    map_backend: Literal["anthropic", "openai"] = "anthropic"
+    map_candidates: int = 5
 
 
 @lru_cache

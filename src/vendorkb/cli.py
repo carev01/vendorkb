@@ -228,7 +228,8 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
     from vendorkb.taxonomy import load, mapper, propose
 
     if args.backend:
-        settings = settings.model_copy(update={"extract_backend": args.backend})
+        key = "map_backend" if args.taxonomy_cmd == "map" else "extract_backend"
+        settings = settings.model_copy(update={key: args.backend})
     conn = await connect(settings.vendorkb_dsn)
     try:
         if args.taxonomy_cmd == "load":
@@ -251,11 +252,20 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
             return 0
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
-            async with Embedder(settings) as embedder:
-                report = await mapper.map_claims(conn, embedder=embedder,
-                                                 threshold=args.threshold)
+            # The map client is the extraction client built for MAP_BACKEND.
+            client = _extract_client(
+                settings.model_copy(update={"extract_backend": settings.map_backend}))
+            try:
+                async with Embedder(settings) as embedder:
+                    report = await mapper.map_claims(conn, embedder=embedder, client=client,
+                                                     settings=settings, max_usd=args.max_usd)
+            finally:
+                close = getattr(client, "close", None)
+                if close is not None:
+                    await close()
             print(json.dumps(dataclasses.asdict(report)))
-            return 0
+            # A budget stop is a clean exit; failed calls or unusable replies are not.
+            return 0 if report.llm_invalid == 0 else 1
         client = _extract_client(settings)
         try:
             async with Embedder(settings) as embedder:
@@ -366,10 +376,14 @@ def _parser() -> argparse.ArgumentParser:
     group.add_argument("--target", default=None, help="target id, alias or name")
     group.add_argument("--class", dest="cls", default=None, help="workload class id")
     t.set_defaults(backend=None)
-    t = tax.add_parser("map", help="map every raw claim to a feature and target")
-    t.add_argument("--threshold", type=float, default=0.80,
-                   help="minimum cosine for a nearest-neighbour match (default 0.80)")
-    t.set_defaults(backend=None)
+    t = tax.add_parser("map", help="map the v3 claims to taxonomy v2 (exact aliases, then "
+                                   "MAP_MODEL adjudication of the nearest candidates;"
+                                   " budget-capped)")
+    t.add_argument("--max-usd", type=float, default=1.0,
+                   help="stop adjudicating before the estimated spend exceeds this; the rest"
+                        " stay unmapped (default 1.0)")
+    t.add_argument("--backend", choices=("anthropic", "openai"), default=None,
+                   help="override MAP_BACKEND")
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")

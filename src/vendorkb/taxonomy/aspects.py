@@ -34,6 +34,12 @@ class Aspect:
     value_unit: str | None
 
 
+def dimension_applies(applies_to: list[str] | None, lineage: list[str]) -> bool:
+    """Whether a dimension with ``applies_to`` (NULL: every class) applies to the class whose
+    lineage (the class and its ancestors) is ``lineage``."""
+    return applies_to is None or any(entry in lineage for entry in applies_to)
+
+
 async def _target_class(conn: psycopg.AsyncConnection, target: str) -> str:
     cur = await conn.execute("SELECT class_id FROM targets WHERE target_id = %s", (target,))
     row = await cur.fetchone()
@@ -92,13 +98,11 @@ async def aspects(conn: psycopg.AsyncConnection, *, target: str | None = None,
                 d = dims[dimension_id]
                 out.append(Aspect("coverage", dimension_id, d[1], d[2], d[3], object_type, d[5]))
 
-    def applies(applies_to: list[str] | None) -> bool:
-        return applies_to is None or any(entry in lineage for entry in applies_to)
-
     def order(d: tuple) -> tuple[int, str]:
         return (FAMILIES.index(d[1]), d[0])
 
-    rest = [d for d in dims.values() if d[0] not in REQUIRED_DIMENSIONS and applies(d[4])]
+    rest = [d for d in dims.values()
+            if d[0] not in REQUIRED_DIMENSIONS and dimension_applies(d[4], lineage)]
     for platform in (False, True):
         for d in sorted((d for d in rest if d[6] is platform), key=order):
             out.append(Aspect("platform" if platform else "dimension", d[0], d[1], d[2], d[3],

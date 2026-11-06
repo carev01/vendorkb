@@ -69,9 +69,10 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 from ruamel.yaml.util import load_yaml_guess_indent
 
-from vendorkb.claims.extract import _reported_cost, cost_usd, price_per_mtok
+from vendorkb.claims.extract import cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
+from vendorkb.taxonomy.llm import build_request, call, object_schema
 from vendorkb.taxonomy.load import FAMILIES, Taxonomy, TaxonomyError, parse_doc, validate
 
 log = logging.getLogger(__name__)
@@ -92,11 +93,6 @@ _TEXT: dict[str, Any] = {"type": "string"}
 _NULLABLE_TEXT: dict[str, Any] = {"anyOf": [{"type": "string"}, {"type": "null"}]}
 
 
-def _object(properties: dict[str, Any]) -> dict[str, Any]:
-    return {"type": "object", "properties": properties, "required": list(properties),
-            "additionalProperties": False}
-
-
 # The fields of a "new" entry, per section.
 NEW_FIELDS: dict[Section, dict[str, Any]] = {
     "dimension": {"family": {"type": "string", "enum": list(FAMILIES)}, "id": _TEXT,
@@ -111,10 +107,10 @@ NEW_FIELDS: dict[Section, dict[str, Any]] = {
 
 
 def reply_schema(section: Section) -> dict[str, Any]:
-    return _object({
+    return object_schema({
         "action": {"type": "string", "enum": ["alias", "new", "none"]},
         "id": _NULLABLE_TEXT,
-        "new": {"anyOf": [_object(NEW_FIELDS[section]), {"type": "null"}]},
+        "new": {"anyOf": [object_schema(NEW_FIELDS[section]), {"type": "null"}]},
     })
 
 
@@ -385,54 +381,6 @@ def _user_message(c: _Cluster) -> str:
         text += (f"\n\nOfferings of vendor {c.group.vendor} (id | name):\n"
                  + ("\n".join(f"- {i} | {n}" for i, n in c.group.offerings) or "(none)"))
     return text
-
-
-def _request(system: str, schema: dict[str, Any], user: str, settings: VendorkbSettings
-             ) -> dict[str, Any]:
-    if settings.extract_backend == "openai":
-        return {
-            "model": settings.extract_model, "max_tokens": settings.extract_max_tokens,
-            "messages": [{"role": "system", "content": system},
-                         {"role": "user", "content": user}],
-            "response_format": {"type": "json_schema", "json_schema": {
-                "name": "taxonomy_proposal", "strict": True, "schema": schema}},
-            "extra_body": {"usage": {"include": True}, "reasoning": {"effort": "low"}},
-        }
-    return {
-        "model": settings.extract_model, "max_tokens": settings.extract_max_tokens,
-        "system": system,
-        "messages": [{"role": "user", "content": user}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": schema}},
-    }
-
-
-async def _call(client: Any, request: dict[str, Any], settings: VendorkbSettings,
-                price: tuple[float, float]) -> tuple[str | None, str | None, float]:
-    """(reply text, error, cost) for one proposal call."""
-    if settings.extract_backend == "openai":
-        resp = await client.chat.completions.create(**request)
-        usage = getattr(resp, "usage", None)
-        cost = _reported_cost(usage)
-        if cost is None:
-            cost = cost_usd(int(getattr(usage, "prompt_tokens", 0) or 0),
-                            int(getattr(usage, "completion_tokens", 0) or 0), batch=False,
-                            price=price)
-        choices = getattr(resp, "choices", None) or []
-        if not choices:
-            return None, "no-choices", cost
-        if choices[0].finish_reason == "length":
-            return None, "length", cost
-        if getattr(choices[0].message, "refusal", None):
-            return None, "refusal", cost
-        return choices[0].message.content, None, cost
-    msg = await client.messages.create(**request)
-    usage = getattr(msg, "usage", None)
-    cost = cost_usd(int(getattr(usage, "input_tokens", 0) or 0),
-                    int(getattr(usage, "output_tokens", 0) or 0), batch=False, price=price)
-    if getattr(msg, "stop_reason", None) in ("refusal", "max_tokens"):
-        return None, str(msg.stop_reason), cost
-    text = next((b.text for b in msg.content if getattr(b, "type", None) == "text"), None)
-    return text, None if text is not None else "no-text", cost
 
 
 def _parse(text: str | None, group: _Group) -> dict[str, Any]:
@@ -867,8 +815,12 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
                 return None
             in_flight += estimate
             try:
-                request = _request(system, reply_schema(c.group.section), user, settings)
-                text, error, cost = await _call(client, request, settings, price)
+                request = build_request(
+                    backend=settings.extract_backend, model=settings.extract_model,
+                    max_tokens=settings.extract_max_tokens, system=system, user=user,
+                    schema=reply_schema(c.group.section), name="taxonomy_proposal")
+                text, error, cost = await call(client, request,
+                                               backend=settings.extract_backend, price=price)
             except (anthropic.BadRequestError, openai.BadRequestError) as e:
                 stop, fatal = True, fatal or e
                 report.invalid += 1
