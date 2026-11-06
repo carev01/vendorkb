@@ -200,7 +200,11 @@ _UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
 
 
 def parse_doc(data: bytes, where: str | Path = "taxonomy") -> dict[str, Any]:
-    doc = yaml.load(data.decode("utf-8"), Loader=_UniqueKeyLoader)  # a SafeLoader subclass
+    try:
+        doc = yaml.load(data.decode("utf-8"), Loader=_UniqueKeyLoader)  # a SafeLoader subclass
+    except yaml.YAMLError:
+        # the path only, and no chained cause: a YAML error quotes the offending text
+        raise TaxonomyError([f"{where}: not valid YAML"]) from None
     if not isinstance(doc, dict):
         raise TaxonomyError([f"{where}: not a YAML mapping"])
     return doc

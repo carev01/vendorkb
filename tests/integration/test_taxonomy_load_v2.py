@@ -172,6 +172,14 @@ def test_duplicate_yaml_key_is_refused():
         load.parse_doc(b"version: 2\nversion: 2\n")
 
 
+def test_invalid_yaml_is_a_taxonomy_error_naming_only_the_path():
+    with pytest.raises(load.TaxonomyError) as info:
+        load.parse_doc(b"version: 2\ndimensions: [unclosed SECRET-TEXT\n", "tax.yaml")
+    assert info.value.problems == ["tax.yaml: not valid YAML"]
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+    assert "SECRET" not in str(info.value)
+
+
 async def test_v1_tables_are_dropped_once(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -246,6 +254,40 @@ async def test_v1_tables_are_dropped_once(vkb_dsn):
         assert await load.current_version(conn) is None
         # and a v2 load works on the migrated database
         assert (await load.load_taxonomy(conn, FIXTURE))["targets"] == 6
+    finally:
+        await conn.close()
+
+
+async def test_init_schema_keeps_a_loaded_v2_taxonomy(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await load.load_taxonomy(conn, FIXTURE)
+        before = await _snapshot(conn)
+        await init_schema(conn, embed_dim=768)
+        assert await _snapshot(conn) == before
+        assert await _counts(conn) == COUNTS and before["version"] is not None
+    finally:
+        await conn.close()
+
+
+async def test_init_schema_drops_a_stray_v1_features_table(vkb_dsn):
+    """A rolled-back (v1) image's schema run creates only ``features`` on a v2 database; the
+    next v2 init_schema drops it and keeps the v2 taxonomy (the variants FK on targets would
+    refuse a v1-drop of targets)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await load.load_taxonomy(conn, FIXTURE)
+        before = await _snapshot(conn)
+        await conn.execute("CREATE TABLE features (feature_id text PRIMARY KEY,"
+                           " name text NOT NULL, category text, definition text,"
+                           " parent_id text REFERENCES features)")
+        await conn.execute("INSERT INTO features VALUES ('f', 'F', NULL, NULL, NULL)")
+        await init_schema(conn, embed_dim=768)
+        assert await _rows(conn, "SELECT to_regclass('features')") == [(None,)]
+        assert await _snapshot(conn) == before
+        assert await _counts(conn) == COUNTS and before["version"] is not None
     finally:
         await conn.close()
 

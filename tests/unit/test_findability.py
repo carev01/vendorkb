@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
-from eval.findability import coverage_report, main
+from eval.findability import coverage_report, load_map, main
 from vendorkb.taxonomy.load import parse_doc, validate
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
@@ -81,3 +82,13 @@ def test_exit_0_and_json_when_clean(tmp_path, capsys):
     rep = json.loads(out_json.read_text())
     assert rep["rows"] == 3 and rep["in_scope"] == 2 and rep["mapped"] == 2
     assert "in_scope" in capsys.readouterr().out
+
+
+def test_invalid_yaml_map_names_only_the_path(tmp_path):
+    path = tmp_path / "map.yaml"
+    path.write_text("- table: T\n  row: SECRET-ROW-LABEL\n  ids: [unclosed\n")
+    with pytest.raises(ValueError) as info:
+        load_map(path)
+    assert str(info.value) == f"{path}: not valid YAML"
+    assert info.value.__cause__ is None and info.value.__suppress_context__
+    assert "SECRET" not in repr(info.value)

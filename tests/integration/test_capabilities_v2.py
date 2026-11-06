@@ -73,8 +73,15 @@ async def test_scope_assignment_and_selection(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
         v = await _fresh(conn)
-        offering_row = await _claim(conn, "retention.maximum_period", offering=OFFERING,
+        # an offering with no target and a workload dimension is product-wide (as query groups
+        # it); an offering with a target, or on a platform dimension, is 'offering'
+        offering_wide = await _claim(conn, "retention.maximum_period", offering=OFFERING,
+                                     mapped_version=v)
+        offering_row = await _claim(conn, "retention.maximum_period", "okta",
+                                    class_id="saas.identity", offering=OFFERING,
                                     mapped_version=v)
+        offering_platform = await _claim(conn, "security.platform_hardening",
+                                         offering=OFFERING, mapped_version=v)
         product_wide = await _claim(conn, "retention.maximum_period", mapped_version=v)
         platform = await _claim(conn, "security.platform_hardening", mapped_version=v)
         targeted = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
@@ -85,11 +92,18 @@ async def test_scope_assignment_and_selection(vkb_dsn):
         await _claim(conn, "coverage.backup", "okta", mapped_version="2-stale000")
         await _claim(conn, None, "okta", mapped_version=v)
 
-        assert await capabilities.build(conn) == 4
+        assert await capabilities.build(conn) == 6
         caps = await _caps(conn)
         assert {k: r["scope"] for k, r in caps.items()} == {
-            offering_row: "offering", product_wide: "product_wide", platform: "product",
+            offering_wide: "product_wide", offering_row: "offering",
+            offering_platform: "offering", product_wide: "product_wide", platform: "product",
             targeted: "product"}
+        # the stored scope agrees with the group query sorts each row into
+        res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
+        assert {f.claim_id for f in res.product_wide} == {
+            str(k) for k, r in caps.items() if r["scope"] == "product_wide"}
+        assert all(f.scope == "product_wide" for f in res.product_wide)
+        assert all(f.scope != "product_wide" for f in res.facts + res.product_level)
         row = caps[targeted]
         assert (row["vendor"], row["product"], row["dimension_id"], row["target_id"],
                 row["class_id"], row["object_type_id"], row["support"], row["taxonomy_version"],
@@ -289,6 +303,44 @@ async def test_empty_result_hint(vkb_dsn):
         assert res.hint is not None and "no such workload" in res.hint
         res = await capabilities.query(conn, CapFilter(target="salesforce"))
         assert res.hint is None and len(res.facts) == 1
+    finally:
+        await conn.close()
+
+
+async def test_unresolved_taxonomy_filter_returns_nothing(vkb_dsn):
+    """A taxonomy filter that names nothing never falls back to less specific rows."""
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "retention.maximum_period", "okta", class_id="saas.identity",
+                     mapped_version=v)
+        await _claim(conn, "retention.maximum_period", "okta", class_id="saas.identity",
+                     offering=OFFERING, mapped_version=v)
+        await _claim(conn, "retention.maximum_period", mapped_version=v)
+        await capabilities.build(conn)
+        # sanity: the resolvable filters do return rows
+        res = await capabilities.query(conn, CapFilter(offering=OFFERING, target="okta"))
+        assert res.facts and res.product_level and res.hint is None
+        cases = [
+            (CapFilter(offering=OFFERING, edition="no such edition", target="okta"),
+             "edition 'no such edition'"),
+            (CapFilter(vendor="examplevendor", edition="no such edition"),
+             "edition 'no such edition'"),
+            (CapFilter(offering="no such offering"), "offering 'no such offering'"),
+            (CapFilter(vendor="examplevendor", target="nowhere"), "target 'nowhere'"),
+            (CapFilter(vendor="examplevendor", dimension="nothing.at_all"),
+             "dimension 'nothing.at_all'"),
+        ]
+        for f, named in cases:
+            res = await capabilities.query(conn, f)
+            assert (res.facts, res.product_level, res.product_wide, res.conflicts) == (
+                [], [], [], []), f
+            assert res.hint is not None and named in res.hint and "chunk" in res.hint, f
+        # an edition that does resolve but has no rows of its own still gets the less
+        # specific rows: only a filter naming nothing returns nothing
+        res = await capabilities.query(conn, CapFilter(offering=OFFERING, edition="premium",
+                                                       target="okta"))
+        assert res.facts == [] and len(res.product_level) == 2 and res.hint is None
     finally:
         await conn.close()
 

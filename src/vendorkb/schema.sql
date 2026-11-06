@@ -227,29 +227,32 @@ CREATE TABLE IF NOT EXISTS taxonomy_meta (
 );
 
 -- Taxonomy v2 replaces v1 in place (``taxonomy.load``). One-time: a database that still has
--- a v1 table (``capabilities.feature_id``, ``targets.kind``, ``features``, or ``aliases``
--- without ``scope``) loses the v1 capabilities, aliases, features and targets tables and its
--- v1 taxonomy version; later runs find none and do nothing. raw_claims keeps its rows and its
--- v1 mapping columns.
+-- a v1-only table shape (``capabilities.feature_id``, ``targets.kind``, or ``aliases`` without
+-- ``scope``) loses the v1 capabilities, aliases and targets tables and its v1 taxonomy
+-- version; later runs find none and do nothing. raw_claims keeps its rows and its v1 mapping
+-- columns. ``features`` is deliberately NOT a signature: the v1 schema creates it on its own
+-- (e.g. one sync run of a rolled-back image), and keying on it would drop the v2 ``targets``
+-- here, which the v2 ``variants`` foreign key refuses, failing every later init_schema.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_schema = current_schema()
                  AND ((table_name = 'capabilities' AND column_name = 'feature_id')
-                      OR (table_name = 'targets' AND column_name = 'kind')
-                      OR table_name = 'features'))
+                      OR (table_name = 'targets' AND column_name = 'kind')))
        OR (to_regclass('aliases') IS NOT NULL
            AND NOT EXISTS (SELECT 1 FROM information_schema.columns
                            WHERE table_schema = current_schema()
                              AND table_name = 'aliases' AND column_name = 'scope')) THEN
         DROP TABLE IF EXISTS capabilities;
         DROP TABLE IF EXISTS aliases;
-        DROP TABLE IF EXISTS features;
         DROP TABLE IF EXISTS targets;
         DELETE FROM taxonomy_meta WHERE key = 'taxonomy_version';
     END IF;
 END
 $$;
+-- ``features`` is a retired v1 table name: v2 never creates it, so drop it whenever present
+-- (after the block above, which drops the v1 capabilities that referenced it).
+DROP TABLE IF EXISTS features;
 
 -- Taxonomy v2, loaded from taxonomy/taxonomy.yaml (the source of truth is git). A load
 -- replaces every row. ``applies_to`` NULL means every class; an entry matches its class and
@@ -369,11 +372,12 @@ $$;
 -- capabilities v2 (``taxonomy.capabilities``): one row per claims-v3 claim mapped under the
 -- current taxonomy version with a dimension, rebuilt from raw_claims by ``capabilities
 -- build``. Keyed on the claim, so a claim's deletion (a document re-sync) cascades here.
--- ``doc_version`` is the claim's ``documents.fetched_at``. ``scope``: 'offering' (an offering is
--- named), 'product_wide' (no target, and a workload dimension), else 'product'. Rows sharing the
--- conflict key (vendor, product, offering, edition, dimension, target, variant, object type)
--- but differing in support or in a stated value share a ``conflict_group``; ``is_current``
--- marks the key's rows from its most recently fetched document. No foreign keys into the
+-- ``doc_version`` is the claim's ``documents.fetched_at``. ``scope``: 'product_wide' (no
+-- target, and a workload dimension; an offering may be named), else 'offering' (an offering is
+-- named), else 'product'. Rows sharing the conflict key (vendor, product, offering, edition,
+-- dimension, target, variant, object type) but differing in support or in a stated value
+-- share a ``conflict_group``; ``is_current`` marks the key's rows from its most recently
+-- fetched document. No foreign keys into the
 -- taxonomy tables: a ``taxonomy load`` replaces them, and stale rows wait for map and build.
 -- (No ``feature_id`` column: that is what the v1-drop block above keys on.)
 CREATE TABLE IF NOT EXISTS capabilities (

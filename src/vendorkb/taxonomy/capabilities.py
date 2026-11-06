@@ -4,8 +4,9 @@
 of the claims-v3 family (``propose.PROMPT_FAMILY``) mapped under the current taxonomy version
 with a dimension. Each row is keyed on its claim and gets:
 
-- ``scope``: ``offering`` when an offering is named; else ``product_wide`` when there is no
-  target and the dimension is a workload one (not ``platform``); else ``product``.
+- ``scope``: ``product_wide`` when there is no target and the dimension is a workload one
+  (not ``platform``), whether or not an offering is named; else ``offering`` when an offering
+  is named; else ``product``. It agrees with the ``query`` group of the same name.
 - ``conflict_group``: rows sharing the conflict key (vendor, product, offering, edition,
   dimension, target, variant, object type; NULLs equal) that differ in support, or in their
   stated values (a row with no value contradicts none), share a group id derived from the key,
@@ -29,7 +30,9 @@ row into one of three groups, so nothing is presented as more specific than its 
 ``conflicts`` lists each conflict group met in the result with all its members, the ones the
 filters left out included. When all three groups are empty, ``hint`` says what to search the
 chunks for instead. Filters naming taxonomy entities (target, dimension, offering, edition)
-take an id or an alias; one that resolves to nothing matches nothing.
+take an id or an alias; when one resolves to nothing (an edition: nothing within the filtered
+offerings), the result is empty in every group, with a ``hint`` naming what did not resolve,
+rather than the less specific rows of the vendor.
 """
 from __future__ import annotations
 
@@ -129,8 +132,8 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             " SELECT claim_id, vendor, product, offering_id, edition_id, dimension_id,"
             " class_id, target_id, variant_id, object_type_id, kind, support, availability,"
             " default_state, value, unit, bound, conditions, fetched_at, %(ver)s,"
-            " CASE WHEN offering_id IS NOT NULL THEN 'offering'"
-            "  WHEN target_id IS NULL AND NOT platform THEN 'product_wide' ELSE 'product' END,"
+            " CASE WHEN target_id IS NULL AND NOT platform THEN 'product_wide'"
+            "  WHEN offering_id IS NOT NULL THEN 'offering' ELSE 'product' END,"
             " CASE WHEN min(support) OVER k <> max(support) OVER k"
             "  OR min(value) OVER k <> max(value) OVER k"
             f" THEN md5(jsonb_build_array({key})::text)::uuid END,"
@@ -175,9 +178,29 @@ async def _names(conn: psycopg.AsyncConnection, table: str, col: str,
     return [str(r[0]) for r in await cur.fetchall()]
 
 
+def _unresolved(f: CapFilter, targets: list[str] | None, dimensions: list[str] | None,
+                offerings: list[str] | None, editions: list[tuple[str, str]] | None) -> list[str]:
+    """The given taxonomy filters that resolved to no entity, as the user wrote them."""
+    missing = []
+    if targets == []:
+        missing.append(f"target {f.target!r}")
+    if dimensions == []:
+        missing.append(f"dimension {f.dimension!r}")
+    if offerings == []:
+        missing.append(f"offering {f.offering!r}")
+    if editions == []:
+        missing.append(f"edition {f.edition!r}"
+                       + (f" of offering {f.offering!r}" if offerings else ""))
+    return missing
+
+
 async def _hint(conn: psycopg.AsyncConnection, f: CapFilter, targets: list[str] | None,
-                dimensions: list[str] | None) -> str:
-    """Where to look instead: the vendor, target and dimension, by name where known."""
+                dimensions: list[str] | None, unresolved: list[str] | None = None) -> str:
+    """Where to look instead: the vendor, target and dimension, by name where known; first,
+    the filters that named no taxonomy entity."""
+    if unresolved:
+        return (f"No taxonomy entity matches {', '.join(unresolved)} (by id or alias). "
+                + await _hint(conn, f, targets, dimensions))
     parts = []
     if f.vendor:
         parts.append(f"vendor {f.vendor!r}")
@@ -232,6 +255,10 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter) -> CapResult:
     if f.offering is not None:
         offerings = await _resolve(conn, "offerings", "offering_id", "offering", f.offering)
     editions = None if f.edition is None else await _editions(conn, f.edition, offerings)
+    unresolved = _unresolved(f, targets, dimensions, offerings, editions)
+    if unresolved:
+        # never fall back to the less specific rows of a filter that named nothing
+        return CapResult(hint=await _hint(conn, f, targets, dimensions, unresolved))
     if version is None:
         return CapResult(hint=await _hint(conn, f, targets, dimensions))
 

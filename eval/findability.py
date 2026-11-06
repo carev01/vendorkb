@@ -111,7 +111,12 @@ def coverage_report(map_rows: list[dict[str, Any]], taxonomy: Taxonomy) -> dict[
 
 
 def load_map(path: str | Path) -> list[dict[str, Any]]:
-    rows = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    try:
+        rows = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except yaml.YAMLError:
+        # the map is confidential: the path only, never the YAML error (it quotes the text)
+        # and no chained cause
+        raise ValueError(f"{path}: not valid YAML") from None
     if not isinstance(rows, list):
         raise ValueError(f"{path}: the map must be a YAML list of rows")
     for n, row in enumerate(rows):
