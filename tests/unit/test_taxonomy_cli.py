@@ -106,3 +106,28 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     assert stubbed["query"] == ("immutable_backups", "aws", "veeam", "partial")
     row = json.loads(capsys.readouterr().out)
     assert (row["vendor"], row["url"], row["chunk_id"]) == ("veeam", "http://u", "c1")
+
+
+def test_taxonomy_aspects_json_lines_and_unknown_exit(stubbed, monkeypatch, capsys):
+    from vendorkb.taxonomy import aspects as aspects_mod
+
+    async def fake_aspects(conn, *, target=None, cls=None):
+        stubbed["args"] = (target, cls)
+        if target == "nope":
+            raise LookupError("unknown target 'nope'")
+        return [aspects_mod.Aspect("coverage", "coverage.backup", "coverage", "Backup", "d",
+                                   "user", None)]
+
+    monkeypatch.setattr(aspects_mod, "aspects", fake_aspects)
+    assert cli.main(["taxonomy", "aspects", "--target", "okta"]) == 0
+    row = json.loads(capsys.readouterr().out)
+    assert (row["kind"], row["object_type_id"], row["value_unit"]) == ("coverage", "user", None)
+    assert cli.main(["taxonomy", "aspects", "--class", "saas.identity"]) == 0
+    assert stubbed["args"] == (None, "saas.identity")
+    capsys.readouterr()
+    assert cli.main(["taxonomy", "aspects", "--target", "nope"]) == 2
+    out = capsys.readouterr()
+    assert out.out == "" and "unknown target" in out.err
+    with pytest.raises(SystemExit) as exc:  # neither or both of --target/--class
+        cli.main(["taxonomy", "aspects"])
+    assert exc.value.code == 2

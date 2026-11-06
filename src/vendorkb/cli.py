@@ -224,6 +224,7 @@ async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 
 
 async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.taxonomy import aspects as aspects_mod
     from vendorkb.taxonomy import load, mapper, propose
 
     if args.backend:
@@ -238,6 +239,15 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 print(e, file=sys.stderr)
                 return 1
             print(json.dumps(loaded))  # the version and each table's row count
+            return 0
+        if args.taxonomy_cmd == "aspects":
+            try:
+                found = await aspects_mod.aspects(conn, target=args.target, cls=args.cls)
+            except LookupError as e:
+                print(e, file=sys.stderr)
+                return 2
+            for aspect in found:
+                print(json.dumps(dataclasses.asdict(aspect)))
             return 0
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
@@ -347,6 +357,11 @@ def _parser() -> argparse.ArgumentParser:
     t = tax.add_parser("load", help="validate the reviewed v2 YAML and replace the taxonomy"
                                     " tables with it (every problem listed, nothing written)")
     t.add_argument("path")
+    t.set_defaults(backend=None)
+    t = tax.add_parser("aspects", help="the aspects that apply to a workload (JSON lines)")
+    group = t.add_mutually_exclusive_group(required=True)
+    group.add_argument("--target", default=None, help="target id, alias or name")
+    group.add_argument("--class", dest="cls", default=None, help="workload class id")
     t.set_defaults(backend=None)
     t = tax.add_parser("map", help="map every raw claim to a feature and target")
     t.add_argument("--threshold", type=float, default=0.80,
