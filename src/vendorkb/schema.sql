@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS raw_claims (
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS model_quote text;
 CREATE INDEX IF NOT EXISTS raw_claims_chunk_idx ON raw_claims (chunk_id);
 -- Indexes on the cascading foreign keys: a chunk deletion in sync cascades through
--- extractions -> raw_claims / rejected_claims -> capabilities, a seq scan per row without them.
+-- extractions -> raw_claims / rejected_claims, a seq scan per row without them.
 CREATE INDEX IF NOT EXISTS raw_claims_extraction_idx ON raw_claims (extraction_id);
 CREATE INDEX IF NOT EXISTS raw_claims_vendor_idx ON raw_claims (vendor);
 
@@ -219,52 +219,112 @@ ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS value double precision;
 ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS unit text;
 ALTER TABLE rejected_claims ADD COLUMN IF NOT EXISTS bound text;
 
--- Taxonomy, loaded from taxonomy/taxonomy.yaml (the source of truth is git).
-CREATE TABLE IF NOT EXISTS features (
-    feature_id text PRIMARY KEY,
+-- The loaded taxonomy's version (key 'taxonomy_version'): "2-<sha8 of the YAML>".
+CREATE TABLE IF NOT EXISTS taxonomy_meta (
+    key text PRIMARY KEY,
+    value text NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- Taxonomy v2 replaces v1 in place (``taxonomy.load``). One-time: a database that still has
+-- a v1 table (``capabilities.feature_id``, ``targets.kind``, ``features``, or ``aliases``
+-- without ``scope``) loses the v1 capabilities, aliases, features and targets tables and its
+-- v1 taxonomy version; later runs find none and do nothing. raw_claims keeps its rows and its
+-- v1 mapping columns.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema()
+                 AND ((table_name = 'capabilities' AND column_name = 'feature_id')
+                      OR (table_name = 'targets' AND column_name = 'kind')
+                      OR table_name = 'features'))
+       OR (to_regclass('aliases') IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema = current_schema()
+                             AND table_name = 'aliases' AND column_name = 'scope')) THEN
+        DROP TABLE IF EXISTS capabilities;
+        DROP TABLE IF EXISTS aliases;
+        DROP TABLE IF EXISTS features;
+        DROP TABLE IF EXISTS targets;
+        DELETE FROM taxonomy_meta WHERE key = 'taxonomy_version';
+    END IF;
+END
+$$;
+
+-- Taxonomy v2, loaded from taxonomy/taxonomy.yaml (the source of truth is git). A load
+-- replaces every row. ``applies_to`` NULL means every class; an entry matches its class and
+-- every class beneath it. Parents come from the dotted ids.
+CREATE TABLE IF NOT EXISTS dimensions (
+    dimension_id text PRIMARY KEY,
+    family text NOT NULL,
     name text NOT NULL,
-    category text,
-    definition text,
-    parent_id text REFERENCES features
+    definition text NOT NULL,
+    applies_to text[],
+    value_unit text,
+    platform boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS classes (
+    class_id text PRIMARY KEY,
+    parent_id text REFERENCES classes,
+    name text NOT NULL,
+    definition text NOT NULL
+);
+
+-- A class's own object types (inherited ones live on the ancestor); ``ordinal`` is YAML order.
+CREATE TABLE IF NOT EXISTS object_types (
+    class_id text NOT NULL REFERENCES classes,
+    object_type_id text NOT NULL,
+    name text NOT NULL,
+    ordinal int NOT NULL,
+    PRIMARY KEY (class_id, object_type_id)
 );
 
 CREATE TABLE IF NOT EXISTS targets (
     target_id text PRIMARY KEY,
-    name text NOT NULL,
-    kind text,  -- workload | platform | storage
-    parent_id text REFERENCES targets
+    parent_id text REFERENCES targets,
+    class_id text NOT NULL REFERENCES classes,
+    name text NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS variants (
+    target_id text NOT NULL REFERENCES targets,
+    variant_id text NOT NULL,
+    name text NOT NULL,
+    PRIMARY KEY (target_id, variant_id)
+);
+
+CREATE TABLE IF NOT EXISTS offerings (
+    offering_id text PRIMARY KEY,
+    vendor text NOT NULL,
+    name text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS editions (
+    offering_id text NOT NULL REFERENCES offerings,
+    edition_id text NOT NULL,
+    name text NOT NULL,
+    PRIMARY KEY (offering_id, edition_id)
+);
+
+-- Normalized aliases (``cluster.normalize``), each entity's name among them. ``scope`` by
+-- entity_type: dimension and target '', object_type the class_id, target_object_type,
+-- variant the target_id, offering the vendor, edition the offering_id.
 CREATE TABLE IF NOT EXISTS aliases (
     alias text NOT NULL,
-    entity_type text NOT NULL CHECK (entity_type IN ('feature', 'target')),
+    entity_type text NOT NULL CHECK (entity_type IN ('dimension', 'target', 'object_type',
+                                                     'target_object_type', 'variant',
+                                                     'offering', 'edition')),
+    scope text NOT NULL DEFAULT '',
     entity_id text NOT NULL,
-    PRIMARY KEY (alias, entity_type)
+    PRIMARY KEY (alias, entity_type, scope)
 );
 
--- Normalized capability facts, rebuilt from raw_claims and the current taxonomy version.
-CREATE TABLE IF NOT EXISTS capabilities (
-    cap_id uuid PRIMARY KEY,
-    vendor text NOT NULL,
-    product text,
-    version text,
-    feature_id text NOT NULL REFERENCES features,
-    target_id text REFERENCES targets,
-    support text NOT NULL,
-    conditions text,
-    claim_id uuid NOT NULL REFERENCES raw_claims ON DELETE CASCADE,
-    mapping_conf real,
-    taxonomy_version text NOT NULL
-);
-CREATE INDEX IF NOT EXISTS capabilities_feature_idx ON capabilities (feature_id);
-CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
-CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (vendor);
-CREATE INDEX IF NOT EXISTS capabilities_claim_idx ON capabilities (claim_id);
-
--- M4 mapping (taxonomy map): each raw claim's feature and target under the taxonomy
+-- M4 mapping (taxonomy map, v1): each raw claim's feature and target under the taxonomy
 -- version it was mapped with. ``*_method`` is 'alias' (exact normalized alias or name),
 -- 'nn' (embedding nearest neighbour at or above the threshold) or 'unmapped'; a claim with
 -- no target_raw has a NULL target_method. ``*_conf`` is the cosine (1.0 for an alias).
+-- Kept, with their values, after the v1 tables are dropped.
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS feature_id text;
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS feature_method text
     CHECK (feature_method IN ('alias', 'nn', 'unmapped'));
@@ -274,12 +334,3 @@ ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_method text
     CHECK (target_method IN ('alias', 'nn', 'unmapped'));
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS target_conf real;
 ALTER TABLE raw_claims ADD COLUMN IF NOT EXISTS mapped_version text;
--- 'alias' when the feature (and the target, if any) matched an alias; else 'nn'.
-ALTER TABLE capabilities ADD COLUMN IF NOT EXISTS mapping_method text;
-
--- The loaded taxonomy's version (key 'taxonomy_version'): the YAML's ``version``.
-CREATE TABLE IF NOT EXISTS taxonomy_meta (
-    key text PRIMARY KEY,
-    value text NOT NULL,
-    updated_at timestamptz NOT NULL DEFAULT now()
-);

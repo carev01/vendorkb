@@ -59,7 +59,7 @@ def test_taxonomy_propose_defaults(stubbed, monkeypatch, capsys):
 
 def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     async def fake_load(conn, path):
-        return {"version": "1", "path": path}
+        return {"version": "2-ab12cd34", "path": path}
 
     async def fake_map(conn, *, embedder, threshold):
         return mapper.MapReport(taxonomy_version="1", claims=int(threshold * 100))
@@ -67,10 +67,20 @@ def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     monkeypatch.setattr(load, "load_taxonomy", fake_load)
     monkeypatch.setattr(mapper, "map_claims", fake_map)
     assert cli.main(["taxonomy", "load", "t.yaml"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"version": "1", "path": "t.yaml"}
+    assert json.loads(capsys.readouterr().out) == {"version": "2-ab12cd34", "path": "t.yaml"}
     assert cli.main(["taxonomy", "map", "--threshold", "0.7"]) == 0
     assert json.loads(capsys.readouterr().out)["claims"] == 70
     assert stubbed["init_schema"]
+
+
+def test_taxonomy_load_lists_every_problem(stubbed, monkeypatch, capsys):
+    async def fake_load(conn, path):
+        raise load.TaxonomyError(["first problem", "second problem"])
+
+    monkeypatch.setattr(load, "load_taxonomy", fake_load)
+    assert cli.main(["taxonomy", "load", "t.yaml"]) == 1
+    out = capsys.readouterr()
+    assert out.out == "" and "first problem" in out.err and "second problem" in out.err
 
 
 def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):

@@ -10,7 +10,7 @@ from pgvector import Vector
 
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
-from vendorkb.taxonomy import capabilities, load, mapper, propose
+from vendorkb.taxonomy import propose, v1_format
 
 DIM = 32
 
@@ -142,11 +142,6 @@ async def _seed_propose(conn) -> None:
     await _claim(conn, "cohesity", "tape library export", None)
 
 
-def _ver(path) -> str:
-    doc = yaml.safe_load(path.read_text())
-    return f"{doc['version']}-{hashlib.sha256(path.read_bytes()).hexdigest()[:8]}"
-
-
 async def test_propose_features_writes_valid_yaml_and_merges(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
     try:
@@ -220,9 +215,9 @@ async def test_propose_features_writes_valid_yaml_and_merges(vkb_dsn, tmp_path):
         tail2 = yaml.safe_load(tail_path.read_text())
         assert tail2["target"] == [{"text": "vmware vsphere", "count": 1, "vendor_count": 1}]
         assert tail2["feature"] == tail["feature"]
-        # The file loads as-is.
-        loaded = await load.load_taxonomy(conn, out)
-        assert loaded["features"] == 2 and loaded["targets"] == 2
+        # The file passes the v1 validation propose applies to an existing file.
+        _, features, targets = v1_format.validate(v1_format.read_doc(out))
+        assert len(features) == 2 and len(targets) == 2
     finally:
         await conn.close()
 
@@ -333,231 +328,5 @@ async def test_propose_anthropic_backend_request_shape(vkb_dsn, tmp_path):
         assert calls[0]["model"] == "claude-haiku-5-5"
         assert calls[0]["output_config"]["format"]["type"] == "json_schema"
         assert abs(report.spent_usd - (400 * 0.10 + 80 * 0.50) / 1e6) < 1e-12
-    finally:
-        await conn.close()
-
-
-TAXONOMY = {
-    "version": 1,
-    "features": [
-        {"id": "immutable_backups", "name": "Immutable backups", "category": "Data protection",
-         "definition": "d", "aliases": ["immutable backups", "WORM backups"],
-         "support_count": 2, "vendor_count": 2},
-        {"id": "instant_vm_recovery", "name": "Instant VM recovery", "category": "Recovery",
-         "definition": "d", "aliases": [], "support_count": 2, "vendor_count": 1},
-    ],
-    "targets": [
-        {"id": "aws", "name": "AWS", "category": "Platforms", "parent": None,
-         "definition": "", "aliases": ["amazon web services"]},
-        {"id": "aws.rds", "name": "Amazon RDS", "category": "Workloads", "parent": "aws",
-         "definition": "", "aliases": ["amazon rds"]},
-        {"id": "aws.s3", "name": "Amazon S3", "category": "Storage targets", "parent": "aws",
-         "definition": "", "aliases": ["amazon s3"]},
-    ],
-    "long_tail": {"feature": [], "target": []},
-}
-
-
-def _write(path, doc) -> None:
-    path.write_text(yaml.safe_dump(doc, sort_keys=False))
-
-
-async def _rows(conn, sql, *args):
-    cur = await conn.execute(sql, args)
-    return await cur.fetchall()
-
-
-async def test_load_is_idempotent_and_replaces(vkb_dsn, tmp_path):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        path = tmp_path / "taxonomy.yaml"
-        _write(path, TAXONOMY)
-        first = await load.load_taxonomy(conn, path)
-        second = await load.load_taxonomy(conn, path)
-        v1 = _ver(path)
-        assert first == second == {"version": v1, "features": 2, "targets": 3, "aliases": 5}
-        assert await _rows(conn, "SELECT count(*) FROM features") == [(2,)]
-        assert await _rows(conn, "SELECT target_id, parent_id, kind FROM targets"
-                                 " ORDER BY target_id") == [
-            ("aws", None, "platform"), ("aws.rds", "aws", "workload"),
-            ("aws.s3", "aws", "storage")]
-        assert ("worm backups", "feature", "immutable_backups") in await _rows(
-            conn, "SELECT alias, entity_type, entity_id FROM aliases")
-        assert await load.current_version(conn) == v1 and v1.startswith("1-")
-
-        doc = json.loads(json.dumps(TAXONOMY))
-        doc["version"] = 2
-        doc["features"] = doc["features"][:1]
-        doc["targets"] = doc["targets"][:2]
-        _write(path, doc)
-        third = await load.load_taxonomy(conn, path)
-        assert third == {"version": _ver(path), "features": 1, "targets": 2, "aliases": 4}
-        assert await _rows(conn, "SELECT feature_id FROM features") == [("immutable_backups",)]
-        assert await load.current_version(conn) == _ver(path)
-
-        # A hand edit without a version bump still changes the taxonomy version.
-        doc["features"][0]["aliases"].append("write-once backups")
-        _write(path, doc)
-        fourth = await load.load_taxonomy(conn, path)
-        assert fourth["version"].startswith("2-") and fourth["version"] != third["version"]
-
-        # YAML numbers as aliases are taken as text.
-        doc["features"][0]["aliases"].append(365)
-        _write(path, doc)
-        assert (await load.load_taxonomy(conn, path))["aliases"] == 6
-        assert ("365", "feature", "immutable_backups") in await _rows(
-            conn, "SELECT alias, entity_type, entity_id FROM aliases")
-    finally:
-        await conn.close()
-
-
-@pytest.mark.parametrize("mutate", [
-    lambda d: d["targets"][1].update(parent="gcp"),  # dangling parent
-    lambda d: d["features"][1]["aliases"].append("immutable backups"),  # alias on two
-    lambda d: d["features"][0].update(category="Licensing"),  # not a seed category
-    lambda d: d["features"][0].update(id="Bad Id"),
-    lambda d: d.update(version="one"),
-    lambda d: d["features"][0]["aliases"].append(True),  # `- yes` in YAML
-])
-async def test_load_rejects_invalid_yaml(vkb_dsn, tmp_path, mutate):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        doc = json.loads(json.dumps(TAXONOMY))
-        mutate(doc)
-        path = tmp_path / "bad.yaml"
-        _write(path, doc)
-        with pytest.raises(ValueError):
-            await load.load_taxonomy(conn, path)
-        assert await _rows(conn, "SELECT count(*) FROM features") == [(0,)]
-    finally:
-        await conn.close()
-
-
-async def test_load_rejects_duplicate_keys(vkb_dsn, tmp_path):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        path = tmp_path / "dup.yaml"
-        path.write_text("version: 1\nfeatures:\n- id: a\n  name: A\n  category: Security\n"
-                        "  aliases: [x]\n  aliases: [y]\ntargets: []\n")
-        with pytest.raises(ValueError, match="duplicate key"):
-            await load.load_taxonomy(conn, path)
-    finally:
-        await conn.close()
-
-
-async def _seed_mapped(conn, tmp_path) -> dict[str, str]:
-    path = tmp_path / "taxonomy.yaml"
-    _write(path, TAXONOMY)
-    await load.load_taxonomy(conn, path)
-    ids = {
-        "alias": await _claim(conn, "rubrik", "Immutable  Backups", "Amazon  RDS",
-                              url="http://docs/rubrik-rds"),
-        "nn": await _claim(conn, "veeam", "WORM-protected backups", None,
-                           support="partial"),
-        "unmapped": await _claim(conn, "cohesity", "tape library export", "Amazon S3"),
-        "s3": await _claim(conn, "veeam", "immutable backups", "amazon s3"),
-        "t_unmapped": await _claim(conn, "commvault", "immutable backups", "VMware vSphere"),
-    }
-    return ids
-
-
-async def test_mapper_alias_nearest_neighbour_and_unmapped(vkb_dsn, tmp_path):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        ids = await _seed_mapped(conn, tmp_path)
-        embedder = FakeEmbedder(VECTORS)
-        report = await mapper.map_claims(conn, embedder=embedder, threshold=0.8)
-        assert (report.claims, report.feature_alias, report.feature_nn,
-                report.feature_unmapped) == (5, 3, 1, 1)
-        assert (report.target_alias, report.target_nn, report.target_unmapped,
-                report.target_none) == (3, 0, 1, 1)
-        rows = {r[0]: r[1:] for r in await _rows(
-            conn, "SELECT claim_id::text, feature_id, feature_method, feature_conf,"
-                  " target_id, target_method, mapped_version FROM raw_claims")}
-        assert rows[ids["alias"]] == ("immutable_backups", "alias", 1.0, "aws.rds", "alias",
-                                      _ver(tmp_path / "taxonomy.yaml"))
-        fid, method, conf, tid, tmethod, _ = rows[ids["nn"]]
-        assert (fid, method, tid, tmethod) == ("immutable_backups", "nn", None, None)
-        assert 0.8 <= conf < 1.0
-        assert rows[ids["unmapped"]][:3] == (None, "unmapped", None)
-        assert rows[ids["unmapped"]][3:5] == ("aws.s3", "alias")
-        assert rows[ids["t_unmapped"]][3:5] == (None, "unmapped")
-    finally:
-        await conn.close()
-
-
-async def test_build_replaces_rows_and_query_includes_descendants(vkb_dsn, tmp_path):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        ids = await _seed_mapped(conn, tmp_path)
-        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
-        assert await capabilities.build(conn) == 4  # every claim with a mapped feature
-        assert await capabilities.build(conn) == 4  # replaced, never duplicated
-        assert await _rows(conn, "SELECT count(*) FROM capabilities") == [(4,)]
-        method = await _rows(conn, "SELECT mapping_method, mapping_conf FROM capabilities"
-                                   " WHERE claim_id=%s", ids["alias"])
-        assert method == [("alias", 1.0)]
-
-        aws = await capabilities.query(conn, "immutable_backups", target="aws")
-        assert {r.target_id for r in aws} == {"aws.rds", "aws.s3"}
-        rds = await capabilities.query(conn, "immutable_backups", target="aws.rds")
-        assert [(r.vendor, r.product, r.support, r.conditions, r.url) for r in rds] == [
-            ("rubrik", "P", "supported", "cond", "http://docs/rubrik-rds")]
-        assert rds[0].evidence_quote == "quote for Immutable  Backups" and rds[0].chunk_id
-        assert await capabilities.query(conn, "immutable_backups", target="aws.r") == []
-        # A sibling sharing the prefix is not a descendant.
-        await conn.execute("INSERT INTO targets (target_id, name) VALUES ('awsx', 'AWSX')")
-        await conn.execute("UPDATE capabilities SET target_id='awsx' WHERE claim_id=%s",
-                           (ids["t_unmapped"],))
-        assert {r.target_id for r in await capabilities.query(
-            conn, "immutable_backups", target="aws")} == {"aws.rds", "aws.s3"}
-        assert len(await capabilities.query(conn, "immutable_backups", target="awsx")) == 1
-        # Aliases resolve too; filters narrow.
-        assert len(await capabilities.query(conn, "WORM backups", target="Amazon RDS")) == 1
-        veeam = await capabilities.query(conn, "immutable_backups", vendor="Veeam")
-        assert {r.support for r in veeam} == {"partial", "supported"}
-        partial = await capabilities.query(conn, "immutable_backups", support="partial")
-        assert [r.vendor for r in partial] == ["veeam"]
-
-        # A taxonomy change (version 2, S3 gone) replaces the rows after a re-map.
-        doc = json.loads(json.dumps(TAXONOMY))
-        doc["version"] = 2
-        doc["targets"] = doc["targets"][:2]
-        _write(tmp_path / "taxonomy.yaml", doc)
-        await load.load_taxonomy(conn, tmp_path / "taxonomy.yaml")
-        assert await capabilities.build(conn) == 0  # nothing mapped under version 2 yet
-        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
-        assert await capabilities.build(conn) == 4
-        assert await _rows(conn, "SELECT DISTINCT taxonomy_version FROM capabilities") == [
-            (_ver(tmp_path / "taxonomy.yaml"),)]
-        assert {r.target_id for r in await capabilities.query(
-            conn, "immutable_backups", target="aws")} == {"aws.rds"}
-    finally:
-        await conn.close()
-
-
-async def test_query_serves_only_the_current_taxonomy_version(vkb_dsn, tmp_path):
-    conn = await connect(vkb_dsn)
-    try:
-        await _fresh(conn)
-        await _seed_mapped(conn, tmp_path)
-        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
-        assert await capabilities.build(conn) == 4
-        assert len(await capabilities.query(conn, "immutable_backups")) == 4
-        # load version 2, but do not re-map or re-build yet: the old rows must not be served
-        doc = json.loads(json.dumps(TAXONOMY))
-        doc["version"] = 2
-        _write(tmp_path / "taxonomy.yaml", doc)
-        await load.load_taxonomy(conn, tmp_path / "taxonomy.yaml")
-        assert await _rows(conn, "SELECT count(*) FROM capabilities") != [(0,)]
-        assert await capabilities.query(conn, "immutable_backups") == []
-        await mapper.map_claims(conn, embedder=FakeEmbedder(VECTORS), threshold=0.8)
-        await capabilities.build(conn)
-        assert len(await capabilities.query(conn, "immutable_backups")) == 4
     finally:
         await conn.close()

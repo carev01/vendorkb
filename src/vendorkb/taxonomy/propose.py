@@ -22,7 +22,7 @@ into the YAML at ``out_path`` (created when missing, ``version: 1``; it holds on
 - Target ids are dotted (``aws.rds``); ``parent`` is the id minus its last segment, and any
   missing ancestor is added as a bare entry for the reviewer to fill in (category
   Platforms at the top level, else its child's).
-- An existing file is validated first (``load.validate``); a hand-broken one is refused.
+- An existing file is validated first (``v1_format.validate``); a hand-broken one is refused.
 - ``support_count`` / ``vendor_count`` are recomputed for every entry of the kind from the
   strings its aliases and name cover.
 
@@ -53,7 +53,8 @@ import yaml
 from vendorkb.claims.extract import _reported_cost, cost_usd
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
-from vendorkb.taxonomy.load import CATEGORIES, FEATURE_ID_RE, TARGET_ID_RE, read_doc, validate
+from vendorkb.taxonomy.v1_format import (CATEGORIES, FEATURE_ID_RE, TARGET_ID_RE, read_doc,
+                                          validate)
 
 log = logging.getLogger(__name__)
 

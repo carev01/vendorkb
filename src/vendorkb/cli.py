@@ -232,7 +232,12 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
     try:
         if args.taxonomy_cmd == "load":
             await init_schema(conn, embed_dim=settings.embed_dim)
-            print(json.dumps(await load.load_taxonomy(conn, args.path)))
+            try:
+                loaded = await load.load_taxonomy(conn, args.path)
+            except load.TaxonomyError as e:  # nothing was written
+                print(e, file=sys.stderr)
+                return 1
+            print(json.dumps(loaded))  # the version and each table's row count
             return 0
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
@@ -339,7 +344,8 @@ def _parser() -> argparse.ArgumentParser:
                    help="override EXTRACT_BACKEND")
     t.add_argument("--limit", type=int, default=None,
                    help="send at most N clusters, biggest first (smoke run)")
-    t = tax.add_parser("load", help="load the reviewed YAML into features/targets/aliases")
+    t = tax.add_parser("load", help="validate the reviewed v2 YAML and replace the taxonomy"
+                                    " tables with it (every problem listed, nothing written)")
     t.add_argument("path")
     t.set_defaults(backend=None)
     t = tax.add_parser("map", help="map every raw claim to a feature and target")

@@ -1040,12 +1040,11 @@ async def test_init_schema_keeps_the_status_check_and_indexes_the_cascades(vkb_d
         [(_, definition)] = await _status_check(conn)
         assert "failed" in definition
         cur = await conn.execute("SELECT tablename, indexdef FROM pg_indexes"
-                                 " WHERE tablename IN ('raw_claims', 'rejected_claims',"
-                                 " 'capabilities')")
+                                 " WHERE tablename IN ('raw_claims', 'rejected_claims')")
         defs = await cur.fetchall()
         for table, column in (("raw_claims", "extraction_id"), ("raw_claims", "chunk_id"),
                               ("rejected_claims", "extraction_id"),
-                              ("rejected_claims", "chunk_id"), ("capabilities", "claim_id")):
+                              ("rejected_claims", "chunk_id")):
             assert any(t == table and f"({column})" in d for t, d in defs), (table, column)
     finally:
         await conn.close()

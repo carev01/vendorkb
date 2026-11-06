@@ -1,0 +1,145 @@
+# A small synthetic taxonomy v2 for tests. Every name and definition here is invented for the
+# tests; none of it is copied from any vendor's documentation or comparison material.
+version: 2
+
+dimensions:
+  - id: coverage.backup
+    name: Backup coverage
+    definition: Whether an object type of a workload can be included in a backup.
+    aliases: [backed up objects, backup scope]
+    applies_to: all
+  - id: coverage.restore
+    name: Restore coverage
+    definition: Whether an object type of a workload can be brought back from a backup.
+    aliases: [restorable objects]
+    applies_to: all
+  - id: coverage.export
+    name: Export coverage
+    definition: Whether an object type can be written out of a backup to a file or another tool.
+    aliases: [exportable objects]
+    applies_to: all
+  - id: coverage.compare
+    name: Compare coverage
+    definition: Whether an object type in a backup can be compared with its current state.
+    aliases: [comparable objects, diff against production]
+    applies_to: all
+  - id: retention.maximum_period
+    name: Maximum retention period
+    definition: The longest time a backup copy can be kept.
+    aliases: [longest retention, max retention]
+    applies_to: all
+    value_unit: days
+  - id: recovery.automation_bypass
+    name: Automation bypass on restore
+    definition: Whether triggers and workflows in the workload are held off while data is written back.
+    aliases: [skip automations during restore]
+    applies_to: [saas.crm]
+  - id: schedule.backup_frequency
+    name: Backup frequency
+    definition: How often a scheduled backup of a SaaS workload can run.
+    aliases: [backups per day]
+    applies_to: [saas]
+  - id: security.platform_hardening
+    name: Platform hardening
+    definition: Measures that protect the backup product itself against tampering.
+    aliases: [hardened appliance]
+    applies_to: all
+    platform: true
+
+classes:
+  - id: saas
+    name: SaaS application
+    definition: A hosted application whose data the customer does not store themselves.
+    object_types:
+      - id: tenant_config
+        name: Tenant configuration
+        aliases: [tenant settings]
+  - id: saas.identity
+    name: Identity provider
+    definition: A hosted service that holds accounts and decides who may sign in.
+    object_types:
+      - id: user
+        name: User
+        aliases: [users, accounts]
+      - id: group
+        name: Group
+        aliases: [groups]
+      - id: access_policy
+        name: Access policy
+        aliases: [conditional access policies, authentication policies]
+      - id: audit_log
+        name: Audit log
+        aliases: [sign-in logs, audit logs]
+  - id: saas.crm
+    name: CRM application
+    definition: A hosted customer relationship application with records and metadata.
+    object_types:
+      - id: record
+        name: Record
+        aliases: [records, data rows]
+      - id: metadata
+        name: Metadata
+        aliases: [org metadata, configuration metadata]
+  - id: cloud
+    name: Public cloud
+    definition: An infrastructure cloud whose services hold customer data.
+    object_types: []
+  - id: cloud.database
+    name: Cloud database service
+    definition: A managed database offered by a public cloud.
+    object_types:
+      - id: database
+        name: Database
+        aliases: [databases]
+      - id: transaction_log
+        name: Transaction log
+        aliases: [log backups]
+
+targets:
+  - id: entra_id
+    name: Microsoft Entra ID
+    class: saas.identity
+    aliases: [Azure AD, Entra]
+  - id: okta
+    name: Okta
+    class: saas.identity
+    aliases: [Okta Workforce Identity]
+    object_aliases:
+      access_policy: [sign-on policies]
+      audit_log: [system log]
+  - id: salesforce
+    name: Salesforce
+    class: saas.crm
+    aliases: [SFDC]
+    variants:
+      - id: sales_cloud
+        name: Sales Cloud
+        aliases: []
+      - id: sandbox_org
+        name: Sandbox org
+        aliases: [sandbox orgs]
+  - id: aws
+    name: Amazon Web Services
+    class: cloud
+    aliases: [AWS]
+  - id: aws.rds
+    name: Amazon RDS
+    class: cloud.database
+    aliases: [RDS]
+  - id: aws.rds.oracle
+    name: Amazon RDS for Oracle
+    class: cloud.database
+    aliases: [RDS for Oracle]
+
+offerings:
+  - vendor: examplevendor
+    id: examplevendor.cloud_suite
+    name: Example Cloud Suite
+    aliases: [the SaaS offering, ECS]
+    editions:
+      - id: standard
+        name: Standard
+        aliases: [standard edition]
+      - id: premium
+        name: Premium
+        aliases: [premium edition]
