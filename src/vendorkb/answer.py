@@ -5,7 +5,7 @@ import re
 
 from openai import AsyncOpenAI
 
-from vendorkb.modes import compare_facets, enumerate_vendors
+from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, detect_scope
 from vendorkb.search import Hit, SearchResult, search_docs
 from vendorkb.shape import detect_shape
@@ -245,6 +245,8 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     if shape.kind == "enumeration":
         checked = list(scope_index.vendors)
         er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
+                                     per_vendor=ENUM_PER_VENDOR,
+                                     per_vendor_multi=ENUM_PER_VENDOR_MULTI,
                                      vendors=checked)
         result = SearchResult(er.hits, er.rerank_ok)
         kept = er.kept

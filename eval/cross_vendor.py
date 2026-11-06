@@ -31,7 +31,7 @@ from vendorkb import search
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect
-from vendorkb.modes import ENUMERATION_MIN_SCORE, compare_facets, enumerate_vendors
+from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, ENUMERATION_MIN_SCORE, compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, detect_scope, scope_index_from_db
 from vendorkb.search import (
     _COLS,
@@ -218,11 +218,17 @@ async def _run_question(conn, q: dict, *, embedder, reranker, scope_index: Scope
                                             legacy=True, reranker=reranker, rerank=rerank)
         elif shape == "enumeration":
             er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
+                                     per_vendor=ENUM_PER_VENDOR,
+                                     per_vendor_multi=ENUM_PER_VENDOR_MULTI,
                                          vendors=scope_index.vendors, min_score=args.min_score,
                                          use_rerank=rerank)
             hits, rerank_ok = er.hits, er.rerank_ok
+            best: dict[str, float] = {}
+            for h in er.hits:  # each kept vendor's best chunk survives the max_hits trim
+                if h.rerank_score is not None:
+                    best[h.vendor] = max(best.get(h.vendor, h.rerank_score), h.rerank_score)
             res.update(kept=len(er.kept), dropped=len(er.dropped), empty=len(er.empty),
-                       dropped_vendors=er.dropped)
+                       dropped_vendors=er.dropped, vendor_best_scores=best)
         elif shape == "comparison":
             cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                       facets=detected.facets, use_rerank=rerank)
