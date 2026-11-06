@@ -1,0 +1,395 @@
+{
+ "question_id": "cv43-03",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect",
+   "chunk_ids": [
+    "964a11e9-d6d9-4cba-90dc-4e77a6f61b67",
+    "77f070b0-1900-46a4-8de3-8e87ab0a112c",
+    "0759156d-6795-408f-a45c-3ca0928f0cb0"
+   ],
+   "doc_ids": [
+    "2630760a-201c-4e4f-9949-5c59c2cbafd0",
+    "af1a6408-959a-4f4b-8ed7-fd41bfa73f35",
+    "fcf5cd95-2eda-4cac-97ed-d9456e3bca4e"
+   ],
+   "note": "Agentless backup of Proxmox VMs and containers via Agent for Proxmox; 'Backing up Proxmox workloads' (SQL check)."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "800c43e7-0508-4922-8fed-bccb2c27480c",
+    "9f1a2530-5c86-4632-862e-fd97aee058f0",
+    "f418e820-4815-4f8d-96f1-f8d96a067db3",
+    "597b52a4-5536-43e6-a521-83f1dc9029ee"
+   ],
+   "doc_ids": [
+    "31168bcc-b1a9-41d9-aa5a-e1fb88ccc664",
+    "79b9676f-221c-418f-a39d-a91c200a3027",
+    "7e249add-9263-4b4c-8088-a7104e7a380b",
+    "9675df45-c920-4c33-8eab-cf51c8953f61"
+   ],
+   "note": "UDP 11.0 adds Proxmox VE support: agentless VM backup policy and recovery of Proxmox VMs."
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "unclear",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "45175b56-7a9f-4571-98ca-8745df559e33"
+   ],
+   "doc_ids": [
+    "37ed6681-333d-41dc-b6b0-6ce4caeca392"
+   ],
+   "note": "Documents recovering a protected system into a Proxmox VM (restore target only); no statement it backs up Proxmox VMs."
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "406e0e8e-e753-4e2d-bd70-d2b237a4e62b",
+    "741504b6-c771-462c-ac5d-dac179149965",
+    "97a74094-2b31-4d7a-aea3-ff897d4c9f38"
+   ],
+   "doc_ids": [
+    "065b4e49-b8a7-4836-94bc-fbc66c892eeb",
+    "1328c568-1789-483e-92e3-20ea1a382fc0",
+    "23174673-3718-4224-aa3d-5cd7c2cff8dc"
+   ],
+   "note": "Proxmox and QEMU (mode=PVE) plugins back up Proxmox VMs and containers via vzdump."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup",
+   "chunk_ids": [
+    "a834ad87-a673-4982-b86e-1bc2b5ec52d5",
+    "d807d662-7cfe-4a3c-8236-564e8a7d23c7",
+    "0d330f08-9bc8-4090-81ba-49098d3092ba"
+   ],
+   "doc_ids": [
+    "311f9cae-66f4-4503-b6cf-cbe98b499e71",
+    "a82b343d-8677-4187-9f98-cd41c657adf8",
+    "c58f9fe9-95a9-48d3-903e-c9019598f186"
+   ],
+   "note": "Image-level backups of Proxmox VE VMs; Protecting Proxmox VE data source and Proxmox recovery."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "e488f59d-7442-4f81-bf82-d0fdcd083d76",
+    "328e405e-bb3f-4a67-b647-b4b7316278e5",
+    "5993a0e9-1000-4df3-b272-3c335627a37e"
+   ],
+   "doc_ids": [
+    "f0a1f595-44fa-418c-90e3-be7ef40a9a7d",
+    "f70a18a5-176f-46b7-9e1f-15fa72973f76"
+   ],
+   "note": "Protecting Proxmox VE VMs with Commvault: backups and restores of Proxmox VMs."
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "6738c5e2-405c-4519-b900-ca434737003c",
+    "bdf3edcb-a790-4f10-830f-eca9333bfda6",
+    "36043fdc-2e02-420f-950c-f2ae618ac44a"
+   ],
+   "doc_ids": [
+    "008e7d80-3ff0-4863-a74a-48adac971e41",
+    "73633843-2ff3-48c0-87b0-5c975557e7c7",
+    "bf8efc52-586a-4dc9-aa54-8a29012c3200"
+   ],
+   "note": "Data protection for Proxmox VE VMs (release notes June 2026), manual/policy backups."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "ac3a5f0e-914b-41d9-b8d6-349b372db7e0",
+    "35e69e48-45da-4f2a-a06f-d910f6848f5f"
+   ],
+   "doc_ids": [
+    "04fc124f-4756-466f-8084-1f1868b7da18",
+    "70b2a8ab-00de-4bd2-98f7-2717b798537b"
+   ],
+   "note": "VM Backup build 9.16.9.0 supports backing up and restoring VMs hosted on Proxmox VE."
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "2cd21c5d-215d-4c13-b72c-6f1d14fd437d",
+    "6d59d750-1a97-467c-a464-10b38461a123",
+    "498d31c5-e4cf-4f2a-bd39-2c770bf6f229"
+   ],
+   "doc_ids": [
+    "6bf78708-40db-49ce-ba46-a1024944e67c",
+    "8bebf228-a694-49ed-b8b1-1c24e4d42470",
+    "d63de9f5-ed44-47cf-bca8-ce4f9c38d070"
+   ],
+   "note": "Proxmox VE Backup jobs: add Proxmox clusters/hosts/VMs to backup jobs."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "541e1485-4842-4d65-b44a-d2c55178820d",
+    "86f5db3a-4539-4dc5-9f77-f79915fff67b",
+    "5f481831-b9f5-481a-ae2e-9365e954aad7"
+   ],
+   "doc_ids": [
+    "46cd50ed-6a27-4b9e-8d49-ad6300948da1",
+    "d97330df-a944-43de-a446-da3bb57289b2",
+    "dcf7fe1b-9467-464f-986c-b09d2608ac7a"
+   ],
+   "note": "RSC provides discovery, backup and recovery of Proxmox VE virtual machines."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "4bf523e0-a587-4bf3-a2c8-d4edf721a9cf",
+    "7f0c3625-9234-4321-bf06-7f9786f8325e"
+   ],
+   "doc_ids": [
+    "9a428bed-bce2-4bb5-9585-d85ed6986386",
+    "a1c188a8-1d6c-4ebb-95c6-1edb2d9e7e3a"
+   ],
+   "note": "Proxmox VE backup process (SSH transfer, export storage repository) for Proxmox VMs."
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "9f61c51d-5796-4db8-b492-c7127d0c24e3",
+    "6d9a190c-5c4d-4353-9767-ffb8e2e0b899",
+    "f6841219-4697-4e69-b6a1-d59ee51d4455"
+   ],
+   "doc_ids": [
+    "460a9b70-fbd8-4d26-ae0e-90f8c88a987e",
+    "e03aca2e-39ea-40db-980f-47f8936df4e5",
+    "eb6998fe-dd07-4ee9-939d-5b6c17fdfb5b"
+   ],
+   "note": "Veeam Plug-in for Proxmox VE (since VBR 12.2) adds Proxmox VE servers and protects their VMs."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

@@ -1,0 +1,404 @@
+{
+ "question_id": "cv43-06",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud / On-premises",
+   "chunk_ids": [
+    "098f9f81-74b0-44e9-981c-4d84a4b8e907",
+    "6a78b8c6-f7e6-423f-ac5b-bc9f97fe5d47",
+    "29ae8ad6-ec8e-4b31-bdbf-419d927c6ca3"
+   ],
+   "doc_ids": [
+    "9e5acfbf-a385-48cb-a66b-af7a315da75c",
+    "bb964c1f-92be-4dca-8d1a-68558264adf0",
+    "1ecbad1e-3687-4234-b65e-df944554f98e"
+   ],
+   "note": "Universal Restore updates drivers so a recovered OS boots on dissimilar hardware; bootable media works on bare metal."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve ShadowProtect",
+   "chunk_ids": [
+    "8acccb28-d6cb-4462-99f6-1325ea6c326a",
+    "c49a84d1-cb69-4ff6-ab71-a32883fa7c4b"
+   ],
+   "doc_ids": [
+    "507570d3-01e9-43b6-8af1-fd05cb4bc557",
+    "c8570df7-63a8-4fe1-9fb0-6330a42d67cf"
+   ],
+   "note": "Hardware Independent Restore (HIR) restores a system to different hardware (P2P, P2V, V2P, V2V)."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "System Recovery / Backup Exec",
+   "chunk_ids": [
+    "ec2e2e5c-1299-49e6-9686-fdf70aeb0ffc",
+    "27b19517-5c45-4390-aa07-a63b196ed6e7",
+    "69665a89-d568-4ed4-815c-309815c184e6"
+   ],
+   "doc_ids": [
+    "e6ec94f3-4fe0-4c13-8cc8-df925e4fb179",
+    "333f549d-32d6-46f8-ab66-96c96dfb7145",
+    "ae4e3901-2815-4a24-9e23-e03d31bb4075"
+   ],
+   "note": "Restore Anyware recovers to different hardware; full bare metal recovery to dissimilar hardware; SDR to new board model."
+  },
+  "Atempo": {
+   "label": "unclear",
+   "product": "Lina",
+   "chunk_ids": [
+    "9458a69f-6832-4f73-9bd6-944044e89f34"
+   ],
+   "doc_ids": [
+    "b28a63a3-69d8-47fb-bad3-f9c0a968492c"
+   ],
+   "note": "Lina BMR restores to a new workstation with disk layout editor, but never states dissimilar hardware support."
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "677baf9e-d4ab-4f32-a944-7d7b1f07bbd7",
+    "7906fe90-1ac6-405a-9639-e1130d2cfba3",
+    "d4027cd8-319e-40fa-9855-3cb9701c697a"
+   ],
+   "doc_ids": [
+    "40a586ff-66e4-4a75-abc3-8f226822c8fa",
+    "4890efaa-d9af-4fd0-9e1b-125953ad1e44",
+    "9f279415-ff37-49ae-a3ec-4fd062be8171"
+   ],
+   "note": "BMR to dissimilar hardware supported with offline Driver Injector tool."
+  },
+  "Bacula": {
+   "label": "unclear",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "390ce956-2fdb-47c1-97d1-38b71ec0c80c",
+    "4197cd1e-0d70-4699-89d1-b026aa0a7c98"
+   ],
+   "doc_ids": [
+    "4ef6d60d-b207-49a7-a8e4-de2b8a6fc4e1",
+    "a20947a6-d57c-425c-a250-2fb146a2c2b3"
+   ],
+   "note": "spot-check disagreement (unclear vs yes); set unclear. Linux BMR to new compatible hardware; WinBMR on different hardware leaves driver problems to the user, no driver injection."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Intronis Backup",
+   "chunk_ids": [
+    "aea40e56-9cb7-4c9a-9762-27ee205abae1",
+    "6be69be6-1b16-4da5-90b0-7ea89be3b43b"
+   ],
+   "doc_ids": [
+    "67434695-375c-4907-9ce9-81d3c1df696d",
+    "1a6caec0-106e-4414-96a7-6ea818f41627"
+   ],
+   "note": "Intronis bare metal recovery to a machine with dissimilar hardware via Add Missing Drivers (Barracuda Backup appliance BMR requires similar hardware)."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup",
+   "chunk_ids": [
+    "5eef84fc-ebc4-46fe-a28e-00403b611019",
+    "924f516f-142e-4811-85b7-a92ff6b0572f"
+   ],
+   "doc_ids": [
+    "aa6c5dca-5eee-4186-96f7-03b969b933af",
+    "bb2b4ee9-1de9-41b3-bd6b-811ae3ae5b9e"
+   ],
+   "note": "NetBackup BMR dissimilar system restore (DSR) restores a Windows client to new hardware configuration."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console",
+   "chunk_ids": [
+    "06072bff-bfa0-4af7-8de5-46459a2ee81b",
+    "3b25f902-74d8-43f8-a59a-fc678056f0e6"
+   ],
+   "doc_ids": [
+    "7d51ab3b-dfce-4dc4-b494-f146d0256eec",
+    "8e88b00c-7caa-4cc4-9f86-7dd0d1cb69b3"
+   ],
+   "note": "1-Touch Bare Metal Recovery supports cross hardware restore to completely different hardware."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "91630183-30c4-45f3-bb6d-eb726cd5613d",
+    "4a293276-a3bc-475b-8659-7281bfa79e4e"
+   ],
+   "doc_ids": [
+    "0c5dd699-f697-4abf-a526-6f710a78d146",
+    "1098c88c-42ab-40cf-9bea-5f6451699f14"
+   ],
+   "note": "BMR intended for hardware failure replacement and migration to new hardware; storage controller drivers injected, other drivers installed for dissimilar hardware."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "NetWorker",
+   "chunk_ids": [
+    "605c255a-607a-4a78-aa6e-e91320a61f22"
+   ],
+   "doc_ids": [
+    "9f01460a-2671-444d-aab7-bd45317f391c"
+   ],
+   "note": "NetWorker Windows BMR to a different host with different hardware is supported (same architecture), Windows prompts for drivers."
+  },
+  "Druva": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "unclear",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "88e5bbc0-aeeb-48c5-98c4-993cb2b5dbb8",
+    "f953f963-e1e3-4c24-a339-64889cf255b8"
+   ],
+   "doc_ids": [
+    "fb0447d4-591f-4160-a31c-d08036411fc2",
+    "d93d64d6-00a4-4da5-b3ab-dfc6a4b63c5e"
+   ],
+   "note": "BMR to new hardware, but recovery hardware must be same model; dissimilar hardware only at own risk."
+  },
+  "Nakivo": {
+   "label": "unclear",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "4598547f-7815-4b45-9f6d-cdf81d315ec8"
+   ],
+   "doc_ids": [
+    "e1685b0a-c7cf-4853-9e5d-ddcd7884424a"
+   ],
+   "note": "BMR described as on the same hardware yet also to a different computer; no dissimilar hardware support stated."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "unclear",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "4ca5081a-8da6-4006-8f63-d4e48fe5889e",
+    "7c4ed522-6d0b-4500-83ac-a6acb08e54d3"
+   ],
+   "doc_ids": [
+    "fd2452e8-b108-4c3b-b066-0d58f3674c15",
+    "09d3be0c-4669-4505-9b3e-2eeb4da47335"
+   ],
+   "note": "BMR overview names restoring to dissimilar hardware as a design goal, but procedure states recovery to dissimilar hardware is not supported."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "ca1f63e7-67c9-4cc7-8f91-b5face7aef53",
+    "781d34b4-3b8d-499b-9b8b-a7f770d5398a"
+   ],
+   "doc_ids": [
+    "953afa13-f685-495f-9406-4a11dd76584c",
+    "8fa4da5d-26eb-4ee1-a14a-6b52affc976a"
+   ],
+   "note": "Image-based BMR procedures apply to any supported target including dissimilar hardware; P2P/V2P supported."
+  },
+  "Veeam": {
+   "label": "unclear",
+   "product": "Veeam Backup & Replication (Veeam Agent)",
+   "chunk_ids": [
+    "0a620e13-5107-4994-bd29-6ba2accdb977",
+    "266a70e2-5d3f-4b5f-93bf-1b2a48feede7",
+    "76a390df-07a9-41b6-a0fc-eafe71b76d63"
+   ],
+   "doc_ids": [
+    "3fdd7926-995f-4e5f-96f1-7fa30592860c",
+    "213cb068-a499-4960-ad38-4618c1c885ff",
+    "a22eea9f-ccd3-4d17-a44c-9f079ff51848"
+   ],
+   "note": "spot-check disagreement (unclear vs yes); set unclear. AIX/Solaris BMR to dissimilar hardware not supported; Windows agent bare metal restore has a driver injection option but no explicit dissimilar hardware claim."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

@@ -1,0 +1,470 @@
+{
+ "question_id": "cv-06",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "fb83b843-e378-4fb7-b937-674f832b7024",
+    "56551baf-5f7c-4624-b3ba-d3c25bcfcd34"
+   ],
+   "doc_ids": [
+    "bd24cba4-c4d3-4e1d-95d5-82ef37bb2970",
+    "71ae694d-219a-48ca-804f-cfb960f8be4d"
+   ],
+   "note": "Microsoft 365 backup solutions (cloud agent / Agent for Office 365) for Exchange mailboxes, OneDrive, SharePoint"
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "55bf716f-32f2-4b07-a733-46574bff1e0e",
+    "74fb6421-680d-4910-b3f9-8bebee2564a8"
+   ],
+   "doc_ids": [
+    "74c4b5df-22cd-418b-aa1d-cb74ae5060a5",
+    "1f41f1c3-74d7-4faa-8ac0-5135b70f8ead"
+   ],
+   "note": "Afi SaaS backup for Microsoft 365 covers Exchange Online, OneDrive, SharePoint"
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "68fc1559-7ea4-4f01-934c-5bd45efe2f28"
+   ],
+   "doc_ids": [
+    "8ebf10da-1e03-459c-b670-1ce815251659"
+   ],
+   "note": "UDP function/privilege table lists Exchange Online protection and SharePoint Online protection"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "09a85f1f-c2e5-46f0-b48a-c1193ddfe16c",
+    "b5f8033e-1a35-4627-918b-6404637b29f4",
+    "29096a73-1709-41ed-b0cb-722789ec0675"
+   ],
+   "doc_ids": [
+    "fba01142-a6ca-4a64-bc74-cda88c85ec09",
+    "a037440d-0afb-4186-acb3-677d8dee8772",
+    "7bf61142-5736-4e5a-a3f5-57f6b5778925"
+   ],
+   "note": "Backup Exec backs up Microsoft 365 tenant data (Exchange Online, OneDrive, SharePoint Online plugins)"
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "58ecb3b5-06c1-47ab-b621-444802de8c60",
+    "23714a36-3146-4d8b-b08d-0197246ad964"
+   ],
+   "doc_ids": [
+    "bf70969a-9c60-455e-9766-eef025a56ded",
+    "18c45191-0f7a-4c54-beab-3b6918133f5a"
+   ],
+   "note": "Tina for Microsoft 365 backup selection: Exchange Online, OneDrive for Business, SharePoint Online"
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Microsoft 365",
+   "chunk_ids": [
+    "d57e0cb4-d41c-488e-8e55-ac9ce0ed83b8",
+    "e97fd6f2-4f22-46ab-bc97-3465ccad6a00"
+   ],
+   "doc_ids": [
+    "d56f6275-c52a-4417-b820-099b210146ec",
+    "205d38e9-195c-4863-82b0-9ee23493fdd1"
+   ],
+   "note": "AvePoint Cloud Backup supports backup of Exchange Online, OneDrive, SharePoint Online"
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Cloud",
+   "chunk_ids": [
+    "969af733-ec1f-48fb-ba30-afe96229549c",
+    "444c0968-80e1-4f05-a5bb-2c767406e460"
+   ],
+   "doc_ids": [
+    "c4885c64-150f-4fc8-95f6-6649ea6a13f6",
+    "7d078e4e-26fc-4fa0-b258-fc4387e201c8"
+   ],
+   "note": "x360Cloud backs up Exchange Online, OneDrive, SharePoint and Teams"
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "833ec1c1-ba7a-4f3b-9bb4-db9b6de45c74",
+    "4578f5c9-3a04-4690-a0ca-cc2c447a3f20"
+   ],
+   "doc_ids": [
+    "2e2a6f29-4dac-49b2-a7ab-d4b9dacd2c4d",
+    "be89918d-4518-4044-a75e-807cf8bb1d97"
+   ],
+   "note": "Bacula Enterprise Microsoft 365 Plugin supports OneDrive, emails, SharePoint Online"
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Cloud-to-Cloud Backup",
+   "chunk_ids": [
+    "ccb1deca-4468-4f9e-9d14-944e254fba2f"
+   ],
+   "doc_ids": [
+    "9d99da2e-5345-4797-ae5d-4c10fc8c0ab9"
+   ],
+   "note": "Cloud-to-Cloud Backup automatically backs up Microsoft 365 Exchange Online mailboxes, OneDrive, SharePoint"
+  },
+  "CloudAlly": {
+   "label": "yes",
+   "product": "CloudAlly for MS 365",
+   "chunk_ids": [
+    "c9b50f92-5dcc-4d6f-9690-ce331789191a",
+    "f9877a3e-d4fe-4e35-a849-9944f101e0f9"
+   ],
+   "doc_ids": [
+    "2d4af1bf-4614-4597-8613-d38fd2c31742",
+    "5c55b6ea-8822-499a-9e9d-d59906979594"
+   ],
+   "note": "CloudAlly automated daily backup of Microsoft 365 incl. Exchange, OneDrive, SharePoint"
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Cloud Protection Service",
+   "chunk_ids": [
+    "12481c90-8b70-4148-8b0c-c84acbde004f",
+    "99b41faf-d11d-45a7-9545-c8825c2eec3d"
+   ],
+   "doc_ids": [
+    "d2ffacab-820f-41d5-8a4a-0b882eedcfd3",
+    "d8359f96-c86c-4db1-a8d1-9a199573c50f"
+   ],
+   "note": "Protects Exchange Online mailboxes, OneDrive and SharePoint Online (incl. M365 Backup Storage)"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "e8f8bb07-67e1-4a60-a5ca-b5d115f244fc",
+    "a41c2f24-ebd1-4c92-88ac-7e82f7978aa7",
+    "2e998a02-d01f-4a29-9f64-1cfbfeb26658"
+   ],
+   "doc_ids": [
+    "956d4329-eafb-49cb-a0b3-e70451cab9fc",
+    "e5ff3c00-4e95-4954-bdf7-d1398012db59",
+    "5aa3b59f-ca35-46c0-8378-3fb275b76e86"
+   ],
+   "note": "Backup & Recovery for Microsoft 365: Exchange Online, SharePoint Online, OneDrive backup and restore"
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "SaaS Protection for M365",
+   "chunk_ids": [
+    "dc65c7a2-5cdc-4b8c-b00a-54d1fbed4bdc"
+   ],
+   "doc_ids": [
+    "2b923f1f-061f-4e95-891d-69d8966c4e51"
+   ],
+   "note": "Datto SaaS Protection backs up OneDrive, Exchange, SharePoint, Teams"
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "c33ea4e4-d367-44ef-92f6-938e4a13a63b",
+    "2b2cf3ff-9532-415f-a10c-14f6a307e81e"
+   ],
+   "doc_ids": [
+    "4d1e3860-ac72-473d-9705-b92d3c5e8bef",
+    "d2cac951-fce8-4f51-ab0b-ff26369fbba0"
+   ],
+   "note": "Druva protects OneDrive, Exchange Online, SharePoint Online, Teams"
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "3628d31d-9c09-4517-a5e1-138923a47de0",
+    "11231f72-1a35-40b9-81c5-7a4cb8ba12f9"
+   ],
+   "doc_ids": [
+    "27d95f60-54d4-4d4e-a176-36311ccbed4e",
+    "6a094b76-d85f-4c4f-9d6c-787c829400ce"
+   ],
+   "note": "Eon Microsoft 365 backup policies (mailboxes, OneDrive, SharePoint sites) and restore"
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud for Microsoft 365 and Google Workspace",
+   "chunk_ids": [
+    "7f949623-1679-4ac8-9af1-be97e70dd908",
+    "798e235f-2bcf-40da-9cf4-33967d3a7ced"
+   ],
+   "doc_ids": [
+    "e4714e79-c7b8-4883-a470-47d7253e95aa",
+    "32836ab0-c35c-4cef-92c7-566edecada48"
+   ],
+   "note": "HYCU R-Cloud for Microsoft 365 backs up and restores OneDrive/Exchange data"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "658d4e1d-cff0-4167-bc78-a06553232569",
+    "483b031c-d41f-47ef-9fa5-60f0c64446ec"
+   ],
+   "doc_ids": [
+    "24a39bb9-b321-4852-9a67-51da896abe4b",
+    "92b600e9-c443-4a68-a804-47c913dce0b8"
+   ],
+   "note": "365 Total Backup backs up Microsoft 365 mailboxes, OneDrive, Teams"
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "53d904d8-99c9-4d4f-94c5-9925a61a9adc",
+    "8e8d4e87-ce2c-43fc-ba6a-8908cb14b105"
+   ],
+   "doc_ids": [
+    "7fa7d182-6c0a-4c8a-8ce0-7b104a2a613a",
+    "fb03c83d-da49-4ada-af1b-56b20c821937"
+   ],
+   "note": "Keepit backs up Exchange, SharePoint/OneDrive Microsoft 365 data"
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Microsoft 365 Backup",
+   "chunk_ids": [
+    "f6ce9881-f5fd-413d-bcff-7876bea9caca",
+    "6b0f7279-4257-4fa6-87c6-1779c2085983"
+   ],
+   "doc_ids": [
+    "5c9a6c31-f0ef-4726-9dbe-4e911625025b",
+    "be59ddcb-555c-44c3-bc17-49d341b1a334"
+   ],
+   "note": "Microsoft 365 Backup policies and restore for OneDrive, SharePoint, Exchange"
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "df07c6f0-4ca2-41a9-a775-43083672455d",
+    "28bf7726-41aa-46d8-999a-8229cc7af7be"
+   ],
+   "doc_ids": [
+    "17f8eb63-ffd6-4c12-8ed7-c701c5192fca",
+    "89ce80d1-5206-44c5-afd5-b825abd27c19"
+   ],
+   "note": "Cove Microsoft 365 data protection incl. OneDrive restore"
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "f2376c3a-babf-4620-9c00-41d0dddf90d4"
+   ],
+   "doc_ids": [
+    "7d44e8a0-eaa1-49d3-b755-0c797fa2c23d"
+   ],
+   "note": "Backs up Exchange Online, OneDrive for Business, SharePoint Online, Teams"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "yes",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "29d14bb7-8a17-4e87-b5d2-b182f905e3a7",
+    "5460d3b8-d195-443a-be41-50dfc15a9b24"
+   ],
+   "doc_ids": [
+    "53ff6b2d-faa9-4391-a2d4-4e278e144ae9",
+    "c2e750cd-eb78-4862-8d02-56d21d268769"
+   ],
+   "note": "NinjaOne SaaS Backup backs up M365 email and OneDrive"
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "4af6fe0c-3025-4e85-a43c-4a969808043b"
+   ],
+   "doc_ids": [
+    "47e29d75-93bf-402e-88a3-2e02d8851771"
+   ],
+   "note": "Back up and restore SharePoint sites, OneDrive accounts and Exchange mailboxes"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "yes",
+   "product": "User Guide",
+   "chunk_ids": [
+    "1835d354-e128-4935-b174-659e6ab6af51",
+    "e82bd2af-5c30-4698-a0d8-0d5829ec3f88"
+   ],
+   "doc_ids": [
+    "ea5f1651-d66c-47b0-8428-c262e1111107",
+    "6397f43e-2159-4dbb-89f2-18b88c3b1baa"
+   ],
+   "note": "Spanning Backup for Microsoft 365 protects mailboxes and OneDrive"
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "3b52d101-e14b-431b-bda2-81167092c983",
+    "bfd45933-e54c-475f-9d45-f677f8a4e50f"
+   ],
+   "doc_ids": [
+    "ebc9cbba-47ce-4351-bd4a-1bc291d1d6f4",
+    "11aba04f-bb99-44f2-a198-b1d7bf58ee11"
+   ],
+   "note": "Protected Microsoft 365 services: Exchange Online mailboxes, OneDrive for Business, SharePoint"
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "ActiveProtect Manager / Active Backup",
+   "chunk_ids": [
+    "b9c85b01-9547-46e7-86b4-a7f8460487eb",
+    "07a03a85-682f-4e3c-9cac-e0338895010a",
+    "ead36bde-e295-49c2-8600-92f2f6a7de37"
+   ],
+   "doc_ids": [
+    "11c84bb6-2f95-4c85-b913-02ea0b6817d9",
+    "4e099d97-5c20-4e91-b59c-536b17b1dc05",
+    "3f57a043-4666-420d-820b-541c71062b7b"
+   ],
+   "note": "ActiveProtect and Active Backup for Microsoft 365 back up M365 data"
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "unclear",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "568212a6-97d8-4689-8dde-f57aa81cc7fa",
+    "def703ec-c53f-4bef-972c-94f6d8dfe0ff"
+   ],
+   "doc_ids": [
+    "0f7b428d-8ce9-40a7-b40a-bfffb5fa10aa",
+    "09e7a66f-7789-4627-b031-48026feb7933"
+   ],
+   "note": "Own backups cannot protect Office 365; UniView only manages Spanning Backup for M365 tenants (separate product/vendor)"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup for Microsoft 365 / Veeam Data Cloud",
+   "chunk_ids": [
+    "8181ddf0-211e-4994-ac75-91d1b5065609",
+    "452e4f69-b7e3-4d2c-a906-aa7a850632e3"
+   ],
+   "doc_ids": [
+    "a5f866cb-98c2-40d8-9268-206dbfdbf987",
+    "93f90d77-197e-41c2-8685-6a3b957546ae"
+   ],
+   "note": "Veeam Backup for Microsoft 365 / VDC for M365 back up Exchange Online, OneDrive"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

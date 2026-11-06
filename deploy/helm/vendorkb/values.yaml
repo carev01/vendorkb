@@ -30,9 +30,15 @@ postgres:
   user: vendorkb
   fsGroup: 999   # the Debian postgres uid (alpine's is 70)
   shmSize: 1Gi   # memory-backed /dev/shm: parallel HNSW builds outgrow the 64 MB default
-  resources:     # HNSW index builds need memory
-    requests: {cpu: 250m, memory: 1Gi}
-    limits: {cpu: "2", memory: 4Gi}
+  resources:     # HNSW index builds need memory; shared_buffers below must fit inside the limit
+    requests: {cpu: 250m, memory: 2Gi}
+    limits: {cpu: "2", memory: 6Gi}
+  # postgres -c settings. The 128MB default cache is far below the 3.6 GB chunks table and the
+  # 1.8 GB HNSW index (measured 2026-11-05): every search re-read them from the page cache.
+  settings:
+    shared_buffers: 1536MB
+    effective_cache_size: 4GB
+    work_mem: 16MB
 
 sync:
   schedule: "*/30 * * * *"

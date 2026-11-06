@@ -1,0 +1,388 @@
+{
+ "question_id": "cv43-10",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "a5d73cb5-82d9-4009-b71a-92250f37751c",
+    "c53c86b9-104e-4c68-8a66-e3c972ff79be"
+   ],
+   "doc_ids": [
+    "55c56e87-11ff-4b57-b48c-d0ad4d57da6a"
+   ],
+   "note": "AWS Backup legal holds prevent backups from being deleted while the hold is in place"
+  },
+  "Acronis": {
+   "label": "unclear",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "b9acfc28-517c-4e5c-9044-bb31ba0560e8",
+    "cd1f62b9-05ce-4a16-942f-da6244df6ddd"
+   ],
+   "doc_ids": [
+    "399c4c94-46eb-4cd5-bccd-d474ca7c0570",
+    "8bbfaff9-e627-45b2-9709-1d4cb0069024"
+   ],
+   "note": "Legal hold rules exist but apply to the email archiving service, not backups"
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "unclear",
+   "product": "Lina",
+   "chunk_ids": [
+    "9b871095-6335-4b73-8fef-33ce5f399696"
+   ],
+   "doc_ids": [
+    "3d323c63-82d4-4960-be3d-d8b00180d789"
+   ],
+   "note": "Only an S3 object-lock 'legal hold' mode for backup storage buckets"
+  },
+  "AvePoint": {
+   "label": "unclear",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "spot-check disagreement (no vs unclear); set unclear. "
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "31f70c66-839f-49f0-bec8-4042cd2a78aa"
+   ],
+   "doc_ids": [
+    "37348864-f445-4572-ba68-43809c422b59"
+   ],
+   "note": "Pinned snapshots block retention cleanup and deletion, explicitly for legal hold requirements"
+  },
+  "Bacula": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Barracuda": {
+   "label": "unclear",
+   "product": "Message Archiver",
+   "chunk_ids": [
+    "c7b54272-8129-4752-84a3-fb85dae6abf4",
+    "9a6d08ba-c0e4-4777-b974-393346cb68eb"
+   ],
+   "doc_ids": [
+    "b2e63d61-2c37-4ec3-8c61-102b98d2f63b",
+    "8183dbf1-1e2b-4f01-9923-0b3c1ee3ed8a"
+   ],
+   "note": "Litigation holds (incl. indefinite) on archived messages in Message Archiver, not backup data"
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "unclear",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "fba6b055-5d3c-4336-9cb5-615726931b18"
+   ],
+   "doc_ids": [
+    "31294f2c-07b1-4dee-8645-999f39510873"
+   ],
+   "note": "SafeLock retention lock described as useful for legal holds; no legal hold feature"
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "DataProtect / Cloud Protection Service",
+   "chunk_ids": [
+    "7a2dc9dd-dd46-40d6-91d1-ed8666b35c16",
+    "8886cce3-5866-4370-ada9-5aeaf12ebd4c"
+   ],
+   "doc_ids": [
+    "a1561725-7f69-4b63-8c0d-6dc1941caeed",
+    "0d8a8b62-dad5-4bad-ba7c-580b5c2db94f"
+   ],
+   "note": "Data Security role can add or remove a legal hold on existing snapshots/protection runs"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "af4f7dbd-4f9c-4210-9d4e-ecf8e1df6e31",
+    "a252ef70-6b42-46cd-9875-a0a409d6acb9"
+   ],
+   "doc_ids": [
+    "54912347-067c-4f75-aa49-d939d3c65118",
+    "211c3054-5eba-425e-843e-83cb2b53d687"
+   ],
+   "note": "Legal Hold feature prevents deletion or aging of backup data (e.g. laptop backups)"
+  },
+  "Datto": {
+   "label": "unclear",
+   "product": "BCDR",
+   "chunk_ids": [
+    "9ce51024-747d-452f-91a2-778d45f0dcae"
+   ],
+   "doc_ids": [
+    "34665d97-ac86-4b9b-803a-9d94474686a5"
+   ],
+   "note": "Archive Retention service request keeps historical cloud recovery points, e.g. for legal hold; not a hold feature"
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "77cbbbab-1b94-49d4-a7d7-1bccc8cb1d22",
+    "ed9a440b-a07b-4e51-a17f-8613d945eb09"
+   ],
+   "doc_ids": [
+    "80645d6a-6c3c-4d54-ae27-92d0eca6a553",
+    "03a59403-1304-47ea-9f38-a7820e81958f"
+   ],
+   "note": "Druva legal hold preserves a user's backup data for litigation"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud for Microsoft 365 and Google Workspace",
+   "chunk_ids": [
+    "74cd2c14-4ab0-4608-bcfc-2e2ba6563adc",
+    "b9b7cb0b-e25f-474c-a496-5341acdfb7c6"
+   ],
+   "doc_ids": [
+    "5313eee6-47be-428b-a893-caca11eb8c8f",
+    "58830c45-aebf-4770-9dea-17090b899f6e"
+   ],
+   "note": "Backup and archiving product marks emails for legal hold, preventing deletion"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "yes",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "914802d8-0a65-4ef1-b1fe-a0395a8de8f1",
+    "89314472-6b29-4cdd-ac52-49aae329a633"
+   ],
+   "doc_ids": [
+    "2a82501e-0911-489d-bb9b-1d722cec88ed"
+   ],
+   "note": "NinjaOne SaaS Backup lets you create account-level legal holds"
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "d735b962-ac6f-4f10-a46d-85a76ba8f580",
+    "dbaf8b66-0f06-425a-8f7b-261d0d10e7c6"
+   ],
+   "doc_ids": [
+    "cba9146d-3bb5-48ab-a178-6bf22f8336da",
+    "c4c31a7a-a77c-496d-b29b-e6f127376037"
+   ],
+   "note": "Legal hold retains snapshots indefinitely until removed, overriding SLA retention"
+  },
+  "Salesforce": {
+   "label": "yes",
+   "product": "Own (Backup & Recover)",
+   "chunk_ids": [
+    "d411dc70-5528-43fa-900c-11cca139ffa2",
+    "9547196f-ee67-45b9-bd59-6c9a81e0db09"
+   ],
+   "doc_ids": [
+    "ece7f47f-66fe-467b-9457-1affefbe2487",
+    "8c0d1d6b-ff4c-46da-829a-a4851f25b1a3"
+   ],
+   "note": "Legal Hold retention policy feature for specific backups; Archive legal hold requests for archived records"
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "72b372e4-43d5-4daf-bd50-4b11e80be255"
+   ],
+   "doc_ids": [
+    "a6be8833-8b5b-4c77-93ca-c5fd16b9db58"
+   ],
+   "note": "Backups can be on legal hold (asset-level retention); Legal Hold Backups report"
+  },
+  "Veeam": {
+   "label": "unclear",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "f52dec28-e95e-4eb3-96bc-33d6d393de00"
+   ],
+   "doc_ids": [
+    "75dca270-b8c6-4780-a8c0-14add2684aa0"
+   ],
+   "note": "Exporting backups with separate retention is 'useful for legal hold'; no legal hold feature"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

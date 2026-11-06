@@ -1,0 +1,460 @@
+{
+ "question_id": "cv-05",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "92f89f39-b20d-4ded-884d-a965f2ec91c2",
+    "84be1b30-7a87-4c42-9945-0c92e5c8d6ab"
+   ],
+   "doc_ids": [
+    "481d7026-1b57-458e-9ee0-b3d01e8ec761"
+   ],
+   "note": "Backup gateway bandwidth rate-limit schedule limits upload throughput to AWS Backup."
+  },
+  "Acronis": {
+   "label": "unclear",
+   "product": "Cyber Protect On-premises",
+   "chunk_ids": [
+    "b60d714c-7be7-4af8-b98c-fe9a9303747a"
+   ],
+   "doc_ids": [
+    "3eb0e63f-5dc9-4117-9caf-2d55b6999a85"
+   ],
+   "note": "spot-check disagreement (unclear vs yes); set unclear. Only advises scheduling off-host processing off-peak to minimise bandwidth; no backup bandwidth cap found."
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "5e23bbcf-2f02-4ba0-8eba-53cce5c8f654",
+    "b6606624-5f90-4b43-b640-22c51ba34566"
+   ],
+   "doc_ids": [
+    "41ab460b-191e-41e6-8864-4ca65866efb8",
+    "46e136af-9a21-470b-9159-cd652073ce3e"
+   ],
+   "note": "Backup throttling schedule defines time windows to control backup speed."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "DLO / System Recovery",
+   "chunk_ids": [
+    "f66d414c-1e72-4b0d-b914-204fb0a59130",
+    "030c1166-b5a9-4c6e-b1bf-57d63da70baa"
+   ],
+   "doc_ids": [
+    "b87734b9-981c-41ee-8eac-2c0d3af264b8",
+    "f8de61e0-48e7-4e19-953c-066f9658c7ab"
+   ],
+   "note": "Network throttling / limit network bandwidth usage for backups."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Lina",
+   "chunk_ids": [
+    "5304adcd-3692-4e03-a57b-736a1836a226",
+    "ed043b9e-2ddd-46c9-8400-0785a69f0960"
+   ],
+   "doc_ids": [
+    "b52fa29d-ce88-47f1-bd36-c68ae520b541",
+    "ffabd80b-cb17-45de-9953-c7a7f1dcf899"
+   ],
+   "note": "Agent setting 'Limit backup bandwidth' in KB/s."
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "c66385eb-fdea-4da5-888c-811225e2fb43",
+    "28ec5714-f525-44de-a095-dc399c1fe19d"
+   ],
+   "doc_ids": [
+    "6e80ba27-5b33-41aa-9815-09b3145bfcc5",
+    "4e6542c0-f90b-4b6d-bee2-b14611161b35"
+   ],
+   "note": "Backup policy throttling limits agent network bandwidth per time frame."
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "da618ea0-98f6-4c6a-88cb-b855418f5247"
+   ],
+   "doc_ids": [
+    "819c4dd9-fd25-4373-ac0f-7359299616b3"
+   ],
+   "note": "Job Bandwidth Limitation directive limits job bandwidth."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup / Intronis Backup",
+   "chunk_ids": [
+    "f1482de6-2269-4b90-bdd5-5e2c9646b1c7",
+    "be7e9682-a20b-413b-a2c7-088bb631ae40"
+   ],
+   "doc_ids": [
+    "0f0cc1ad-6aed-49ab-ad89-7ac299115884",
+    "f899cb79-7710-4b58-b3a0-62c9ab7c6b91"
+   ],
+   "note": "Bandwidth rate limiting / throttling schedules for offsite transfer."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "yes",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "aea97c6e-57f2-4348-b2ef-4f2d86c13051"
+   ],
+   "doc_ids": [
+    "19c89b8a-4a35-4491-9093-9ce476a6177e"
+   ],
+   "note": "Max transfer rate per PV (MB/s) caps backup data transfer."
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup / Cloud Protection Service",
+   "chunk_ids": [
+    "f1b0d6de-3285-4ffd-98c6-41507194082c",
+    "8e05695a-c288-4832-8248-cfbc972d7a62",
+    "ccd104eb-f219-4f0f-ac73-b98696616530"
+   ],
+   "doc_ids": [
+    "d742e49f-fcba-48b7-8858-9067278a5f38",
+    "cfc4d983-2e57-41bc-a830-e087b8833548",
+    "12ef870c-c652-436a-9b8a-517cecc7164c"
+   ],
+   "note": "NetBackup LIMIT_BANDWIDTH/throttling settings limit backup bandwidth."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "CommCell Console",
+   "chunk_ids": [
+    "ee14ffc0-f97d-4588-a682-2f4218c228b1",
+    "7fc709ed-5dd5-4068-bbd6-8dc0a6db5ed7"
+   ],
+   "doc_ids": [
+    "db37617b-002d-452d-b7b6-39e738f49160"
+   ],
+   "note": "Network Bandwidth Throttling limits bandwidth of backups, absolute or relative, with schedules."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "f835072e-d817-4620-88df-9c4fa3351cf3",
+    "8dd28c75-79c2-4219-99dc-b1dbfffefe1f",
+    "8555fab0-a364-49f6-86f9-efe632ad84e1"
+   ],
+   "doc_ids": [
+    "c16e15cd-8329-4536-921c-7443b955c843",
+    "fb5df071-6a6e-4ffe-b6b4-0bf5aee472d0",
+    "55f70d31-572f-4e83-9fd3-60f206f38cb6"
+   ],
+   "note": "Backup policy throttling during business hours or custom schedules; offsite sync throttle."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "Avamar",
+   "chunk_ids": [
+    "203b577f-f71e-46d5-ae92-1d19da6f480a",
+    "aa386a27-4d37-43e3-9c1d-25fe9c4358d5"
+   ],
+   "doc_ids": [
+    "397d1fb9-2f59-4cba-a8b4-92c36151d8d6",
+    "3a90edec-e6d4-4eb5-8fdb-d054314c0bdd"
+   ],
+   "note": "Network rate throttle (Mbps) plug-in option."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "0a9ebc08-04d9-4694-8021-3929a93260db",
+    "f071c425-739f-4f6d-8f4f-34d979e62012"
+   ],
+   "doc_ids": [
+    "7899b74c-8547-4573-b0fe-e88bae325798",
+    "207f5f87-e1c8-4f85-93f3-569691389b97"
+   ],
+   "note": "Backup policy sets backup windows and bandwidth limits."
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "bb32d580-e573-4165-8462-13c16928a070",
+    "12c90fdf-db55-4c93-9034-ef177d8e7102"
+   ],
+   "doc_ids": [
+    "f1080ff3-14ea-4679-992d-7fbb049040b7"
+   ],
+   "note": "Bandwidth throttling, schedulable, for replication between backup/recovery appliances."
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "c439cbf3-8a2c-47b1-bd17-872bfae091bc"
+   ],
+   "doc_ids": [
+    "f1f523de-d788-4267-b385-393d1ba75536"
+   ],
+   "note": "Network bandwidth throttling limits bandwidth available to HYCU."
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery",
+   "chunk_ids": [
+    "704a412d-84e5-4371-86f8-995857d5f573",
+    "0121d5a6-1a25-4412-9540-064dbad69b29"
+   ],
+   "doc_ids": [
+    "6c8e4e26-9812-466a-aad6-4d52f894bf62",
+    "c2c3d26e-2c14-41a0-8cf1-00276a5bb13c"
+   ],
+   "note": "Bandwidth throttling for offsite backups and per endpoint."
+  },
+  "IBM": {
+   "label": "unclear",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "4e7d85cb-82cc-4cd7-aac9-f9ba418da9c7",
+    "60d131ac-fe60-4e0b-9c19-30bf63772073"
+   ],
+   "doc_ids": [
+    "36804292-0f44-49d3-9213-b1d9f7d65c6e",
+    "369db19a-44b9-47a3-8a34-4b6994e010e7"
+   ],
+   "note": "spot-check disagreement (yes vs unclear); set unclear. Vault/minor sub-policy Throttle sets transfer throughput in KB/s between source and destination (found via SQL)."
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "1c7a1415-ecdb-4a69-96b7-82debe392504",
+    "14167c4f-1843-4313-893a-1952a7b44b09"
+   ],
+   "doc_ids": [
+    "ffe67841-f64e-4adf-a348-12a376449c7e",
+    "b48359de-14a9-4148-92bf-2f1b26513e75"
+   ],
+   "note": "MARS agent network throttling with work/non-work hour bandwidth."
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "3a632571-9512-4097-bd70-1064dddbad57",
+    "c031c48e-1dd1-4ea3-87da-5704ffaca62c"
+   ],
+   "doc_ids": [
+    "4f5cdc70-6d4b-4a24-99dc-53831cfaef1d",
+    "e84a1182-d886-47a0-826e-a66caf0b054f"
+   ],
+   "note": "Backup Manager bandwidth limiting."
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "e7bee985-3d5e-43e0-b0c0-d2630c714cd6",
+    "26b95599-04f9-4769-9958-48267ccba1a3"
+   ],
+   "doc_ids": [
+    "d56867dc-48c5-4513-996c-4f841c3c46cc",
+    "dc7d456a-999c-4176-ac60-a7f63c7de97c"
+   ],
+   "note": "Advanced bandwidth throttling rules."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "unclear",
+   "product": "PX-Enterprise",
+   "chunk_ids": [
+    "46255a33-79c6-4eb5-b5bc-54e95ce5c236"
+   ],
+   "doc_ids": [
+    "849a10a9-d851-4b20-a8b4-11ee8b8af629"
+   ],
+   "note": "Bandwidth control only for storage resync/volume I/O, not backup traffic."
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "95d58373-f5ae-4a7b-a22a-1ab9239b2a0d",
+    "5cceb617-0300-4646-b436-244cb00156f6",
+    "29e40bf8-e4ef-49a7-9a2c-de6bfa838f23"
+   ],
+   "doc_ids": [
+    "b3274699-02db-4e92-88d3-055424de4d93",
+    "d7c1b888-b6e0-40c0-8ce3-e215399db793",
+    "ae69964e-ce17-46ac-b513-01be67671dcc"
+   ],
+   "note": "RBS, archival and replication network throttling."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "unclear",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "spot-check disagreement (no vs yes); set unclear. "
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "Active Backup / ActiveProtect Manager",
+   "chunk_ids": [
+    "ee7681f6-aca1-40bb-afd8-381cab0d3728",
+    "90308986-8c49-437a-a590-4d3ec7ac4d8b",
+    "b683a502-d415-416e-a57c-157f10a16c0e"
+   ],
+   "doc_ids": [
+    "e098212b-9250-4abf-8626-159f375c27f5",
+    "32c2ad7a-4e59-4445-8dd6-5f4cd1af9b9a",
+    "9e16eb09-a212-4a46-9d53-7ea2bcf0215c"
+   ],
+   "note": "Throttle backup task network bandwidth / bandwidth control."
+  },
+  "Trilio": {
+   "label": "unclear",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": "spot-check disagreement (no vs unclear); set unclear. "
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "afed04c3-6820-485a-87c4-c5758369d5d3",
+    "7d84579c-8b96-45a8-9794-41761cb47aa5"
+   ],
+   "doc_ids": [
+    "e5b642ef-1c0c-4870-b5e0-36bf342bd06c"
+   ],
+   "note": "Backup copy bandwidth throttling with hourly schedules."
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "ad9243be-aa08-4899-a1f3-1ddf998129e1",
+    "37861d87-662f-4df5-aa2c-08ecc36cecf5"
+   ],
+   "doc_ids": [
+    "e418d768-bf2e-4ef7-9ea8-2fdbce16393c",
+    "91cda81f-a595-4f2c-8fb1-606821b1741c"
+   ],
+   "note": "Traffic throttling network rules; agent throttles backup network traffic."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "yes",
+   "product": "Zerto",
+   "chunk_ids": [
+    "2150308a-ef62-40da-8b3f-5f733ff93391"
+   ],
+   "doc_ids": [
+    "d72ee503-a12f-40a3-9447-9defe39511fa"
+   ],
+   "note": "Performance and Throttling dialog configures bandwidth limits for protection traffic."
+  }
+ }
+}

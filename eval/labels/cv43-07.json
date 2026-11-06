@@ -1,0 +1,435 @@
+{
+ "question_id": "cv43-07",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud",
+   "chunk_ids": [
+    "877f60b5-b058-4f5c-abeb-b20b8adb2c35",
+    "8d65c701-041d-4ede-b5af-2f03ed262b4a",
+    "b29bf841-3190-4d0f-9384-0d0c79e30406",
+    "69bb5438-6346-4159-a279-55d2e1dc9d1a"
+   ],
+   "doc_ids": [
+    "efb22526-2f50-4014-a12b-d014c85e583e",
+    "f7221937-2b25-4e22-a292-fd9bd11a57a2",
+    "ec9818d0-9f7b-4c0e-a1a0-8a4335fd4c6b",
+    "29a097b3-98f2-4fa7-82de-22c25d562b85"
+   ],
+   "note": "Cloud-to-cloud backup of Google Workspace: Gmail (incl. Calendar/Contacts), Google Drive, Shared drives"
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "3d7b3be0-b907-4a2c-a72a-6af16727a447",
+    "0745191a-c365-4c73-9ba5-2701a906ba66"
+   ],
+   "doc_ids": [
+    "fbbcbb8d-ab2c-4643-9993-356bc90e2bf3",
+    "2aab86b1-b76c-4d0e-8b54-d63ae26f4a10"
+   ],
+   "note": "Afi SaaS backup for Google Workspace covers Gmail, Drive incl. Shared drives, Contacts, Calendar"
+  },
+  "Arcserve": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Google Workspace",
+   "chunk_ids": [
+    "cad19729-6408-4d17-b2c6-9b4a1b76eff8"
+   ],
+   "doc_ids": [
+    "f675d46c-7a69-4570-9202-e1308ee7686c"
+   ],
+   "note": "Protects Gmail, Drive, Calendar, Contacts, Chat and shared drives"
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Cloud",
+   "chunk_ids": [
+    "29b3b5df-bc89-408a-88b8-a608f6dff23b",
+    "a32e13c1-c45e-4143-aa66-00847c0bbd36",
+    "253decf8-4381-44a4-82bd-ffc1d38426f5"
+   ],
+   "doc_ids": [
+    "f5d328cc-56c6-4e75-9a70-09866605d156",
+    "fc18e778-98b0-4061-9f4a-5edcfe8d5d1d",
+    "c4885c64-150f-4fc8-95f6-6649ea6a13f6"
+   ],
+   "note": "x360Cloud backs up Google Workspace user accounts and Shared Drives"
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "082a1786-4d6b-4a42-8d1e-568357aa36de",
+    "3ce72634-1d70-407f-86f4-5458ad2dcb98",
+    "8870e496-868d-4fb4-9a90-a01161419269"
+   ],
+   "doc_ids": [
+    "e5c8db95-9cb1-4782-8611-fa7f0f70c7bb",
+    "f86d4e02-0893-4def-b53d-4b0c37877fcd"
+   ],
+   "note": "Google Workspace Plugin backs up Google Drive (user and shared drives), Gmail and other services"
+  },
+  "Barracuda": {
+   "label": "unclear",
+   "product": "Message Archiver",
+   "chunk_ids": [
+    "53d3f97f-5c28-46df-b5b0-d9b6c074ea46",
+    "3315ce61-a537-4aa2-9651-a4cf1f1626af"
+   ],
+   "doc_ids": [
+    "e81dc9a2-9fa1-4cfe-82f4-fb543d15a742",
+    "fdaf4451-2704-427e-bfdc-fa4ca4415e48"
+   ],
+   "note": "Only Google Workspace mail journaling into Message Archiver (archiving), no Drive/Calendar backup stated"
+  },
+  "CloudAlly": {
+   "label": "yes",
+   "product": "CloudAlly",
+   "chunk_ids": [
+    "a51c177f-67a9-4583-9f55-62a11d480847",
+    "73448a39-5f49-4972-b327-2a4b9d3d22c9",
+    "18639c83-3b90-4681-8fd3-69032c464971"
+   ],
+   "doc_ids": [
+    "95f2beee-bfb4-404e-ad0a-1cffcc2f6c6e",
+    "6dc90070-8131-4a80-9ba6-ea93008d80a1",
+    "47f4c6bd-2343-4e29-aee8-38cdba0bd04a"
+   ],
+   "note": "Backup dashboard/audit list Google Workspace and Google Shared Drives backup services (stated in the MS 365 guide's screenshots/filters)"
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Cloud Protection Service",
+   "chunk_ids": [
+    "177f15c5-3362-4487-9356-426a8610ff1e",
+    "5b306108-3e79-4c69-bee1-84f29d676178",
+    "ff84a911-1cb4-4153-8091-62a1dbe37b65"
+   ],
+   "doc_ids": [
+    "1491eadd-c1f7-4749-82e6-210a2ddef7db",
+    "8e4e39ff-25e9-4993-b163-e58fef5b9666"
+   ],
+   "note": "Cohesity Cloud Services protects Gmail and Google Drive (Calendar/Contacts noted as next release)"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "a96680db-83c1-45cf-8327-445285d41edc",
+    "5a374c45-0483-4e6c-b6fb-26aed88c3e53",
+    "c0df1b72-5a84-4d53-a432-f69b3c484e9b"
+   ],
+   "doc_ids": [
+    "d95bd4c3-eb5f-45f8-a1d2-336d00571674",
+    "2c47b91f-363e-4d2e-9087-05476d1b0b70",
+    "b04bc6e6-79df-4fd4-b2ef-c876dd79551a"
+   ],
+   "note": "Backs up Gmail (mail, calendars, contacts) and Google Drive incl. shared drives"
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "SaaS Protection",
+   "chunk_ids": [
+    "f8e0959d-6a02-4d31-92a9-05e506272ab8",
+    "2d86fd72-cf42-4d3d-8585-e09056aa05f8"
+   ],
+   "doc_ids": [
+    "2b923f1f-061f-4e95-891d-69d8966c4e51",
+    "65b0aa2b-aa39-4373-98f1-6e17b6e28dd9"
+   ],
+   "note": "Datto SaaS Protection backs up Google Workspace domains (Gmail, Drive, Shared Drive, Calendar, Contacts)"
+  },
+  "Dell": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "e494b7cd-425c-495e-978e-0151e1967062",
+    "f057050d-6587-4189-ae46-c5102e5ee52d",
+    "8ac90aed-afe1-49bd-9ad1-849c63e356e8"
+   ],
+   "doc_ids": [
+    "54f5cf35-acd2-464c-bf10-24590874efe7",
+    "8a1e6002-1473-439b-84a2-91f6d5225352"
+   ],
+   "note": "Druva Google Workspace backup and restore of Gmail, Drive, Shared Drives"
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "91ddca89-b206-40b7-9762-637c4a449fe7",
+    "e06bd078-e3f9-4d29-9cb2-1c20182000cf"
+   ],
+   "doc_ids": [
+    "3e8f25f7-b3bd-43e7-9bee-5500467de329",
+    "512207c5-62db-4676-a78b-b8fd9b979c52"
+   ],
+   "note": "Google Workspace backup policy protects Gmail, Drive and shared drives"
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud for Microsoft 365 and Google Workspace",
+   "chunk_ids": [
+    "8a94b7e9-fffc-41b5-b117-f9f5333fc437",
+    "28d15f5d-03c7-43d0-9464-08e80d9eba80",
+    "681e2f8d-4168-4952-a07c-610072aa3448"
+   ],
+   "doc_ids": [
+    "5efb795a-9e21-4b96-9e34-66e19f9e9902",
+    "74d30028-e176-4849-947b-90d46d9cbbd2",
+    "0d79ccc4-9d26-4b1f-b757-6fa74a5cbe88"
+   ],
+   "note": "Backup of Google Workspace incl. G Drive and Shared Drives"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "0f9f939d-aa0b-43fe-96f6-8b0db5c042f0",
+    "7606e06a-d3d8-41db-a573-580b2ca78687"
+   ],
+   "doc_ids": [
+    "3e7064bd-4a53-4b40-bf5b-273c221e48e5",
+    "45076231-4582-4fe5-9b90-5cbd13bd7829"
+   ],
+   "note": "Keepit for Google Workspace connector backup coverage"
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "yes",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "7c87eeae-6e12-4455-86e6-2d4c2b12bb82",
+    "c39a1c76-5c30-417f-b824-39f1c7d815af",
+    "03318a0f-a885-4765-b862-429f8e649c27"
+   ],
+   "doc_ids": [
+    "8da81b6c-fe9e-48cd-893e-a28110c8e45f",
+    "6313766c-667e-492f-8531-dde17893422f",
+    "6f42adec-d9e9-48f9-8a77-fa8bf409b27b"
+   ],
+   "note": "NinjaOne SaaS Backup backs up Google Workspace mailboxes, Google Drive and Shared Drives"
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "02bac95e-b33c-4450-8c21-0ba764b4a09f",
+    "21548170-f144-42d2-9d76-cf73734b7ab8"
+   ],
+   "doc_ids": [
+    "46b61260-3499-4b64-9304-da3deb2f1f76",
+    "0bc5735d-d374-4919-a45a-661b3c03ca35"
+   ],
+   "note": "RSC protects Google Workspace: Drive, shared drives, Gmail, Calendar, Contacts"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "yes",
+   "product": "Spanning Backup for Google Workspace",
+   "chunk_ids": [
+    "d612230d-1ed8-4b31-a9cf-606087a8f22a",
+    "91459061-0338-4de4-91f5-7ce7c76456d7"
+   ],
+   "doc_ids": [
+    "d334b1f4-a403-4301-886e-7103ca888a40",
+    "ccabeb64-3894-448f-bb28-e7848c906d28"
+   ],
+   "note": "Spanning Backup for Google Workspace protects Drive and shared drives"
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "Active Backup for Google Workspace",
+   "chunk_ids": [
+    "b0abe2bd-1eac-4438-a125-836a718b4f4c",
+    "32f91ba6-43e0-44dc-9ffd-a4f53fe5d623"
+   ],
+   "doc_ids": [
+    "99b89e47-fe07-4705-9d8a-f4bb101566b7",
+    "884f4f57-d3bb-4d74-bede-e6c67d64d776"
+   ],
+   "note": "Active Backup for Google Workspace backs up accounts and shared drives; restore calendars etc."
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "unclear",
+   "product": "Unitrends Unified Backup (UniView)",
+   "chunk_ids": [
+    "b3f30a6f-a0d9-481c-a27c-5d32a10c515c",
+    "1e5c324a-2cbc-4e25-aee3-497b482ce930"
+   ],
+   "doc_ids": [
+    "37cb9b04-bb42-4905-91eb-514714504d89",
+    "f228fcde-7a60-4700-a6fa-19f833e9aa07"
+   ],
+   "note": "Only via Spanning Google Workspace managed/billed in the UniView portal; Unitrends itself not stated to back it up"
+  },
+  "Veeam": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

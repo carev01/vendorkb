@@ -1,0 +1,393 @@
+{
+ "question_id": "cv-08",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve Backup",
+   "chunk_ids": [
+    "0c0281f5-d190-4348-b4a1-f2a2c9af7588",
+    "6d57913a-f6b8-405a-b101-8adf3deeb40e",
+    "a7237e2e-e01e-43fe-9423-c8b4c47e088d"
+   ],
+   "doc_ids": [
+    "f367facd-aba4-43c4-be96-6590dc34ed49",
+    "f8fdd5fe-e684-441c-99e8-2a78877770e6",
+    "4ba4060a-b6b4-4067-b932-a1ba86fe2902"
+   ],
+   "note": "Arcserve Backup UNIX agent integrates with AIX; RHA engine installs on AIX"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "d153d9f1-4548-4308-a044-5fe27d15464e",
+    "34a0cc47-e96a-48ad-a8b0-917f475d932d"
+   ],
+   "doc_ids": [
+    "7a7e20a5-03b5-40bc-88f4-b506a2ff1813",
+    "e59f8792-acfc-4b75-b73a-b8d3c7feb8b3"
+   ],
+   "note": "Backup Exec Agent for Linux and Unix is installed/run on AIX (installp package, AIX daemon commands)"
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "9d8525dc-0d80-4eba-93c6-0df2b2b1e699",
+    "2fa94e9a-b6bf-403c-bc7d-5f652e6daf0c"
+   ],
+   "doc_ids": [
+    "4e701cec-4602-4669-b102-44b49d37af95",
+    "fabd24a4-cf10-4b09-b626-c7d2759139d0"
+   ],
+   "note": "Tina OS compatibility lists AIX 7.x agent/server support versions; DB2 agent library for AIX"
+  },
+  "AvePoint": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "20a5d110-ada6-4c3d-954f-8d65b6ab8bf1",
+    "3534a182-8c29-46e2-9a6a-ce5e36962da5",
+    "f3cfbf9a-5d80-4fcb-8736-f9e000d93392"
+   ],
+   "doc_ids": [
+    "bd1381c2-5b6c-4974-86d2-71dde885606e",
+    "ddd7fcb1-40fa-4f7d-860e-54bf309b260d",
+    "819c4dd9-fd25-4373-ac0f-7359299616b3"
+   ],
+   "note": "File daemon supports AIX (ACL/xattr backup); Oracle RMAN plugin validated on AIX 7"
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "DataProtect",
+   "chunk_ids": [
+    "01e62e3f-02c0-4261-89a9-b1bd69afd1c2",
+    "1c9b80e1-52dc-4985-b51d-4f8280bb5936",
+    "da34d481-590b-4add-8ab6-c9838a7a5ea4"
+   ],
+   "doc_ids": [
+    "614c7a06-b8e3-444d-bbb7-6b9a5c613bcf",
+    "f2c45592-cd40-4506-85d3-8be3fc50441c",
+    "f580be53-8eaf-4cfe-85a1-abe5035035c6"
+   ],
+   "note": "Cohesity Java Agent on AIX protects AIX physical servers and Oracle; NetBackup BMR restores AIX clients"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell",
+   "chunk_ids": [
+    "83ddfafa-e10b-4dd1-b6b4-3c13a3cda56f",
+    "8e35cd69-8ae4-4cf2-875c-ab17570a9374",
+    "24b3ff92-7b34-4a7a-bb3d-919046313a8c"
+   ],
+   "doc_ids": [
+    "66644211-b6ca-449e-928e-750f2f6dfdbc",
+    "ac8bf340-e516-44dd-a68e-80bf88761e1d",
+    "b3017642-c8b6-4faf-aa91-b4112571bad6"
+   ],
+   "note": "Commvault backs up and restores AIX file systems; 1-Touch recovery for AIX clients"
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "NetWorker / Avamar / PowerProtect Data Manager",
+   "chunk_ids": [
+    "4004d043-0072-4e15-8421-dce46065c636",
+    "bcc6c4a3-df5e-46f6-9868-239429d28754",
+    "0c6d22c0-8c30-4567-8791-1210174c0042"
+   ],
+   "doc_ids": [
+    "9e8aef2d-cc7e-40ce-86e6-70b183f4d093",
+    "39bc6540-c94f-492a-8944-528a6239c361",
+    "97e75e01-d01e-42eb-b061-135c0b0a579b"
+   ],
+   "note": "NetWorker client installs on AIX; PPDM File System agent on AIX; Avamar Client for AIX"
+  },
+  "Druva": {
+   "label": "unclear",
+   "product": "Druva",
+   "chunk_ids": [
+    "01afceca-d5e6-490b-852c-632e6ac066fc",
+    "166481ae-e95e-4bf8-ae69-12a8f6e9bb65"
+   ],
+   "doc_ids": [
+    "c3e7a2a8-09e8-49f7-8ffc-ead63aef480f"
+   ],
+   "note": "Only template RMAN scripts to back up Oracle databases on AIX hosts; no AIX machine/file-system protection stated"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "5c54d3f1-ce7a-4d5d-927c-3665503e5e46",
+    "6f065090-5019-4e25-be22-6354f4937ecc"
+   ],
+   "doc_ids": [
+    "36ff1fdc-4b31-485d-a4d0-3ac4d64414bc",
+    "49383a81-e892-499d-bc72-8d2d05561ab3"
+   ],
+   "note": "Storage Protect backup-archive client for AIX platform; Data Protection install on AIX"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "unclear",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "8e2bada1-7ee7-493f-8b64-3e5e285cd6b3"
+   ],
+   "doc_ids": [
+    "acfd4441-44a4-4507-a14e-24ac22e6a7a7"
+   ],
+   "note": "spot-check disagreement (yes vs unclear); set unclear. File-level backup for physical machines lets you select AIX LPAR objects"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Red Hat": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "09e0f83d-1d68-4e1e-82ba-ed7efa950d07",
+    "3705589a-395f-4cac-9598-cec980e958cc",
+    "4e77f5e1-a74f-45a1-9494-52fb9c38994b"
+   ],
+   "doc_ids": [
+    "58e1d598-1cdc-4d3b-beb5-e70972c92e77",
+    "f2d473f1-133f-4be4-840e-f9afb07bf3ab",
+    "376e4815-0a33-4267-954c-6f49501d6a2f"
+   ],
+   "note": "RBS installs on AIX hosts; RSC protects Db2 on AIX and filesets on AIX hosts"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "36f4af3b-3fe3-48a0-bbf0-cf03b58f2d9b",
+    "16bdb89f-0c57-463b-ac17-c74d51c1e751"
+   ],
+   "doc_ids": [
+    "a7c78968-2078-4c92-847f-296117438387",
+    "2fcac9ed-7174-4ba3-a09a-305716aefe89"
+   ],
+   "note": "AIX agent installed to add AIX assets to the Unitrends appliance"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Agent for IBM AIX (VBR)",
+   "chunk_ids": [
+    "0656e77d-2c1d-4cb4-89ce-ed1db97a2f88",
+    "e6cc1218-9f77-4859-a09d-5bb543e73824"
+   ],
+   "doc_ids": [
+    "c0fbff20-b69f-4f97-a870-2a4def60d356",
+    "43369e60-c4b3-4abb-9fbc-05a811507e55"
+   ],
+   "note": "Veeam Agent for IBM AIX protects AIX machine data"
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

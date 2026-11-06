@@ -239,3 +239,337 @@ def test_citations_carry_the_cited_chunk_text():
     hits = [_hit(1), _hit(2)]
     _text, cites, _unknown = resolve_markers("A [2].", hits)
     assert cites[0]["text"] == hits[1].text
+
+
+# --- shape-aware answers -------------------------------------------------------------
+
+def _patch_enum(monkeypatch, hits, kept, dropped=(), empty=()):
+    from vendorkb.modes import EnumerationResult
+
+    async def fake(conn, query, **kw):
+        return EnumerationResult(hits, list(kept), list(dropped), list(empty), True)
+
+    monkeypatch.setattr(ans, "enumerate_vendors", fake)
+
+
+async def _run_enum(client, index, question="Which vendors support immutable backups?"):
+    return await ans.answer(None, question, settings=_settings(), embedder=None,
+                            reranker=None, scope_index=index, client=client)
+
+
+@pytest.mark.asyncio
+async def test_enumeration_drops_wrong_vendor_line(monkeypatch):
+    idx = ScopeIndex(vendors=["Veeam", "Commvault"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "Commvault"), _hit(2, "Veeam")], ["Veeam", "Commvault"])
+    reply = "Veeam (VBR): does X [1]\nCommvault (VBR): does Y [1]"
+    r = await _run_enum(FakeClient([reply]), idx)
+    assert r["shape"] == "enumeration"
+    assert r["lines_dropped"] == 1
+    assert r["vendors_listed"] == ["Commvault"]
+    assert r["vendors_checked"] == ["Veeam", "Commvault"]
+    assert "does X" not in r["answer"]
+
+
+@pytest.mark.asyncio
+async def test_enumeration_drops_alias_line(monkeypatch):
+    idx = ScopeIndex(vendors=["Microsoft"], products=[], aliases={"Azure Backup": ["Microsoft"]})
+    _patch_enum(monkeypatch, [_hit(1, "Microsoft"), _hit(2, "Microsoft")], ["Microsoft"])
+    r = await _run_enum(FakeClient(["Azure Backup: does X [2]"]), idx)
+    assert r["lines_dropped"] == 1 and r["vendors_listed"] == []
+    assert r["answer"].startswith(REFUSAL)
+
+
+@pytest.mark.asyncio
+async def test_enumeration_closing_line_lists_unlisted_vendors(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B", "C", "D"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"], dropped=["C"], empty=["D"])
+    r = await _run_enum(FakeClient(["A (VBR): does X [1]"]), idx)
+    assert r["vendors_listed"] == ["A"]
+    assert r["answer"].endswith("Checked with nothing documented: B, C, D.")
+    assert r["citations"][0]["chunk_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_enumeration_all_lines_dropped_refuses(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "B")], ["A", "B"])
+    r = await _run_enum(FakeClient(["A (VBR): does X [1]\nZ: nope [1]"]), idx)
+    assert r["lines_dropped"] == 2
+    assert r["answer"] == REFUSAL + "\nChecked with nothing documented: A, B."
+
+
+@pytest.mark.asyncio
+async def test_enumeration_prompt_lists_kept_vendors(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    client = FakeClient(["A (VBR): x [1]"])
+    await _run_enum(client, idx)
+    msgs = client.calls[0]["messages"]
+    assert ans.ENUMERATION_RULES in msgs[0]["content"]
+    assert "Vendors: A (VBR)\n" in msgs[1]["content"]
+
+
+@pytest.mark.asyncio
+async def test_comparison_closing_line_for_empty_facet(monkeypatch):
+    from vendorkb.modes import ComparisonResult
+    idx = ScopeIndex(vendors=["Veeam", "AWS Backup"], products=[], aliases={})
+
+    async def fake(conn, query, **kw):
+        return ComparisonResult([_hit(1)], ["AWS Backup"], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    r = await ans.answer(None, "Compare Veeam vs AWS Backup", settings=_settings(),
+                         embedder=None, reranker=None, scope_index=idx,
+                         client=FakeClient(["Veeam does X [1]."]))
+    assert r["shape"] == "comparison" and r["facets_empty"] == ["AWS Backup"]
+    assert r["answer"].endswith("Checked with nothing documented: AWS Backup.")
+
+
+def test_closing_line_and_check_lines_units():
+    assert ans.closing_line([]) == ""
+    assert ans.closing_line(["b", "a"]) == "Checked with nothing documented: a, b."
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "A: x [1]\n\nB (P): y [9]", [_hit(1, "A")], ["A", "B"])
+    assert kept == "A: x [1]" and listed == ["A"] and dropped == 1
+
+
+@pytest.mark.asyncio
+async def test_single_shape_reports_shape(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FakeClient(["Fact [1]."]))
+    assert r["shape"] == "single" and r["answer"] == "Fact [1]."
+
+
+# --- fix round 1: refusal prefix, parenthesised vendors, markdown, other-vendor mentions ----
+
+_V = ["Veeam", "Commvault", "Hornetsecurity (Altaro)", "NinjaOne (Dropsuite)", "Dell", "Rubrik"]
+_H = [_hit(1, "Veeam"), _hit(2, "Commvault"), _hit(3, "Hornetsecurity (Altaro)"),
+      _hit(4, "NinjaOne (Dropsuite)"), _hit(5, "Dell"), _hit(6, "Rubrik")]
+
+
+@pytest.mark.parametrize("line,expected,listed", [
+    ("Hornetsecurity (Altaro) (VM Backup): X [3]",
+     "Hornetsecurity (Altaro): X [3]", ["Hornetsecurity (Altaro)"]),
+    ("Hornetsecurity (Altaro): X [3]", "Hornetsecurity (Altaro): X [3]",
+     ["Hornetsecurity (Altaro)"]),
+    ("NinjaOne (Dropsuite) (Backup): X [4]", "NinjaOne (Dropsuite): X [4]",
+     ["NinjaOne (Dropsuite)"]),
+    ("- Veeam (VBR): X [1]", "Veeam (VBR): X [1]", ["Veeam"]),
+    ("* Veeam: X [1]", "Veeam: X [1]", ["Veeam"]),
+    ("\u2022 Veeam: X [1]", "Veeam: X [1]", ["Veeam"]),
+    ("**Veeam** (VBR): X [1]", "Veeam (VBR): X [1]", ["Veeam"]),
+    ("**Veeam:** X [1]", "Veeam: X [1]", ["Veeam"]),
+    ("__Veeam__: X [1]", "Veeam: X [1]", ["Veeam"]),
+    ("1. Veeam: X [1]", "Veeam: X [1]", ["Veeam"]),
+    ("2) Veeam (VBR, vbr): X [1]", "Veeam (VBR, vbr): X [1]", ["Veeam"]),
+    ("   Veeam (VBR): X [1]", "Veeam (VBR): X [1]", ["Veeam"]),
+    ("Veeam: X [2, 1]", "Veeam: X [1]", ["Veeam"]),
+])
+def test_check_lines_accepts_forms(line, expected, listed):
+    kept, got, dropped = ans.check_enumeration_lines(line, _H, _V)
+    assert kept == expected and got == listed and dropped == 0
+
+
+@pytest.mark.parametrize("line", [
+    "Dell EMC (PowerProtect): X [5]",
+    "Veeam: X [2]",
+    "Veeam (VBR): X",
+    "Veeam: X [99]",
+    "Veeam: X [0]",
+    "Veeam: X [1-2]",
+    "Veeam \u2014 X [1]",
+    "Veeam and Commvault both support it [1][2].",
+    "In summary, both work [1][2].",
+])
+def test_check_lines_drops(line):
+    assert ans.check_enumeration_lines(line, _H, _V) == ("", [], 1)
+
+
+def test_check_lines_strips_foreign_markers_and_skips_blank():
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "Veeam: X [2][1]\n\nCommvault: Y [2]", _H, _V)
+    assert kept == "Veeam: X [1]\nCommvault: Y [2]" and dropped == 0
+    assert listed == ["Veeam", "Commvault"]
+
+
+def test_lines_naming_other_vendors_counted_not_dropped():
+    text = ("Veeam (VBR): X [1], unlike Rubrik which lacks it\n"
+            "Commvault: Y [2]; veeam does the same\n"
+            "Dell: Z [5]\nRubrik: backs up Microsoft 365 [6]")
+    kept, listed, dropped = ans.check_enumeration_lines(text, _H, _V)
+    assert dropped == 0 and len(listed) == 4
+    assert ans.count_lines_naming_other_vendors(kept, _V) == 2
+
+
+@pytest.mark.asyncio
+async def test_enumeration_refusal_prefix_does_not_skip_check(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    reply = (REFUSAL + "\nHowever, Rubrik (Security Cloud): X [2]\nCommvault: Y")
+    r = await _run_enum(FakeClient([reply]), idx)
+    assert r["vendors_listed"] == [] and r["citations"] == []
+    assert r["answer"].startswith(REFUSAL) and "Rubrik (Security" not in r["answer"]
+    assert r["answer"].endswith("Rubrik, Veeam.")
+
+
+@pytest.mark.asyncio
+async def test_enumeration_bare_refusal_still_refuses(monkeypatch):
+    idx = ScopeIndex(vendors=["A"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    r = await _run_enum(FakeClient([REFUSAL]), idx)
+    assert r["answer"] == REFUSAL + "\nChecked with nothing documented: A."
+
+
+@pytest.mark.asyncio
+async def test_enumeration_parenthesised_vendor_listed_end_to_end(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    r = await _run_enum(FakeClient(["Hornetsecurity (Altaro) (VM Backup): X [3]"]), idx)
+    assert r["vendors_listed"] == ["Hornetsecurity (Altaro)"] and r["lines_dropped"] == 0
+    assert "Hornetsecurity (Altaro)" not in r["answer"].rsplit("documented:", 1)[1]
+    assert r["lines_naming_other_vendors"] == 0
+
+
+@pytest.mark.asyncio
+async def test_enumeration_reports_lines_naming_other_vendors(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    r = await _run_enum(FakeClient(["Veeam (VBR): X [1], unlike Rubrik which lacks it"]), idx)
+    assert r["lines_naming_other_vendors"] == 1 and r["vendors_listed"] == ["Veeam"]
+
+
+def test_enumeration_rules_forbid_other_vendors():
+    assert "only its own vendor" in ans.ENUMERATION_RULES
+
+
+def test_product_group_kept_only_when_every_product_is_cited_for_the_vendor():
+    hits = [Hit("c1", "d1", "t", ["A"], "Veeam", "Veeam Backup & Replication", "T", "u", 1, 0.5),
+            _hit(2, "Commvault")]
+    v = ["Veeam", "Commvault"]
+    kept, _, dropped = ans.check_enumeration_lines(
+        "Veeam (Veeam Backup & Replication): X [1]", hits, v)
+    assert kept == "Veeam (Veeam Backup & Replication): X [1]" and dropped == 0
+    kept, _, _ = ans.check_enumeration_lines("Veeam (veeam backup & replication): X [1]", hits, v)
+    assert kept.startswith("Veeam (veeam backup & replication):")
+    kept, _, _ = ans.check_enumeration_lines(
+        "Veeam (Veeam Backup & Replication, VBR): X [1]", hits, v)
+    assert kept == "Veeam: X [1]"
+    # a product that belongs to another vendor's hit is not this vendor's
+    kept, _, _ = ans.check_enumeration_lines("Veeam (VBR): X [1]", hits, v)
+    assert kept == "Veeam: X [1]"
+
+
+@pytest.mark.asyncio
+async def test_other_vendor_in_product_group_is_dropped_and_counted(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    r = await _run_enum(FakeClient(["Veeam (Rubrik, Commvault): X [1]"]), idx)
+    assert r["answer"].startswith("Veeam: X [1]")
+    assert r["lines_naming_other_vendors"] == 1 and r["vendors_listed"] == ["Veeam"]
+
+
+def test_enumeration_prompt_lists_products_per_vendor():
+    def h(n, v, p):
+        return Hit(f"c{n}", f"d{n}", "t", ["A"], v, p, "T", "u", n, 0.5)
+    hits = [h(1, "Veeam", "Veeam Backup & Replication"), h(2, "Veeam", "Veeam ONE"),
+            h(3, "Veeam", "Veeam ONE"), h(4, "Rubrik", "Rubrik Security Cloud"),
+            h(5, "Dell", None)]
+    prompt = ans.build_enumeration_prompt("Q?", hits, ["Veeam", "Rubrik", "Dell"])
+    assert prompt.endswith(
+        "Vendors: Veeam (Veeam Backup & Replication, Veeam ONE); "
+        "Rubrik (Rubrik Security Cloud); Dell\n")
+    assert "only the product names listed for that vendor" in ans.ENUMERATION_RULES
+
+
+# --- final fix wave ------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_single_shape_with_vendors_wording_keeps_its_scope(monkeypatch):
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FakeClient(["Fact [1]."]),
+                   question="Which storage vendors does Veeam integrate with?")
+    assert r["shape"] == "single"
+    assert calls[0]["vendor"] == ["Veeam"] and r["scope"]["vendors"] == ["Veeam"]
+
+
+def test_line_naming_the_vendor_of_a_stripped_marker_is_dropped():
+    # [6] is Rubrik's: the stripped marker shows the claim was about Rubrik
+    line = "Veeam: supports AIX [1]. Rubrik also supports AIX [6]."
+    assert ans.check_enumeration_lines(line, _H, _V) == ("", [], 1)
+    # a workload named without a foreign marker is untouched
+    kept, _, dropped = ans.check_enumeration_lines("Rubrik: backs up Veeam VMs [6]", _H, _V)
+    assert kept == "Rubrik: backs up Veeam VMs [6]" and dropped == 0
+    # a foreign marker whose vendor the text does not name is only stripped
+    kept, _, dropped = ans.check_enumeration_lines("Veeam: X [1], Y [6].", _H, _V)
+    assert kept == "Veeam: X [1], Y." and dropped == 0
+
+
+@pytest.mark.asyncio
+async def test_line_about_a_foreign_marker_vendor_counts_as_dropped(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    reply = "Veeam: supports AIX [1]. Rubrik also supports AIX [6].\nRubrik: AIX agent [6]"
+    r = await _run_enum(FakeClient([reply]), idx)
+    assert r["lines_dropped"] == 1 and r["vendors_listed"] == ["Rubrik"]
+    assert r["answer"].startswith("Rubrik: AIX agent [6]")
+
+
+def test_stripped_foreign_marker_leaves_no_space_before_punctuation():
+    kept, _, _ = ans.check_enumeration_lines("Veeam: supports X [6], and Y [1] [6].", _H, _V)
+    assert kept == "Veeam: supports X, and Y [1]."
+
+
+def test_product_group_may_nest_one_level_of_parentheses():
+    hits = [Hit("c1", "d1", "t", ["A"], "Microsoft", "Azure Backup (MABS)", "T", "u", 1, 0.5)]
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "Microsoft (Azure Backup (MABS)): X [1]", hits, ["Microsoft"])
+    assert kept == "Microsoft (Azure Backup (MABS)): X [1]"
+    assert listed == ["Microsoft"] and dropped == 0
+
+
+@pytest.mark.parametrize("line", [
+    "Veeam: hardened repository backups cannot be deleted [1]",
+    "Veeam: does not require an agent [1]",
+    "Veeam: customers don't need to manage infrastructure [1]",
+])
+def test_capability_lines_with_negative_words_are_kept(line):
+    assert ans.check_enumeration_lines(line, _H, _V) == (line, ["Veeam"], 0)
+
+
+def test_enumeration_rules_ask_for_positive_lines():
+    assert "never what it does not" in ans.ENUMERATION_RULES
+
+
+def test_stripped_workload_vendor_marker_keeps_the_line():
+    v = ["Veeam", "Microsoft", "Rubrik"]
+    hits = [_hit(1, "Veeam"), _hit(2, "Rubrik"), _hit(3, "Microsoft")]
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "Veeam: backs up Microsoft 365 [1][3]", hits, v)
+    assert kept == "Veeam: backs up Microsoft 365 [1]" and dropped == 0
+    assert listed == ["Veeam"]
+    assert ans.check_enumeration_lines(
+        "Veeam: supports AIX [1]. Rubrik also supports AIX [2].", hits, v) == ("", [], 1)
+
+
+class FinishClient(FakeClient):
+    def __init__(self, replies, finish):
+        super().__init__(replies)
+        self.finish = finish
+
+    async def _create(self, **kw):
+        resp = await super()._create(**kw)
+        resp.choices[0].finish_reason = self.finish
+        return resp
+
+
+@pytest.mark.asyncio
+async def test_enumeration_uses_a_larger_budget_and_flags_truncation(monkeypatch, caplog):
+    idx = ScopeIndex(vendors=["A"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    client = FinishClient(["A: x [1]"], "length")
+    r = await _run_enum(client, idx)
+    assert client.calls[0]["max_tokens"] == 8000
+    assert r["truncated"] is True and "truncated" in caplog.text
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    r = await _run_enum(FinishClient(["A: x [1]"], "stop"), idx)
+    assert r["truncated"] is False

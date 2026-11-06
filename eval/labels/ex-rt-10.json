@@ -1,0 +1,509 @@
+{
+ "question_id": "ex-rt-10",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "05ab70f2-7653-4f9f-9ca8-60f7253d00b7"
+   ],
+   "doc_ids": [
+    "dad69d7c-189b-4d53-8d70-40697eae685a"
+   ],
+   "note": "AWS Backup Vault Lock (governance/compliance mode) prevents deletion or lifecycle changes of backups in a locked vault."
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud / On-premises",
+   "chunk_ids": [
+    "ca6999b4-8ce3-4ae3-8239-9ac953b8c5ed",
+    "9d72c426-89fd-4aa6-bd5d-1e0b3db7f56b"
+   ],
+   "doc_ids": [
+    "ddb4705a-7980-4ff9-99c1-13f7972a5865",
+    "45697e59-b8b8-4bb3-8cc7-4775b6670a21"
+   ],
+   "note": "Immutable storage prevents deletion or modification of restore points until retention expires."
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "254c843e-b000-4008-a3d5-5900c0645dc7",
+    "5025fa8b-f75f-4ca8-a7dc-4a120211ba72"
+   ],
+   "doc_ids": [
+    "c882ed4a-77f2-4d6c-baa8-6dbca1816ff6",
+    "0a9ccf84-1472-41bd-869a-2a396dbda267"
+   ],
+   "note": "Immutable backup datastore format plus optional underlying object-storage retention locking."
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "45377835-03e7-470b-b6f2-347cadba4082",
+    "39050fd8-caf7-49ab-a576-5047369116d3"
+   ],
+   "doc_ids": [
+    "c3f0502b-f300-4dac-a716-5a4ad35f3b44",
+    "519bd917-83c0-4fa4-b003-d4e8adea4005"
+   ],
+   "note": "Immutable snapshots on Arcserve Cyber Resilient / Cloud Cyber Resilient data stores."
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "f80a1402-2c47-4879-8ffa-8d1c41591c5b",
+    "d099af6a-446c-4131-97f2-16e86d0cfbc5"
+   ],
+   "doc_ids": [
+    "d7379400-6763-4a67-865c-ebbad05b3f9c",
+    "68ce54ba-89bc-47da-bbae-ecee297c4845"
+   ],
+   "note": "Backup Exec supports cloud immutable (WORM) storage via S3 Object Lock and Azure immutable blob storage."
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Miria / Tina",
+   "chunk_ids": [
+    "793d3a81-1213-437f-8eb6-7d4fac8bb779",
+    "d9f5f8f9-2546-41e8-bd80-1063d57ac9ea"
+   ],
+   "doc_ids": [
+    "7325176e-7863-4811-9551-5908c18c7007",
+    "d0b04adc-0e7c-4872-b6f8-1fcb8e9935e2"
+   ],
+   "note": "Miria immutable disk repository (XFS immutability flags); Tina offers WORM immutability options."
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for Microsoft 365",
+   "chunk_ids": [
+    "bf3cbb57-454b-4d3f-98d9-2c36239c16f1"
+   ],
+   "doc_ids": [
+    "79d9c9b1-169e-46da-8b98-28e0cfd25e6d"
+   ],
+   "note": "FAQ states AvePoint Cloud Backup backup data is immutable (immutable storage, no direct access)."
+  },
+  "Axcient": {
+   "label": "yes",
+   "product": "x360Recover",
+   "chunk_ids": [
+    "987e9f58-70e3-4cae-b553-37c65d473f85"
+   ],
+   "doc_ids": [
+    "4c5e1da8-e2af-4b67-8867-68f75da4aa69"
+   ],
+   "note": "x360Recover documents immutable backups that cannot be altered after completion."
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "11e09ab0-f473-4dae-9fcd-17dfab6bc472",
+    "e2e777b5-c8cf-4700-94cc-899142edda43"
+   ],
+   "doc_ids": [
+    "75bf6529-da76-4a09-9a41-29110e4a303f",
+    "2199072a-0625-4d42-9a84-0d9c8e9a1185"
+   ],
+   "note": "SetVolumeImmutable sets disk volume immutable attribute; cloud parts can be WORM/immutable."
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup / Cloud-to-Cloud Backup",
+   "chunk_ids": [
+    "9a6f522a-df78-449a-a41d-018fc83c4457",
+    "4e12ecd5-74d9-46c3-bf28-1bef3e1cc68c"
+   ],
+   "doc_ids": [
+    "1c70bf66-e2bd-46f6-b716-757563fc646c",
+    "04547fdf-fa9a-4fa5-b3f9-075542c703dc"
+   ],
+   "note": "Maintains immutable backup copies by preventing direct access and API modification/removal."
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "yes",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "4e53fe32-3f47-41e1-8532-40382da6d634",
+    "7578c5dc-54b6-4306-abf2-deb9b2de64ef"
+   ],
+   "doc_ids": [
+    "4d459d9f-f827-4723-95d0-51d2bc103345",
+    "6c78c339-4417-4225-8db9-7668e450a46d"
+   ],
+   "note": "Supports immutability on user object stores via S3 Object Lock / Azure immutable storage."
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "NetBackup",
+   "chunk_ids": [
+    "35065d9d-5430-4051-b783-2ee31e3784ed",
+    "f7d364c9-2451-4c9c-bf47-de37c8db4e68"
+   ],
+   "doc_ids": [
+    "e14fc8b6-2bbf-4ff0-b396-3c580d632fa7",
+    "9febaea9-0959-4656-bdcd-8a754af7c658"
+   ],
+   "note": "NetBackup supports cloud immutable (WORM) storage with S3 Object Lock and MSDP cloud immutable storage."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "86ab48ea-0613-4d98-a993-5df0a5e6ea80",
+    "e79f963b-98a7-4185-878b-2bf849166cb4"
+   ],
+   "doc_ids": [
+    "e275df34-8123-495a-8af6-4c9bfc62585c",
+    "455098ce-dbcd-4a7d-bb02-825a95d82f03"
+   ],
+   "note": "Immutable snapshots on supported storage arrays (INFINIDAT, Hitachi, HPE, NetApp)."
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "71ff3659-6e34-49ee-87ae-7390bc3a60dc",
+    "85ec7832-6499-4ea6-9e25-03de2171039c"
+   ],
+   "doc_ids": [
+    "220ec129-0246-4d8f-b8bf-8a70bbe8ca21",
+    "2815eb43-a437-422a-8a73-770b58d8397a"
+   ],
+   "note": "Backup data written to Datto immutable cloud storage; ZFS snapshots are immutable."
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "Avamar / NetWorker",
+   "chunk_ids": [
+    "f9e5682a-5e40-431b-af1a-3b72d6522c5c",
+    "81ba4b5d-b66e-4936-8c83-b0ea5a952506"
+   ],
+   "doc_ids": [
+    "f305dee5-e186-4d1c-b5ea-55f21062ba64",
+    "da11734f-ccfb-41f8-9b02-283f142d46e0"
+   ],
+   "note": "Avamar limited (immutable) backup management and Data Domain Retention Lock."
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "8be8e2b4-d1ec-47a8-a588-1bf338b60c0d",
+    "7d885c73-8708-4530-af36-53fd57c6f2a3"
+   ],
+   "doc_ids": [
+    "07e9242e-ac75-4952-9993-82c8210e4608",
+    "81891bbf-f3ef-4722-b44c-ac9bc02e89de"
+   ],
+   "note": "Data Lock prevents modification/deletion and makes backup data immutable."
+  },
+  "Eon": {
+   "label": "yes",
+   "product": "Eon",
+   "chunk_ids": [
+    "4a118cc9-68bd-4f9d-8cf5-0f4193b42420",
+    "de0b70e4-7f8e-4a74-a38a-4150279993c3"
+   ],
+   "doc_ids": [
+    "01ccf0b0-58bb-4e33-90ea-e15e670cb758",
+    "0a2c374d-abf0-4d9a-a31a-8ca89ab6585e"
+   ],
+   "note": "Backup policies can apply AWS Backup vault lock in governance/compliance mode, making backups immutable until retention expiry."
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "183fa798-745d-4778-ba97-d4fff307bfa3",
+    "ad04e210-2dc4-400f-ab1b-36e46729f473"
+   ],
+   "doc_ids": [
+    "f524477e-d83a-4dc6-b022-5a41243a9481",
+    "83251b03-e576-48c8-80ab-54baa33e84f4"
+   ],
+   "note": "Backup vaults provide immutable and indelible storage for backups."
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition",
+   "chunk_ids": [
+    "e1143a6d-3a6e-4846-ae43-2c8b66b3056b",
+    "666a96f0-76b9-449a-adf1-6b45af415c80"
+   ],
+   "doc_ids": [
+    "4b0c8213-5e4f-47bd-9d51-36a178e35fcf",
+    "b81b8f9e-65cd-4be2-866a-50ae86142c01"
+   ],
+   "note": "Backing up to targets with WORM / immutability policy enabled is supported, retention honours WORM."
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "yes",
+   "product": "Backup & Recovery (VM Backup)",
+   "chunk_ids": [
+    "43287db6-7ee9-42ac-b4dc-f59978670a95",
+    "fd86469e-745a-4c73-a657-f2cab943733b"
+   ],
+   "doc_ids": [
+    "e4deeff7-af35-4bc9-8fdf-f662eea16593",
+    "d36ed90c-bce4-4520-baea-490a767ef696"
+   ],
+   "note": "VM Backup supports immutable offsite backup locations with versioning and object locking."
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Protect",
+   "chunk_ids": [
+    "72237bd1-6c27-452c-859d-6221d120e83e",
+    "f3650ee4-eab4-4225-96e0-2a864014c80f"
+   ],
+   "doc_ids": [
+    "275989c2-3d8f-4e3e-89fe-a71c7cc5f8e1",
+    "cefa0ec6-6910-49d2-9a40-a74e3663f1e9"
+   ],
+   "note": "WORM-protected file volumes via NetApp SnapLock or IBM Storage Scale immutable filesets."
+  },
+  "Keepit": {
+   "label": "yes",
+   "product": "Keepit",
+   "chunk_ids": [
+    "358f8488-0334-441b-8b83-fee0ec7fc00b",
+    "1fbfc478-fd02-4fa6-925b-3ac1bd8ef39e"
+   ],
+   "doc_ids": [
+    "7cefcd4a-bb78-44fe-a6ba-2973df130876",
+    "94efaadf-0be5-4052-8efd-aaacdf7501ae"
+   ],
+   "note": "Keepit states immutable, air-gapped backup storage."
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "256546d7-017e-48e4-a34b-55e7cb51d7d4",
+    "985ef139-2f28-4d6a-89a0-146c527ea918"
+   ],
+   "doc_ids": [
+    "ba809757-e908-423a-b597-3fc7d3c44c53",
+    "724ad559-7182-476b-88c7-c0542021784e"
+   ],
+   "note": "Immutable vaults (optionally irreversible) and time-based immutability for Recovery Services vaults."
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "6b3a4005-52bb-4179-98d9-cc77d2225d98",
+    "0708e31f-47a4-4eb5-952d-5e1191a25ba9"
+   ],
+   "doc_ids": [
+    "573dec67-c8d9-483e-88eb-71719243d9c5",
+    "a6584de4-c4e4-48a8-af53-0446c5ff2388"
+   ],
+   "note": "Cove Fortified Copies create immutable backups by default."
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "3b1c7abe-75d3-4163-82c3-f5e08364bd11",
+    "a27fd9cc-3499-4ba3-8f2e-6000447bc728"
+   ],
+   "doc_ids": [
+    "9e68dc37-b290-4757-a5e0-d953af4b060b",
+    "d63de9f5-ed44-47cf-bca8-ce4f9c38d070"
+   ],
+   "note": "Recovery points can be made immutable (WORM) in S3/Wasabi/Azure/B2 repositories using object lock."
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "yes",
+   "product": "SaaS Backup",
+   "chunk_ids": [
+    "7d11e3ed-aba6-4895-95f7-b1033455669c",
+    "daa2db16-0ca2-4528-b15d-1475f4ba9ecc"
+   ],
+   "doc_ids": [
+    "d60879d8-b5dd-4cdc-aa92-238297f5a472"
+   ],
+   "note": "WORM storage option in NinjaOne SaaS Backup (FINRA WORM)."
+  },
+  "Portworx": {
+   "label": "yes",
+   "product": "PX-Backup",
+   "chunk_ids": [
+    "c6f0f27a-41b4-45db-8bc5-502c07516bbf",
+    "4d63aba0-392d-4d29-a990-ee316f8f0f11"
+   ],
+   "doc_ids": [
+    "6b6ae128-2f3d-43c7-96fb-ecf50e110eb9",
+    "81fbca3e-fe21-4704-9bd9-1b825d582da4"
+   ],
+   "note": "Immutable backup locations via S3 object lock and Azure Blob immutable containers."
+  },
+  "Red Hat": {
+   "label": "yes",
+   "product": "OADP",
+   "chunk_ids": [
+    "c102af42-7b27-49be-b3e3-b622dd9d0149"
+   ],
+   "doc_ids": [
+    "3fa52b07-e8f6-4daf-a164-606f6bc33866"
+   ],
+   "note": "OADP 1.4+ supports backup data immutability using AWS S3 buckets with versioning/object lock (with limitations)."
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "a2c65ddb-c621-4cec-8fee-96587a367677",
+    "8427e213-0e71-41f9-a41d-f292d57bbb94",
+    "74c00232-2a3f-46a5-a0a8-a97ab330d0d0"
+   ],
+   "doc_ids": [
+    "a9eedaa5-b262-48b3-ac53-12d1eff2950d",
+    "fba33ba5-1ee9-4813-946b-cddd2423362d",
+    "02b4b629-1a02-4c6f-8fae-a71250dd7e6d"
+   ],
+   "note": "Object-level immutability for S3-compatible archives and RCV; blob-level immutability on Azure."
+  },
+  "Salesforce": {
+   "label": "unclear",
+   "product": "Own",
+   "chunk_ids": [
+    "cba0d3b8-09e0-4fad-b180-9492ead0668e"
+   ],
+   "doc_ids": [
+    "216c6e85-ae77-45cd-83fe-c2a0830c3e7c"
+   ],
+   "note": "Only Blockchain Verify tamper-evidence for backups and read-only archive; no explicit immutable backup storage."
+  },
+  "Slide": {
+   "label": "yes",
+   "product": "Slide",
+   "chunk_ids": [
+    "85ed0e05-41b4-428a-be72-54bdea04884e"
+   ],
+   "doc_ids": [
+    "d3da4b08-8f8e-4e57-bb37-b2e6ac73c15d"
+   ],
+   "note": "FAQ: backups are stored as ZFS snapshots, so they are immutable."
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "afc4d8f5-bc48-4d71-b790-28e44508b568",
+    "bd92f74e-2f50-4023-b8fc-c3eee034943a",
+    "81a39707-db74-4fff-8c7a-9ff0cf240ad9"
+   ],
+   "doc_ids": [
+    "db015445-a9fc-444f-8a4f-48cc4b14bf50"
+   ],
+   "note": "Immutable Backup Destination on XFS-based storage and S3 object lock support."
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "ActiveProtect Manager",
+   "chunk_ids": [
+    "53b98179-7edf-4bcf-864b-6d2a7ad30854",
+    "f0e7d828-1f9c-4788-ae79-33ab9d09f69f"
+   ],
+   "doc_ids": [
+    "b3d36b5b-73fe-4382-a70a-c4d526458a74",
+    "6cf32699-b864-4d6c-8a8b-a95470fdde77"
+   ],
+   "note": "Data immutability with Synology WORM on appliance and Object Lock on remote storage."
+  },
+  "Trilio": {
+   "label": "yes",
+   "product": "Trilio for Kubernetes",
+   "chunk_ids": [
+    "8195586e-3e15-4e14-aef0-cb7b12c3c7ab",
+    "84746d71-9924-43da-9929-c6b910241d98"
+   ],
+   "doc_ids": [
+    "d8c3f558-d647-4cca-a2c7-6432ecd9ca59",
+    "130eb19a-a884-42ab-8c79-35eb49bca98a"
+   ],
+   "note": "Supports immutable backups on object-lock-enabled targets."
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication",
+   "chunk_ids": [
+    "772ef25f-ee1d-4f28-ba44-ec2d4191be83"
+   ],
+   "doc_ids": [
+    "53d7f217-f034-4069-9bb6-b84ab5545b61"
+   ],
+   "note": "Immutability for backup files prohibits deletion from repositories for a period."
+  },
+  "Velero": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Zerto": {
+   "label": "yes",
+   "product": "Zerto",
+   "chunk_ids": [
+    "3278d4b4-dcf7-4662-868a-b04fdc8e7491",
+    "78a9ddc5-6066-4e95-a1d5-35128010f5cb"
+   ],
+   "doc_ids": [
+    "26924a0a-0a1c-4634-8c30-f53eecbedaf8",
+    "d3a5326d-c31b-4c51-b10f-f4d68564f62e"
+   ],
+   "note": "Retention sets can be made immutable on S3/Azure/S3-compatible repositories via versioning and object lock."
+  }
+ }
+}

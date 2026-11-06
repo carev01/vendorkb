@@ -89,6 +89,9 @@ class Reranker(_Client):
                  transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._s = settings
         self._http = httpx.AsyncClient(timeout=30.0, transport=transport)
+        # the provider's usage.total_tokens; estimated (characters / 4) when it reports none,
+        # so a token cap still trips
+        self.tokens_used = 0
 
     async def rerank(self, query: str, documents: list[str],
                      top_k: int) -> list[tuple[int, float]] | None:
@@ -108,12 +111,16 @@ class Reranker(_Client):
             logger.warning("rerank returned HTTP %s; caller must degrade visibly",
                            resp.status_code)
             return None
+        reported = 0
         try:
-            out = [(int(r["index"]), float(r["relevance_score"]))
-                   for r in resp.json()["data"]]
-        except (ValueError, KeyError, TypeError) as exc:
+            body = resp.json()
+            reported = int((body.get("usage") or {}).get("total_tokens") or 0)
+            out = [(int(r["index"]), float(r["relevance_score"])) for r in body["data"]]
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            self.tokens_used += reported
             logger.warning("rerank payload unreadable (%s); caller must degrade visibly", exc)
             return None
+        self.tokens_used += reported or (sum(map(len, documents)) // 4 + len(query) // 4)
         return [(i, s) for i, s in out if 0 <= i < len(documents)]
 
 

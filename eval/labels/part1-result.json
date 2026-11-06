@@ -1,0 +1,462 @@
+[
+ {
+  "question_id": "cv-08",
+  "vendor": "Red Hat",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "OADP is OpenShift-only; no AIX mention in Red Hat docs (SQL 0 hits)"
+ },
+ {
+  "question_id": "cv43-07",
+  "vendor": "IBM",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "IBM Storage Protect docs never mention Google Workspace/Gmail/Drive backup"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Axcient",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "No tape library support in Axcient docs; tape mentioned only historically"
+ },
+ {
+  "question_id": "cv-07",
+  "vendor": "Keepit",
+  "label": "yes",
+  "chunk_ids": [
+   "ae3da748-6dad-4291-985d-ffebb21cc484",
+   "973e15b7-aa35-46f5-afff-4cb8cf35bf18",
+   "19b6ef95-7640-4e94-b66b-ebd722650b0d"
+  ],
+  "note": "Keepit schedules backup coverage reports with automated daily/weekly/monthly delivery"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "Synology",
+  "label": "yes",
+  "chunk_ids": [
+   "53b98179-7edf-4bcf-864b-6d2a7ad30854",
+   "f0e7d828-1f9c-4788-ae79-33ab9d09f69f"
+  ],
+  "note": "ActiveProtect WORM immutability plus Object Lock on remote storage"
+ },
+ {
+  "question_id": "cv43-05",
+  "vendor": "AvePoint",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "AvePoint has no automated boot verification / screenshot of backups"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Barracuda",
+  "label": "yes",
+  "chunk_ids": [
+   "ae4af166-4161-4054-b0cf-b02e536fd3f1",
+   "2f1acfd1-8038-4549-b4c8-7aeb29ae7a8c",
+   "e732ca0c-6c34-4f35-a6a1-da799fb9cc93"
+  ],
+  "note": "Offsite replication to Barracuda Cloud or another Barracuda device site-to-site"
+ },
+ {
+  "question_id": "cv-03",
+  "vendor": "Hornetsecurity (Altaro)",
+  "label": "yes",
+  "chunk_ids": [
+   "4b77719c-c177-4edd-8c5b-8c27760bbac5",
+   "35e69e48-45da-4f2a-a06f-d910f6848f5f"
+  ],
+  "note": "Altaro/Hornetsecurity VM Backup backs up Hyper-V VMs (live backup, add Hyper-V host)"
+ },
+ {
+  "question_id": "cv43-07",
+  "vendor": "Rubrik",
+  "label": "yes",
+  "chunk_ids": [
+   "9c78e91c-472b-498c-a68c-975817a7f904",
+   "02bac95e-b33c-4450-8c21-0ba764b4a09f",
+   "f6f1ad09-1c93-49bf-86f4-80381b956d04"
+  ],
+  "note": "RSC protects Google Workspace Drive, Shared Drives, Gmail, Calendar, Contacts"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "NinjaOne (Dropsuite)",
+  "label": "yes",
+  "chunk_ids": [
+   "7d11e3ed-aba6-4895-95f7-b1033455669c",
+   "daa2db16-0ca2-4528-b15d-1475f4ba9ecc",
+   "8ebe8852-de54-4e43-aca1-7d073fe64508"
+  ],
+  "note": "SaaS Backup built on logical WORM; optional FINRA WORM storage"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Velero",
+  "label": "unclear",
+  "chunk_ids": [
+   "ac542252-3108-4f59-8dcc-b567ec513500"
+  ],
+  "note": "Only a community-maintained OpenStack plugin (Swift/Cinder) for K8s volumes; not OpenStack instances"
+ },
+ {
+  "question_id": "cv-05",
+  "vendor": "IBM",
+  "label": "unclear",
+  "chunk_ids": [
+   "3913c54e-69ae-4ff2-b308-0a80c3c66fb2"
+  ],
+  "note": "Only FASPTARGETRATE caps bandwidth of Aspera FASP transfers (replication), no general backup throttling"
+ },
+ {
+  "question_id": "cv-05",
+  "vendor": "Slide",
+  "label": "yes",
+  "chunk_ids": [
+   "75892387-a819-43e0-8dea-efc1d91619bf",
+   "bd49609b-acf2-461e-b0b1-44e93dd1b1a4"
+  ],
+  "note": "Slide Box can limit replication upload speed and schedule throttling for offsite replication"
+ },
+ {
+  "question_id": "cv43-12",
+  "vendor": "Red Hat",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "OADP docs have no ransomware/anomaly detection"
+ },
+ {
+  "question_id": "cv43-12",
+  "vendor": "Zerto",
+  "label": "yes",
+  "chunk_ids": [
+   "bf8ecee4-4798-42eb-b559-469c9a5d1cae",
+   "c03f835d-f4e4-4182-9f12-f4af47be2c80"
+  ],
+  "note": "Zerto Encryption Detection inspects writes in real time, alerts ENC0001 and tags checkpoints"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "Storware",
+  "label": "yes",
+  "chunk_ids": [
+   "1a44ea96-c3c5-4f2f-b98d-c95f77c8db56",
+   "8a70d347-bfbc-45c2-bf15-6460045cd40e"
+  ],
+  "note": "Storware backup SLA policies offer immutable backups (read-only until retention expires)"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Acronis",
+  "label": "unclear",
+  "chunk_ids": [
+   "e1229055-09f9-4ca0-9661-19424913d50f",
+   "db81b8ae-dcc1-41f8-baa4-218ef85de3b2"
+  ],
+  "note": "Only Virtuozzo Infrastructure / Cyber Frame (OpenStack-based) VMs; no generic OpenStack/Cinder support stated"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Commvault",
+  "label": "yes",
+  "chunk_ids": [
+   "b33903d1-42a5-4a5f-9dd9-c26b561215bd",
+   "f9a6c135-97d7-40ab-b837-f4ee61a6d665",
+   "df4db4e2-5779-4e01-af2a-5060278e68ec"
+  ],
+  "note": "Commvault Oracle agent supports RMAN command-line backups into Commvault (SBT interface)"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Storware",
+  "label": "yes",
+  "chunk_ids": [
+   "e46e7777-6b80-4caa-a7de-406f9e7433cc",
+   "fba9e86f-4794-42b8-9d74-108c694ff285"
+  ],
+  "note": "Storware Tape Pools support tape libraries and drives via Tape Manager"
+ },
+ {
+  "question_id": "cv43-08",
+  "vendor": "Microsoft",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Microsoft (Azure Backup/Entra) has no Salesforce backup"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "Rubrik",
+  "label": "yes",
+  "chunk_ids": [
+   "db7e1556-f235-43f6-8581-cebcaac9860b",
+   "c8a845a1-3d8e-471e-abd1-94ddb6cdd2fc",
+   "c52c4ee2-e6d6-45f1-b2f1-677bba71783b"
+  ],
+  "note": "Rubrik quorum authorization (QAuth) requires approver sign-off for protected destructive actions"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Cohesity",
+  "label": "yes",
+  "chunk_ids": [
+   "268ccb7f-47e2-4787-b5b0-99c7fbe949f7"
+  ],
+  "note": "Cohesity Cloud Protection Service can configure a secondary region to keep an additional backup copy"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "NinjaOne (Dropsuite)",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "NinjaOne SaaS Backup is cloud SaaS backup; no tape support"
+ },
+ {
+  "question_id": "cv43-12",
+  "vendor": "GRAX",
+  "label": "unclear",
+  "chunk_ids": [
+   "65c697dd-1d9f-40eb-ba0c-0d4eef97828b"
+  ],
+  "note": "Only a pilot Anomaly Detection for unusually high delete counts in Salesforce; no ransomware/encryption scanning"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Datto",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Datto docs have no OpenStack/Cinder protection"
+ },
+ {
+  "question_id": "ex-rt-10",
+  "vendor": "Nakivo",
+  "label": "yes",
+  "chunk_ids": [
+   "3b1c7abe-75d3-4163-82c3-f5e08364bd11",
+   "a27fd9cc-3499-4ba3-8f2e-6000447bc728"
+  ],
+  "note": "Nakivo immutable recovery points via Object Lock on S3/Wasabi/Azure/B2 and local hardened repos"
+ },
+ {
+  "question_id": "cv43-11",
+  "vendor": "Arctera",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Arctera (Backup Exec/DLO/System Recovery) docs never mention 2FA/MFA for console logins"
+ },
+ {
+  "question_id": "cv43-11",
+  "vendor": "Gearset",
+  "label": "unclear",
+  "chunk_ids": [
+   "ae489eb1-3096-4611-9863-ec142ce5aacb"
+  ],
+  "note": "Only Gearset Code Reviews user settings mention setting up MFA; method and main backup console not stated"
+ },
+ {
+  "question_id": "cv-04",
+  "vendor": "Cohesity",
+  "label": "yes",
+  "chunk_ids": [
+   "a658e4e6-fad7-4905-9bbb-dc6a6a7046f6",
+   "1a7a5f72-cf99-4ba6-ac02-c30bb3c6f8d7",
+   "4da9a38b-01d5-4b96-8d79-afc26b5d00f2"
+  ],
+  "note": "NetBackup documents Amazon Snowball/Snowball Edge for initial seeding; DataProtect archives to Azure Data Box"
+ },
+ {
+  "question_id": "cv43-06",
+  "vendor": "Storware",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Storware restores VMs (incl. cross-platform to OpenStack); no bare-metal restore to different hardware"
+ },
+ {
+  "question_id": "cv43-05",
+  "vendor": "Rubrik",
+  "label": "unclear",
+  "chunk_ids": [
+   "76c48ae5-7449-4cf8-913f-65cf472af088",
+   "fe6b8296-d813-401e-9699-fb4c158e73d9",
+   "071408a7-5f92-4e2b-a520-1c158eb63cc8"
+  ],
+  "note": "Orchestrated Recovery schedules periodic test recoveries of Recovery Plans with outcome reports; not per-backup boot check/screenshot"
+ },
+ {
+  "question_id": "cv-07",
+  "vendor": "Zerto",
+  "label": "unclear",
+  "chunk_ids": [
+   "9e1e8bb0-c165-4312-a446-26c67123af1d"
+  ],
+  "note": "Zerto emails alerts and 'retention reports' to an address; no scheduled status report delivery described"
+ },
+ {
+  "question_id": "cv43-01",
+  "vendor": "Barracuda",
+  "label": "unclear",
+  "chunk_ids": [
+   "5812cd6c-9de7-4e52-b310-f68fe7cc4290",
+   "8f6054f2-d192-4bb2-8bc6-01c8d3eee16e"
+  ],
+  "note": "RMAN writes a dump file via pre-execute script which the agent then backs up; no direct RMAN/SBT integration"
+ },
+ {
+  "question_id": "cv43-03",
+  "vendor": "Flosum",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Flosum is Salesforce-only backup; no Proxmox"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "AWS",
+  "label": "yes",
+  "chunk_ids": [
+   "564d0c32-5988-4834-979f-36b6b2614bf7",
+   "72a00ea5-f17b-4952-8b54-2cc2bce724ae"
+  ],
+  "note": "AWS Backup copies backups to other Regions/accounts on demand or by backup plan"
+ },
+ {
+  "question_id": "cv-04",
+  "vendor": "CloudCasa",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "CloudCasa (Kubernetes backup) has no physical-device seeding"
+ },
+ {
+  "question_id": "cv43-06",
+  "vendor": "Bacula",
+  "label": "yes",
+  "chunk_ids": [
+   "390ce956-2fdb-47c1-97d1-38b71ec0c80c",
+   "b6bfc250-692b-4071-87fb-2b491f95a897"
+  ],
+  "note": "Bacula BMR restores a complete OS to new hardware (Linux BMR; Windows BMR kit)"
+ },
+ {
+  "question_id": "cv-01",
+  "vendor": "Afi.ai",
+  "label": "yes",
+  "chunk_ids": [
+   "f1a87d0a-4d2f-4bae-90ba-5726be6d3ee1",
+   "14fcb63d-dff8-47bf-b103-7441cc3d0d0c",
+   "d26b22e3-c366-4bcc-99d1-4a483c7e9962"
+  ],
+  "note": "Afi data deletion requests must be approved by another administrator (cannot approve own)"
+ },
+ {
+  "question_id": "cv43-08",
+  "vendor": "Nakivo",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Nakivo does not back up Salesforce"
+ },
+ {
+  "question_id": "cv-06",
+  "vendor": "Barracuda",
+  "label": "yes",
+  "chunk_ids": [
+   "ccb1deca-4468-4f9e-9d14-944e254fba2f",
+   "3cd53afd-82bc-4db8-b311-40451eb81061"
+  ],
+  "note": "Barracuda Cloud-to-Cloud Backup protects Exchange Online, OneDrive, SharePoint Online"
+ },
+ {
+  "question_id": "cv43-05",
+  "vendor": "Druva",
+  "label": "unclear",
+  "chunk_ids": [
+   "ebfaa0f9-f0a2-45c0-ab22-66cdf430e8d2",
+   "bd68e0f1-5064-4a3d-ae0a-aab4ce0f2dd9",
+   "e60872bf-0858-4c74-a97f-07a5a60c1c91"
+  ],
+  "note": "Scheduled Cyber Recovery Testing (quarterly+) restores VMs and issues a recovery report; not per-backup boot proof/screenshot"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Velero",
+  "label": "unclear",
+  "chunk_ids": [
+   "9ab74b1b-67e1-45ce-b9b4-7c1176f7622b",
+   "a3841ade-cd46-42a1-a195-085e0e4c31bb"
+  ],
+  "note": "Velero can send backups to a BSL in another region, but no copy/replication of backups is described"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "HYCU",
+  "label": "unclear",
+  "chunk_ids": [
+   "7904cc2e-5db9-423a-a0ad-b0bb6c27cd39",
+   "5191357e-f0f4-476f-bef3-cabb192c0874"
+  ],
+  "note": "HYCU Copy policy option writes a backup copy to a different target; another site/region not stated"
+ },
+ {
+  "question_id": "cv43-02",
+  "vendor": "Zerto",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Zerto docs have no OpenStack/Cinder protection"
+ },
+ {
+  "question_id": "ex-rt-12",
+  "vendor": "Afi.ai",
+  "label": "yes",
+  "chunk_ids": [
+   "71f2ef6d-7ee4-455d-bf1a-1042c29293d2"
+  ],
+  "note": "Afi Kubernetes backup can write to several storages: a copy in cluster region and a reserve copy in another region"
+ },
+ {
+  "question_id": "cv-07",
+  "vendor": "Arcserve",
+  "label": "yes",
+  "chunk_ids": [
+   "3f5bdc48-3563-4b5c-9b72-990aa222d77b",
+   "ad485448-b808-4ed5-b2b1-3556ff62d17b",
+   "e6eda1ee-e6e3-462d-98a4-a59f03386ddf",
+   "55c4e018-b03a-409e-9752-5d05e75f85a6"
+  ],
+  "note": "Arcserve schedules reports (Report Manager, Dashboard, UDP) and emails them to recipients"
+ },
+ {
+  "question_id": "cv-02",
+  "vendor": "NinjaOne (Dropsuite)",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "NinjaOne SaaS Backup covers M365/Google/Entra/QBO; no Kubernetes"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Cohesity",
+  "label": "yes",
+  "chunk_ids": [
+   "f14ea19b-0509-4a0d-ba01-9c582fbfab9f",
+   "e1735855-e8b8-48cb-bc4b-2b8ade946787",
+   "47855bfa-3e05-4a3f-98a6-c07a2801869d"
+  ],
+  "note": "NetBackup supports tape libraries (TLD robots, LTO/DLT media types, direct to tape)"
+ },
+ {
+  "question_id": "cv43-04",
+  "vendor": "Gearset",
+  "label": "no",
+  "chunk_ids": [],
+  "note": "Gearset is Salesforce SaaS backup; no tape"
+ },
+ {
+  "question_id": "cv-08",
+  "vendor": "Bacula",
+  "label": "yes",
+  "chunk_ids": [
+   "3534a182-8c29-46e2-9a6a-ce5e36962da5",
+   "f3cfbf9a-5d80-4fcb-8736-f9e000d93392",
+   "20a5d110-ada6-4c3d-954f-8d65b6ab8bf1",
+   "637f9828-04c8-4dc0-b303-e9b97d01c195"
+  ],
+  "note": "Bacula File daemon supports AIX (ACLs/xattrs), Oracle RMAN and DB2 plugins on AIX"
+ }
+]

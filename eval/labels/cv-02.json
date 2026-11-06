@@ -1,0 +1,410 @@
+{
+ "question_id": "cv-02",
+ "labels": {
+  "AWS": {
+   "label": "yes",
+   "product": "AWS Backup",
+   "chunk_ids": [
+    "a268f34b-d76c-49ca-9181-d761f8988dd2",
+    "5412487f-7df2-460c-acc5-328195348fcf"
+   ],
+   "doc_ids": [
+    "e2f5ddee-5104-49af-bdc4-d2a7a06bf6d6",
+    "e85a46a9-0350-4ce9-a407-b853622ad094"
+   ],
+   "note": "AWS Backup backs up Amazon EKS clusters as composite recovery points (cluster state + persistent volumes) with namespace-level restore."
+  },
+  "Acronis": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Afi.ai": {
+   "label": "yes",
+   "product": "Afi.ai",
+   "chunk_ids": [
+    "0e882d11-9884-4315-ad4a-8c9dd563206c",
+    "dd954fc0-daa5-4915-a54d-89d156e5ff9a"
+   ],
+   "doc_ids": [
+    "5353965a-5b04-47d1-af77-89706caffa29",
+    "0c8eeb50-d76c-4768-bd24-d8568bf19b0f"
+   ],
+   "note": "Afi Kubernetes Backup provides Kubernetes-native protection of clusters, applications and persistent volumes."
+  },
+  "Arcserve": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arctera": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Atempo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "AvePoint": {
+   "label": "yes",
+   "product": "Cloud Backup for IaaS + PaaS",
+   "chunk_ids": [
+    "5cccbfae-0a9d-481b-87df-ee0034a0bd10"
+   ],
+   "doc_ids": [
+    "f68eae51-e698-4d4a-94c8-81b846d7e7b0"
+   ],
+   "note": "Cloud Backup for IaaS + PaaS lets you create a backup scope for Azure Kubernetes Services."
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula",
+   "chunk_ids": [
+    "6a426814-adb5-4c9b-b738-29c96266fe3a",
+    "7fd98805-9468-44a0-97e5-e72c37fd7f78",
+    "64b5b219-2ded-4e95-b132-d6eb877391f7"
+   ],
+   "doc_ids": [
+    "97db0bbb-c85a-4b91-aaf8-2eab89f1153e",
+    "b001faa8-43c3-40eb-8b39-5dbb27e8c762",
+    "62ec11ab-c569-4600-bb2d-87f996eb316d"
+   ],
+   "note": "Bacula Enterprise Kubernetes and OpenShift plugins back up namespaces, objects and persistent volumes."
+  },
+  "Barracuda": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "yes",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "74eec8d8-705d-419d-bfe9-e142e64d0b0f",
+    "62a00710-33f9-4700-8e31-4f9f6f945502"
+   ],
+   "doc_ids": [
+    "2d8c7db8-e88d-4f44-bf96-1a996b081bc0",
+    "c286e27f-ef67-4301-a2fc-852e41321aa6"
+   ],
+   "note": "CloudCasa is a Kubernetes backup/restore/migration service supporting CNCF-certified distributions and OpenShift."
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "Cloud Protection Service, DataProtect, NetBackup",
+   "chunk_ids": [
+    "6308887f-664c-48d2-a0db-fe890910fa0f",
+    "f80569f4-74f9-4d62-98d6-2ecd07e1fdea",
+    "21597fa5-0a98-4364-b8b7-3cc979dc0124"
+   ],
+   "doc_ids": [
+    "108efdcd-4e11-4e2e-b751-6c03bc9f9f3b",
+    "f3fee091-15ee-4c51-9614-d9ef905a5ffb",
+    "2f824e4e-ad8a-4839-ba43-b77fecd2af21"
+   ],
+   "note": "Cohesity DataProtect/Cloud Protection Service registers Kubernetes sources and protects them via Velero+datamover; NetBackup also covers Kubernetes."
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud",
+   "chunk_ids": [
+    "31ae4b24-61d6-4545-a43c-b45ae2d79ea3",
+    "98b81301-d831-416c-a27a-26489931ac9c",
+    "1eb2c12f-c26d-4317-8c4e-dcb7ab5f756f"
+   ],
+   "doc_ids": [
+    "9883b4dd-149b-4090-82ba-05559bf7a8bc",
+    "559a4471-83d5-4b2c-aebe-0e7ac0ae2c05",
+    "981a33ce-b530-4de7-ab14-d33794d47b7c"
+   ],
+   "note": "Commvault Cloud protects Kubernetes workloads (containerized apps, VMs) on CNCF-certified distributions, incl. etcd cluster recovery."
+  },
+  "Datto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "1ef61760-d62c-4f7c-8476-54a7cfe7e725",
+    "5384bc0d-83af-4ad7-bd65-c5844f35669a"
+   ],
+   "doc_ids": [
+    "8f15fd43-29fd-469b-a127-0ce235798d46",
+    "15364424-8db8-4bb9-9e2e-df7e04e9bac8"
+   ],
+   "note": "PowerProtect Data Manager adds Kubernetes clusters (incl. Tanzu guest/Supervisor clusters) as protected assets."
+  },
+  "Druva": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "HYCU": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "760a69ff-6b97-4a9c-baa5-0dff287250d1",
+    "225bf53e-0de7-4906-aa3c-9d50f3fd08c5"
+   ],
+   "doc_ids": [
+    "c092edb9-f60b-432f-8660-e9b35fd568cd",
+    "2b2d4682-0e14-42ee-9a49-b282083ce4fc"
+   ],
+   "note": "Storage Defender Data Protect backs up Kubernetes namespaces (include/exclude PVCs); IBM Fusion protects OpenShift applications."
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "bd0431db-624e-4598-a384-323dbfce2ce2",
+    "5ce43473-be49-4ca4-96bd-7a696c7b208a"
+   ],
+   "doc_ids": [
+    "b49a7c60-558b-4d79-96f4-de6a38913dc7",
+    "45a0d60b-9292-47a8-bcef-34451965fbc0"
+   ],
+   "note": "Azure Backup provides vaulted backup of Azure Kubernetes Service clusters via the Backup extension."
+  },
+  "N-Able": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Nakivo": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "yes",
+   "product": "PX-Backup",
+   "chunk_ids": [
+    "41bd0158-9438-4678-b180-51d3e8320655",
+    "531a1286-c56c-4c53-b554-9278e1dacd81"
+   ],
+   "doc_ids": [
+    "46b48e12-68bf-4517-8563-6559f9084f45",
+    "113d7958-7fde-4f09-b5d9-743685e5f3a4"
+   ],
+   "note": "Portworx Backup (PX-Backup) backs up Kubernetes applications and volumes, incl. cross-cloud backups and PX-DR."
+  },
+  "Red Hat": {
+   "label": "yes",
+   "product": "OADP",
+   "chunk_ids": [
+    "645e8927-622a-4089-ae4f-c087afa47f1c"
+   ],
+   "doc_ids": [
+    "3fa52b07-e8f6-4daf-a164-606f6bc33866"
+   ],
+   "note": "OADP (OpenShift API for Data Protection) backs up and restores OpenShift applications."
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "ae1d2b0c-ffac-4962-bcd6-11eb13f9bd42",
+    "b518577e-a137-4135-afa6-9084ff23adeb"
+   ],
+   "doc_ids": [
+    "523720c5-83f1-4364-a055-5c63ba3ebcaa",
+    "68165b5b-e371-46e8-962a-cd6742444283"
+   ],
+   "note": "RSC Kubernetes protection backs up on-prem or cloud-native Kubernetes cluster resources."
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "e2467f74-e167-4a2f-a84e-d2b734f0e64c",
+    "f7406099-6316-4b68-a5db-9f901d6b819d"
+   ],
+   "doc_ids": [
+    "9b89ca4e-e30d-4bff-86ea-3e0fc845417c",
+    "967f8b76-52c2-4a04-be7b-12e54a37e37b"
+   ],
+   "note": "Storware Backup & Recovery backs up OpenShift (using OADP) and Kubernetes/SUSE Harvester."
+  },
+  "Synology": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Trilio": {
+   "label": "yes",
+   "product": "Trilio for Kubernetes",
+   "chunk_ids": [
+    "982709fe-7bce-4237-aa43-0e9d53233b8a",
+    "dbea4a2b-1f21-43c9-9de3-2592e9d97079"
+   ],
+   "doc_ids": [
+    "9363b885-f38b-42b9-a832-65e958c0c9e5",
+    "befcd0ed-f1aa-465e-9028-1e73cdae2981"
+   ],
+   "note": "Trilio for Kubernetes backs up and restores Kubernetes/OpenShift applications and VMs."
+  },
+  "Unitrends": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Kasten for Kubernetes, Veeam Backup & Replication",
+   "chunk_ids": [
+    "68ede408-13e2-493a-8359-effd2922c6dc",
+    "2d288ee7-e204-4ea1-9399-60e7c95a5c06"
+   ],
+   "doc_ids": [
+    "92f8a81b-64b8-4e57-959e-6c29d1fa79af",
+    "e08447ac-f1f9-446e-9d90-7a5750c473e8"
+   ],
+   "note": "Veeam Kasten for Kubernetes protects Kubernetes/OpenShift apps; VBR also protects OpenShift Virtualization."
+  },
+  "Velero": {
+   "label": "yes",
+   "product": "Velero",
+   "chunk_ids": [
+    "8fe63832-de08-455f-b6e3-002b465730e3",
+    "351c2152-5403-4266-a3d1-92ebcee0a574"
+   ],
+   "doc_ids": [
+    "2a73457e-0e2c-49ab-9c81-79eb9527ad65",
+    "1c144337-8c54-429c-bf50-66e4d34923e2"
+   ],
+   "note": "Velero backs up, restores and migrates Kubernetes applications and persistent volumes."
+  },
+  "Zerto": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  }
+ }
+}

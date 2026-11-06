@@ -1,0 +1,471 @@
+{
+ "question_id": "cv-09",
+ "labels": {
+  "AWS": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Acronis": {
+   "label": "yes",
+   "product": "Cyber Protect Cloud / On-premises",
+   "chunk_ids": [
+    "4991eace-c0c8-4578-b32e-4a361e0b85cb",
+    "616a6576-0d4d-481a-9ac6-8aa7fb66c646",
+    "c3899da9-c73b-4713-b45b-b5c435069778"
+   ],
+   "doc_ids": [
+    "5b497484-c73e-4035-854d-e19a17153483",
+    "3ee6e223-eb2a-45e2-b20b-a2dbf5048898",
+    "0ba21aed-3af2-4564-95ed-b7fbe03e1cf0"
+   ],
+   "note": "Pre/Post commands executed automatically before and after the backup; pre-freeze/post-thaw scripts for VMs"
+  },
+  "Afi.ai": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Arcserve": {
+   "label": "yes",
+   "product": "Arcserve UDP",
+   "chunk_ids": [
+    "9e0d98b7-678e-4309-93c7-5139cd6cf113"
+   ],
+   "doc_ids": [
+    "3b2e8468-d8b9-4219-b834-471a68700aff"
+   ],
+   "note": "Pre/Post scripts run custom logic at stages of a running job"
+  },
+  "Arctera": {
+   "label": "yes",
+   "product": "Backup Exec",
+   "chunk_ids": [
+    "805d336e-d313-4e66-9288-cfad989c28b6",
+    "04aa83f1-2ff8-4ff2-b3b9-57598b5ea386"
+   ],
+   "doc_ids": [
+    "ab8d7ea8-3048-4296-9b0d-3258919aa12c"
+   ],
+   "note": "Pre/post commands run before or after backup and restore jobs"
+  },
+  "Atempo": {
+   "label": "yes",
+   "product": "Tina",
+   "chunk_ids": [
+    "963a7c39-6e44-48c0-87a1-25ec2b9c9aed",
+    "0559b5cf-eab8-4fb1-a823-cb75fed39a41"
+   ],
+   "doc_ids": [
+    "d5c34da6-b84b-4647-9933-0ae69feef753",
+    "1e892267-5a81-4b86-8dc7-99fbdc025afc"
+   ],
+   "note": "Pre-freeze/post-thaw scripts for VMware consistent snapshots; pre/post exec variables"
+  },
+  "AvePoint": {
+   "label": "unclear",
+   "product": "Cloud Backup for IaaS + PaaS",
+   "chunk_ids": [
+    "49924805-26c9-4edc-b7a3-878389351aed"
+   ],
+   "doc_ids": [
+    "0d7402b1-f244-4906-ba79-45f04972997e"
+   ],
+   "note": "Provides pre.sh/post.sh fsfreeze scripts for GCP VM app-consistent snapshots, run by the Google guest agent (third-party mechanism)"
+  },
+  "Axcient": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Bacula": {
+   "label": "yes",
+   "product": "Bacula Enterprise",
+   "chunk_ids": [
+    "2abb6a39-fa82-4bc4-8211-16bec80fd3f3",
+    "99675d10-a485-4248-81f4-6bd843d61b94",
+    "c4e384c5-c6db-4316-9731-d981b5cbd470"
+   ],
+   "doc_ids": [
+    "84ceb64b-a2ac-477e-8498-fbbde507bd3b",
+    "53eeca57-2264-4a63-a67c-e230c62e460d",
+    "840537ac-d936-43a1-b168-0306b63603ef"
+   ],
+   "note": "Libvirt/vSphere plugins run custom pre-freeze/post-thaw quiesce scripts before/after VM backup"
+  },
+  "Barracuda": {
+   "label": "yes",
+   "product": "Barracuda Backup",
+   "chunk_ids": [
+    "29fcb85a-babd-4499-ab6f-af681bb80a54"
+   ],
+   "doc_ids": [
+    "735a0958-86cc-4072-8794-1a3385b85bb3"
+   ],
+   "note": "Backup Agent preExecuteScript/postExecuteScript run batch files before and after the backup"
+  },
+  "CloudAlly": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "CloudCasa": {
+   "label": "yes",
+   "product": "CloudCasa",
+   "chunk_ids": [
+    "1be58b14-91c8-4397-b068-632836882b33",
+    "700f6a03-d193-4241-86ed-fad2f0864b36"
+   ],
+   "doc_ids": [
+    "637a75b2-6105-4e43-b4da-cc231b2e3e86",
+    "19c89b8a-4a35-4491-9093-9ce476a6177e"
+   ],
+   "note": "Pre-backup and post-backup application hooks execute commands to quiesce apps"
+  },
+  "Cohesity": {
+   "label": "yes",
+   "product": "DataProtect",
+   "chunk_ids": [
+    "69c02529-1b1c-46cf-8418-094bab7882d4",
+    "75d306d7-b520-4ba4-8900-81738abb6d09"
+   ],
+   "doc_ids": [
+    "6a5ea64c-d4a4-4390-956f-40ea4e802e17"
+   ],
+   "note": "Pre and post scripts configurable in protection groups"
+  },
+  "Commvault": {
+   "label": "yes",
+   "product": "Commvault Cloud / CommCell Console",
+   "chunk_ids": [
+    "6fcbc378-f2de-4aa2-8cc2-7cf7b921fd60",
+    "1b6a1f82-40e0-4478-aeaa-ffdb05783671"
+   ],
+   "doc_ids": [
+    "3c1871de-4ea6-4b73-a444-1c17e20a8e09",
+    "6c5f6212-21a7-4e1d-8f7e-68fd32b9e381"
+   ],
+   "note": "Pre-process and post-process scripts for backup operations"
+  },
+  "Datto": {
+   "label": "yes",
+   "product": "BCDR",
+   "chunk_ids": [
+    "5de8bda3-95b2-4319-9953-551f0a667c1b"
+   ],
+   "doc_ids": [
+    "590a3b17-05fb-4624-9b94-40ef4732d26f"
+   ],
+   "note": "Linux agent quiescing scripts with PRE and POST operations around backup, user-editable"
+  },
+  "Dell": {
+   "label": "yes",
+   "product": "PowerProtect Data Manager",
+   "chunk_ids": [
+    "3d9b64a7-cac9-46fd-8214-129cf0434b19",
+    "09e5e8e6-4e84-48e7-8c87-5f0150bffbac"
+   ],
+   "doc_ids": [
+    "3a335476-9216-4aab-94a0-d8be639ebb00",
+    "247d135a-40a1-4da4-9ca4-e0c478e9920d"
+   ],
+   "note": "Supports running user-created pre-scripts and post-scripts with backups"
+  },
+  "Druva": {
+   "label": "yes",
+   "product": "Druva",
+   "chunk_ids": [
+    "ad252063-6677-4795-a81f-348e29cdaf31",
+    "0ce1de56-3708-47d4-b082-d00bfe10f566"
+   ],
+   "doc_ids": [
+    "ee98d3d9-d57f-44e9-9d7b-64238b916ae6",
+    "69aba438-00b5-4a38-b95c-5f5ba5435e0c"
+   ],
+   "note": "Custom pre-backup and post-backup scripts for File server and NAS agents"
+  },
+  "Eon": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Flosum": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "GRAX": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Gearset": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Google": {
+   "label": "yes",
+   "product": "Google Cloud Backup and DR",
+   "chunk_ids": [
+    "2bec8b9e-11f7-47c6-97f8-dcd3ae44af19",
+    "3c6e11af-66df-45d6-aa88-78aad719cac8"
+   ],
+   "doc_ids": [
+    "912654b2-c887-4f4e-aabd-08c7c5ef411f",
+    "e1d70fd1-b5e5-4553-8ecb-c6366a9d67f8"
+   ],
+   "note": "BYOS pre-snapshot/post-snapshot scripts to quiesce databases; workflow pre/post scripts"
+  },
+  "HYCU": {
+   "label": "yes",
+   "product": "R-Cloud Hybrid Cloud Edition / HYCU for Azure",
+   "chunk_ids": [
+    "d48f6f5a-f367-4674-8d0e-f7288664c573",
+    "a8513205-4c69-4bdd-a73f-f3281813d933",
+    "6588e7c9-b85b-4c05-8ba6-16af7e1bd433"
+   ],
+   "doc_ids": [
+    "da42cbd0-6349-4fb2-9787-ac6eba52a1ee",
+    "414b4e5e-65ee-4758-922a-47625d3c1ccb",
+    "7808ee1f-b586-42e1-9fc8-ea08b77558c0"
+   ],
+   "note": "Pre/post-backup and pre/post-snapshot scripts"
+  },
+  "Hornetsecurity (Altaro)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "IBM": {
+   "label": "yes",
+   "product": "Storage Defender",
+   "chunk_ids": [
+    "d5234f53-704a-46fb-b189-d08e00b1627b"
+   ],
+   "doc_ids": [
+    "96b8e1d9-a057-44c0-a434-93f81ee3a47f"
+   ],
+   "note": "Prescripts and postscripts run commands before or after backup, restore and snapshot jobs"
+  },
+  "Keepit": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Microsoft": {
+   "label": "yes",
+   "product": "Azure Backup",
+   "chunk_ids": [
+    "079d1a2a-dd7a-4467-aef0-2a5933c6cafd",
+    "dc2a1b1a-6a63-40bd-b550-b2587c17d2fd",
+    "a858a9c3-3c48-44b3-9e02-2d644f6b0d06"
+   ],
+   "doc_ids": [
+    "a8ba8211-f452-4e2d-a7c8-3c24b08155aa",
+    "0b9873f7-a1f2-4376-b9c3-8459d69dc2f3"
+   ],
+   "note": "MABS pre-backup and post-backup scripts; enhanced prescripts/postscripts for Azure VM database-consistent snapshots"
+  },
+  "N-Able": {
+   "label": "yes",
+   "product": "Cove Data Protection",
+   "chunk_ids": [
+    "23155737-eb00-4f67-a71e-ee1195122d6f",
+    "9e848dde-b512-460a-8c80-5609261096dd"
+   ],
+   "doc_ids": [
+    "b293456c-4c56-4007-81a7-b1c92a2dee32"
+   ],
+   "note": "Backup Manager pre-backup and post-backup scripts selectable per schedule"
+  },
+  "Nakivo": {
+   "label": "yes",
+   "product": "Nakivo Backup & Replication",
+   "chunk_ids": [
+    "c64ad78d-b1cf-4ebe-9179-1f01856b7c82",
+    "23ad672a-940a-4396-9332-861c5f79a860"
+   ],
+   "doc_ids": [
+    "777a2124-f987-4652-be92-243afe0e5666"
+   ],
+   "note": "Pre job and post job scripts in job wizard options"
+  },
+  "NinjaOne (Dropsuite)": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Portworx": {
+   "label": "yes",
+   "product": "PX-Backup",
+   "chunk_ids": [
+    "4812fa02-9c5f-4607-8cf1-d94a242a8ebf"
+   ],
+   "doc_ids": [
+    "72470cf3-fefa-4a82-a765-41bf39c8f1d4"
+   ],
+   "note": "Pre-exec and post-exec backup rules run commands before/after backup to pause/resume IO"
+  },
+  "Red Hat": {
+   "label": "yes",
+   "product": "OADP",
+   "chunk_ids": [
+    "df7536e3-66f8-443c-bca6-3c657d6b8e80",
+    "d698dbd0-2703-4af1-952c-fdb29dc6c40b"
+   ],
+   "doc_ids": [
+    "b39489bd-643f-4968-8691-44925f330c69",
+    "3fa52b07-e8f6-4daf-a164-606f6bc33866"
+   ],
+   "note": "Backup hooks run commands before or after the backup operation"
+  },
+  "Rubrik": {
+   "label": "yes",
+   "product": "Rubrik Security Cloud",
+   "chunk_ids": [
+    "fb545bce-0fcd-4a6a-a6d0-e7ed8f4edb1f",
+    "5ed84ad2-fe78-486d-9adb-7c838eaf72e5",
+    "e4ca863d-d1f7-45bb-8df2-8ccdd29b31f4"
+   ],
+   "doc_ids": [
+    "afd105be-ec66-4469-9c8f-0b8fb3b911e6",
+    "e2e70ff6-2d74-4161-a7a4-9e4e521eef19",
+    "6c2a2806-3771-4c4b-87cc-5c91722d9eb8"
+   ],
+   "note": "Pre-backup/post-backup scripts for virtual machines (quiescing)"
+  },
+  "Salesforce": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Slide": {
+   "label": "yes",
+   "product": "Slide",
+   "chunk_ids": [
+    "0ecbadad-5675-4315-93c8-9e8ca117f4b0"
+   ],
+   "doc_ids": [
+    "6258f7ff-1684-4e53-b639-de815b61fbf1"
+   ],
+   "note": "Linux agent quiescence scripts run immediately before and after the volume snapshot"
+  },
+  "Spanning": {
+   "label": "no",
+   "product": null,
+   "chunk_ids": [],
+   "doc_ids": [],
+   "note": ""
+  },
+  "Storware": {
+   "label": "yes",
+   "product": "Backup and Recovery",
+   "chunk_ids": [
+    "fadaada2-1746-4a7e-9325-0c95ada3c85e",
+    "d08ec6d0-8d9a-4e81-98a2-71d3c951d68a"
+   ],
+   "doc_ids": [
+    "b0ae1fd1-94b3-4adf-a292-bf96a4feb920",
+    "33162078-4ecb-4fed-b827-6ca2ba3bc73c"
+   ],
+   "note": "Pre snapshot command execution / pre/post command execution supported"
+  },
+  "Synology": {
+   "label": "yes",
+   "product": "Active Backup / ActiveProtect Manager",
+   "chunk_ids": [
+    "188d8802-495c-43bb-9141-4df9136a533a",
+    "d3fb99ac-6f5d-4394-aec2-ba44f8deb3d8"
+   ],
+   "doc_ids": [
+    "c7bce95d-021a-4a3e-aa79-de05219d5996",
+    "fb8bcfd6-9e4e-44fa-b0d3-3140f5f96042"
+   ],
+   "note": "Pre/post scripts before/after snapshots; pre-freeze/post-thaw script profiles for VM backup"
+  },
+  "Trilio": {
+   "label": "yes",
+   "product": "Trilio for Kubernetes",
+   "chunk_ids": [
+    "60296c3e-4c38-42fd-912b-d31e2e0b239d",
+    "0b419d11-2f80-4a1c-9ef6-86dae4db70f7"
+   ],
+   "doc_ids": [
+    "592a31a3-5bd0-4db7-a362-da3bbb4ba4f9"
+   ],
+   "note": "Hooks inject commands before and after backup for application consistency"
+  },
+  "Unitrends": {
+   "label": "yes",
+   "product": "Unitrends Unified Backup",
+   "chunk_ids": [
+    "0d895032-66ff-4e3a-9844-761422324a9a"
+   ],
+   "doc_ids": [
+    "bd21282a-151a-4e30-8e68-d425b348cb94"
+   ],
+   "note": "Command to run Pre-Backup / Post-Backup in job advanced options"
+  },
+  "Veeam": {
+   "label": "yes",
+   "product": "Veeam Backup & Replication / Veeam Agent",
+   "chunk_ids": [
+    "c19a5a0b-2ba3-4955-86dd-f659916934bf",
+    "1e479f83-ea48-441f-8d2d-8df9eabc6a33"
+   ],
+   "doc_ids": [
+    "25176dce-bb87-423b-9132-a753384a6c08",
+    "375d6209-bc9c-44cd-914c-c16592559c4c"
+   ],
+   "note": "Pre-freeze/post-thaw scripts; pre-job and post-job scripts"
+  },
+  "Velero": {
+   "label": "yes",
+   "product": "Velero",
+   "chunk_ids": [
+    "871be423-2476-4e06-af8e-81d16dac1fe3",
+    "4d2b5975-fbb2-417e-9e33-17039487cb64"
+   ],
+   "doc_ids": [
+    "bd636ea1-3179-4b25-8d01-486b702edc67"
+   ],
+   "note": "Backup hooks execute commands in pod containers before/after backup"
+  },
+  "Zerto": {
+   "label": "unclear",
+   "product": "Zerto",
+   "chunk_ids": [
+    "b7e8cbd3-ef2c-4a76-b67c-409f34607416"
+   ],
+   "doc_ids": [
+    "ffb131ee-43c8-473a-8901-cc78d67c3968"
+   ],
+   "note": "Only pre/post-recovery scripts; quiescing via user script plus Set-Checkpoint cmdlet, no pre/post backup script hook"
+  }
+ }
+}
