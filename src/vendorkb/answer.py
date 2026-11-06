@@ -30,6 +30,8 @@ ENUMERATION_RULES = (
     "exactly in the form `Vendor (Product, ...): how it is done [n]`.\n"
     "- Begin each line with one of the exact vendor names listed after \"Vendors:\" in the "
     "user message; never an alias or a product name.\n"
+    "- If you use the product group, use only the product names listed for that vendor "
+    "after \"Vendors:\".\n"
     "- Each line describes only its own vendor and never mentions other vendors.\n"
     "- Write no line for a vendor whose sources do not state the capability.\n"
     "- Add nothing after the lines."
@@ -48,7 +50,11 @@ def build_prompt(question: str, hits: list[Hit]) -> str:
 
 
 def build_enumeration_prompt(question: str, hits: list[Hit], vendors: list[str]) -> str:
-    return build_prompt(question, hits) + "Vendors: " + "; ".join(vendors) + "\n"
+    items = []
+    for v in vendors:
+        products = list(dict.fromkeys(h.product for h in hits if h.vendor == v and h.product))
+        items.append(f"{v} ({', '.join(products)})" if products else v)
+    return build_prompt(question, hits) + "Vendors: " + "; ".join(items) + "\n"
 
 
 def closing_line(names: list[str]) -> str:

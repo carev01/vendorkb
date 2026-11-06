@@ -306,7 +306,7 @@ async def test_enumeration_prompt_lists_kept_vendors(monkeypatch):
     await _run_enum(client, idx)
     msgs = client.calls[0]["messages"]
     assert ans.ENUMERATION_RULES in msgs[0]["content"]
-    assert "Vendors: A" in msgs[1]["content"]
+    assert "Vendors: A (VBR)\n" in msgs[1]["content"]
 
 
 @pytest.mark.asyncio
@@ -466,3 +466,16 @@ async def test_other_vendor_in_product_group_is_dropped_and_counted(monkeypatch)
     r = await _run_enum(FakeClient(["Veeam (Rubrik, Commvault): X [1]"]), idx)
     assert r["answer"].startswith("Veeam: X [1]")
     assert r["lines_naming_other_vendors"] == 1 and r["vendors_listed"] == ["Veeam"]
+
+
+def test_enumeration_prompt_lists_products_per_vendor():
+    def h(n, v, p):
+        return Hit(f"c{n}", f"d{n}", "t", ["A"], v, p, "T", "u", n, 0.5)
+    hits = [h(1, "Veeam", "Veeam Backup & Replication"), h(2, "Veeam", "Veeam ONE"),
+            h(3, "Veeam", "Veeam ONE"), h(4, "Rubrik", "Rubrik Security Cloud"),
+            h(5, "Dell", None)]
+    prompt = ans.build_enumeration_prompt("Q?", hits, ["Veeam", "Rubrik", "Dell"])
+    assert prompt.endswith(
+        "Vendors: Veeam (Veeam Backup & Replication, Veeam ONE); "
+        "Rubrik (Rubrik Security Cloud); Dell\n")
+    assert "only the product names listed for that vendor" in ans.ENUMERATION_RULES
