@@ -33,11 +33,11 @@ async def test_okta_gets_entra_aspects(conn):
     okta = await aspects(conn, target="okta")
     assert okta == await aspects(conn, target="entra_id")
     assert okta == await aspects(conn, cls="saas.identity")
-    # saas.identity object types in YAML order, then the parent's, each times the four
+    # the root's object types first, then saas.identity's in YAML order, each times the four
     # required coverage dimensions
     coverage = [(a.object_type_id, a.dimension_id) for a in okta if a.kind == "coverage"]
-    assert [o for o, _ in coverage[::4]] == ["user", "group", "access_policy", "audit_log",
-                                              "tenant_config"]
+    assert [o for o, _ in coverage[::4]] == ["tenant_config", "user", "group", "access_policy",
+                                              "audit_log"]
     assert [d for _, d in coverage[:4]] == ["coverage.backup", "coverage.restore",
                                             "coverage.export", "coverage.compare"]
     assert len(coverage) == 20
@@ -70,6 +70,9 @@ async def test_parent_entry_applies_to_children(conn):
     assert "schedule.backup_frequency" in _ids(await aspects(conn, cls="saas"), "dimension")
     assert "schedule.backup_frequency" not in _ids(await aspects(conn, cls="cloud.database"),
                                                    "dimension")
+    # the reverse direction: an entry for a child class does not reach its parent
+    assert "recovery.automation_bypass" not in _ids(await aspects(conn, cls="saas"), "dimension")
+    assert "recovery.automation_bypass" in _ids(await aspects(conn, cls="saas.crm"), "dimension")
 
 
 async def test_class_without_object_types_has_no_coverage(conn):
@@ -96,3 +99,12 @@ async def test_non_required_coverage_dimension_is_a_plain_dimension(conn):
             ("dimension", None, "coverage")]
         # first of the dimension group: coverage leads FAMILIES
         assert _ids(found, "dimension")[0] == "coverage.attribute_depth"
+
+
+async def test_coverage_object_type_order_matches_taxonomy(conn):
+    tax = load.validate(load.parse_doc(FIXTURE.read_bytes(), FIXTURE))
+    for class_id in ("saas", "saas.identity", "saas.crm", "cloud", "cloud.database"):
+        expected = [o.id for o in tax.object_types(class_id)]
+        found = [a.object_type_id for a in await aspects(conn, cls=class_id)
+                 if a.kind == "coverage" and a.dimension_id == "coverage.backup"]
+        assert found == expected

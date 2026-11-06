@@ -2,8 +2,9 @@
 
 A workload is a target (resolved by id or alias) or a class. Its aspects are, in order:
 
-1. coverage aspects: each object type of the class and its ancestors (the lineage, most
-   specific class first, object types in YAML order), times ``REQUIRED_DIMENSIONS``;
+1. coverage aspects: each object type of the class, inherited ones included, root ancestor
+   first and each class's in YAML order (the order of ``Taxonomy.object_types``), times
+   ``REQUIRED_DIMENSIONS``;
 2. the class's other, non-platform dimensions (any coverage-family dimension that is not one of
    the required four included), in ``FAMILIES`` order, then by id;
 3. platform dimensions (about the backup product itself), same order.
@@ -82,14 +83,11 @@ async def aspects(conn: psycopg.AsyncConnection, *, target: str | None = None,
     dims = {r[0]: r for r in await cur.fetchall()}
 
     out: list[Aspect] = []
-    seen_types: set[str] = set()
-    for cid in lineage:
+    for cid in reversed(lineage):  # validation refuses a redefined object type: ids are unique
         cur = await conn.execute(
             "SELECT object_type_id FROM object_types WHERE class_id = %s ORDER BY ordinal",
             (cid,))
-        object_types = [r[0] for r in await cur.fetchall() if r[0] not in seen_types]
-        seen_types.update(object_types)
-        for object_type in object_types:
+        for (object_type,) in await cur.fetchall():
             for dimension_id in REQUIRED_DIMENSIONS:
                 d = dims[dimension_id]
                 out.append(Aspect("coverage", dimension_id, d[1], d[2], d[3], object_type, d[5]))
