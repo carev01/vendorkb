@@ -7,6 +7,21 @@ why it matters and what "done" looks like. Sources:
 
 Items marked **$** spend money (OpenRouter, Anthropic or Voyage) and need a go-ahead first.
 
+## Status after the taxonomy v2 / claims v3 branch (2026-11-06)
+
+Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
+- **Done:**
+  - Item 1 became claims-v3/v3.1, at 96/100 precision with Opus.
+  - Item 2 was superseded: the teacher set re-ran its own cut-off chunks at 8,000 tokens.
+  - Item 5: the Anthropic key now works.
+  - Item 6 was superseded by taxonomy v2 (PR #1 closes).
+  - Item 7: the mapper adjudicates with an LLM.
+  - Item 15, M6: prices are per model, and an unpriced model is refused.
+  - Item 16, M9 (partly): embeddings are float32 and sliced, but keys are still re-embedded on
+    every run.
+- **Opus teacher set for item 18 is captured:** 10,000 chunks (9,500 train and 500 held out),
+  27,126 claims, $65.09.
+
 ## Claims (M3)
 
 1. **$ `claims-v2` prompt and re-measure precision.** The pilot spot-check found 86/100 claims
@@ -109,3 +124,27 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       to amortise cold starts.
     - **Student bar:** ≥90% agreement with Opus on a held-out set, and precision within a few
       points of it. Then run the full corpus on Vast, replacing item 4's API route.
+
+## Taxonomy v2 follow-ups
+
+19. **Review taxonomy v2 in the PR.** 857 entries are proposed (573 dimensions, 115 targets, 169
+    object types, 50 offerings, all marked `proposed: true`). Prune them, merge duplicates of
+    seed entries, and settle the over-specific limits. Proposed dimensions already hold 46% of
+    capability facts, so merge them rather than delete them.
+20. **$ Dimension adjudication precision is 0.79** (the alias path is 0.98). Try a stronger
+    `map_model` on the 300 labelled claims, add the evidence quote to the prompt, or pre-filter
+    candidates by family. The labels are in the session scratchpad (`mapgrade/`) and need the
+    user's check.
+21. **Offering recall is 0.36.** Offering-name variants such as "Veeam Data Cloud for Azure" are
+    not aliased. Add aliases, or adjudicate offerings like dimensions.
+22. **Production rollout of v2.** The order matters, because the branch's `init_schema` drops
+    the v1 tables:
+    1. Check `pg_depend` for objects depending on the v1 tables.
+    2. Merge and deploy.
+    3. Load the reviewed taxonomy, then map and build capabilities.
+    4. Re-measure findability.
+
+    The teacher and precision claims are already in production under claims-v3 and claims-v3.1.
+23. **Persist mapper adjudications** so re-runs and a lower `--max-usd` do not redo paid calls.
+    Also keep a persistent list of members propose rejected.
+

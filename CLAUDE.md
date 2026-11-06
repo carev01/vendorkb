@@ -52,17 +52,45 @@ stack.
     spend ledger, a run lock and a budget cap;
   - a verbatim evidence gate: word-bounded exact match, or fuzzy match that keeps every
     number and negation; `vendorkb claims regate` re-applies it to stored claims.
-- the taxonomy pipeline (`taxonomy/`): `taxonomy propose|load|map` and
-  `capabilities build|query`.
-  - Taxonomy v1 is on a draft PR for review; nothing loads it as final.
-  - Nearest-neighbour mapping is unreliable (15–60% precise), so treat alias mappings as the
-    trustworthy ones.
-- Production holds 74,885 claims from a 21k-chunk pilot.
+- Production holds 74,885 v1 (Haiku) pilot claims.
+
+**Taxonomy v2 and claims v3 (2026-11-06; spec `specs/2026-11-06-taxonomy-v2-claims-v3-design.md`,
+results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
+- **Purpose:** the system *finds* comparison information for an MCP agent or people; it never
+  builds tables or rates vendors.
+- **claims v3** (`PROMPT_VERSION` `claims-v3.1`; every prompt change bumps the minor version):
+  - 14 fields, including kind (capability, licensing, service), target_scope, offering,
+    edition, availability, default_state, and value/unit/bound. No `requires`; prices are never
+    claims.
+  - The system prompt is cached. Prices are per model (`extract.PRICES_PER_MTOK`), and an
+    unpriced model is refused.
+  - Opus 5.5 precision is 96/100 (gate 95).
+  - Select the family with `prompt_version LIKE 'claims-v3%'`.
+- **taxonomy v2** (`taxonomy/taxonomy.yaml`, version 2):
+  - dimensions (`<family>.<id>`, 12 families, `applies_to` classes, `platform`, `value_unit`);
+  - classes with object-type templates (dotted ids nest);
+  - targets (class instances with `object_aliases` and `variants`);
+  - offerings with editions.
+
+  New entries from `taxonomy propose` carry `proposed: true` until reviewed.
+  `taxonomy load|propose|map|aspects`; `aspects(target|class)` lists what applies to a workload.
+- **mapper:** exact alias first, otherwise a Haiku adjudication over the nearest candidates
+  (`map_model`, `map_candidates`) with one fixed reply schema. Nearest neighbour alone never
+  maps. Dimension precision is 0.85 (alias 0.98, LLM 0.79).
+- **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
+  product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
+  facts never appear as target facts.
+- **Not on production yet:** the branch's `init_schema` drops the v1
+  features/targets/aliases/capabilities tables, so never run it against production before
+  merge and deploy. Extraction scripts that write to production must skip `init_schema`.
+- **Evals:** `eval/findability.py coverage|claims|chunks-candidates|chunks-score`, run against a
+  local, never-committed map of the internal comparison tables (415/423 rows findable).
+  `eval/teacher_sample.py` draws the stratified teacher set.
 
 **Not built yet:**
-- the MCP server;
-- mapper LLM adjudication;
-- extraction beyond the pilot;
+- the MCP server (an unfiltered `capabilities` query returns the whole table, so the server must
+  require a filter or page);
+- extraction beyond the teacher and precision sets, and the Qwen3.5-9B student;
 - capabilities in `answer()`;
 
 ## Commands
