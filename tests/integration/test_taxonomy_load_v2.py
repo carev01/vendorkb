@@ -179,7 +179,7 @@ async def test_v1_tables_are_dropped_once(vkb_dsn):
                            ", raw_claims, rejected_claims, extractions, extract_batches,"
                            " chunks, documents CASCADE")
         await init_schema(conn, embed_dim=768)
-        await conn.execute(f"DROP TABLE {', '.join(V2_TABLES)} CASCADE")
+        await conn.execute(f"DROP TABLE capabilities, {', '.join(V2_TABLES)} CASCADE")
         await conn.execute("""
             CREATE TABLE features (feature_id text PRIMARY KEY, name text NOT NULL,
                 category text, definition text, parent_id text REFERENCES features);
@@ -226,7 +226,12 @@ async def test_v1_tables_are_dropped_once(vkb_dsn):
                                                    " WHERE table_schema='public'")}
         assert tables == {r[0] for r in after_first}
         assert set(V2_TABLES) <= tables
-        assert not {"features", "capabilities"} & tables
+        assert "features" not in tables
+        # capabilities is recreated as v2, which has no feature_id: later runs keep it
+        cap_columns = {r[0] for r in await _rows(conn, "SELECT column_name FROM"
+                                                        " information_schema.columns"
+                                                        " WHERE table_name='capabilities'")}
+        assert "scope" in cap_columns and "feature_id" not in cap_columns
         columns = {r[0] for r in await _rows(conn, "SELECT column_name FROM"
                                                     " information_schema.columns"
                                                     " WHERE table_name='targets'")}

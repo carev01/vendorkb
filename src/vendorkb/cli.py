@@ -29,6 +29,13 @@ if TYPE_CHECKING:
 # command handlers: `vendorkb sync` runs in a 1 Gi pod and never needs them.
 
 MAX_TOKENS = 1200
+# `capabilities query` choices, copied so the parser needs no claims/taxonomy import (a unit
+# test keeps them equal to extract.SUPPORT_VALUES, AVAILABILITY_VALUES and load.FAMILIES).
+SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
+AVAILABILITY_VALUES = ("generally_available", "preview", "early_access", "limited_availability",
+                       "planned", "deprecated", "unstated")
+FAMILIES = ("coverage", "protection", "schedule", "retention", "storage", "recovery",
+            "security", "cyber", "operations", "governance", "data_use", "vendor")
 
 
 def _snippet(text: str) -> str:
@@ -295,12 +302,15 @@ async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) ->
             print(json.dumps({"rows": rows,
                               "taxonomy_version": await load.current_version(conn)}))
             return 0
-        found = await capabilities.query(conn, args.feature, target=args.target,
-                                         vendor=args.vendor, support=args.support)
+        found = await capabilities.query(conn, capabilities.CapFilter(
+            vendor=args.vendor, offering=args.offering, edition=args.edition,
+            dimension=args.dimension, family=args.family, target=args.target,
+            object_type=args.object_type, support=args.support,
+            availability=args.availability, value_min=args.value_min,
+            value_max=args.value_max))
     finally:
         await conn.close()
-    for row in found:
-        print(json.dumps(dataclasses.asdict(row)))
+    print(json.dumps(dataclasses.asdict(found)))
     return 0
 
 
@@ -387,12 +397,19 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
-    c = cap.add_parser("query", help="capability rows for a feature (JSON lines)")
-    c.add_argument("feature", help="feature id, alias or name")
-    c.add_argument("--target", default=None, help="target id, alias or name (with children)")
-    c.add_argument("--vendor", default=None)
-    c.add_argument("--support", default=None,
-                   choices=("supported", "partial", "not_supported", "unclear"))
+    c = cap.add_parser("query", help="facts matching the filters, grouped (one JSON object:"
+                                     " facts, product_level, product_wide, conflicts, hint)")
+    c.add_argument("--vendor", default=None, help="vendor (case-insensitive)")
+    c.add_argument("--offering", default=None, help="offering id or alias")
+    c.add_argument("--edition", default=None, help="edition id or alias")
+    c.add_argument("--dimension", default=None, help="dimension id or alias")
+    c.add_argument("--family", default=None, choices=FAMILIES, help="dimension family")
+    c.add_argument("--target", default=None, help="target id or alias (with descendants)")
+    c.add_argument("--object-type", default=None, help="object type id")
+    c.add_argument("--support", default=None, choices=SUPPORT_VALUES)
+    c.add_argument("--availability", default=None, choices=AVAILABILITY_VALUES)
+    c.add_argument("--value-min", type=float, default=None)
+    c.add_argument("--value-max", type=float, default=None)
     return p
 
 

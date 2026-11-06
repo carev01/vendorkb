@@ -365,3 +365,44 @@ BEGIN
     END IF;
 END
 $$;
+
+-- capabilities v2 (``taxonomy.capabilities``): one row per claims-v3 claim mapped under the
+-- current taxonomy version with a dimension, rebuilt from raw_claims by ``capabilities
+-- build``. Keyed on the claim, so a claim's deletion (a document re-sync) cascades here.
+-- ``doc_version`` is the claim's ``documents.fetched_at``. ``scope``: 'offering' (an offering is
+-- named), 'product_wide' (no target, and a workload dimension), else 'product'. Rows sharing the
+-- conflict key (vendor, product, offering, edition, dimension, target, variant, object type)
+-- but differing in support or in a stated value share a ``conflict_group``; ``is_current``
+-- marks the key's rows from its most recently fetched document. No foreign keys into the
+-- taxonomy tables: a ``taxonomy load`` replaces them, and stale rows wait for map and build.
+-- (No ``feature_id`` column: that is what the v1-drop block above keys on.)
+CREATE TABLE IF NOT EXISTS capabilities (
+    claim_id uuid PRIMARY KEY REFERENCES raw_claims ON DELETE CASCADE,
+    vendor text NOT NULL,
+    product text,
+    offering_id text,
+    edition_id text,
+    dimension_id text NOT NULL,
+    class_id text,
+    target_id text,
+    variant_id text,
+    object_type_id text,
+    kind text NOT NULL,
+    support text NOT NULL,
+    availability text,
+    default_state text,
+    value double precision,
+    unit text,
+    bound text,
+    conditions text,
+    doc_version timestamptz NOT NULL,
+    taxonomy_version text NOT NULL,
+    scope text NOT NULL CHECK (scope IN ('offering', 'product', 'product_wide')),
+    conflict_group uuid,
+    is_current boolean NOT NULL
+);
+CREATE INDEX IF NOT EXISTS capabilities_dimension_idx ON capabilities (dimension_id);
+CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
+CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor));
+CREATE INDEX IF NOT EXISTS capabilities_conflict_idx ON capabilities (conflict_group)
+    WHERE conflict_group IS NOT NULL;

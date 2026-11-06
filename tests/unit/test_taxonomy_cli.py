@@ -132,22 +132,41 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     async def fake_version(conn):
         return "3"
 
-    async def fake_query(conn, feature, target=None, vendor=None, support=None):
-        stubbed["query"] = (feature, target, vendor, support)
-        return [capabilities.CapRow("veeam", "VBR", None, feature, target, "Amazon RDS",
-                                    "supported", None, "q", "c1", "http://u", "T", 1.0,
-                                    "alias")]
+    async def fake_query(conn, f):
+        stubbed["filter"] = f
+        fact = capabilities.Fact(
+            "c1", "veeam", "VBR", None, None, "coverage.backup", "coverage", "cloud.database",
+            "aws.rds", None, "database", "capability", "supported", "unstated", None, None,
+            None, None, None, "product", None, True, "backs up", "Amazon RDS", "q", "k1",
+            "http://u", "T", "2026-01-01T00:00:00+00:00", "2-abc")
+        return capabilities.CapResult(facts=[fact], hint=None)
 
     monkeypatch.setattr(capabilities, "build", fake_build)
     monkeypatch.setattr(load, "current_version", fake_version)
     monkeypatch.setattr(capabilities, "query", fake_query)
     assert cli.main(["capabilities", "build"]) == 0
     assert json.loads(capsys.readouterr().out) == {"rows": 7, "taxonomy_version": "3"}
-    assert cli.main(["capabilities", "query", "immutable_backups", "--target", "aws",
-                     "--vendor", "veeam", "--support", "partial"]) == 0
-    assert stubbed["query"] == ("immutable_backups", "aws", "veeam", "partial")
-    row = json.loads(capsys.readouterr().out)
-    assert (row["vendor"], row["url"], row["chunk_id"]) == ("veeam", "http://u", "c1")
+    assert cli.main(["capabilities", "query", "--target", "aws", "--vendor", "veeam",
+                     "--support", "partial", "--offering", "o", "--edition", "e",
+                     "--dimension", "d", "--family", "coverage", "--object-type", "database",
+                     "--availability", "preview", "--value-min", "1",
+                     "--value-max", "9.5"]) == 0
+    assert stubbed["filter"] == capabilities.CapFilter(
+        vendor="veeam", offering="o", edition="e", dimension="d", family="coverage",
+        target="aws", object_type="database", support="partial", availability="preview",
+        value_min=1.0, value_max=9.5)
+    out = json.loads(capsys.readouterr().out)
+    assert set(out) == {"facts", "product_level", "product_wide", "conflicts", "hint"}
+    fact = out["facts"][0]
+    assert (fact["vendor"], fact["url"], fact["evidence_quote"]) == ("veeam", "http://u", "q")
+
+
+def test_capabilities_query_choices_match_the_sources():
+    from vendorkb.claims.extract import AVAILABILITY_VALUES, SUPPORT_VALUES
+
+    assert cli.SUPPORT_VALUES == SUPPORT_VALUES
+    assert cli.AVAILABILITY_VALUES == AVAILABILITY_VALUES
+    assert cli.FAMILIES == load.FAMILIES
 
 
 def test_taxonomy_aspects_json_lines_and_unknown_exit(stubbed, monkeypatch, capsys):
