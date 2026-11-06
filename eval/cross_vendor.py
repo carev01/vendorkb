@@ -32,7 +32,7 @@ from vendorkb.clients import Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, ENUMERATION_MIN_SCORE, compare_facets, enumerate_vendors
-from vendorkb.scope import ScopeIndex, detect_scope, scope_index_from_db
+from vendorkb.scope import ScopeIndex, detect_scope, find_facets, scope_index_from_db
 from vendorkb.search import (
     _COLS,
     RERANK_CANDIDATES,
@@ -177,8 +177,10 @@ def _gold_ids(q: dict) -> set[str]:
 
 async def _single(conn, embedder, question, scope_index, *, legacy: bool,
                   reranker, rerank: bool):
-    """The single-facet path: detected scope, relaxed when it grounds nothing."""
-    vendors, products = detect_scope(question, scope_index)
+    """The single-facet path: the named scope (as answer() takes it), relaxed when it grounds
+    nothing. ``--legacy`` runs every question here, as before this branch, so its scope is
+    the old detect_scope one."""
+    vendors, products = (detect_scope if legacy else find_facets)(question, scope_index)
     if legacy or rerank:
         k = 10 if rerank else RERANK_CANDIDATES
 

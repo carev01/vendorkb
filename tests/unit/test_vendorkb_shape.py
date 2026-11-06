@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
 from vendorkb.scope import detect_scope, load_scope_index
@@ -135,3 +136,58 @@ def test_ordinary_word_names_match_case_sensitively():
     assert detect_shape("Does Own back up Salesforce metadata?", INDEX).facets[0] == ("product", "Own")
     assert ("product", "Own") not in detect_shape("I run my own scripts", INDEX).facets
     assert detect_shape("does veeam support tape?", INDEX).facets == [("vendor", "Veeam")]
+
+
+# --- final fix wave: I-1, I-2, I-3 -------------------------------------------------------
+
+@pytest.mark.parametrize("q", [
+    "Which platforms can Cohesity protect?",
+    "Which products can Veeam back up?",
+    "Which platforms can a Rubrik cluster protect?",
+    "What tools do I need for Commvault IntelliSnap?",
+    "Which tools can I use to monitor Rubrik backups?",
+    "What software do I need to install on the Veeam proxy?",
+    "Which software versions does the Nakivo transporter support?",
+    "With Commvault, which tools let me monitor jobs?",
+    "Which storage vendors does Veeam Backup & Replication integrate with for snapshots?",
+])
+def test_one_facet_sweep_or_vendors_wording_is_single(q):
+    assert detect_shape(q, INDEX).kind == "single", q
+
+
+@pytest.mark.parametrize("q", [
+    "Do other vendors besides Veeam support tape?",
+    "Which vendors except Rubrik support tape?",
+    "Which vendors can back up Salesforce metadata?",
+    "Which tools can back up Microsoft Exchange?",
+    "Which products protect Cohesity clusters?",
+    "Which tools work for our Nakivo deployment?",
+])
+def test_one_facet_workload_or_protected_vendor_is_enumeration(q):
+    assert detect_shape(q, INDEX).kind == "enumeration", q
+
+
+@pytest.mark.parametrize("q", [
+    "What products does Commvault offer for Microsoft 365?",
+    "Which of these vendors support immutable backups: Veeam, Rubrik, Cohesity?",
+    "Which vendors among Veeam and Rubrik support tape?",
+])
+def test_two_or_more_facets_are_never_enumeration(q):
+    s = detect_shape(q, INDEX)
+    assert s.kind == "single", (q, s)
+    assert len(s.facets) >= 2
+
+
+@pytest.mark.parametrize("q", [
+    "Can Veeam Backup & Replication back up both Hyper-V and Azure VMs?",
+    "How do I configure retention for each job in Veeam Backup & Replication when backing up"
+    " Azure VMs?",
+    "Can each Commvault MediaAgent use Azure Blob storage?",
+])
+def test_each_and_both_are_not_comparison_wording(q):
+    assert detect_shape(q, INDEX).kind == "single", q
+
+
+def test_two_facets_with_comparison_wording_stay_comparison():
+    assert detect_shape("Is Veeam better than Rubrik for tape?", INDEX).kind == "comparison"
+    assert detect_shape("Which one handles tape: Veeam or Rubrik?", INDEX).kind == "comparison"

@@ -479,3 +479,14 @@ def test_enumeration_prompt_lists_products_per_vendor():
         "Vendors: Veeam (Veeam Backup & Replication, Veeam ONE); "
         "Rubrik (Rubrik Security Cloud); Dell\n")
     assert "only the product names listed for that vendor" in ans.ENUMERATION_RULES
+
+
+# --- final fix wave ------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_single_shape_with_vendors_wording_keeps_its_scope(monkeypatch):
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FakeClient(["Fact [1]."]),
+                   question="Which storage vendors does Veeam integrate with?")
+    assert r["shape"] == "single"
+    assert calls[0]["vendor"] == ["Veeam"] and r["scope"]["vendors"] == ["Veeam"]

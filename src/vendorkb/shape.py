@@ -10,13 +10,18 @@ from vendorkb.scope import ScopeIndex, find_facets, is_cross_vendor
 Facet = tuple[Literal["vendor", "product"], str]
 
 _COMPARISON_WORDING = re.compile(
-    r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdifference between\b|\beach\b|\bboth\b|\bbetter\b|\bworse\b"
+    r"\bcompar\w*|\bvs\.?(?!\w)|\bversus\b|\bdifference between\b|\bbetter\b|\bworse\b"
     r"|\bwhich one\b", re.IGNORECASE)
 # "which tools/products/..." wording: an enumeration unless the comparison rules hold
 _SWEEP = re.compile(
     r"\b(which|what)\s+(of (these|the documented)\s+)?(backup\s+)?"
     r"(vendors?|products?|tools?|solutions?|consoles?|platforms?|software|offerings?)\b"
     r"|\bany products\b", re.IGNORECASE)
+# with "vendors" wording and one facet: the facet is excluded from, or rivals, the answer
+_EXCLUDING = re.compile(
+    r"\b(other|besides|except|apart from|alternatives?|compet(e|es|ing|itors?))\b", re.IGNORECASE)
+# a vendor this often names a workload ("our Google Workspace", "Salesforce metadata")
+WORKLOAD_VENDORS = frozenset({"Microsoft", "Google", "AWS", "IBM", "Salesforce", "Red Hat"})
 
 
 @dataclass(frozen=True)
@@ -51,9 +56,9 @@ def _product_vendor(product: str, index: ScopeIndex) -> str:
     return next(iter(owners)) if len(owners) == 1 else f"?{product}"  # unknown: its own vendor
 
 
-def _is_source_of(vendor: str, question: str, index: ScopeIndex) -> bool:
-    """The vendor is the subject being asked about ("does Veeam", "from Veeam"), not a workload."""
-    return any(re.search(rf"\b(does|do|did|from|by|of|in|at)\s+{re.escape(surface)}(?!\w)",
+def _is_protected(vendor: str, question: str, index: ScopeIndex) -> bool:
+    """The vendor is what gets protected ("protect Cohesity", "for our Nakivo")."""
+    return any(re.search(rf"\b(protect|back up|backup of|for our|our)\s+{re.escape(surface)}(?!\w)",
                          question, re.IGNORECASE) for surface in _surfaces(vendor, index))
 
 
@@ -69,20 +74,24 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
     owners = {v for p in products for v in _vendor_of(p, index)}
     facets: list[Facet] = [("vendor", v) for v in vendors if v not in owners]
     facets += [("product", p) for p in products]
-    if len(facets) >= 2:
+    if len(facets) >= 2:  # named facets: compared or asked about together, never a sweep
         cross = len({_product_vendor(p, index) for p in products}) >= 2
         if (cross or _COMPARISON_WORDING.search(question)
                 or _has_or_pair(question, facets)):
             return Shape("comparison", facets)
+        return Shape("single", facets)
+    if not facets:
         if is_cross_vendor(question) or _SWEEP.search(question):
             return Shape("enumeration", facets)
         return Shape("single", facets)
+    kind, name = facets[0]
     if is_cross_vendor(question):
-        return Shape("enumeration", facets)
-    if _SWEEP.search(question):
-        # one facet is usually a workload ("our Google Workspace"), unless it is what is asked about
-        if len(facets) == 1 and (facets[0][0] == "product"
-                                 or _is_source_of(facets[0][1], question, index)):
-            return Shape("single", facets)
+        # "other vendors besides Veeam" sweeps; "storage vendors Veeam integrates with" does not
+        if _EXCLUDING.search(question) or (kind == "vendor" and name in WORKLOAD_VENDORS):
+            return Shape("enumeration", facets)
+        return Shape("single", facets)
+    if _SWEEP.search(question) and kind == "vendor" and (
+            name in WORKLOAD_VENDORS or _is_protected(name, question, index)):
+        # the vendor is a workload ("back up our Google Workspace"), not what is asked about
         return Shape("enumeration", facets)
     return Shape("single", facets)

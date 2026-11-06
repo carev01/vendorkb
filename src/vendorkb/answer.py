@@ -6,7 +6,7 @@ import re
 from openai import AsyncOpenAI
 
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
-from vendorkb.scope import ScopeIndex, detect_scope
+from vendorkb.scope import ScopeIndex, find_facets
 from vendorkb.search import Hit, SearchResult, search_docs
 from vendorkb.shape import detect_shape
 
@@ -236,7 +236,9 @@ async def _call_model(client: AsyncOpenAI, settings, user: str,
 async def answer(conn, question: str, *, settings, embedder, reranker,
                  scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
     shape = detect_shape(question, scope_index)
-    vendors, products = detect_scope(question, scope_index)
+    # a single-shaped question keeps its named scope even with "vendors" wording
+    # (detect_scope drops it there): enumerations never reach the scoped search
+    vendors, products = find_facets(question, scope_index)
     relaxed = False
     facets_empty: list[str] = []
     checked: list[str] = []
