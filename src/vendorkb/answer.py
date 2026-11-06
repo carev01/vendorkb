@@ -12,6 +12,8 @@ from vendorkb.shape import detect_shape
 
 log = logging.getLogger(__name__)
 
+# up to ~40 vendor lines over 60 chunks, with reasoning on
+ENUMERATION_MAX_TOKENS = 8000
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -34,6 +36,8 @@ ENUMERATION_RULES = (
     "after \"Vendors:\".\n"
     "- Each line describes only its own vendor and never mentions other vendors.\n"
     "- Write no line for a vendor whose sources do not state the capability.\n"
+    "- Each line states what its vendor does, never what it does not do or what is not "
+    "documented.\n"
     "- Add nothing after the lines."
 )
 
@@ -65,7 +69,11 @@ def closing_line(names: list[str]) -> str:
 
 _BULLET = re.compile(r"^(?:[-*\u2022]|\d+[.)])\s+")
 _EMPHASIS = re.compile(r"^(?:\*\*|__|\*)")
-_PRODUCTS = re.compile(r"^ ?\(([^()]*)\)")
+_PRODUCTS = re.compile(r"^ ?\(((?:[^()]|\([^()]*\))*)\)")  # one level of nesting
+# a line saying what a vendor does NOT do: that vendor belongs in the closing line
+_NEGATIVE = re.compile(
+    r"\b(?:does not|do not|doesn't|don't|is not supported|not documented|no support|cannot)\b",
+    re.IGNORECASE)
 
 
 def _parse_line(line: str, vendors: list[str]) -> tuple[str, str | None, str] | None:
@@ -91,10 +99,13 @@ def _canonical(vendor: str, products: str | None, rest: str) -> str:
     return f"{vendor}{f' ({products})' if products else ''}: {rest}"
 
 
+def _names(name: str, text: str) -> bool:
+    return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.IGNORECASE) is not None
+
+
 def _names_other(vendor: str, products: str | None, rest: str, corpus: list[str]) -> bool:
     text = f"{products or ''} {rest}"
-    return any(re.search(rf"(?<!\w){re.escape(v)}(?!\w)", text, re.IGNORECASE)
-               for v in corpus if v != vendor)
+    return any(_names(v, text) for v in corpus if v != vendor)
 
 
 def _check_lines(text: str, hits: list[Hit], vendors: list[str],
@@ -113,16 +124,26 @@ def _check_lines(text: str, hits: list[Hit], vendors: list[str],
             continue
         vendor, products, rest = parsed
         own = 0
+        foreign: set[str] = set()  # vendors of the markers stripped from this line
 
         def repl(m: re.Match[str]) -> str:
             nonlocal own
             nums = [int(x) for x in re.split(r"\s*,\s*", m.group(2))]
             keep = [n for n in nums if not (1 <= n <= len(hits)) or hits[n - 1].vendor == vendor]
+            foreign.update(hits[n - 1].vendor for n in nums if n not in keep)
             own += sum(1 for n in keep if 1 <= n <= len(hits))
-            return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]" if keep else m.group(1)
+            if keep:
+                return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]"
+            # a fully stripped marker takes its preceding space with it (as in
+            # resolve_markers), unless another marker follows: "X [2][1]" -> "X [1]"
+            return m.group(1) if m.string.startswith("[", m.end()) else ""
 
         rest = re.sub(r" {2,}", " ", _GROUP.sub(repl, rest)).strip()
-        if own == 0:
+        # no own citation; or the line describes the vendor whose citation was stripped (a
+        # workload sharing a vendor's name comes without that vendor's marker); or it states
+        # what the vendor does not do
+        if (own == 0 or any(_names(v, f"{products or ''} {rest}") for v in foreign)
+                or _NEGATIVE.search(rest)):
             dropped += 1
             continue
         if _names_other(vendor, products, rest, corpus):
@@ -194,9 +215,11 @@ def _is_refusal(text: str) -> bool:
     return text.strip().startswith(REFUSAL)
 
 
-async def _call_model(client: AsyncOpenAI, settings, user: str,
-                      system: str = SYSTEM_RULES) -> tuple[str | None, dict, str | None]:
-    """One model call with a single retry. Returns (content, usage_totals, error)."""
+async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SYSTEM_RULES,
+                      max_tokens: int = 4000
+                      ) -> tuple[str | None, dict, str | None, str | None]:
+    """One model call with a single retry. Returns (content, usage_totals, error,
+    finish_reason)."""
     totals: dict = {"prompt_tokens": 0, "completion_tokens": 0, "cost": None}
     error: str | None = None
     for attempt in (1, 2):
@@ -206,7 +229,7 @@ async def _call_model(client: AsyncOpenAI, settings, user: str,
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user}],
                 temperature=0,
-                max_tokens=4000,
+                max_tokens=max_tokens,
                 extra_body={"reasoning": {"effort": settings.answer_reasoning_effort},
                             "provider": {"sort": "throughput", "allow_fallbacks": True},
                             "usage": {"include": True}},
@@ -223,14 +246,15 @@ async def _call_model(client: AsyncOpenAI, settings, user: str,
             if cost is not None:
                 totals["cost"] = (totals["cost"] or 0) + cost
         choices = getattr(resp, "choices", None)
-        message = choices[0].message if choices else None
+        choice = choices[0] if choices else None
+        message = getattr(choice, "message", None)
         content = getattr(message, "content", None)
         if content is None or content.strip() == "":
             error = "empty reply"
             log.warning("vendorkb answer model returned an empty reply (attempt %d)", attempt)
             continue
-        return content, totals, None
-    return None, totals, error
+        return content, totals, None, getattr(choice, "finish_reason", None)
+    return None, totals, error, None
 
 
 async def answer(conn, question: str, *, settings, embedder, reranker,
@@ -292,8 +316,16 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         return finish(REFUSAL)
     prompt = (build_enumeration_prompt(question, result.hits, kept)
               if shape.kind == "enumeration" else build_prompt(question, result.hits))
-    content, usage, error = await _call_model(client, settings, prompt, system)
+    content, usage, error, finish_reason = await _call_model(
+        client, settings, prompt, system,
+        max_tokens=ENUMERATION_MAX_TOKENS if shape.kind == "enumeration" else 4000)
     out["usage"] = usage
+    if shape.kind == "enumeration":
+        # a cut-off reply loses its trailing vendor lines, which the closing line then lists
+        out["truncated"] = finish_reason == "length"
+        if out["truncated"]:
+            log.warning("vendorkb enumeration answer truncated at %d tokens",
+                        ENUMERATION_MAX_TOKENS)
     if content is None:
         out["error"] = error
         return out

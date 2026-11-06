@@ -490,3 +490,86 @@ async def test_single_shape_with_vendors_wording_keeps_its_scope(monkeypatch):
                    question="Which storage vendors does Veeam integrate with?")
     assert r["shape"] == "single"
     assert calls[0]["vendor"] == ["Veeam"] and r["scope"]["vendors"] == ["Veeam"]
+
+
+def test_line_naming_the_vendor_of_a_stripped_marker_is_dropped():
+    # [6] is Rubrik's: the stripped marker shows the claim was about Rubrik
+    line = "Veeam: supports AIX [1]. Rubrik also supports AIX [6]."
+    assert ans.check_enumeration_lines(line, _H, _V) == ("", [], 1)
+    # a workload named without a foreign marker is untouched
+    kept, _, dropped = ans.check_enumeration_lines("Rubrik: backs up Veeam VMs [6]", _H, _V)
+    assert kept == "Rubrik: backs up Veeam VMs [6]" and dropped == 0
+    # a foreign marker whose vendor the text does not name is only stripped
+    kept, _, dropped = ans.check_enumeration_lines("Veeam: X [1], Y [6].", _H, _V)
+    assert kept == "Veeam: X [1], Y." and dropped == 0
+
+
+@pytest.mark.asyncio
+async def test_line_about_a_foreign_marker_vendor_counts_as_dropped(monkeypatch):
+    idx = ScopeIndex(vendors=_V, products=[], aliases={})
+    _patch_enum(monkeypatch, _H, _V)
+    reply = "Veeam: supports AIX [1]. Rubrik also supports AIX [6].\nRubrik: AIX agent [6]"
+    r = await _run_enum(FakeClient([reply]), idx)
+    assert r["lines_dropped"] == 1 and r["vendors_listed"] == ["Rubrik"]
+    assert r["answer"].startswith("Rubrik: AIX agent [6]")
+
+
+def test_stripped_foreign_marker_leaves_no_space_before_punctuation():
+    kept, _, _ = ans.check_enumeration_lines("Veeam: supports X [6], and Y [1] [6].", _H, _V)
+    assert kept == "Veeam: supports X, and Y [1]."
+
+
+def test_product_group_may_nest_one_level_of_parentheses():
+    hits = [Hit("c1", "d1", "t", ["A"], "Microsoft", "Azure Backup (MABS)", "T", "u", 1, 0.5)]
+    kept, listed, dropped = ans.check_enumeration_lines(
+        "Microsoft (Azure Backup (MABS)): X [1]", hits, ["Microsoft"])
+    assert kept == "Microsoft (Azure Backup (MABS)): X [1]"
+    assert listed == ["Microsoft"] and dropped == 0
+
+
+@pytest.mark.parametrize("line", [
+    "Veeam: the sources do not document AIX [1]",
+    "Veeam: does not support AIX [1]",
+    "Veeam: VBR doesn't back up AIX [1]",
+    "Veeam: AIX is not supported [1]",
+    "Veeam: AIX is not documented [1]",
+    "Veeam: there is no support for AIX [1]",
+    "Veeam: VBR cannot protect AIX [1]",
+])
+def test_negative_lines_are_dropped(line):
+    assert ans.check_enumeration_lines(line, _H, _V) == ("", [], 1)
+
+
+@pytest.mark.asyncio
+async def test_negative_line_vendor_lands_in_the_closing_line(monkeypatch):
+    idx = ScopeIndex(vendors=["Veeam", "Rubrik"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "Veeam"), _hit(2, "Rubrik")], ["Veeam", "Rubrik"])
+    r = await _run_enum(FakeClient(["Veeam: does not support AIX [1]\nRubrik: AIX agent [2]"]),
+                        idx)
+    assert r["vendors_listed"] == ["Rubrik"] and r["lines_dropped"] == 1
+    assert r["answer"].endswith("Checked with nothing documented: Veeam.")
+    assert "never what it does not" in ans.ENUMERATION_RULES
+
+
+class FinishClient(FakeClient):
+    def __init__(self, replies, finish):
+        super().__init__(replies)
+        self.finish = finish
+
+    async def _create(self, **kw):
+        resp = await super()._create(**kw)
+        resp.choices[0].finish_reason = self.finish
+        return resp
+
+
+@pytest.mark.asyncio
+async def test_enumeration_uses_a_larger_budget_and_flags_truncation(monkeypatch, caplog):
+    idx = ScopeIndex(vendors=["A"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    client = FinishClient(["A: x [1]"], "length")
+    r = await _run_enum(client, idx)
+    assert client.calls[0]["max_tokens"] == 8000
+    assert r["truncated"] is True and "truncated" in caplog.text
+    _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
+    r = await _run_enum(FinishClient(["A: x [1]"], "stop"), idx)
+    assert r["truncated"] is False
