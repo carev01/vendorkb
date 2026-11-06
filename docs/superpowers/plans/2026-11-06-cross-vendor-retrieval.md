@@ -359,3 +359,45 @@ Operational. The controller runs it with Opus subagents and the production port-
   commit `feat(search): calibrated enumeration floor[, FTS weight]`.
 
 The answer-level eval (paid LLM) is out of this plan. It is proposed to the user afterwards.
+
+### Task 7: Answer-quality run (paid; user-approved 2026-11-06 with caps)
+
+Caps: stop and report if Voyage rerank exceeds 3M tokens across Tasks 6–7, or OpenRouter
+spend exceeds $10.
+
+**Files:**
+- Create: `eval/answer_eval.py`
+- Test: `tests/unit/test_answer_eval.py` (output schema and resume logic only)
+
+**Interfaces:**
+- Consumes: `answer()` (Task 3), the labelled `questions.yaml` (Task 5).
+- `uv run python eval/answer_eval.py run --out eval/runs/answers-<date>.jsonl [--ids ...]
+  [--limit N]`:
+  - Runs every question through `answer()` against production and writes one JSON line per
+    question: id, shape, answer, citations (with vendor, url, chunk text), vendors_listed,
+    vendors_checked, facets_empty, lines_dropped, usage and error.
+  - Resumable: ids already in the output are skipped.
+  - Prints running token and cost totals from `usage`, and stops when the `--max-usd` cap
+    (default 10) is reached.
+- `uv run python eval/answer_eval.py summarize --answers FILE --grades FILE`: aggregates the
+  grades below into the report numbers.
+
+- [ ] **Step 1: Write failing unit tests:** resume skips done ids; the cost cap stops the
+  loop; the JSON line has every field above.
+- [ ] **Step 2: Implement; run the gate.** Commit `feat(eval): answer-quality runner`.
+- [ ] **Step 3 (controller): Smoke 2 questions.** Confirm nonzero usage and a rerank_ok
+  result, then run the rest.
+- [ ] **Step 4 (controller): Grade with Opus subagents.** Each subagent gets a batch of
+  question + gold (facts, `expected_vendors`, `unclear_vendors`) + the answer with its
+  cited chunk texts, and grades it under one rubric (written into the brief):
+  - **Every question:** gold facts covered (count); unsupported claims (a statement its
+    cited chunk does not support); refusal where an answer existed / answer where it should
+    refuse (unanswerable questions).
+  - **Enumeration:** vendor precision (listed ⊆ expected; an unclear vendor is neutral);
+    vendor recall; whether the closing line wrongly lists an expected vendor.
+  - **Comparison:** both facets answered.
+  - Grades go in `eval/runs/answer-grades-<date>.jsonl`. A second subagent re-grades 10%,
+    and agreement is reported.
+- [ ] **Step 5 (controller): Summarize** into the Task 6 report: answer metrics by shape,
+  calibration against holdout, and comparison with the head-to-head's vendorkb numbers where
+  the questions overlap (single-vendor, multi-article, unanswerable).
