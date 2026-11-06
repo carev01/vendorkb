@@ -158,5 +158,6 @@ async def test_reranker_counts_tokens():
         assert rr.tokens_used == 0
         await rr.rerank("q", ["a"], 1)
         assert rr.tokens_used == 11
-        await rr.rerank("q", ["a"], 1)  # no usage block: counts nothing
-        assert rr.tokens_used == 11
+        # no usage block: an estimate, sum(len(doc)) // 4 + len(query) // 4
+        await rr.rerank("q" * 8, ["a" * 40, "b" * 41], 1)
+        assert rr.tokens_used == 11 + 20 + 2
