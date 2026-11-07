@@ -127,15 +127,14 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
 ## Taxonomy v2 follow-ups
 
-19. **Review taxonomy v2 in the PR.** 857 entries are proposed (573 dimensions, 115 targets, 169
-    object types, 50 offerings, all marked `proposed: true`). Prune them, merge duplicates of
-    seed entries, and settle the over-specific limits. Proposed dimensions already hold 46% of
-    capability facts, so merge them rather than delete them.
-20. **$ Dimension adjudication precision is 0.79** (the alias path is 0.98). Try a stronger
+19. **Done: taxonomy v2 reviewed by Claude** at the user's request. The decision log is
+    `taxonomy/review-2026-11-06.tsv`, and the user may spot-check any row.
+20. **$ Dimension adjudication precision is 0.84** on the reviewed taxonomy (the alias path is
+    0.96). Try a stronger
     `map_model` on the 300 labelled claims, add the evidence quote to the prompt, or pre-filter
-    candidates by family. The labels are in the session scratchpad (`mapgrade/`) and need the
-    user's check.
-21. **Offering recall is 0.36.** Offering-name variants such as "Veeam Data Cloud for Azure" are
+    candidates by family. The adjudicated labels from two graders are in the session scratchpad
+    (`mapgrade2/`).
+21. **Offering recall is 0.59.** Offering-name variants such as "Veeam Data Cloud for Azure" are
     not aliased. Add aliases, or adjudicate offerings like dimensions.
 22. **Production rollout of v2.** The order matters, because the branch's `init_schema` drops
     the v1 tables:

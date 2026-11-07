@@ -69,7 +69,7 @@ their chunks and every document.
 - **Extrapolation:** `aspects(okta)` equals `aspects(entra_id)`: 199 aspects on the seed, 737 on
   the full taxonomy.
 
-## Mapping and capabilities (local copy)
+## Mapping and capabilities (local copy, before the review)
 
 - **Mapper:** exact alias first, otherwise Haiku adjudication over 5 nearest candidates. 17,966
   adjudications, **$1.84**.
@@ -91,7 +91,7 @@ their chunks and every document.
   offering). 943 conflict groups. 12,394 facts sit on seed dimensions and 10,783 on proposed
   ones; 477 of the 573 proposed dimensions hold 5 or more facts.
 
-## Findability against the comparison tables
+## Findability against the comparison tables (before the review)
 
 | Check | Result |
 |---|---|
@@ -105,6 +105,48 @@ their chunks and every document.
 - **Caveat:** claims exist only for the roughly 10.6k chunks extracted (teacher set plus
   precision sets), not the full corpus. Claim findability will rise with full extraction.
 
+## Taxonomy review (Claude, at the user's request)
+
+The user asked Claude to approve the obvious and escalate only the doubtful. All 904 proposed
+entries and the 776 aliases added to existing entries were reviewed against one rubric. Eight
+Opus reviewers worked in parallel, and Claude spot-checked every batch and settled the few
+doubts. The full decision log is `taxonomy/review-2026-11-06.tsv`.
+
+| Kind | Approved | Merged into an existing entry | Rejected |
+|---|---|---|---|
+| Dimensions (573) | 65 (8 moved to a better family) | 432 | 76 |
+| Targets (115) | 46 | 45 (31 became variants, such as Salesforce clouds, Glacier, GovCloud, MinIO) | 24 (integrations such as KMS, SIEM, monitoring) |
+| Object types (169) | 43 (including Okta-style identity items) | 104 | 22 |
+| Offerings (47) | 24 | 8 | 15 (add-on modules and apps) |
+| Aliases added to existing entries (776) | | 16 moved | 79 removed |
+
+- **Placement fixes:** three misplaced editions were corrected. Veeam Data Cloud Vault's
+  "Foundation Core/Non-Core" tiers became aliases of Vault Foundation, and Rubrik Security Cloud's
+  Enterprise and Enterprise Proactive moved out of Cloud Vault.
+- **Result:** 224 dimensions, 208 targets (57 variants), 179 object types, 48 offerings and
+  4,470 aliases. No entry is left `proposed`.
+- **Bug found and fixed:** the first apply dropped merged entries' aliases instead of moving them.
+  Claude caught it from the drop in alias hits.
+
+**Re-measured on the reviewed taxonomy** (re-map $1.78):
+- Dimension: 23,757 claims mapped (7,538 by alias), 4,746 unmapped (before: 23,177 and 5,326).
+- capabilities: 23,757 rows.
+- Findability:
+  - claims: 413 of 423 rows (366 with specific facts);
+  - with chunk search: **418 of 423 (98.8%)**, plus 2 borderline rows.
+- Okta, Entra ID and Intune each get the same 292 aspects.
+- Mapper precision: 200 random claims, graded independently by Opus and Fable. They agreed on
+  183/200 dimension verdicts and 188/200 target verdicts, and Claude adjudicated the 27
+  disagreements:
+
+  | Field | Precision | Recall |
+  |---|---|---|
+  | dimension | **0.877** (alias 0.959, LLM 0.844) | 0.777 |
+  | target | 0.983 | 0.877 |
+  | offering | 1.000 | 0.588 |
+
+  These are all improvements on the pre-review numbers, except target recall (0.910 before).
+
 ## Spend (this work)
 
 | Item | Cost |
@@ -114,16 +156,16 @@ their chunks and every document.
 | Teacher set (Opus, Batches) | $65.09 |
 | Taxonomy proposals (Haiku) | $0.89 |
 | Mapping (Haiku, including the failed run) | about $1.92 |
-| **Anthropic total** | **about $79.40** |
+| Re-mapping after the review (Haiku, including one stopped run) | about $4.45 |
+| **Anthropic total** | **about $83.90** |
 | Voyage | under 1M tokens: string embeddings, 19 queries, 19 reranks |
 
 ## Next
 
-1. **Review the taxonomy** (PR): prune and merge the 857 proposed entries, and fix the
-   duplicates.
-2. **Dimension adjudication at 0.79** is the weakest link. Try a stronger map model on a sample,
+1. **The taxonomy is reviewed** (see above); the decision log is open to the user's spot checks.
+2. **Dimension adjudication at 0.84** is still the weakest link. Try a stronger map model on a sample,
    add the evidence quote to the prompt, or pre-filter candidates by family.
-3. **Offering recall at 0.36:** add aliases for offering-name variants (for example "Veeam Data
+3. **Offering recall at 0.59:** add aliases for offering-name variants (for example "Veeam Data
    Cloud for Azure"), or adjudicate offerings like dimensions.
 4. **Fine-tune Qwen3.5-9B** on the teacher set (backlog item 18), then run the full corpus on Vast.
 5. **Production:** merge, then deploy (the first `init_schema` drops the v1 tables), then load the

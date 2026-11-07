@@ -1,0 +1,986 @@
+kind	id	decision	into_or_fix	reason
+dimension	recovery.file_level	merge	recovery.granularity	Rubric example: file-level restore is a granularity level.
+dimension	recovery.item_search	approve		Searching inside backups is a distinct cross-vendor capability; seed has only search scope/filters.
+dimension	recovery.metadata	merge	coverage.restore	Metadata (Salesforce metadata, tags, group metadata) is an object type; restorability is coverage.restore.
+dimension	recovery.record_level	approve		Record-level restore is a rubric keep example; distinct SaaS/database question.
+dimension	recovery.item_level	merge	recovery.granularity	Item-level restore is a granularity level.
+dimension	recovery.property_level_restore	approve		Like record-level, attribute/field-level restore is a differentiator consumers look up by name (identity attributes, CRM fields).
+dimension	recovery.object_level	merge	recovery.granularity	Object-level restore is a granularity level.
+dimension	recovery.latest_version_only	merge	recovery.version_selection	Latest-only vs all versions is an option of item version restore.
+dimension	recovery.archive_restore	approve		Restoring from archive tiers/archives (rehydration, retrieval speed) is not covered by storage.tiers or governance.archiving.
+dimension	recovery.directory_objects	merge	coverage.restore	Restoring users/groups/OUs is object-type restore coverage.
+dimension	recovery.instant_to_cloud	merge	recovery.instant	Narrower case of instant recovery (target is a cloud).
+dimension	recovery.data_export	merge	coverage.export	Exporting/downloading backed-up data is coverage.export.
+dimension	recovery.download	merge	coverage.export	Downloading backed-up content is coverage.export.
+dimension	recovery.deleted_objects	approve		Whether purged objects (beyond the source recycle bin) can be brought back, and how, differs across SaaS/directory vendors; recycle_bin and changes_only do not cover it.
+dimension	recovery.virtual_disk	merge	recovery.granularity	Disk-level restore is a granularity level.
+dimension	recovery.permissions	approve		Whether permissions/ACLs/sharing come back with restored data is a common cross-vendor fidelity question.
+dimension	recovery.on_premises_target	merge	recovery.alternate_location	Restoring SaaS data to on-premises servers is a case of restore to another location.
+dimension	recovery.restore_notification	merge	operations.notifications	Restore-completion emails are notifications.
+dimension	recovery.full_system	merge	recovery.granularity	Whole machine/disk restore is the top granularity level.
+dimension	recovery.overwrite_existing	merge	recovery.conflict_handling	Overwrite is a conflict-handling option.
+dimension	recovery.snapshot_comparison	merge	coverage.compare	Comparing restore points is coverage.compare.
+dimension	recovery.file_and_folder_restore	merge	recovery.granularity	File/folder restore is a granularity level.
+dimension	recovery.vm_to_cloud_instance	merge	recovery.cross_platform	Restoring VMs as cloud instances is cross-platform recovery.
+dimension	recovery.name_length_limit	reject		Job/session name length is a single vendor's UI field constraint.
+dimension	recovery.property_level_comparison	merge	coverage.compare	Comparing property values with production/another point is coverage.compare.
+dimension	recovery.archive_retrieval	merge	recovery.archive_restore	Same aspect as restore from archive (retrieval from cold tiers).
+dimension	recovery.volume_level	merge	recovery.granularity	Volume-level restore is a granularity level.
+dimension	recovery.production_comparison	merge	coverage.compare	Comparison against production is coverage.compare.
+dimension	recovery.mfa_enabled_target	reject		Veeam-specific auth setup for restoring to MFA tenants; not a comparable aspect.
+dimension	recovery.embedded_images	merge	coverage.restore	Embedded images are an object type; restorability is coverage.restore.
+dimension	recovery.group_objects	merge	coverage.restore	Group is an object type of saas.identity.
+dimension	recovery.point_selection	merge	recovery.point_in_time	Choosing the restore point is part of point-in-time recovery.
+dimension	recovery.to_cloud_compute_instance	merge	recovery.cross_platform	Restoring a machine as a native cloud instance is cross-platform recovery.
+dimension	recovery.channel	merge	coverage.restore	Channel is an existing object type of saas.productivity.
+dimension	recovery.search_result_limit	merge	recovery.limits	Numeric limit; the value belongs in the claim under recovery.limits.
+dimension	recovery.metadata_download	merge	coverage.export	Downloading metadata is export coverage for the metadata object type.
+dimension	recovery.version_selection	approve		Restoring earlier item versions or full version history (vs latest only) is a distinct comparison point for files and records.
+dimension	recovery.table_level	approve		Table-level database restore is a named differentiator that not every product offers; looked up on its own.
+dimension	recovery.attachment	merge	coverage.restore	Attachment is an existing object type; restorability is coverage.restore.
+dimension	recovery.site_collection_creation	merge	recovery.deleted_objects	Whether missing site collections are recreated is part of restoring deleted objects.
+dimension	recovery.device_replacement	merge	data_use.migration	Moving a user's data to a replacement endpoint is device migration.
+dimension	recovery.object_list_export	merge	operations.reports	Exporting a list of backed-up objects is an inventory report.
+dimension	recovery.mark_restored_unread	reject		Single vendor's restore UI option.
+dimension	recovery.team_object	merge	coverage.restore	Team is an existing object type of saas.productivity.
+dimension	recovery.site_level	merge	coverage.restore	Site is an existing object type; restorability is coverage.restore.
+dimension	recovery.role_object	merge	coverage.restore	Role is an existing object type of saas.identity.
+dimension	recovery.field_mapping	approve		Field mapping/overrides when restoring SaaS records (e.g. across orgs with differing schemas) has no seed home; resource_transforms is Kubernetes-only.
+dimension	recovery.email_delivery	merge	coverage.export	Sending backed-up items by email is a form of export outside the protected system.
+dimension	recovery.job_cancellation	reject		Stopping a running restore job is a UI/procedure, not a comparison aspect.
+dimension	recovery.decrypt_on_restore	reject		Single-vendor (Veeam Salesforce) behaviour; no seed home fits.
+dimension	recovery.restore_stream_count	merge	operations.performance_controls	Restore stream counts are concurrency controls.
+dimension	recovery.field_value_override	merge	recovery.field_mapping	Overriding field values on restore is part of field mapping and value overrides.
+dimension	recovery.restore_point_choice	merge	recovery.point_in_time	Choosing an earlier restore point is part of point-in-time recovery.
+dimension	recovery.browse_filters	merge	recovery.search_filters	Browse filters are search/filter options.
+dimension	recovery.guest_file_restore	merge	recovery.granularity	Guest file-level restore is a granularity level.
+dimension	recovery.restore_validation	merge	cyber.recoverability_testing	Validating that backups restore correctly is recoverability testing.
+dimension	recovery.cluster_restore	merge	coverage.restore	Cluster is an existing object type of cloud.database.
+dimension	recovery.date_range_filter	merge	recovery.search_filters	A date-range filter is a search filter.
+dimension	recovery.local_download	merge	coverage.export	Downloading files locally is export coverage.
+dimension	recovery.download_link_validity	merge	recovery.limits	Link expiry is a numeric limit of the retrieval process; value lives in the claim.
+dimension	recovery.exclude_folders	merge	recovery.granularity	Excluding folders/objects from a restore is a restore-selection option within granularity.
+dimension	recovery.export_destination	merge	coverage.export	Export destinations are part of export coverage.
+dimension	recovery.audit_field_preservation	approve		Preserving original created/modified dates and authors on restore is a distinct SaaS restore-fidelity question across vendors.
+dimension	recovery.inactive_owner_records	reject		Salesforce permission setting plus unrelated identity claims; not a comparable aspect.
+dimension	recovery.automatic_target_creation	merge	recovery.deleted_objects	Recreating a missing target list/container on restore belongs with restoring deleted objects.
+dimension	recovery.channel_tab_restore	merge	coverage.restore	Channel tab is an object type; restorability is coverage.restore.
+dimension	recovery.expired_snapshot_from_replica	merge	protection.backup_copy	Restoring from a copy kept under separate retention is the point of a secondary copy.
+dimension	recovery.instant_virtualization	merge	recovery.instant	Booting a backup as a VM directly from backup storage is instant recovery.
+dimension	recovery.object_identifier_handling	approve		Whether restored objects keep original IDs or get new ones (and how links are re-made) matters across identity, CRM and databases.
+dimension	recovery.permission_verification	reject		Wizard step verifying the operator's permissions; a procedure.
+dimension	recovery.cross_point_search	merge	recovery.search_scope	Searching across all restore points is a search-scope question.
+dimension	recovery.snapshot_search	merge	recovery.item_search	Searching snapshots for objects is item search.
+dimension	recovery.destination_provisioning	merge	recovery.cross_platform	Commvault list of destination hypervisors/clouds for restore is cross-platform recovery.
+dimension	recovery.authentication_settings	merge	coverage.restore	Authentication settings/IdP credentials are identity object types; restorability is coverage.restore.
+dimension	recovery.etcd_restore	merge	coverage.restore	etcd is a Kubernetes object type; restorability is coverage.restore.
+dimension	recovery.dependency_ordering	merge	recovery.relationships	Dependency-aware ordering is part of restoring related objects together.
+dimension	recovery.file_versions	merge	recovery.version_selection	Restoring earlier file versions is item version restore.
+dimension	recovery.keyword_search	merge	recovery.item_search	Keyword/full-text content search is a mode of item search (definition widened).
+dimension	recovery.import_sources	merge	data_use.migration	Importing third-party backup data into the product is migration.
+dimension	recovery.display_item_limit	merge	recovery.limits	Numeric display limit; value belongs under recovery.limits.
+dimension	recovery.search_filter_count	merge	recovery.search_filters	How many filters can be combined is a property of search filters.
+dimension	recovery.item_version	merge	recovery.version_selection	Restoring an earlier item version is item version restore.
+dimension	recovery.metadata_component_lookup	merge	recovery.item_search	Finding metadata components inside backups is item search.
+dimension	recovery.id_mapping	merge	recovery.object_identifier_handling	Old-to-new ID mapping is part of identifier handling on restore.
+dimension	recovery.rename_on_restore	merge	recovery.alternate_location	Restoring under a new name creates a different target object.
+dimension	recovery.dry_run	merge	cyber.recoverability_testing	Restore validate/preview dry runs verify recoverability.
+dimension	recovery.search_result_restore	merge	recovery.item_search	Restoring directly from search results is part of item search.
+dimension	recovery.alternate_key_mapping	merge	recovery.object_identifier_handling	Matching restored records by alternate keys instead of IDs is identifier handling.
+dimension	recovery.accounts_and_roles	merge	coverage.restore	Accounts and roles are object types; restorability is coverage.restore.
+dimension	recovery.deleted_only	merge	recovery.changes_only	Same aspect as restoring only changed or deleted items.
+dimension	recovery.restore_parallelism	merge	operations.performance_controls	Restore concurrency is a performance control.
+dimension	recovery.self_service_permissions	merge	recovery.self_service	Who may self-restore and what is part of self-service restore.
+dimension	recovery.email_attachment	merge	coverage.export	Sending restored items as email attachments is a form of export.
+dimension	recovery.change_count_summary	merge	recovery.comparison_tooling	Added/deleted counts are a feature of comparison tooling.
+dimension	recovery.browsing	merge	recovery.preview	Browsing backup contents is viewing content before restore.
+dimension	recovery.dry_run_estimate	reject		Estimated restore size shown in a wizard is a UI detail.
+dimension	recovery.lvm_volume_group_restore	merge	recovery.granularity	Volume-group restore is a volume-level granularity case.
+dimension	recovery.partial_success_multi_database	reject		Single vendor's job-status behaviour.
+dimension	recovery.cross_snapshot_search	merge	recovery.search_scope	Search across snapshots is a search-scope question.
+dimension	recovery.recent_items_first	reject		Single vendor's restore UI option.
+dimension	recovery.field_value_nulling	merge	recovery.conflict_handling	Whether backed-up nulls overwrite existing values is a conflict/overwrite option.
+dimension	recovery.original_tenant	merge	recovery.in_place	Restore to the original tenant is restore to original location.
+dimension	recovery.search_by_item_size	merge	recovery.search_filters	Item size is a search filter.
+dimension	recovery.administrative_units	merge	coverage.restore	admin_unit is an existing object type of saas.identity.
+dimension	recovery.appliance_reimage	reject		Appliance re-imaging is a maintenance procedure for one vendor's hardware.
+dimension	recovery.application_consistent_points	merge	protection.application_consistent	Application-consistent points are application-consistent backup.
+dimension	recovery.authorization_server	merge	coverage.restore	Authorization servers/IdPs are identity object types; restorability is coverage.restore.
+dimension	recovery.missing_member_recreation	reject		About the product's own portal user accounts, not restore; single-vendor behaviour.
+dimension	recovery.database_identifier_change	merge	recovery.object_identifier_handling	Changing DBID/SID of a restored database is identifier handling on restore.
+dimension	recovery.comparison_filters	merge	recovery.comparison_tooling	Comparison filters are part of comparison tooling.
+dimension	recovery.disaster_recovery_dry_run	merge	cyber.recoverability_testing	DR dry runs/tests are recoverability testing.
+dimension	recovery.recovery_testing	merge	cyber.recoverability_testing	DR/restore rehearsal is recoverability testing.
+dimension	recovery.restored_user_mfa_enforcement	merge	recovery.password_options	MFA re-enrolment for restored accounts is credential handling on identity restore.
+dimension	recovery.disk_exclusion	merge	recovery.granularity	Restoring a subset of a machine's disks is a granularity choice.
+dimension	recovery.export	merge	recovery.alternate_location	'Export recovery' (e.g. Rubrik S3) restores to a location other than the original.
+dimension	recovery.iam_role_association	reject		Single vendor's restore wizard setting.
+dimension	recovery.export_download_limit	merge	recovery.limits	Numeric export/download cap; value belongs under recovery.limits.
+dimension	recovery.immutable_snapshot_import	reject		Single vendor's import procedure.
+dimension	recovery.individual_item	merge	recovery.granularity	Individual item restore is a granularity level.
+dimension	recovery.granular_selection	merge	recovery.granularity	Selecting individual VMs/PVCs to restore is granularity.
+dimension	recovery.mandatory_parent_limit	merge	recovery.limits	Numeric restore-template limit; value belongs under recovery.limits.
+dimension	recovery.browse_page_size_limit	merge	recovery.limits	Numeric browse/display limit; value belongs under recovery.limits.
+dimension	recovery.maximum_file_size	merge	recovery.limits	Maximum restorable file size is a numeric restore limit.
+dimension	recovery.merge_latest_into_version_history	merge	recovery.version_selection	How restored versions join version history is part of item version restore.
+dimension	recovery.multi_stream	merge	operations.performance_controls	Multi-stream/concurrent restore is a performance control.
+dimension	recovery.natural_language_search	merge	operations.ai_assistance	Plain-language queries are generated by in-product AI agents.
+dimension	recovery.download_link_export	merge	coverage.export	Export retrieved via a download link is export coverage.
+dimension	recovery.authentication_settings_overwrite	merge	recovery.conflict_handling	Keep vs overwrite live settings is a conflict-handling option.
+dimension	recovery.availability_placement	reject		Single vendor's restore wizard setting.
+dimension	recovery.public_ip_assignment	merge	recovery.network_settings	IP assignment on restore is network identity remapping.
+dimension	recovery.recoverable_range_display	merge	recovery.point_in_time	The recoverable range is the point-in-time recovery window.
+dimension	recovery.detached_storage_source	merge	storage.portable_format	Restoring from storage detached from the original infrastructure is the self-contained format question.
+dimension	recovery.deleted_user_recreation	merge	recovery.deleted_objects	Recreating deleted users is restoring deleted objects.
+dimension	recovery.recreate_root_structure	reject		Single vendor's restore option.
+dimension	recovery.application_certificates	merge	coverage.restore	Application certificates are an identity object type; restorability is coverage.restore.
+dimension	recovery.deleted_tenant_restore	merge	recovery.full_tenant	Restoring a whole deleted org/tenant is full tenant recovery.
+dimension	recovery.field_value_restore	merge	recovery.property_level_restore	Field-value restore is the CRM phrasing of attribute/field-level restore.
+dimension	recovery.custom_field_values	merge	coverage.attribute_depth	Whether custom field/column values come back is attribute depth.
+dimension	recovery.file_system_settings	merge	coverage.attribute_depth	File attributes and file-system settings restored with data are attribute depth.
+dimension	recovery.privileged_objects	merge	coverage.restore	Privileged access objects are an existing identity object type.
+dimension	recovery.system_database_to_availability_group	reject		A documented limitation (known issue), not an aspect.
+dimension	recovery.proxy_routing	reject		Single vendor's networking setup for restores; mixed with appliance placement.
+dimension	recovery.raw_device_mapping_target	merge	coverage.restore	RDM disks are a hypervisor object type; restorability is coverage.restore.
+dimension	recovery.alternate_database_target	merge	recovery.alternate_location	Restoring a database to another instance/SID is restore to another location.
+dimension	recovery.programmatic_interface	merge	operations.api_automation	Driving restores via API/scripting is APIs and automation.
+dimension	recovery.san_transport_restore	merge	operations.performance_controls	SAN data path selection is a control over load on the production network.
+dimension	recovery.content_filter	merge	recovery.search_filters	Content/name filters are search filters.
+dimension	recovery.secondary_index	merge	coverage.restore	Indexes are a cloud.database object type; restorability is coverage.restore.
+dimension	recovery.site_or_account_scope	merge	recovery.granularity	Single site/account vs whole tenant is a granularity level.
+dimension	recovery.reconcile_deletion	approve		Rolling a target back to exactly the snapshot state by deleting extra objects is a distinct restore mode, not conflict handling.
+dimension	recovery.uncommitted_move_rollback	merge	recovery.failover	Commit/rollback of a move is part of failover and failback.
+dimension	recovery.item_detail_view	merge	recovery.preview	Viewing item details inside a backup is preview before restore.
+dimension	operations.automatic_policy_creation	merge	protection.discovery_auto_protection	Default policy auto-created on tenant add is automatic protection of new sources.
+dimension	operations.protection_status	merge	operations.sla_compliance_tracking	Same aspect: per-object protection/compliance status.
+dimension	operations.policy_text_length_limit	reject		UI field length limit; not a comparison aspect.
+dimension	operations.policy_editing	reject		Editing a policy is a procedure, universal and not comparable.
+dimension	operations.report_export_formats	merge	operations.reports	Report export format is a property of reports.
+dimension	operations.centralized_reporting	merge	operations.reports	Cross-workload reporting is a report capability.
+dimension	operations.webhook_events	merge	operations.notifications	Webhook is a notification channel.
+dimension	operations.restore_monitoring	merge	operations.dashboards	Job/session monitoring belongs with monitoring.
+dimension	operations.agent_upgrade	merge	operations.deployment_upgrade	Agent upgrades are covered by deployment and upgrade.
+dimension	operations.environment_health_check	merge	operations.diagnostics	"Environment health checks detect issues in the backup environment. Note: alias ""backup health check"" also matches Veeam's backup-file integrity check (cyber.recoverability_testing)."
+dimension	operations.browser_support	merge	operations.web_console	Supported browsers are a property of the web console.
+dimension	operations.kubernetes_platform_support	merge	operations.deployment_platform	Installation on Kubernetes distributions is an installation platform.
+dimension	operations.session_monitoring	merge	operations.dashboards	Job/session monitoring belongs with monitoring.
+dimension	operations.event_forwarding	merge	cyber.siem_integration	Forwarding events to Splunk/syslog/LogScale is SIEM integration.
+dimension	operations.data_change_alerts	merge	cyber.detection_behavior	Alerts on unusual data changes/deletions are anomaly detection.
+dimension	operations.report_email_delivery	merge	operations.reports	Scheduled/emailed reports are covered by reports.
+dimension	operations.user_provisioning	approve		How users are added (manual, CSV, AD/LDAP sync, SCIM, SSO just-in-time) is a common comparison row for endpoint and SaaS backup. Proposed security.scim_provisioning/identity_provisioning/just_in_time_provisioning/group_provisioning (other batch) should merge here.
+dimension	operations.cancel_running_backup	reject		Stopping a running job is a procedure, universal.
+dimension	operations.array_lun_performance_statistics	reject		Storage-infrastructure monitoring of one analytics product, outside backup scope.
+dimension	operations.report_customization	merge	operations.reports	Report customization is a reports property.
+dimension	operations.hardware_inventory	reject		RMM-style asset inventory, not a backup aspect.
+dimension	operations.remote_agent_deployment	merge	operations.deployment_upgrade	Push/remote agent installation is how the product is deployed.
+dimension	operations.air_gapped_deployment	approve		Dark-site installation (no internet: offline images, registries, licensing) is a distinct buyer question; security.air_gap is about isolating backup copies, private_networking about private endpoints.
+dimension	operations.backup_job_outcome_reporting	merge	operations.reports	Success/failure reports are built-in reports.
+dimension	operations.linux_proxy_support	merge	operations.deployment_platform	OS a proxy component runs on is an installation platform.
+dimension	operations.peak_usage_reporting	merge	operations.reports	Peak license/capacity usage is a report.
+dimension	operations.onboarding_model	reject		Weak, incoherent cluster; deployment model covers who operates the service.
+dimension	operations.restore_point_verification	merge	cyber.recoverability_testing	Verifying restore points are intact/bootable is recoverability testing.
+dimension	operations.sla_compliance_tracking	approve		Distinct cross-vendor question (is each object meeting its RPO/SLA?); absorbs protection_status and rpo_compliance_reporting.
+dimension	operations.central_management	merge	operations.multi_tenant_management	Duplicate of central and multi-tenant management.
+dimension	operations.temporary_restore_cleanup	reject		Internal behaviour / procedure.
+dimension	operations.performance_metrics	merge	operations.dashboards	Performance metric collection for monitoring (mostly IT Analytics); generic aliases fit monitoring.
+dimension	operations.tenant_connection_method	merge	security.source_authentication_methods	controller: how the product connects/authenticates to the SaaS tenant is the approved source-authentication aspect
+dimension	operations.session_log_export	merge	operations.dashboards	Export of session logs is a narrow case of job monitoring/logs.
+dimension	operations.session_logs	merge	operations.dashboards	Session logs are part of job monitoring.
+dimension	operations.deleted_item_detection	reject		Incoherent cluster (orphan data, migration deletion sync, Salesforce validate job); no single aspect.
+dimension	operations.restore_job_modification	reject		UI procedure.
+dimension	operations.multi_cluster_management	merge	operations.multi_tenant_management	Managing many clusters from one console.
+dimension	operations.nas_installation	merge	operations.deployment_platform	Installing on NAS devices is an installation platform.
+dimension	operations.metrics_export	approve		Exporting metrics to Prometheus, Datadog, Grafana or similar is a distinct integration row, not covered by SIEM, dashboards or APIs; absorbs metrics_integration.
+dimension	operations.permission_verification	merge	operations.diagnostics	Missing-permission checks are detection of misconfiguration.
+dimension	operations.psa_integration	approve		MSP buyers compare PSA/RMM/ticketing integrations (ConnectWise, Autotask, N-central); absorbs ticket_creation.
+dimension	operations.rpo_compliance_reporting	merge	operations.sla_compliance_tracking	RPO compliance is SLA compliance tracking.
+dimension	operations.automatic_discovery	merge	protection.discovery_auto_protection	Duplicate of automatic discovery and protection of new objects.
+dimension	operations.debug_logging	reject		Troubleshooting aid, not a comparison aspect.
+dimension	operations.restore_job_monitoring	merge	operations.dashboards	Job/session monitoring belongs with monitoring.
+dimension	operations.silent_installation	merge	operations.deployment_upgrade	Unattended install is an installation option.
+dimension	operations.api_usage_monitoring	merge	protection.api_throttling	Claims are about source SaaS API consumption against provider limits, not the product's own API.
+dimension	operations.automatic_updates	merge	operations.deployment_upgrade	Automatic updates are an upgrade option.
+dimension	operations.automatic_private_endpoints	merge	operations.private_networking	Narrow case of private networking.
+dimension	operations.session_history	merge	operations.dashboards	Session history is part of job monitoring.
+dimension	operations.checkpoint_restart	approve	operations.job_retry_resume	Resume/retry behaviour after failure is a comparable aspect; one row for retry, resume and continue-on-error rather than three thin ones.
+dimension	operations.cloud_vm_deployment	merge	operations.deployment_platform	Running components on cloud VMs is an installation platform.
+dimension	operations.notification_templates	merge	operations.notifications	Message templates are a notification property.
+dimension	operations.event_filtering	merge	operations.notifications	Filtering which events alert is notification configuration.
+dimension	operations.job_log_access	merge	operations.dashboards	Job logs are part of job monitoring.
+dimension	operations.lan_free_transfer	approve	protection.lan_free_transfer	LAN-free / SAN data path is a classic comparison row; family is protection, not operations. Dedupe with proposed protection.san_transport (other batch).
+dimension	operations.maximum_concurrent_discovery_scans	reject		Single-vendor limit on DSPM/RMM discovery scans; no fitting home.
+dimension	operations.maximum_ndmp_streams	merge	operations.performance_controls	Numeric stream limit; value belongs in the claim under concurrency controls.
+dimension	operations.upgrade_config_migration	merge	operations.deployment_upgrade	Carrying config across upgrades is an upgrade property.
+dimension	operations.multi_stream	merge	operations.performance_controls	Parallel streams are a concurrency/throughput control.
+dimension	operations.network_testing	reject		Single-vendor troubleshooting tool.
+dimension	operations.proxy_support	approve		Whether agents and servers work through a (authenticated) web proxy is a common enterprise requirement across vendors; absorbs proxy_authentication.
+dimension	operations.ticket_creation	merge	operations.psa_integration	Ticket creation in PSA/service desk tools.
+dimension	operations.failed_job_rerun	merge	operations.checkpoint_restart	Retrying failed jobs belongs with job retry and resume.
+dimension	operations.template_edit_locking	reject		UI behaviour.
+dimension	operations.virtual_appliance_delivery	merge	operations.deployment_platform	Virtual appliance on a hypervisor is an installation platform.
+dimension	operations.web_console	approve		Web console versus installed desktop console is a comparable platform aspect; absorbs browser_support.
+dimension	operations.bottleneck_detection	merge	operations.diagnostics	Bottleneck analysis is automated performance diagnostics.
+dimension	operations.continue_on_error	merge	operations.checkpoint_restart	Continuing past item errors belongs with job retry and resume.
+dimension	operations.ipv6_support	approve		IPv6 support is a recurring cross-vendor requirement (often with per-component exceptions).
+dimension	operations.customer_account_deployment	merge	storage.deployment_model	Vendor-managed in customer account is a deployment model variant.
+dimension	operations.management_region	merge	storage.region_choice	"Region selection; consumers look up residency there (claim label keeps ""management"")."
+dimension	operations.notification_history	merge	operations.notifications	Narrow case of notifications.
+dimension	operations.summary_digest_email	merge	operations.notifications	Digest emails are a notification channel/cadence.
+dimension	operations.capacity_exhaustion_forecast	merge	operations.capacity_planning	Storage-full forecasting is capacity planning.
+dimension	operations.retry_notification_suppression	merge	operations.notifications	Narrow notification setting.
+dimension	operations.bulk_agent_configuration	merge	operations.multi_tenant_management	Applying settings to many servers is central management.
+dimension	operations.archive_child_object_verification	merge	governance.archiving	Pre-archive verification is a property of archiving.
+dimension	operations.automatic_client_registration	merge	operations.deployment_upgrade	Client self-registration is part of deployment.
+dimension	operations.event_forwarding_pause_on_error	reject		Single-vendor internal behaviour.
+dimension	operations.automatic_stalled_session_termination	reject		Internal timeout behaviour.
+dimension	operations.job_cancellation	reject		Stopping a running job is a procedure, universal.
+dimension	operations.central_agent_management	merge	operations.multi_tenant_management	Central admin of many servers/agents.
+dimension	operations.central_console	merge	operations.multi_tenant_management	Duplicate of central management.
+dimension	operations.centralized_server_monitoring	merge	operations.multi_tenant_management	Central view over many management servers.
+dimension	operations.command_line_restore	merge	operations.api_automation	CLI restore is CLI automation.
+dimension	operations.concurrent_policy_execution	merge	operations.performance_controls	Job concurrency is a performance control.
+dimension	operations.read_size_configuration	merge	operations.performance_controls	I/O size tuning is a performance control.
+dimension	operations.parallel_backup_streams	merge	operations.performance_controls	Stream count is a concurrency control.
+dimension	operations.deletion_job_resource_limits	merge	operations.performance_controls	Resource limits for delete jobs are performance controls.
+dimension	operations.configuration_change_tracking	reject		Incoherent cluster (replica config journal, metadata alerts, Azure config reports).
+dimension	operations.pre_script_failure_behavior	merge	protection.pre_post_scripts	Narrow case of pre/post scripts.
+dimension	operations.cpu_priority_control	merge	operations.performance_controls	CPU priority limits load on production.
+dimension	operations.deleted_object_detection	reject		Single-vendor internal behaviour.
+dimension	operations.enterprise_monitoring	merge	operations.dashboards	Mixed monitoring claims (Grafana, Veeam ONE); best home is monitoring.
+dimension	operations.file_count_reporting	merge	data_use.analytics	Content statistics over protected data.
+dimension	operations.file_size_monitoring	merge	data_use.analytics	Size analysis of data is analytics.
+dimension	operations.folder_organization	reject		UI organisation feature.
+dimension	operations.tenant_event_forwarding	merge	cyber.siem_integration	Same integration, MSP multi-org scope.
+dimension	operations.in_place_agent_upgrade	merge	operations.deployment_upgrade	Narrow case of upgrade.
+dimension	operations.initial_backup_duration	reject		Examples carry no durations; not a documented comparable aspect.
+dimension	operations.deployment_platform	approve		Where the product itself can be installed (OS, virtual appliance, NAS, cloud VM, Kubernetes/OpenShift) is a distinct comparison row from how it is installed/upgraded; absorbs kubernetes_platform_support, cloud_vm_deployment, nas_installation, virtual_appliance_delivery, linux_proxy_support. Should be platform: true; dedupe with proposed vendor.operating_system_support if approved.
+dimension	operations.proxy_authentication	merge	operations.proxy_support	Narrow case of web proxy support.
+dimension	operations.job_monitoring	merge	operations.dashboards	Job/session monitoring belongs with monitoring.
+dimension	operations.integration_limit	reject		Mixed single-vendor limits (Azure app counts, integrations per type); no single home.
+dimension	operations.maximum_script_timeout	merge	protection.pre_post_scripts	Numeric script limit; belongs with pre/post scripts.
+dimension	operations.max_volumes_attached	merge	storage.capacity_scaling	Numeric platform limit; value lives in the claim.
+dimension	operations.mcp_server_integration	merge	operations.ai_assistance	MCP server belongs under AI assistance (rubric).
+dimension	operations.metrics_integration	merge	operations.metrics_export	Same aspect as metrics export.
+dimension	operations.network_bonding	reject		Appliance NIC configuration detail.
+dimension	operations.offsite_media_tracking	merge	storage.tape	Offsite tape vaulting/tracking belongs with tape support.
+dimension	operations.job_configuration_removal	reject		Procedure.
+dimension	operations.restore_session_logs	merge	operations.dashboards	Restore logs are part of job monitoring.
+dimension	operations.service_status_page	merge	storage.availability_sla	Service health transparency sits with availability commitment.
+dimension	operations.tenant_provisioning_time	reject		Single-vendor setup timing.
+dimension	operations.report_branding	merge	operations.reports	White-labelled reports are report customization.
+dimension	security.audit_log_export	merge	security.audit_logging	Export of audit logs is a facet of audit logging, not a separate comparison row.
+dimension	security.scim_provisioning	merge	security.identity_provisioning	SCIM is one mechanism of user provisioning from an IdP; kept together with group mapping and JIT so one row answers 'how are users provisioned'.
+dimension	security.api_authentication_method	merge	security.source_authentication_methods	How the product authenticates to a workload's API (OAuth, tokens, IAM) is the source-authentication aspect. Note: generic aliases 'oauth authentication'/'token-based authentication' are broad and may catch console-login claims.
+dimension	security.directory_authentication	approve		AD/LDAP sign-in to the product console is a common cross-vendor comparison row distinct from SAML/OIDC SSO.
+dimension	security.modern_authentication	merge	security.source_authentication_methods	Modern vs basic auth for restore is a source-authentication detail.
+dimension	security.basic_authentication	merge	security.source_authentication_methods	Basic auth to the source (M365 legacy) is a source-authentication detail. Note: bare alias 'basic authentication' is broad.
+dimension	security.immutability_period	approve		Immutability duration (default, minimum, custom, extendable) is the missing sibling of immutability level/mode/scope and is compared across vendors.
+dimension	security.encryption_password_change	merge	security.key_rotation	Changing the encryption password is key/password rotation.
+dimension	security.restore_role_based_access	merge	security.rbac	Restore-operator roles are a built-in, scoped role: RBAC.
+dimension	security.encrypted_field_support	approve	coverage.encrypted_source_data	Backing up data that is already encrypted at the source (Salesforce encrypted fields, EFS, KMS-encrypted volumes) is a real coverage question no entry holds; it is coverage, not product security, and not limited to app.database.
+dimension	security.email_sending_oauth2	merge	operations.notifications	OAuth for the notification mail server is a notification-channel detail.
+dimension	security.session_timeout	approve		Idle session timeout of the console is a standard security-review control with no existing home.
+dimension	security.group_based_role_assignment	merge	security.rbac	Mapping directory/IdP groups to roles is how roles are assigned and scoped: RBAC.
+dimension	security.sso_initiation_flow	merge	security.sso	IdP- vs SP-initiated flow is a detail of SSO support.
+dimension	security.client_side_encryption	approve		Encrypting at the source before data leaves (zero-knowledge) is a distinct, commonly compared property, not covered by encryption at rest.
+dimension	security.audit_log_filtering	merge	security.audit_logging	Searching/filtering audit logs is a facet of audit logging.
+dimension	security.automatic_entra_app_registration	merge	security.source_authentication_methods	Auto-creating the Entra app the product uses to reach the tenant is part of how it authenticates to the source.
+dimension	security.automatic_permission_assignment	merge	security.source_authentication_methods	Examples are the product granting its own connection identity the permissions it needs in the source; part of source authentication setup.
+dimension	security.self_signed_certificate_registration	merge	security.source_authentication_methods	Aliases describe generating and registering the certificate used to authenticate to Entra ID: source authentication.
+dimension	security.encryption_password_recovery	approve		Whether a lost encryption password/key can be recovered is a distinct, decision-relevant question (key escrow vs unrecoverable).
+dimension	security.hmac_key_authentication	merge	security.source_authentication_methods	HMAC keys are a credential type for reaching object storage; covered by the broadened source/storage authentication dimension.
+dimension	security.modern_app_authentication	merge	security.source_authentication_methods	App-only / certificate auth to the SaaS service is a source-authentication method.
+dimension	security.credential_vault_integration	approve		Keeping connection credentials in CyberArk/HashiCorp-type vaults is a comparable enterprise security row; broadened to cover how credentials are stored and PAM integration so related narrow entries fold in.
+dimension	security.connector_credential_encryption	merge	security.credential_vault_integration	Encrypted storage of connection credentials is part of credential storage (broadened definition).
+dimension	security.kms_shared_across_tenants	merge	security.customer_managed_keys	How a KMS connection is shared across tenants/accounts is a customer-managed-key configuration detail.
+dimension	security.cloud_credentials_management	merge	security.source_authentication_methods	IAM roles, STS short-lived credentials and access keys for cloud accounts are how the product authenticates to cloud sources and storage.
+dimension	security.certificate_authentication	merge	security.encryption_in_transit	Certificate-based secure connections between components are the mechanism of encryption in transit.
+dimension	security.ssh_public_key_authentication	approve		Rubric example of a keep-own dimension; SSH key auth to proxies/hosts is compared across vendors.
+dimension	security.api_credential_revocation	merge	operations.api_automation	Issuing, expiring and revoking keys for the product's own API is a facet of its API offering; too narrow for its own row.
+dimension	security.automatic_permission_grant	merge	security.source_authentication_methods	Auto-granting permissions to the product's app identity in the tenant is part of source-authentication setup.
+dimension	security.customer_supplied_password	merge	security.customer_managed_keys	A customer-set encryption password vs vendor-held key is the key-ownership question held by customer-managed keys.
+dimension	security.local_account_authentication	merge	security.local_accounts	Same aspect as local user accounts. Note: alias 'database account authentication' is about source DB credentials and belongs under source authentication instead.
+dimension	security.entra_app_authentication	merge	security.source_authentication_methods	Entra application (secret or certificate) used to reach workloads is a source-authentication method.
+dimension	security.webhook_authentication	merge	operations.notifications	Auth for outbound webhook integrations is a notification/integration channel detail.
+dimension	security.console_transport_encryption	merge	security.encryption_in_transit	HTTPS/TLS for the console is encryption in transit.
+dimension	security.access_policy_model	merge	security.customer_managed_keys	Azure Key Vault access-policy vs RBAC support is a limitation of customer-managed-key setup; single vendor.
+dimension	security.private_network_access	merge	operations.private_networking	Private endpoints for backup/restore traffic duplicate private networking.
+dimension	security.privileged_identity_management	merge	security.credential_vault_integration	PAM integration (CyberArk etc.) sits with credential storage and vault integration (broadened definition).
+dimension	security.restore_operator_authentication	merge	recovery.self_service	How delegated restore operators sign in to the restore portal is a self-service restore detail.
+dimension	security.role_assignment_protection	reject		Mixed: aliases describe backup coverage of Entra role assignments (an object type), others RBAC or quorum approval; merging would mis-map the aliases.
+dimension	security.tenant_isolation	approve		Separation of one customer's/tenant's backup data from others is a standard security question for SaaS and multi-tenant platforms with no existing home.
+dimension	security.group_provisioning	merge	security.identity_provisioning	Provisioning users from IdP group membership is a user-provisioning mechanism.
+dimension	security.fips_mode	approve		FIPS 140 validated cryptographic mode is a common compliance comparison row, distinct from general certifications.
+dimension	security.local_accounts	approve		Whether the product keeps its own local/break-glass accounts besides an IdP is a distinct console-access question.
+dimension	security.maximum_encrypted_fields	merge	security.field_level_encryption	Numeric limit of field-level encryption; the number lives in the claim value.
+dimension	security.password_protected_download	merge	recovery.export_formats	Password protection of exported archives is an export-format option.
+dimension	security.account_lockout	approve		Lockout after failed sign-ins is a standard console-security control, distinct from session timeout.
+dimension	security.source_authentication_methods	approve		How the product authenticates to protected workloads and backup storage (OAuth/app-only, Entra apps, IAM roles vs keys, certificates, DB/service accounts) is a real cross-vendor row; chosen as the home for the many narrow variants in this batch.
+dimension	security.api_interaction_logging	merge	security.audit_logging	Logging of API calls is audit logging.
+dimension	security.audit_log_forwarding	merge	cyber.siem_integration	Forwarding audit events to syslog/log collectors is the SIEM integration path.
+dimension	security.credentials_in_snapshots	merge	coverage.attribute_depth	Whether secrets such as app client secrets are captured is attribute coverage of the object type.
+dimension	security.automatic_firewall_rules	merge	security.platform_hardening	Firewall rules on the product's own hosts are platform hardening.
+dimension	security.automatic_key_rotation	merge	security.key_rotation	Automatic use of the latest key version is key rotation.
+dimension	security.service_provider_authentication	merge	security.source_authentication_methods	Authenticating backups to a service provider target is authentication to storage; examples are mixed but closest here.
+dimension	security.vendor_managed_keys	merge	security.customer_managed_keys	Vendor-managed vs customer-managed keys is one key-ownership question.
+dimension	security.cloud_account_authentication	merge	security.source_authentication_methods	Service principals, instance roles and dynamic credentials for cloud accounts are source/storage authentication.
+dimension	security.custom_ssl_certificate	approve		Replacing default self-signed certificates with the customer's own CA-signed TLS certificates is a common enterprise requirement compared across products.
+dimension	security.directory_auth_without_oauth	merge	security.source_authentication_methods	Connecting a directory with a customer-supplied app instead of OAuth is a source-authentication option; single vendor.
+dimension	security.directory_integration	merge	security.directory_authentication	Directory (AD/LDAP) integration for users duplicates directory authentication.
+dimension	security.invitation_domain_restriction	merge	security.identity_provisioning	Restricting new users to approved email domains is a control on user provisioning.
+dimension	security.user_account_state	merge	security.local_accounts	Enabling, disabling or deleting the product's own user accounts is part of local account management.
+dimension	security.snapshot_metadata_encryption	merge	security.encryption_at_rest	Encryption of backup metadata is an encryption-at-rest detail; single vendor.
+dimension	security.key_rotation	approve		Rotating or replacing keys and encryption passwords, and keeping old backups readable, is a distinct key-management row; broadened to absorb password change, automatic rotation and regeneration.
+dimension	security.encryption_key_validation	merge	security.customer_managed_keys	Validation of a customer-supplied key is a customer-managed-key detail.
+dimension	security.restore_reencryption_with_kms	approve	security.restore_encryption_key	Choosing a different (customer KMS) key for restored resources is offered by several cloud-backup vendors and matters for cross-account restore; no existing home.
+dimension	security.sso_enforcement	merge	security.sso	Making SSO mandatory is a detail of SSO support.
+dimension	security.geolocation_access_policies	merge	security.ip_restrictions	Geofencing/location-based access is a network access restriction.
+dimension	security.just_in_time_provisioning	merge	security.identity_provisioning	JIT account creation at first sign-in is a user-provisioning mechanism.
+dimension	security.login_attempt_logging	merge	security.audit_logging	Recording sign-in attempts is audit logging.
+dimension	security.encryption_mandatory	merge	security.encryption_default	Encryption that cannot be disabled is the strongest case of encryption by default.
+dimension	security.source_connection_auth	merge	security.source_authentication_methods	Same aspect as source authentication methods (connected app / OAuth to the SaaS source).
+dimension	security.security_change_monitoring	approve	cyber.security_change_monitoring	Detecting risky changes to permissions, privileged groups and policies in protected identity systems (AD/Entra) is a distinct cyber capability compared by identity-backup vendors; belongs in cyber.
+dimension	security.key_regeneration	merge	security.key_rotation	Regenerating keys is key rotation (broadened definition covers access keys).
+dimension	security.tenant_domain_restriction	reject		Single vendor's setting (Gearset restricting which Salesforce orgs team members may connect); no broader entry fits.
+dimension	security.backup_share_revocation	merge	security.rbac	Granting and revoking users' access to shared backups is access control; single vendor.
+dimension	security.shared_access_link_validity	merge	recovery.limits	Expiry of download/share links is a documented limit on export/restore; value lives in the claim.
+dimension	security.server_certificate_validation	merge	security.encryption_in_transit	Verifying server certificates on TLS connections is part of securing data in transit.
+dimension	security.soft_delete_of_backups	approve		Rubric example of a keep-own dimension; no seed entry covers it.
+dimension	security.soft_delete_of_recovery_points	merge	security.soft_delete_of_backups	Same aspect as soft delete of backups.
+dimension	security.database_authentication_method	merge	security.source_authentication_methods	SQL vs integrated accounts for reaching a database is a source-authentication method.
+dimension	security.bring_own_app_registration	merge	security.source_authentication_methods	Using a customer-owned app registration vs a vendor-provisioned one is a source-authentication option.
+dimension	security.identity_provisioning	approve		Automatic creation/deactivation of the product's users from an IdP (SCIM, group mapping, JIT) is a real cross-vendor row; chosen as the home for the provisioning variants.
+dimension	cyber.integrity_verification	approve		Checksum/CRC health checks of stored backups are distinct from boot/restore recoverability testing and compared across vendors.
+dimension	cyber.third_party_penetration_testing	merge	vendor.certifications	Independent penetration testing is a vendor security attestation.
+dimension	cyber.malware_detection_exclusion	reject		Exclusion setting of one vendor's malware scanning; not a comparison row and no detection dimension holds settings.
+dimension	cyber.file_access_monitoring	merge	cyber.detection_behavior	Tracking file access activity falls under behavioral/file-activity detection.
+dimension	cyber.multiple_event_rules	merge	cyber.siem_integration	Event-forwarding rules per integration are a SIEM integration detail; single vendor.
+dimension	cyber.baseline_period	merge	cyber.detection_behavior	Learning period of anomaly detection is a detail of behavioral detection.
+dimension	coverage.database_backup	merge	coverage.backup	Backup of a workload class (databases); expressed as coverage.backup per target/object type.
+dimension	coverage.configurable_exclusions	approve		Genuine comparable aspect (user-configurable scope filters) not covered by coverage.exclusions (documented non-coverage); home for the filter variants in this batch.
+dimension	coverage.mailbox	merge	coverage.backup	Backup of an object type (mailbox).
+dimension	coverage.metadata_backup	merge	coverage.backup	Backup of an object type (metadata/configuration).
+dimension	coverage.file_level	merge	coverage.backup	Backup of an object type (files); file-system types go to coverage.file_systems.
+dimension	coverage.group_backup	merge	coverage.backup	Backup of an object type (groups/Teams).
+dimension	coverage.supported_editions	merge	coverage.workload_variants	Editions/clouds of a workload are exactly workload variants.
+dimension	coverage.physical_machine	merge	coverage.backup	Backup of a workload class (physical servers); OS versions are workload variants.
+dimension	coverage.intune_policies	merge	coverage.backup	Backup of an object type (Intune policies).
+dimension	coverage.virtual_machine	merge	coverage.backup	Backup of an object type (virtual machines).
+dimension	coverage.attribute_based_scope	merge	protection.discovery_auto_protection	Automatic selection by tag/rule/group is adding objects to protection by policy or label.
+dimension	coverage.metadata_comparison	merge	coverage.compare	Comparison of an object type (metadata).
+dimension	coverage.files_and_attachments	merge	coverage.backup	Backup of an object type (files/attachments).
+dimension	coverage.service_principals	merge	coverage.backup	Backup/restore of an object type (service principals).
+dimension	coverage.version_scope	merge	coverage.backup	Whether item versions are captured is coverage of the version object type.
+dimension	coverage.auto_include_new_fields	merge	protection.discovery_auto_protection	Automatically adding new fields/objects to protection.
+dimension	coverage.host_level_backup	merge	protection.image_level_backup	Examples are hypervisor/host-level whole-machine backups, i.e. image-level backup.
+dimension	coverage.cloud_account_integration	reject		Setup prerequisite (connecting/onboarding an account), mostly vendor-specific; unsupported account variants belong to coverage.workload_variants.
+dimension	coverage.onenote_notebook	merge	coverage.backup	Backup of an object type (OneNote notebooks).
+dimension	coverage.agent_platforms	merge	protection.agent_based	Which platforms an agent runs on is a facet of agent-based protection per target.
+dimension	coverage.asset_discovery	merge	protection.discovery_auto_protection	Discovering workloads so they can be protected is covered by discovery and auto-protection.
+dimension	coverage.acl_backup	merge	coverage.attribute_depth	ACLs/permissions are attributes of files captured and restored.
+dimension	coverage.embedded_images	merge	coverage.backup	Backup of an object type (embedded images).
+dimension	coverage.policy_selection_method	merge	protection.discovery_auto_protection	Selecting resources by resource group/tag/account is policy-based dynamic protection scope.
+dimension	coverage.bulk_exclusion_import	merge	coverage.configurable_exclusions	CSV import of scope/exclusion lists is a narrower case of configurable scope filters.
+dimension	coverage.protected_resource_inventory	merge	governance.protection_gaps	Listing what is protected is 'confirming what is protected'.
+dimension	coverage.kubernetes_distributions	merge	coverage.workload_variants	Kubernetes distributions are variants of the Kubernetes workload.
+dimension	coverage.automatic_scope_inclusion	merge	protection.discovery_auto_protection	Newly created items added to scope automatically.
+dimension	coverage.extension_exclusion	merge	coverage.configurable_exclusions	Exclusion by file extension is a narrower case of scope filters.
+dimension	coverage.subscription_scope	merge	protection.discovery_auto_protection	Adding whole subscriptions/accounts so their resources are protected is policy-scoped protection.
+dimension	coverage.availability_group_support	approve	coverage.clustered_configurations	Common cross-vendor compatibility row not covered by workload_variants (topology, not edition/engine); broadened to all clustered configurations.
+dimension	coverage.network_restricted_sources	merge	operations.private_networking	Backing up sources behind firewalls/private endpoints is private networking support.
+dimension	coverage.history_objects	merge	coverage.backup	Backup of an object type (history objects).
+dimension	coverage.scope_by_container	merge	protection.discovery_auto_protection	Scope by resource group/subscription is policy-scoped protection; duplicate of policy_selection_method.
+dimension	coverage.cloud_account_discovery	merge	protection.discovery_auto_protection	Automatic discovery of cloud accounts for protection.
+dimension	coverage.cluster_scoped_resources	merge	coverage.backup	Backup of an existing Kubernetes object type (cluster-scoped resources).
+dimension	coverage.consistency_groups	approve	protection.consistency_groups	Distinct, searchable protection feature (array CGs, multi-VM groups); wrong family, moved to protection.
+dimension	coverage.ingestion_filtering	merge	coverage.configurable_exclusions	Filtering what is captured by pattern is a scope filter.
+dimension	coverage.clustered_disks	merge	coverage.availability_group_support	Cluster shared/clustered disks fall under clustered configurations (approved here, renamed coverage.clustered_configurations).
+dimension	coverage.maximum_protected_instances	merge	storage.capacity_scaling	Numeric scale limit; value belongs in the claim.
+dimension	coverage.agentless_collection	reject		Examples are mostly monitoring/analytics data collectors, not backup; mapping the alias to protection.agentless would create wrong facts.
+dimension	coverage.automatic_inclusion	merge	protection.discovery_auto_protection	New objects automatically included in policies.
+dimension	coverage.hierarchy_inclusion	merge	protection.discovery_auto_protection	Child sites auto-included when a parent is selected is automatic protection of new objects.
+dimension	coverage.automatic_nested_site_discovery	merge	protection.discovery_auto_protection	Same as hierarchy_inclusion: subsites found and protected automatically.
+dimension	coverage.wildcard_content_filters	merge	coverage.configurable_exclusions	Wildcard/regex include-exclude filters are scope filters.
+dimension	coverage.ephemeral_os_disks	merge	coverage.backup	Backup of an object type (ephemeral OS disk); typically a documented non-coverage.
+dimension	coverage.record_level	merge	coverage.backup	Backup of an object type (records/fields).
+dimension	coverage.api_free_capture	reject		Definition does not match the examples (Microsoft paid Teams export APIs); not a coherent comparable aspect.
+dimension	coverage.tag_based_exclusion	merge	coverage.configurable_exclusions	Exclusion by tag is a scope filter.
+dimension	coverage.extended_attributes	merge	coverage.attribute_depth	Extended attributes are file attributes captured and restored.
+dimension	coverage.file_systems	approve		Standard compatibility-matrix row consumers look up on its own (e.g. ReFS, Btrfs, VxFS); broadened to absorb volume managers.
+dimension	coverage.maximum_scopes_per_profile	merge	storage.capacity_scaling	Numeric platform limit; value belongs in the claim.
+dimension	coverage.multiple_subscriptions_per_tenant	merge	storage.capacity_scaling	A count limit on subscriptions/instances per tenant or account.
+dimension	coverage.namespace_scope	merge	coverage.backup	Backup/restore of an existing Kubernetes object type (namespace).
+dimension	coverage.non_scsi_disk_controllers	merge	coverage.exclusions	Unsupported disk controller types are documented coverage exclusions.
+dimension	coverage.protected_node_types	merge	coverage.backup	Which machine kinds can be protected is coverage per target class.
+dimension	coverage.user_scope_exclusion	reject		Single-vendor procedure (removing subscriptions/accounts from scope).
+dimension	coverage.sandbox_environments	merge	coverage.environment_types	Sandbox environments are exactly environment types.
+dimension	coverage.environment_type_identification	reject		Permission note for one vendor's app; not a comparable aspect.
+dimension	coverage.multiple_volume_types_per_backup	reject		Single-tool configuration detail (Velero volume snapshot locations).
+dimension	coverage.tag_based_selection	merge	protection.discovery_auto_protection	Selecting by tags/labels is adding to protection by label.
+dimension	coverage.user_defined_subsets	merge	coverage.configurable_exclusions	Custom selections of shares/subsets are inclusion scope filters.
+dimension	coverage.platform_versions	merge	coverage.workload_variants	Supported hypervisor/platform versions are workload variants.
+dimension	coverage.volume_manager	merge	coverage.file_systems	Volume manager support folds into the approved file systems and volume managers dimension.
+dimension	coverage.network_configuration	merge	coverage.backup	Backup of the cloud.network_config class object types (VPCs, subnets).
+dimension	coverage.wildcard_file_selection	merge	coverage.configurable_exclusions	Wildcard file selection is a scope filter.
+dimension	storage.object_storage_target	merge	storage.repository_types	Object storage as a backup destination is a repository type.
+dimension	storage.object_storage_repository	merge	storage.repository_types	Duplicate of object_storage_target; repository type.
+dimension	storage.consumption_reporting	merge	operations.reports	Storage usage reporting is a kind of built-in report.
+dimension	storage.compression	merge	storage.data_reduction	Compression is part of data reduction.
+dimension	storage.external_object_import	merge	storage.portable_format	Importing existing backups from a repository without the original server is the self-contained format question.
+dimension	storage.object_archival	merge	protection.backup_copy	Copying backups to object storage under separate retention is a secondary backup copy.
+dimension	storage.archive_tier	merge	storage.tiers	Archive repositories/tiers are storage tiers.
+dimension	storage.cloud_target	merge	storage.cloud_provider_choice	Which cloud storage can hold backups.
+dimension	storage.archive_tier_support	merge	storage.tiers	Archive access tier support is a storage tier.
+dimension	storage.automatic_regional_provisioning	merge	storage.region_choice	Single-vendor mechanism for where backups are stored per region.
+dimension	storage.partition_deployment	merge	storage.sovereign_cloud	AWS China/GovCloud partitions are government and sovereign clouds.
+dimension	storage.deduplication_ratio_reporting	merge	operations.reports	Dedup savings reports are a kind of built-in report.
+dimension	storage.bucket_creation	reject		Setup detail (whether the product creates buckets/containers); not a comparison row.
+dimension	storage.certified_third_party_object	merge	storage.repository_types	Certified object storage platforms are supported repository types.
+dimension	storage.archive_location_type	merge	protection.backup_copy	Where archive copies can be sent is a facet of secondary copies.
+dimension	storage.non_empty_container_deletion	reject		Single-vendor procedure (deleting a storage vault).
+dimension	storage.file_archive_format	reject		NAS/NDMP stream format setting (dump vs tar); vendor/device-specific.
+dimension	storage.target_allocation_mode	reject		Internal mechanics of one vendor's array snapshot integration.
+dimension	storage.immutable_destination	merge	security.immutability	Immutable destination is backup immutability.
+dimension	storage.appliance_capacity	merge	storage.capacity_scaling	Numeric capacity of an appliance; value belongs in the claim.
+dimension	storage.archive_copy_target	merge	storage.tiers	Archive tier as a copy target is a storage tier option.
+dimension	storage.local_only_option	reject		Examples mix unrelated concepts (local database, default local destination); no clear fit.
+dimension	storage.shared_across_servers	reject		Heterogeneous vendor-specific configuration rules about sharing devices between servers.
+dimension	storage.pool_migration	merge	storage.location_change	Moving stored backups between pools/targets after writing is changing backup location.
+dimension	storage.bucket_versioning	reject		Storage-provider configuration note; the alias would also catch object-version backup claims and create wrong facts.
+dimension	storage.cloud_destination	merge	storage.cloud_provider_choice	Offsite backup to cloud storage; duplicate of cloud_target.
+dimension	storage.vendor_hosted_default	merge	storage.bring_your_own_storage	Vendor-hosted versus customer-owned storage is the BYOS question.
+dimension	storage.archive_account_type	merge	storage.repository_types	Supported storage account kinds are a repository-type detail.
+dimension	storage.automatic_member_selection	merge	storage.scale_out	Federated repository member selection is scale-out placement.
+dimension	storage.automatic_placement	reject		Single-vendor setting (automatic storage vault assignment).
+dimension	storage.automatic_cache_upload	reject		Internal cache mechanics of individual products.
+dimension	storage.reserved_free_space	reject		Single-vendor mount-path setting.
+dimension	storage.direct_attached_backup_storage	merge	storage.repository_types	Directly attached SAN/NAS storage is a repository type.
+dimension	storage.maximum_archive_log_locations	reject		Single plug-in configuration limit; no general dimension holds it.
+dimension	storage.maximum_stripes	merge	operations.performance_controls	Backup stripes are parallel streams; the max value belongs in the claim.
+dimension	storage.vault_name_length	reject		Naming-length trivia; not a comparison aspect.
+dimension	storage.checksum_algorithms	merge	cyber.integrity_verification	controller: cyber.integrity_verification was approved; checksums are part of it
+dimension	storage.metadata_location	merge	storage.bring_your_own_storage	Keeping metadata in customer-owned storage is a BYOS facet.
+dimension	storage.multiple_repositories_per_job	reject		Niche job configuration detail of single vendors.
+dimension	storage.multiple_snapshot_locations	reject		Vendor configuration detail (snapshot resource group/location).
+dimension	storage.replication_from_backup	merge	protection.backup_copy	Replicating backup data to another target is a secondary backup copy.
+dimension	storage.selective_recall	merge	governance.archiving	Recalling migrated (HSM-archived) files is retrieval of archived data.
+dimension	storage.pool_expansion	merge	storage.capacity_scaling	Adding capacity/nodes to a pool is a scaling step.
+dimension	storage.vault_count_limit	merge	storage.capacity_scaling	Count limit on vaults; value belongs in the claim.
+dimension	storage.worm_support	merge	security.immutability	WORM storage is backup immutability.
+dimension	protection.incremental_backup	approve		Backup levels are a core cross-vendor comparison row and no seed entry covers them; broadened to hold full/differential/forever-incremental variants merged here.
+dimension	protection.vss_snapshot	merge	protection.application_consistent	VSS is the Windows mechanism for application-consistent (and open-file) capture; a consumer looks this up under application consistency.
+dimension	protection.api_based_collection	approve		Which provider API a SaaS backup uses (Graph, EWS, backup storage APIs) is a real differentiator, not covered by agentless or api_throttling.
+dimension	protection.ndmp_backup	approve		NDMP support is a standard NAS backup comparison row; not covered by any seed entry.
+dimension	protection.pre_post_scripts	approve		Pre/post job scripting is a common cross-vendor row distinct from built-in application consistency; snapshot hooks merge here.
+dimension	protection.staging_server	reject		Vendor-specific component (Veeam staging server/proxy) requirements, not a comparable aspect.
+dimension	protection.cross_region_copy	merge	protection.cross_account_backup	Seed entry already covers storing backups in a separate account or region.
+dimension	protection.hotadd_transport	approve	protection.transport_modes	Virtual disk transport modes (hot-add, direct SAN, NBD) are a standard hypervisor backup comparison row; SAN transport merges here, so broadened.
+dimension	protection.automatic_incremental_splitting	reject		One vendor's internal job-handling behaviour, not a comparable aspect.
+dimension	protection.snapshot_tag_copy	merge	governance.resource_tagging	Copying source tags to snapshots is part of tagging backups and snapshots.
+dimension	protection.open_file	approve		Open/locked file backup is a recognised endpoint and file backup comparison row.
+dimension	protection.nas_proxy_assignment	reject		Single vendor's configuration setting (Commvault subclient-level proxy).
+dimension	protection.replica_target_location	merge	protection.replication	Where replicas can be placed is part of the replication dimension.
+dimension	protection.full_backup_fallback	merge	protection.incremental_backup	When the product falls back to full backups is part of backup levels.
+dimension	protection.automatic_replica_sync	merge	protection.replication	Keeping a replica updated is replication behaviour; examples are mixed and fit there best.
+dimension	protection.consistent_remote_mirror_source_backup	merge	protection.storage_array_integration	Array-mirror FlashCopy sources are a case of storage array snapshot integration.
+dimension	protection.csi_snapshot_backup	approve		CSI snapshot support versus filesystem copy is a standard Kubernetes backup comparison question.
+dimension	protection.san_transport	merge	protection.hotadd_transport	Direct SAN access is one of the virtual disk transport modes.
+dimension	protection.always_full	merge	protection.incremental_backup	Always-full behaviour is the negative answer on backup levels for a workload.
+dimension	protection.snapshot_hooks	merge	protection.pre_post_scripts	Pre/post-snapshot guest scripts are the same aspect as pre/post backup scripts.
+dimension	protection.preseeded_initial_sync	merge	protection.replication	Seeding the initial replica copy is a sub-case of replication.
+dimension	retention.gfs_policy	merge	retention.granularity	Seed retention.granularity explicitly includes GFS.
+dimension	retention.automatic_expired_point_removal	merge	retention.granularity	Removal on expiry is how retention options are applied; not a distinct lookup.
+dimension	retention.adjustable_after_set	approve		Whether retention can be shortened or changed later is a real comparison question, parallel to storage.location_change.
+dimension	retention.log_period	merge	security.audit_logging	Retention of the product's own audit/system logs is an audit logging detail, not backup retention.
+dimension	retention.post_subscription_period	merge	vendor.processing_after_license_expiry	Data kept after a subscription ends is part of what happens at license/subscription expiry.
+dimension	retention.offboarding_grace_period	merge	governance.backup_item_deletion	Offboarding protection units deletes specific users' data from backup; the grace period is a detail of that.
+dimension	retention.policy_based_deletion	reject		Aliases describe deleting policy objects (a procedure), not a retention aspect; merging would map them wrongly.
+dimension	retention.minimum_period	approve		Minimum retention is a comparable value alongside the seed maximum and default periods.
+dimension	retention.retrieved_data_availability_period	merge	storage.tiers	How long data retrieved from an archive tier stays available is an archive-tier detail.
+dimension	retention.historical_reporting_period	merge	operations.reports	Retention of reporting/history data is a reports detail.
+dimension	retention.keep_on_tenant_readd	reject		Single vendor's option when re-adding a tenant; not a comparable aspect.
+dimension	retention.data_kept_on_owner_change	reject		Single vendor's setting (HYCU ownership change).
+dimension	retention.survives_policy_deletion	approve		Whether existing backups survive unprotecting a workload or deleting its policy/job is a real comparison question; job-removal variant merges here.
+dimension	retention.latest_version_always_kept	merge	retention.after_source_deletion	Keeping the last version of deleted records is part of how deleted source data is retained.
+dimension	retention.maximum_snapshots_per_share	merge	retention.maximum_period	Numeric cap on retained snapshots belongs with the maximum retention value.
+dimension	retention.post_expiration_access_period	merge	vendor.processing_after_license_expiry	Examples concern access to data after a subscription lapses.
+dimension	retention.retained_after_job_removal	merge	retention.survives_policy_deletion	Same aspect: backups kept after the job or policy is removed.
+dimension	retention.enforcement_check_interval	reject		Internal maintenance intervals of individual products with mixed, unrelated examples.
+dimension	retention.source_tag_driven	merge	retention.per_object	Retention driven by source retention tags is a way of setting per-item retention.
+dimension	retention.after_source_deletion	approve		How long backups of items deleted from the source are kept is a common SaaS backup comparison question.
+dimension	schedule.scheduled_backup	merge	schedule.types	Scheduled backup support is answered by the seed schedule options dimension.
+dimension	schedule.automated	merge	schedule.types	Phrasing variant of scheduled backups.
+dimension	schedule.retention_policy_scheduling	merge	governance.archiving	Claims are mainly scheduled archiving policies; the 'retention policy scheduling' aliases fit poorly and should be dropped.
+dimension	schedule.pause_resume	approve		Pausing protection and blackout windows are a plausible cross-vendor row with no seed home; pause-future-runs, quiet-time and policy-disable variants merge here.
+dimension	schedule.forever_incremental	merge	protection.incremental_backup	Forever-incremental is a backup level; wrong family.
+dimension	schedule.manual_archival_start	merge	governance.archiving	On-demand runs of archival policies are an archiving detail.
+dimension	schedule.maximum_jobs_per_day	merge	schedule.minimum_rpo	A cap on jobs per day is a limit on backup frequency; value goes in the claim.
+dimension	schedule.cancel_running_at_blackout_start	merge	schedule.pause_resume	Quiet-time behaviour is part of blackout windows.
+dimension	schedule.pause_future_runs	merge	schedule.pause_resume	Duplicate of pausing protection.
+dimension	schedule.one_time_and_recurring	merge	schedule.types	A restriction on combining schedule types.
+dimension	schedule.maximum_sla_templates	merge	schedule.sla_based_policy	Numeric limit on SLA templates belongs with SLA-based policies.
+dimension	schedule.multiple_schedules	merge	schedule.types	Multiple schedules per job is a schedule option.
+dimension	governance.restore_reason_logging	merge	security.audit_logging	Recording a restore reason in session history is part of audit logging.
+dimension	governance.maximum_custom_tags	merge	governance.resource_tagging	Numeric tag limit belongs with tagging of backups.
+dimension	governance.resource_tagging	approve		Tagging backups and snapshots with provider tags (cost allocation, policy) is a plausible cloud comparison row; tag copy and tag limits merge here.
+dimension	governance.dsr_request_handling	merge	governance.privacy_requests	Seed privacy_requests covers data subject requests.
+dimension	governance.data_subject_request_support	merge	governance.privacy_requests	Duplicate of seed privacy_requests.
+dimension	governance.archival_policy_manual_stop	merge	schedule.pause_resume	Disabling or stopping a policy is pausing protection.
+dimension	governance.archive_hard_deletion	merge	governance.archiving	Deleting records from production after archiving is archiving behaviour.
+dimension	governance.asset_inventory	merge	governance.classification	Data inventory/estate discovery is part of sensitive data discovery and classification.
+dimension	governance.data_subject_requests	merge	governance.privacy_requests	Duplicate of seed privacy_requests.
+dimension	governance.data_location_visibility	merge	storage.multi_geo	Showing multi-geo data location is a multi-geo support detail.
+dimension	governance.compliance_violation_reporting	merge	operations.reports	SLA/RPO compliance reporting is a kind of report.
+dimension	governance.dual_approval_for_protection_changes	merge	security.multi_person_authorization	Four-eyes approval is the seed multi-person authorization.
+dimension	governance.archiving_automation_bypass	merge	governance.archiving	Disabling automations during an archive run is an archiving detail.
+dimension	governance.data_catalog_registration	reject		A DSPM feature of one vendor, not a backup comparison aspect.
+dimension	data_use.dynamic_distribution_list_filter_migration	merge	data_use.migration	Migration coverage detail.
+dimension	data_use.encrypted_field_filtering	merge	recovery.search_filters	A restriction on available filters.
+dimension	data_use.mailbox_item_property_migration	merge	data_use.migration	Migration coverage detail.
+dimension	data_use.seeding_job_limit	merge	data_use.sandbox_seeding	Numeric seeding limit belongs with sandbox seeding.
+dimension	data_use.email_delivery	merge	coverage.export	Sending backed-up items by email is a way of exporting data out of backup.
+dimension	data_use.user_attribute_migration	merge	data_use.migration	Migration coverage detail.
+dimension	data_use.subject_access_requests	merge	governance.privacy_requests	Access requests are privacy requests.
+dimension	data_use.data_subject_rectification	merge	governance.privacy_requests	Rectification requests are privacy requests.
+dimension	data_use.custom_sql_quality_checks	reject		Marketing statement about a non-backup data-quality feature; no fitting dimension.
+dimension	data_use.ai_consent_propagation_time	merge	operations.ai_assistance	AI consent controls are part of AI features and their limits.
+dimension	data_use.seeding_batch_size	merge	data_use.sandbox_seeding	Seeding configuration detail.
+dimension	data_use.deployment_validation	merge	data_use.devops_deployment	Validating deployments is part of DevOps deployment.
+dimension	data_use.group_membership_migration	merge	data_use.migration	Migration coverage detail.
+dimension	vendor.operating_system_support	approve		Operating systems the product's components run on is a platform comparison row parallel to architecture_support; Linux distributions merge here.
+dimension	vendor.free_trial	approve		Time-limited trials are distinct from the seed free tier; evaluation, trial-duration and NFR licenses merge here.
+dimension	vendor.add_on_license_required	merge	vendor.edition_inclusion	Seed edition_inclusion covers what is sold as an add-on.
+dimension	vendor.restore_after_license_expiry	merge	vendor.processing_after_license_expiry	Same question: what still works after expiry. Note alias 'license entitlement restore' concerns restoring M365 license assignments and should be dropped.
+dimension	vendor.automatic_license_update	reject		Single vendor's license-file administration feature.
+dimension	vendor.linux_distribution_support	merge	vendor.operating_system_support	Narrower case of supported operating systems.
+dimension	vendor.license_model	merge	vendor.license_metric	Rubric: license model duplicates license_metric.
+dimension	vendor.license_expiration_grace_period	merge	vendor.processing_after_license_expiry	Grace period is part of behaviour after license expiry.
+dimension	vendor.license_usage_reporting	approve		License consumption visibility is a distinct, commonly searched platform aspect, not covered by license_metric or generic reports.
+dimension	vendor.excluded_license_types	merge	vendor.unlicensed_objects	Which accounts or license types are not counted is the unlicensed-objects aspect.
+dimension	vendor.license_binding	merge	vendor.license_portability	Whether licenses are tied to a host is the inverse of license portability.
+dimension	vendor.license_revocation	approve		Automatic assignment and release of license units (on protect, removal or inactivity) is a plausible licensing comparison row; assignment merges here.
+dimension	vendor.evaluation_license	merge	vendor.free_trial	Evaluation license is a trial.
+dimension	vendor.trial_duration	merge	vendor.free_trial	Trial length is the value of the free trial dimension.
+dimension	vendor.archived_deleted_user_license	merge	vendor.unlicensed_objects	Whether departed/archived users consume licenses is the unlicensed-objects aspect.
+dimension	vendor.automatic_license_assignment	merge	vendor.license_revocation	Same licensing aspect: automatic assignment and release.
+dimension	vendor.hardware_alert_forwarding	merge	vendor.hardware_support	Dial-home alerts to vendor support are appliance hardware support.
+dimension	vendor.hardware_resolution_sla	merge	vendor.hardware_support	Hardware SLA is appliance hardware support.
+dimension	vendor.counted_user_scope	merge	vendor.unlicensed_objects	Which users count toward the license is the complement of objects protected without a license.
+dimension	vendor.maximum_subscriptions_per_organization	reject		Single vendor's commercial restriction; no comparable licensing-limit dimension.
+dimension	vendor.single_charge_per_user	merge	vendor.license_metric	How a user is counted across workloads is part of the license metric.
+dimension	vendor.resale_rights	merge	vendor.free_trial	Examples are free not-for-resale demo licenses, which sit with trial and evaluation licenses.
+dimension	vendor.processing_after_license_expiry	approve		What happens at license or subscription end (grace period, backups, restores, data retention) is a real buyer question with no seed home; related expiry entries merge here.
+dimension	vendor.prerequisite_license	merge	vendor.edition_inclusion	Which licenses a capability requires is covered by edition inclusion.
+dimension	vendor.status_updates	merge	vendor.support_terms	Incident and status communication channels are a support-terms detail.
+target	microsoft_intune	approve	saas.identity	Genuine workload (Intune policies, RBAC roles) protected by several vendors; device/device_policy object types live in saas.identity, not saas.other
+target	salesforce.data_360	merge	salesforce#variant:data_360	Salesforce Data Cloud / Data 360 is a Salesforce cloud; belongs as a salesforce variant
+target	salesforce.marketing_cloud	merge	salesforce#variant:marketing_cloud	Existing salesforce variant marketing_cloud
+target	aws.kms	reject		Encryption-key provider for BYOK, not a protected workload; claims belong to the customer-managed-key security dimension
+target	entra_external_id	merge	entra_id#variant:external_id	External ID is an Entra tenant type (external/CIAM tenant); a variant of entra_id
+target	kubevirt	approve		Upstream KubeVirt VMs on Kubernetes, distinct from the OpenShift/SUSE virtualization products; fits kubernetes.vm
+target	pure_storage_flasharray	approve		Genuine storage system (snapshot/replication integrations); primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	windows_file_system	merge	windows_server	Windows file-system backup agent = file-level protection of Windows machines; object type file under windows_server
+target	azure.key_vault	reject		Encryption-key provider for BYOK, not a protected workload; claims belong to the customer-managed-key security dimension
+target	microsoft_365.groups	merge	microsoft_365	Microsoft 365 Groups are an object type (group) of saas.productivity, not a separate service
+target	nas	approve		Generic NAS claims with no protocol or vendor named; parallels kubernetes_generic / s3_compatible_object_storage
+target	aws.s3.glacier	merge	aws.s3#variant:glacier	Glacier is a set of S3 storage classes (archive tier); a variant of aws.s3
+target	wasabi	merge	s3_compatible_object_storage#variant:wasabi	S3-compatible cloud object storage destination; specific products as variants, like dedup_appliance
+target	ibm_cloud.object_storage	approve		IBM Cloud Object Storage, parent ibm_cloud exists; parallels aws.s3 / azure.blob
+target	ibm_ds8000	approve		IBM DS8000 enterprise array; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	splunk	approve		Splunk clusters are a protected workload (e.g., Commvault); SIEM event-forwarding claims mis-tagged with this target belong to the event-forwarding dimension
+target	windows_server.failover_cluster	merge	windows_server#variant:failover_cluster	Failover clustering is a deployment configuration of Windows Server; a variant
+target	ncino	merge	salesforce	nCino is a managed package on Salesforce (object type managed_package)
+target	portworx	reject		Portworx is a corpus vendor; claims are its own product (Portworx Central monitoring), not a protected workload
+target	removable_storage	merge	disk_storage#variant:removable_media	USB/RDX removable disks are a disk backup destination; variant of disk_storage
+target	salesforce.commerce_cloud	merge	salesforce#variant:commerce_cloud	A Salesforce cloud; belongs as a salesforce variant (as marketing_cloud already is)
+target	ibm_san_volume_controller	approve		IBM SVC / Storage Virtualize; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	infinibox_nas	approve		Genuine NAS system (NFS exports, SMB shares); file.nas fits
+target	microsoft_365.copilot	approve		Genuine Microsoft 365 service (Copilot interactions, agents); parent microsoft_365 exists
+target	prometheus	reject		Monitoring/metrics integration endpoint, not a protected workload
+target	nutanix_files	approve		Genuine NAS file server workload; file.nas fits
+target	dynamics_365.marketing	merge	dynamics_365#variant:marketing	Dynamics 365 Marketing (Customer Insights - Journeys) is a Dynamics app; variant of dynamics_365
+target	storage_array	reject		Generic 'storage arrays' from IT-analytics capacity reporting; not a protected workload or backup destination
+target	google_workspace.chat	approve		Genuine Google Workspace service; parent google_workspace exists
+target	grafana	reject		Monitoring dashboard integration, not a protected workload
+target	oracle_hcm	approve		Genuine SaaS application (Oracle HCM Cloud); saas.other fits
+target	google_workspace.directory	merge	google_cloud_identity	Google Directory is the Cloud Identity directory; same workload as google_cloud_identity
+target	hdfs	approve		Genuine distributed file system workload; class file (no better subclass)
+target	vlocity	merge	salesforce#variant:industry_clouds	Vlocity is Salesforce Industries; belongs under the industry_clouds variant
+target	workday	approve		Genuine SaaS application with dedicated backup products; saas.other fits
+target	azure.government	merge	azure#variant:government	Azure Government is a sovereign-cloud form of Azure; a variant of azure
+target	hashicorp_vault	reject		Key/credential provider integration for encryption and connectors, not a protected workload
+target	salesforce.cpq	merge	salesforce	Salesforce CPQ is a managed package/product on the core Salesforce platform
+target	aws.cloudwatch	reject		Monitoring integration (metrics/alarms), not a protected workload
+target	aws.organizations	merge	aws	Claims are multi-account protection scope of AWS resources; looked up under aws
+target	gcp.cloud_logging	reject		Logging integration, not a protected workload
+target	freebsd	approve		Genuine server operating system; endpoint.server fits
+target	cassandra.k8ssandra	merge	cassandra#variant:k8ssandra	K8ssandra is Cassandra deployed via operator on Kubernetes; a variant of cassandra
+target	azure.foundry	reject		Claims are cost reporting and AI-agent activity monitoring, not protection of a workload
+target	azure.sentinel	reject		SIEM integration endpoint, not a protected workload
+target	microsoft_365.viva_engage	approve		Genuine Microsoft 365 service (Yammer communities); parent microsoft_365 exists
+target	alibaba_cloud.oss	approve		Alibaba Cloud object storage service; parent alibaba_cloud exists, cloud.object fits
+target	aws.iam	reject		Claims are IAM permission setup for the product and policy reports, not protection of a workload
+target	connectwise_psa	reject		PSA billing/ticketing integration, not a protected workload
+target	mautic	reject		Workflow-automation connector operations (create/update contact), not protection of the app
+target	qemu	merge	kvm	QEMU/KVM VMs (QCOW2 images) are looked up under kvm
+target	vast_data	approve		VAST Data storage platform used as backup storage and snapshot source; storage.target fits
+target	ibm_zos	approve		Genuine mainframe operating system; endpoint.server fits
+target	zoom	reject		Claims concern endpoint security of the Zoom client app, not protection of Zoom data
+target	aws.cloudformation	reject		Infrastructure-as-code deployment tooling, not a protected workload
+target	azure.local	merge	microsoft_hyper_v#variant:azure_local	Azure Local (Azure Stack HCI) runs Hyper-V; a variant of microsoft_hyper_v
+target	charmed_kubernetes	approve		Kubernetes distribution, like the existing OpenShift/Rancher/Tanzu targets
+target	datacore_sansymphony	approve		Software-defined SAN with hardware-snapshot integration; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	digitalocean	approve		Public cloud provider; class cloud, needed as parent of digitalocean.kubernetes
+target	gcp.bigtable	approve		Genuine cloud database protected by vendors; parent gcp exists
+target	gcp.kms	reject		Encryption-key provider for BYOK, not a protected workload
+target	huawei_fusioncompute	approve		Genuine hypervisor supported by several vendors
+target	jira.product_discovery	merge	jira#variant:product_discovery	Jira Product Discovery projects run on Jira; a variant of jira
+target	pure_storage	merge	pure_storage_flasharray	Claims (LUNs, volumes, changed-block REST API) are FlashArray
+target	san_lun	merge	disk_storage	SAN LUN attached as backup storage is a disk backup destination
+target	scality_artesca	merge	s3_compatible_object_storage#variant:scality_artesca	S3-compatible object storage product; variant
+target	sftp_server	approve	storage.target	SFTP server used as a backup storage location; a destination, so storage.target
+target	snowflake	approve		Genuine cloud data warehouse workload; cloud.database fits
+target	active_directory.lds	merge	active_directory#variant:ad_lds	AD LDS (formerly ADAM) is a mode of Active Directory; variant
+target	aws.codecommit	approve		Git hosting service like github/gitlab; saas.devops fits, parent aws exists
+target	azure.virtual_desktop	approve		Genuine Azure service (host pools, session hosts); parent azure exists, cloud.compute fits
+target	datadog	reject		Monitoring/SIEM integration endpoint, not a protected workload
+target	aws.glacier	merge	aws.s3#variant:glacier	Same as Amazon S3 Glacier storage classes
+target	gcp.vmware_engine	merge	vmware_vsphere#variant:google_cloud_vmware_engine	vSphere running in Google Cloud; protected as vSphere, so a variant
+target	heroku	reject		Hosting platform for the backup product (GRAX deployment), not a protected workload
+target	hpe_alletra	approve		HPE Alletra array; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	ibm_spectrum_scale	approve		Genuine parallel file system workload; class file
+target	ibm_xiv	approve		IBM XIV array; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	intersystems_cache	merge	intersystems_iris#variant:cache	Cache is the predecessor of InterSystems IRIS; variant
+target	keycloak	reject		OIDC identity provider used for product login, not a protected workload
+target	nec_hydrastor	merge	dedup_appliance#variant:hydrastor	NEC HYDRAstor is a deduplication backup storage appliance
+target	novell_groupwise	approve		Genuine self-managed collaboration server; app.collaboration fits
+target	pure_flashblade	approve	storage.target	File/object platform mainly used as backup storage location; storage.target
+target	salesforce.field_service	merge	salesforce#variant:service_cloud	Field Service is part of Service Cloud
+target	suse_linux_enterprise_server	merge	linux#variant:sles	Linux distribution; variant of linux
+target	verizon_cloud_storage	approve		Cloud storage service used as a backup destination; cloud.object
+target	acsls	merge	tape_library#variant:acsls	ACSLS-managed StorageTek libraries; a tape variant
+target	active_directory.application_mode	merge	active_directory#variant:ad_lds	ADAM is the former name of AD LDS
+target	aws.sns	reject		Notification integration, not a protected workload
+target	aws.cloudtrail	reject		API/event logging integration, not a protected workload
+target	aws.govcloud_us	merge	aws#variant:govcloud_us	AWS GovCloud is a sovereign-cloud form of AWS; a variant of aws
+target	aws.snowball_edge	approve	storage.target	Edge device used as an object storage repository (destination); parent aws exists
+target	aws.storage_gateway	approve	cloud.compute	Protected resource is gateway volumes (block), like EBS in cloud.compute; parent aws exists
+target	azure.expressroute	reject		Network connectivity option for reaching the service, not a protected workload
+target	ceph_rbd	approve		Ceph block storage backed up directly via its API; primary storage system protected/used via snapshot or NDMP integration; storage.target is the closest existing class
+target	cyberark	reject		Credential-vault integration for product passwords, not a protected workload
+target	dell_avamar	approve	storage.target	Used as a backup destination by another vendor; backup.appliance is not the destination class
+target	dell_unity	approve	file.nas	Claims are NAS (NDMP, CIFS/NFS) protection of Unity; file.nas fits
+target	digitalocean.kubernetes	approve		Managed Kubernetes like EKS/AKS/GKE; parent digitalocean approved in this batch
+target	linux.fedora	merge	linux#variant:fedora	Linux distribution; variant of linux
+target	lustre	approve		Genuine parallel file system workload; class file
+target	power_platform.dataverse	approve	saas.crm	Dataverse is a distinct Power Platform data service; class aligned with parent power_platform
+target	microsoft_365.loop	approve		Genuine Microsoft 365 service (Loop workspaces); parent microsoft_365 exists
+target	minio	merge	s3_compatible_object_storage#variant:minio	S3-compatible object storage product; variant
+target	power_platform.power_pages	approve		Distinct Power Platform component with its own backup support; parent power_platform exists
+target	quantum_activescale	merge	s3_compatible_object_storage#variant:quantum_activescale	S3-compatible object storage product; variant
+target	suse_rancher.rke2	merge	suse_rancher#variant:rke2	RKE2 is Rancher's Kubernetes distribution; variant
+target	aws.red_hat_openshift_service	merge	red_hat_openshift#variant:rosa	ROSA is managed OpenShift; variant of red_hat_openshift
+target	linux.rhel	merge	linux#variant:rhel	Linux distribution; variant of linux (alias 'rhel 7.9' is version-specific)
+target	salesforce.nonprofit_cloud	merge	salesforce#variant:industry_clouds	Nonprofit Cloud is an industry cloud
+target	sap_iq	approve		Genuine database, like the existing SAP ASE/MaxDB targets
+target	storwize_family	merge	ibm_san_volume_controller#variant:storwize	Storwize runs the same Storage Virtualize software as SVC
+target	aws.vmware_cloud	merge	vmware_vsphere#variant:vmware_cloud_on_aws	vSphere running on AWS; protected as vSphere, so a variant
+target	vmware_tanzu.kubernetes_grid_integrated_edition	merge	vmware_tanzu#variant:tkgi	TKGI is a Tanzu Kubernetes edition; variant
+target	windows_2000	merge	windows_server	An old Windows version; the version belongs in the claim value
+offering	veeam.data_cloud_for_salesforce	merge	veeam.data_cloud	VDC for Salesforce is Veeam Data Cloud (SaaS) applied to Salesforce; workload is the target, like VDC for M365 under veeam.data_cloud
+offering	druva.insync	merge	druva.data_security_cloud	inSync is the legacy name of Druva's endpoint/SaaS-app protection, now delivered in Data Security Cloud
+offering	ibm.data_protection_domino	reject		Data Protection for HCL Domino: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	veeam.backup_for_google_cloud	approve		Separately named product deployed as its own appliance in Google Cloud (standalone or via the VBR plug-in)
+offering	ibm.copy_data_management	approve		Separately named product deployed as its own appliance
+offering	microsoft.azure_backup_server	approve		Separately named self-managed backup server product
+offering	ibm.hsm_client_windows	reject		HSM for Windows client: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	veeam.securiti_cloud	approve		SaaS deployment form of Securiti; features differ from the Sovereign form
+offering	rubrik.salesforce_data_protection	approve		Separately sold Rubrik-hosted SaaS service; no RSC umbrella offering to merge into
+offering	datto.endpoint_backup	approve		Separately named and sold Datto product
+offering	ibm.data_protection_for_sql_server	reject		Data Protection for SQL Server: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	ibm.data_protection_for_sap	reject		Data Protection for SAP: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	ibm.data_resiliency_service	approve		Separately named SaaS service
+offering	ibm.exchange_server_data_protection	reject		Data Protection for Exchange Server: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	datto.backup_for_microsoft_azure	approve		Separately named and sold Datto product
+offering	avepoint.cloud_backup_microsoft_365	approve		Separately named SaaS backup product
+offering	ibm.storage_defender_sentinel	approve		Separately deployed anomaly-scan software product
+offering	ibm.snapshot	approve		Separately licensed product that can run without a Storage Protect server
+offering	ibm.snapshot_for_exchange_server	merge	ibm.snapshot	Exchange component of IBM Storage Protect Snapshot
+offering	druva.microsoft_365_backup	approve	druva.microsoft_365_backup_express	Separately named offering built on Microsoft 365 Backup Storage (like Veeam Data Cloud Express)
+offering	salesforce.government_cloud	approve		Separate government-cloud deployment form of Own
+offering	dell.desktop_laptop_backup	reject		Avamar Desktop/Laptop is a client component of Avamar, not sold separately
+offering	axcient.file_backup	approve		Separately named Axcient product
+offering	cloudcasa.saas	approve		SaaS deployment form, as opposed to self-hosted CloudCasa
+offering	druva.govcloud	approve		Separate government-cloud deployment form with different feature availability
+offering	rubrik.nas_cloud_direct	approve		Separately named and deployed product
+offering	veeam.agent_for_ibm_aix	merge	veeam.backup_and_replication	Veeam Agents are components licensed and managed under VBR; workload is the ibm_aix target
+offering	axcient.virtual_office	reject		Virtual Office is a DR feature of x360Recover, not a separate product
+offering	datto.backup_for_microsoft_entra_id	approve		Separately sold product (standalone licensing or in Kaseya 365 User)
+offering	microsoft.data_protection_manager	approve		Separately named self-managed backup product
+offering	hornetsecurity_altaro.office_365_backup	merge	hornetsecurity_altaro.microsoft_365_backup	Same Hornetsecurity M365 backup product (365 Total Backup)
+offering	ibm.erp_backup	reject		IBM Storage Protect for ERP: application add-on module of IBM Storage Protect (needs its server); not its own offering. Fold into an IBM Storage Protect offering if one is added
+offering	arctera.system_recovery_manager	reject		Central management console component of Arctera System Recovery
+offering	axcient.appliances	approve	axcient.x360recover_appliance	Hardware appliance form of x360Recover
+offering	dell.avamar_virtual_edition	approve		Virtual-appliance deployment form of Avamar
+offering	avepoint.salesforce_backup	approve	avepoint.cloud_backup_salesforce	Separately named SaaS backup product
+offering	acronis.disaster_recovery	merge	acronis.cyber_protect_cloud#edition	Disaster Recovery is the Advanced Disaster Recovery pack of Cyber Protect Cloud, parallel to advanced_backup
+offering	grax.data_lake	reject		Data Lake is a feature of the GRAX platform, not a separate product
+offering	grax.docker_desktop_backup	reject		Local trial/test deployment method of GRAX, not a sold offering; name is also wrong (does not back up Docker Desktop)
+offering	veeam.app_for_servicenow	reject		Integration app for VBR, not a separately sold product
+offering	veeam.plug_in_for_scale_computing_hypercore	merge	veeam.backup_and_replication	Plug-in installed into VBR; workload is the scale_computing_hypercore target
+offering	commvault.exchange_offline_mining_tool	reject		Tool component of Commvault software
+offering	hornetsecurity_altaro.microsoft_365_backup	approve		Separately named SaaS backup product for Microsoft 365
+offering	gearset.sandbox_seeding	reject		Add-on module of Gearset, not its own product
+offering	veeam.securiti_sovereign	approve		Self-hosted/sovereign deployment form of Securiti; features differ from the SaaS form
+offering	veeam.agent_for_oracle_solaris	merge	veeam.backup_and_replication	Veeam Agents are components licensed and managed under VBR; workload is the oracle_solaris target
+offering	veeam.app_for_palo_alto_networks_xsiam	reject		SIEM integration app, not a separately sold product
+object_type	saas.productivity:channel_file	merge	saas.productivity:file	Teams channel files are files; look up under file for the Teams target
+object_type	saas.productivity:public_folder_mailbox	merge	saas.productivity:public_folder	public folder mailboxes hold public folders; same lookup
+object_type	saas.productivity:site_collection	merge	saas.productivity:site	site collection is a SharePoint site variant; no claims
+object_type	saas.productivity:tab	approve		Teams tabs are a distinct item vendors back up and restore separately
+object_type	saas.productivity:channel_tab	merge	saas.productivity:tab	same item as tab
+object_type	saas.productivity:team_settings	merge	saas.productivity:team	settings are a property of the team, not an item
+object_type	saas.productivity:team_site	merge	saas.productivity:site	a team site is a SharePoint site
+object_type	saas.productivity:wiki_page	merge	saas.productivity:page	Teams wiki pages are pages; narrower wording
+object_type	saas.productivity:managed_metadata	merge	saas.productivity:term_store	managed metadata is the term store
+object_type	saas.productivity:organization	reject		the M365 organization is the workload instance, not an item inside it; full-tenant scope is recovery.full_tenant / protection.discovery_auto_protection
+object_type	saas.productivity:public_mailbox	merge	saas.productivity:public_folder	Veeam 'public mailboxes' are public folder mailboxes
+object_type	saas.productivity:tenant	reject		the tenant is the workload instance/connection, not an item; claims are backup-product RBAC scoping; tenant config is tenant_settings
+object_type	saas.productivity:distribution_group	reject		directory object; claims target Entra ID and are covered by saas.identity:distribution_group; merging into M365 group would mislabel coverage
+object_type	saas.productivity:distribution_list	reject		same as distribution group; covered by saas.identity:distribution_group
+object_type	saas.productivity:external_user	merge	saas.productivity:user_account	external users are user accounts (licence-consumption claims)
+object_type	saas.productivity:guest_user	merge	saas.productivity:user_account	guest users are user accounts
+object_type	saas.productivity:email_attachment	merge	saas.productivity:chat	examples are Google Chat message attachments; part of chat messages
+object_type	saas.productivity:private_channel_site	merge	saas.productivity:site	SharePoint site of a private channel is a site
+object_type	saas.productivity:term_store	approve		distinct SharePoint item some vendors back up and restore separately
+object_type	saas.identity:group_membership	merge	saas.identity:group	membership is a relationship of the group; relationship restore is recovery.relationships
+object_type	saas.identity:disk_encryption_recovery_key	approve		distinct directory item with cross-vendor coverage differences (Rubrik, Acronis)
+object_type	saas.identity:administrator	merge	saas.identity:role	administrators are admin role assignments
+object_type	saas.identity:guest_user	merge	saas.identity:user	guest users are a kind of user
+object_type	saas.identity:identity_provider	approve		distinct config object in Okta, Entra External ID and Auth0
+object_type	saas.identity:mail_enabled_security_group	merge	saas.identity:distribution_group	Exchange-mastered mail-enabled group with the same restore limitation; vendors list them together
+object_type	saas.identity:tenant	reject		the tenant is the identity workload instance, not an item; tenant-wide settings are tenant_config; full-tenant recovery is recovery.full_tenant
+object_type	saas.identity:authorization_server	approve		distinct Okta object vendors back up and recover
+object_type	saas.identity:group_rule	approve		distinct Okta object listed separately by Keepit and Rubrik
+object_type	saas.identity:distribution_list	merge	saas.identity:distribution_group	distribution list is a synonym of distribution group
+object_type	saas.identity:distribution_group	approve		distinct answer across vendors (often not restorable via Graph)
+object_type	saas.identity:event_hook	approve		distinct Okta object with its own recovery behaviour
+object_type	saas.identity:license	merge	saas.identity:user	licence assignments are user attributes/relationships
+object_type	saas.identity:named_location	approve		distinct object listed by several vendors; Okta network zones are the same concept
+object_type	saas.identity:dynamic_group	merge	saas.identity:group	a dynamic group is a group
+object_type	saas.identity:group_owner	merge	saas.identity:group	ownership is a relationship of the group
+object_type	saas.identity:user_attribute	merge	saas.identity:user	attributes are properties of the user; depth is coverage.attribute_depth
+object_type	saas.identity:network_zone	merge	saas.identity:named_location	Okta network zones are the named-location concept
+object_type	saas.identity:authentication_strength	merge	saas.identity:access_policy	conditional access sub-object
+object_type	saas.identity:profile_mapping	merge	saas.identity:application	Okta profile mappings belong to applications
+object_type	saas.identity:account_protection_policy	merge	saas.identity:device_policy	Intune account protection policy is a device policy
+object_type	saas.identity:application_certificate	merge	saas.identity:app_registration	certificates are app registration credentials
+object_type	saas.identity:client_secret	merge	saas.identity:application	client secret is an application credential
+object_type	saas.identity:custom_authentication_extension	merge	saas.identity:tenant_config	niche tenant-level extension configuration
+object_type	saas.identity:local_administrator_password	approve		distinct directory item, separately recoverable (Rubrik)
+object_type	saas.identity:password_policy	merge	saas.identity:tenant_config	password protection settings are tenant configuration
+object_type	saas.identity:terms_of_use	merge	saas.identity:access_policy	conditional access terms of use
+object_type	saas.identity:user_flow	approve		core External ID object listed in backup coverage
+object_type	saas.identity:user_schema	merge	saas.identity:tenant_config	user profile schema is tenant-level directory configuration
+object_type	saas.crm:field	merge	saas.crm:record	a field is a property of records, not an item; field-level restore is recovery.granularity
+object_type	saas.crm:organization	reject		the Salesforce org is the workload instance, not an item inside it
+object_type	saas.crm:flow	approve		primary content of Power Automate (power_platform) and a commonly listed Salesforce item
+object_type	saas.crm:user	approve		users are a distinct CRM item (licensing, restore of user references), as in other SaaS classes
+object_type	saas.crm:big_object	approve		distinct support answer across vendors
+object_type	saas.crm:knowledge_article	approve		excluded by default / special handling; distinct answer
+object_type	saas.crm:profile	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:report	merge	saas.crm:metadata	examples are Salesforce report metadata
+object_type	saas.crm:note	merge	saas.crm:file	ContentNote is stored as a ContentDocument file
+object_type	saas.crm:permission_set	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:validation_rule	merge	saas.crm:metadata	metadata component; automation bypass is recovery.automation_bypass
+object_type	saas.crm:custom_field	merge	saas.crm:metadata	field definitions are metadata; no claims
+object_type	saas.crm:apex_class	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:formula_field	merge	saas.crm:metadata	formula fields are restored via metadata restore
+object_type	saas.crm:mail_merge_template	merge	saas.crm:file	content-type object; restore claims concern file content
+object_type	saas.crm:mobile_application_detail	merge	saas.crm:file	content-type object; restore claims concern file content
+object_type	saas.crm:lead	merge	saas.crm:standard_object	Lead is a standard object
+object_type	saas.crm:record_type	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:dashboard	merge	saas.crm:metadata	examples are Salesforce dashboard metadata
+object_type	saas.crm:page_layout	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:account	merge	saas.crm:standard_object	Account is a standard object
+object_type	saas.crm:apex_code	merge	saas.crm:metadata	Apex code is metadata
+object_type	saas.crm:apex_trigger	merge	saas.crm:metadata	metadata component; automation bypass is recovery.automation_bypass
+object_type	saas.crm:content_folder	merge	saas.crm:file	library folder structure of Salesforce files
+object_type	saas.crm:managed_package_custom_object	merge	saas.crm:custom_object	custom objects from managed packages are custom objects
+object_type	saas.crm:feed_object	approve		system object family with distinct backup/restore support, parallel to field history
+object_type	saas.crm:quote_document	merge	saas.crm:file	QuoteDocument holds document content
+object_type	saas.crm:sandbox	reject		a sandbox org is an environment/workload instance, not an item; seeding is data_use.sandbox_seeding
+object_type	saas.crm:share_record	approve		system object family with distinct restore support
+object_type	saas.crm:email_message	merge	saas.crm:standard_object	EmailMessage is a standard object
+object_type	saas.crm:workflow_rule	merge	saas.crm:metadata	metadata component; automation bypass is recovery.automation_bypass
+object_type	saas.crm:workspace	approve		primary container of Power BI content, backed up by several vendors
+object_type	saas.crm:workflow	merge	saas.crm:flow	cloud flows are flows
+object_type	saas.crm:file_version	approve		parallels file_version in other SaaS classes
+object_type	saas.crm:picklist_field	merge	saas.crm:record	field type is a property of records; encryption is security.field_level_encryption
+object_type	saas.crm:sharing_record	merge	saas.crm:share_record	sObjectShare is the sharing record
+object_type	saas.crm:trigger	merge	saas.crm:metadata	metadata component; automation bypass is recovery.automation_bypass
+object_type	saas.crm:unlocked_package	merge	saas.crm:managed_package	a package type
+object_type	saas.crm:agent_script	merge	saas.crm:metadata	Agentforce metadata component
+object_type	saas.crm:apex_page	merge	saas.crm:metadata	Visualforce page info is metadata
+object_type	saas.crm:campaign	merge	saas.crm:standard_object	Campaign is a standard object
+object_type	saas.crm:chatter_message	merge	saas.crm:feed_object	Chatter content
+object_type	saas.crm:connected_app	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.crm:workspace_document	merge	saas.crm:file	library-file link object
+object_type	saas.crm:custom_object_metadata	merge	saas.crm:metadata	phrasing variant of metadata
+object_type	saas.crm:embedded_report	reject		claims concern AvePoint's own Power BI reporting modules, not a workload item
+object_type	saas.crm:event_log	merge	saas.crm:audit_trail	event log files are audit data
+object_type	saas.crm:external_object	merge	saas.crm:custom_object	external objects (__x) are a custom-object kind; low volume
+object_type	saas.crm:login_history	merge	saas.crm:audit_trail	login history is audit data
+object_type	saas.crm:organization_wide_email_address	merge	saas.crm:standard_object	OrgWideEmailAddress is a standard object
+object_type	saas.crm:record_page	reject		Lightning record pages where vendor UI components are placed; claims are vendor UI, not workload items
+object_type	saas.crm:table	merge	saas.crm:standard_object	CRM 'tables' are objects (Dataverse tables, Own's table wording)
+object_type	saas.crm:visualforce_page	merge	saas.crm:metadata	Salesforce metadata component
+object_type	saas.devops:organization	approve		real container item vendors let you select and protect
+object_type	saas.devops:user	approve		distinct item (membership, licensing), as in other SaaS classes
+object_type	saas.devops:board	merge	saas.devops:issue	Azure DevOps boards are work-item tracking
+object_type	saas.work_management:issue_permission	merge	saas.work_management:configuration	permission scheme configuration
+object_type	saas.work_management:automation	merge	saas.work_management:configuration	business-rule configuration
+object_type	saas.work_management:macro	merge	saas.work_management:configuration	business-rule configuration
+object_type	saas.work_management:organization	approve		real item in ITSM/work tools
+object_type	saas.work_management:sla	merge	saas.work_management:configuration	SLA policies are configuration
+object_type	saas.other:contact	merge	saas.other:record	contact records in other SaaS apps are records
+object_type	saas.other:policy	reject		controller: microsoft_intune approved as saas.identity, whose device_policy object type already covers Intune policies
+object_type	saas.other:company	reject		claims are Slide's ConnectWise PSA integration (company-to-client mapping), not a protected workload item
+object_type	cloud:virtual_machine	reject		duplicates cloud.compute:instance (not mergeable across classes); no claims
+object_type	cloud:subscription	approve		cross-vendor protection scope item
+object_type	cloud:resource_group	approve		selected and recovered as a unit by several vendors
+object_type	cloud:tenant	reject		the tenant is the onboarded workload instance; claims are backup-product RBAC scoping
+object_type	cloud:rbac_role	approve		real cloud configuration item with coverage differences
+object_type	cloud:sql_instance	reject		duplicates cloud.database:instance (Cloud SQL target exists); not mergeable across classes
+object_type	cloud:compute_account	reject		backup-product connection to an Azure account, not a workload item
+object_type	cloud:compute_instance	reject		duplicates cloud.compute:instance; no claims
+object_type	cloud:cloud_disk	reject		duplicates cloud.compute:volume; claims are Portworx provisioning its own storage disks
+object_type	cloud:cloud_vm_instance	reject		duplicates cloud.compute:instance (Compute Engine target exists)
+object_type	cloud.compute:disk	merge	cloud.compute:volume	VM/persistent disks are volumes
+object_type	cloud.compute:network_interface	merge	cloud.compute:instance	NICs are restored as part of the instance; network config has its own class
+object_type	cloud.database:database_account	merge	cloud.database:instance	Cosmos DB account is the instance-level unit
+object_type	cloud.database:serverless_namespace	merge	cloud.database:cluster	Redshift Serverless namespace is the serverless counterpart of a cluster
+object_type	cloud.database:database_instance_snapshot	merge	cloud.database:instance	a snapshot is a backup method; the object is the instance
+object_type	cloud.database:dataset	merge	cloud.database:database	BigQuery dataset is the database-level container
+object_type	cloud.database:index	merge	cloud.database:table	indexes are part of the table
+object_type	cloud.file:file_share	merge	cloud.file:file_system	a file share is the file-system unit (Azure Files); no claims
+object_type	virtualization.hypervisor:vapp	approve		distinct protected and recovered item
+object_type	virtualization.hypervisor:cluster	approve		real inventory item used for protection and restore
+object_type	virtualization.hypervisor:raw_device_mapping_disk	approve		classic distinct support question
+object_type	virtualization.hypervisor:container	approve		protected separately from VMs by several vendors
+object_type	virtualization.hypervisor:host	approve		real inventory item
+object_type	virtualization.hypervisor:virtual_datacenter	approve		real tenancy/inventory container used for protection
+object_type	virtualization.hypervisor:raw_device_mapping	merge	virtualization.hypervisor:raw_device_mapping_disk	same item
+object_type	kubernetes:etcd	approve		distinct item with differing vendor support
+object_type	kubernetes:persistent_volume_claim	merge	kubernetes:persistent_volume	PVC is the claim on the persistent volume; no claims
+object_type	kubernetes:namespace_resource	merge	kubernetes:namespace	namespace-scoped resources belong to the namespace
+object_type	kubernetes:stateful_set	merge	kubernetes:application	workload resource of an application
+object_type	kubernetes:volume_snapshot	merge	kubernetes:persistent_volume	CSI snapshots are the PV protection mechanism; object is the PV
+object_type	kubernetes:custom_resource_definition	merge	kubernetes:cluster_resource	CRDs are captured as cluster-scoped resources
+object_type	kubernetes:deployment	merge	kubernetes:application	workload resource of an application
+object_type	kubernetes:role	merge	kubernetes:cluster_resource	RBAC roles/ClusterRoles captured with cluster-scoped resources
+object_type	kubernetes:security_context_constraints	reject		claims concern the backup product's own SCC hardening, not protected items
+object_type	kubernetes:storage_class	merge	kubernetes:cluster_resource	StorageClasses are cluster-scoped resources
+object_type	app.database:tablespace	approve		classic restore granularity
+object_type	app.database:datafile	merge	app.database:tablespace	datafiles belong to tablespaces; vendors pair them
+object_type	app.database:control_file	approve		distinct Oracle backup item
+object_type	app.collaboration:collaboration_database	merge	app.collaboration:database	Exchange/Domino databases are the database type
+object_type	app.collaboration:database_availability_group	approve		distinct support answer (DAG-aware backup)
+object_type	app.collaboration:transaction_log	approve		real item in this class; app.database:transaction_log is a sibling, not an ancestor
+object_type	app.collaboration:notes_database	merge	app.collaboration:database	Domino NSF databases are the database type
+object_type	app.collaboration:document_library	approve		parallels library in saas.productivity
+object_type	app.collaboration:information_store	merge	app.collaboration:database	the Information Store is the set of Exchange databases
+object_type	app.collaboration:recoverable_items_folder	merge	app.collaboration:mailbox	a mailbox folder
+object_type	app.collaboration:task	approve		missing item type; email, calendar and contact already exist
+object_type	app.directory:domain_controller	approve		distinct protected item
+object_type	app.directory:deleted_object	reject		a deletion state, not an item kind; restore of tombstoned objects is recovery.recycle_bin
+object_type	file.nas:snapshot	merge	file.nas:volume	storage snapshots are a protection mechanism; the object is the volume
+object_type	file.nas:qtree	merge	file.nas:volume	a qtree is a subdivision of a volume
+object_type	file.nas:storage_virtual_machine	approve		real NAS inventory container
+object_type	endpoint.server:cluster_storage	approve		distinct support answer (CSV-aware backup)
+object_type	endpoint.server:share	approve		distinct item for agent-based server backup; file.nas:share is a sibling class
+object_type	endpoint.server:system_volume	merge	endpoint:volume	system volume is a volume
+object_type	storage.target:volume	reject		examples are protected EBS volumes and NAS file systems, which have homes; ambiguous for a backup destination
+object_type	storage.target:tape_cartridge	approve		real item of tape destinations
+object_type	storage.target:lun	reject		claims are storage-array monitoring reports, not backup destinations (san_lun is a proposed target)
+alias on dimension	coverage.export	remove alias: export list of backed-up roles		exports an inventory list, not the backed-up objects
+alias on dimension	coverage.export	remove alias: export of configuration information		ambiguous: may be the backup product's own configuration export
+alias on dimension	protection.snapshot_replication	remove alias: snapshots using remote mirroring target volumes	protection.storage_array_integration	array snapshots of mirror targets, not copying snapshots
+alias on dimension	protection.backup_copy	remove alias: backup job duplication		ambiguous: often means cloning a job's configuration
+alias on dimension	protection.replication	remove alias: cluster replication		usually copying backups between backup clusters or DB cluster replication, not a workload replica
+alias on dimension	protection.storage_array_integration	remove alias: storage array disaster recovery integration		array replication for DR, not snapshot integration
+alias on dimension	protection.storage_array_integration	remove alias: storage device integration		too generic; often backup storage devices
+alias on dimension	protection.discovery_auto_protection	remove alias: discovery and protection of mount points not listed in fstab		agent volume-coverage behaviour, not auto-protection of new objects
+alias on dimension	protection.cross_account_backup	remove alias: add storage vaults in another region	storage.region_choice	choosing storage vault region
+alias on dimension	storage.bring_your_own_storage	remove alias: object storage bucket connection		ambiguous: repository setup on self-managed products, not customer-owned storage
+alias on dimension	storage.region_choice	remove alias: supported regions		too generic; often regions where workloads can be protected
+alias on dimension	storage.region_choice	remove alias: azure region selection		ambiguous: may be deployment or restore region, not backup storage
+alias on dimension	storage.tiers	remove alias: storage class selection		ambiguous with Kubernetes StorageClass
+alias on dimension	storage.tiers	remove alias: storage class support		ambiguous with Kubernetes StorageClass
+alias on dimension	storage.repository_types	remove alias: supported storage account kinds		ambiguous: often source Azure storage account kinds (workload variants)
+alias on dimension	recovery.in_place	remove alias: restore to primary replica		availability-group restore constraint, not restore to original location
+alias on dimension	recovery.alternate_location	remove alias: restore to azure from backups	recovery.cross_platform	restore to a cloud platform
+alias on dimension	recovery.alternate_location	remove alias: restore to microsoft azure	recovery.cross_platform	restore to a cloud platform
+alias on dimension	recovery.full_tenant	remove alias: full restore		too generic (full VM/database restore)
+alias on dimension	recovery.cross_platform	remove alias: restore to off-site hypervisor	recovery.alternate_location	another site, not necessarily another platform
+alias on dimension	recovery.point_in_time	remove alias: point-in-time copy restore		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time file restore from selected restore point		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time file system restore		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time granular recovery		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time restore from snapshot		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time restore from snapshots		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time restore to earlier restore point		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time restore with per-object restore point selection		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.point_in_time	remove alias: point-in-time vm restore		restore from a backup point/snapshot, not an arbitrary moment
+alias on dimension	recovery.automation_bypass	remove alias: disable automations during seeding	data_use.sandbox_seeding	seeding, not restore
+alias on dimension	recovery.comparison_tooling	remove alias: compare snapshot with live environment	coverage.compare	whether comparison with production exists, not how tooling works
+alias on dimension	recovery.comparison_tooling	remove alias: snapshot comparison with live environment	coverage.compare	whether comparison with production exists, not how tooling works
+alias on dimension	recovery.comparison_tooling	remove alias: record version comparison	coverage.compare	comparison between restore points
+alias on dimension	recovery.search_filters	remove alias: filter resources by name or protection status		console inventory filter, not searching backups
+alias on dimension	recovery.file_indexing	remove alias: file system browsing	recovery.preview	browsing backups, not indexing
+alias on dimension	recovery.file_indexing	remove alias: indexing		too generic (mail, database, search indexes)
+alias on dimension	recovery.failover	remove alias: automated switchover		ambiguous: often instant-recovery or DB switchover, not replica failover
+alias on dimension	recovery.failover	remove alias: failover managed by external applications		application cluster failover, not the product's failover
+alias on dimension	recovery.network_settings	remove alias: ip address change for nodes		changing backup cluster node IPs, not restore
+alias on dimension	recovery.network_settings	remove alias: move ip redirection		unclear meaning; not clearly restore network identity
+alias on dimension	security.encryption_in_transit	remove alias: ssl secure connection to smtp server		notification mail transport, not data movement between components
+alias on dimension	security.field_level_encryption	remove alias: mapping of encrypted fields		handling source-platform encrypted fields, not product field encryption
+alias on dimension	security.field_level_encryption	remove alias: overriding and mapping encrypted text fields		handling source-platform encrypted fields, not product field encryption
+alias on dimension	security.rbac	remove alias: iam role-based access		usually cloud IAM role access for the product, not product RBAC
+alias on dimension	security.mfa	remove alias: modern authentication with one-time authentication code		device-code workload connection auth, not console MFA
+alias on dimension	security.sso	remove alias: external identity verification		vague; not clearly SSO
+alias on dimension	security.audit_logging	remove alias: audit and sign-in log backup	coverage.backup	backup of the workload's logs, not product audit logging
+alias on dimension	security.audit_logging	remove alias: download audit logs and sign-in logs		likely workload (Entra) logs export, not product audit logging
+alias on dimension	cyber.recoverability_testing	remove alias: crosscheck backups before disaster recovery		RMAN catalog crosscheck, not recoverability testing
+alias on dimension	cyber.recoverability_testing	remove alias: crosscheck backups before restore		RMAN catalog crosscheck, not recoverability testing
+alias on dimension	operations.multi_tenant_management	remove alias: central agent administration		central agent management, not multi-tenant management
+alias on dimension	governance.archiving	remove alias: archival		ambiguous with archiving backups to cold storage
+alias on dimension	governance.archiving	remove alias: archival policies		ambiguous with archiving backups to cold storage
+alias on dimension	governance.archiving	remove alias: data archival		ambiguous with archiving backups to cold storage
+alias on dimension	governance.archiving	remove alias: policy-based data archival		ambiguous with archiving backups to cold storage
+alias on dimension	governance.legal_hold	remove alias: retention hold		Exchange retention hold / generic retention suspension, not legal hold
+alias on dimension	governance.backup_item_deletion	remove alias: manual backup removal		deleting whole backups, not specific items
+alias on dimension	governance.backup_item_deletion	remove alias: manual snapshot deletion		deleting whole snapshots, not specific items
+alias on dimension	vendor.license_metric	remove alias: server license		too generic; often the license file of the server
+alias on dimension	vendor.unlicensed_objects	remove alias: no license required		too generic; often features or tools, not objects
+alias on dimension	vendor.unlicensed_objects	remove alias: no license consumption		too generic; often jobs, replicas or copies, not objects
+alias on target	microsoft_365.exchange_online	remove alias: hosted exchange	microsoft_exchange_server	MSP-hosted Exchange Server, not Exchange Online
+alias on target	citrix_xenserver	remove alias: xen		too generic (XCP-ng, Oracle VM, AWS)
+alias on target	active_directory	remove alias: active directory / ldap		combined with generic LDAP; usually an authentication source, not the workload
+alias on target	active_directory	remove alias: active directory/ldap		combined with generic LDAP; usually an authentication source, not the workload
+alias on target	active_directory	remove alias: ldap active directory		combined with generic LDAP; usually an authentication source, not the workload
+alias on target	linux	remove alias: linux and unix servers		combined with Unix targets (AIX, Solaris, HP-UX)
+alias on object_type	saas.productivity:notebook	remove alias: notes		too generic (Outlook notes, CRM notes)
+alias on object_type	saas.productivity:group	remove alias: entra id groups	saas.identity:group	identity groups
+alias on object_type	saas.productivity:group	remove alias: mail-enabled security groups	saas.identity:mail_enabled_security_group	existing identity object type
+alias on object_type	saas.identity:user	remove alias: display name		an attribute, not an object type
+alias on object_type	saas.identity:user	remove alias: entra id objects		all directory objects, broader than users
+alias on object_type	saas.identity:user	remove alias: on-premises user objects	app.directory:user	on-premises directory users
+alias on object_type	saas.identity:user	remove alias: user types		a property, not an object type
+alias on object_type	saas.identity:role	remove alias: role settings		a setting, not an object type
+alias on object_type	saas.crm:audit_trail	remove alias: audit logs		broader than setup audit trail (record audit, event logs)
+alias on object_type	cloud.database:instance	remove alias: sql server		engine name; collides with the SQL Server target/variant
+alias on object_type	cloud.object:bucket	remove alias: s3 standard	storage.tiers	a storage class, not a bucket
+alias on object_type	cloud.object:object	remove alias: archive		too generic
+edition	veeam.data_platform:foundation_core_azure	merge	veeam.data_cloud_vault:foundation (aliases)	Vault regional tier misplaced under VDP (controller)
+edition	rubrik.cloud_vault:enterprise / enterprise_proactive	move	rubrik.security_cloud_editions	Rubrik Security Cloud subscription editions, not Cloud Vault (controller)

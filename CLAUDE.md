@@ -72,11 +72,13 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   - targets (class instances with `object_aliases` and `variants`);
   - offerings with editions.
 
-  New entries from `taxonomy propose` carry `proposed: true` until reviewed.
+  New entries from `taxonomy propose` carry `proposed: true` until reviewed. v1 of the
+  reviewed taxonomy, with its decision log, is in `taxonomy/review-2026-11-06.tsv`.
   `taxonomy load|propose|map|aspects`; `aspects(target|class)` lists what applies to a workload.
 - **mapper:** exact alias first, otherwise a Haiku adjudication over the nearest candidates
   (`map_model`, `map_candidates`) with one fixed reply schema. Nearest neighbour alone never
-  maps. Dimension precision is 0.85 (alias 0.98, LLM 0.79).
+  maps. On the reviewed taxonomy, dimension precision is 0.88 (alias 0.96, LLM 0.84)
+  and target precision 0.98.
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
   product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
   facts never appear as target facts.
@@ -84,7 +86,8 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   features/targets/aliases/capabilities tables, so never run it against production before
   merge and deploy. Extraction scripts that write to production must skip `init_schema`.
 - **Evals:** `eval/findability.py coverage|claims|chunks-candidates|chunks-score`, run against a
-  local, never-committed map of the internal comparison tables (415/423 rows findable).
+  local, never-committed map of the internal comparison tables (418/423 rows findable on
+  the reviewed taxonomy).
   `eval/teacher_sample.py` draws the stratified teacher set.
 
 **Not built yet:**
