@@ -4,7 +4,8 @@ import pytest
 import yaml
 
 from eval import agent_eval
-from eval.agent_eval import check_call, gate, load_questions, score_answer, score_run
+from eval.agent_eval import (check_call, gate, load_questions, parse_reply, score_answer,
+                             score_run)
 
 QUESTIONS = [
     {"id": "xv-1", "type": "cross_vendor", "question": "Which vendors  back up\nwidgets?",
@@ -109,3 +110,18 @@ def test_prepare_then_score_round_trip(qfile, tmp_path, capsys):
     assert agent_eval.main(["score", str(run), "--questions", str(qfile),
                             "--baseline", str(baseline)]) == 2
     assert "FAIL mean recall" in capsys.readouterr().out
+
+
+def test_parse_reply_reads_sse_and_reports_unusable_replies():
+    ok = {"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "hi"}]}}
+    assert parse_reply(200, "event: message\ndata: " + json.dumps(ok) + "\n") == (0, "hi")
+    assert parse_reply(200, json.dumps(ok)) == (0, "hi")
+    err = {"jsonrpc": "2.0", "id": 1, "result": {"isError": True,
+                                                 "content": [{"type": "text", "text": "bad"}]}}
+    assert parse_reply(200, json.dumps(err)) == (0, "TOOL ERROR: bad")
+    code, text = parse_reply(200, json.dumps({"jsonrpc": "2.0", "id": 1, "error": {"code": 1}}))
+    assert code == 1 and text.startswith("error:")
+    # a restarting pod: an empty or non-JSON reply says so instead of a traceback
+    code, text = parse_reply(502, "")
+    assert code == 1 and "HTTP 502" in text and "try the call again" in text
+    assert parse_reply(200, "<html>oops</html>")[0] == 1

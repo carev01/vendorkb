@@ -168,8 +168,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     `map_model` on the 300 labelled claims (*the user prefers not to, 2026-11-08*), add the
     evidence quote to the prompt, or pre-filter candidates by family. The adjudicated labels from two graders are in the session scratchpad
     (`mapgrade2/`).
-21. **Offering recall is 0.59.** Offering-name variants such as "Veeam Data Cloud for Azure" are
-    not aliased. Add aliases, or adjudicate offerings like dimensions.
+21. **Done 2026-11-08:** curated the 936 unmapped offering texts with 5+ claims (125 new
+    offerings, 270 aliases; blind review 425/431, precision 80/80). Claims naming an offering that
+    resolve: 39% -> 70%; offering-scoped capability rows 12,154 -> 21,909. Left: 15,173 claims,
+    mostly texts judged not an offering and the long tail under 5 claims. (Was: recall 0.59.)
 22. **Done 2026-11-07: production rollout of v2.** The order matters, because the branch's `init_schema` drops
     the v1 tables:
     1. Take a database backup first. The upgrade is one-way: the old image's schema fails on a

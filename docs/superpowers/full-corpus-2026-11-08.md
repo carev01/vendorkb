@@ -466,3 +466,28 @@ only when nothing ranks higher. "rman" now returns only `protection.native_datab
 | Backup before | `~/backups/vendorkb-prod-2026-11-08f.dump` |
 | Voyage | the new search keys only (the embedding cache served the rest) |
 | Grading | Claude subagents (4 graders) |
+
+## Offerings (2026-11-08, late; BACKLOG 21)
+
+Taxonomy `2-c9fd3d55` (200 offerings, was 75).
+
+| | before | now |
+|---|---|---|
+| claims naming an offering that resolve to one | 19,746 of 51,137 (39%) | **35,838 (70%)** |
+| capability rows scoped to an offering | 12,154 | **21,909** (31 vendors) |
+| comparison-table rows with a fact | 423 / 423 | 423 / 423 |
+
+- **Curation:** Opus curators decided the 936 unmapped (vendor, offering text) strings with 5 or
+  more claims, 91% of the unmapped claims: 301 aliases, 129 new offerings, 1 edition and 505 not an
+  offering (consoles, proxies, plug-ins of a larger product, features, deployment modes such as
+  "self-hosted", generic phrases). Existing conventions held: Veeam's agents alias to Veeam Backup &
+  Replication, as the AIX and Solaris agents already did.
+- **Blind review:** Fable accepted 425 of the 431 proposals. The 6 rejected (for example Rubrik
+  "data security posture", a capability; Portworx CSI for FlashArray, a free licence of
+  PX-Enterprise) were left out, with the aliases to them.
+- **Precision:** a blind grade of 80 claims mapped through the new aliases and offerings (claim
+  weighted, 32 offerings) found 80 right.
+- **Cost:** offerings resolve by exact alias within the vendor, so the re-map asked nothing.
+- **Left:** 15,173 claims, mostly texts judged not an offering and strings with fewer than 5
+  claims.
+
