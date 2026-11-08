@@ -4,6 +4,8 @@ Only claims of the claims-v3 prompt family (``prompt_version LIKE 'claims-v3%'``
 written; every other row keeps its values. By default only the claims not yet mapped under the
 current taxonomy version are read (``mapped_version`` NULL or another version): a claim mapped
 once keeps that mapping until the taxonomy changes, and ``remap`` maps every claim again.
+``vendor`` limits a run to one vendor's claims: each run commits on its own, so a large backlog
+mapped vendor by vendor loses at most one vendor's paid adjudications to a failure.
 Strings are compared normalized (``cluster.normalize``), each distinct one resolved once:
 
 1. **Target** (``target_raw``): an exact target alias (scope ``''``) is ``alias``. Otherwise the
@@ -216,13 +218,16 @@ def _norm(text: str | None) -> str | None:
     return (normalize(text) or None) if text is not None else None
 
 
-async def _claims(conn: psycopg.AsyncConnection, unmapped_at: str | None) -> list[_Claim]:
-    """The v3 claims; with ``unmapped_at``, only those not stamped with that version."""
-    pending = " AND mapped_version IS DISTINCT FROM %s" if unmapped_at is not None else ""
+async def _claims(conn: psycopg.AsyncConnection, unmapped_at: str | None,
+                  vendor: str | None = None) -> list[_Claim]:
+    """The v3 claims; with ``unmapped_at``, only those not stamped with that version; with
+    ``vendor``, only that vendor's."""
     cur = await conn.execute(
         "SELECT claim_id, vendor, capability_raw, target_raw, target_scope, offering, edition,"
-        f" evidence_quote FROM raw_claims WHERE prompt_version LIKE %s{pending} ORDER BY claim_id",
-        (PROMPT_FAMILY, *(() if unmapped_at is None else (unmapped_at,))))
+        " evidence_quote FROM raw_claims WHERE prompt_version LIKE %(family)s"
+        " AND (%(version)s::text IS NULL OR mapped_version IS DISTINCT FROM %(version)s)"
+        " AND (%(vendor)s::text IS NULL OR vendor = %(vendor)s) ORDER BY claim_id",
+        {"family": PROMPT_FAMILY, "version": unmapped_at, "vendor": vendor})
     return [_Claim(cid, vendor, cap, tgt, scope, " ".join((quote or "").split())[:QUOTE_CHARS],
                    _norm(cap), _norm(tgt), _norm(scope), _norm(off), _norm(ed))
             for cid, vendor, cap, tgt, scope, off, ed, quote in await cur.fetchall()]
@@ -551,8 +556,8 @@ def _count(report: MapReport, prefix: str, method: str | None) -> None:
 
 
 async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
-                     settings: VendorkbSettings, max_usd: float,
-                     remap: bool = False) -> MapReport:
+                     settings: VendorkbSettings, max_usd: float, remap: bool = False,
+                     vendor: str | None = None) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
@@ -561,12 +566,13 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     # Built before any paid work: it refuses a model with no known price.
     adjudicator = _Adjudicator(tax, client, settings, max_usd, report)
     k = max(1, settings.map_candidates)
-    claims = await _claims(conn, None if remap else version)
+    claims = await _claims(conn, None if remap else version, vendor)
     report.claims = len(claims)
     if not remap:
         cur = await conn.execute(
             "SELECT count(*) FROM raw_claims WHERE prompt_version LIKE %s"
-            " AND mapped_version = %s", (PROMPT_FAMILY, version))
+            " AND mapped_version = %s AND (%s::text IS NULL OR vendor = %s)",
+            (PROMPT_FAMILY, version, vendor, vendor))
         report.claims_already_mapped = (await cur.fetchone())[0]  # type: ignore[index]
 
     target_keys = _Keys(tax.aliases.get(("target", ""), {}))

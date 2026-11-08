@@ -304,7 +304,7 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 async with Embedder(settings) as embedder:
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
                                                      settings=settings, max_usd=args.max_usd,
-                                                     remap=args.remap)
+                                                     remap=args.remap, vendor=args.vendor)
             finally:
                 close = getattr(client, "close", None)
                 if close is not None:
@@ -452,6 +452,8 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--all", dest="remap", action="store_true",
                    help="map every v3 claim again, including those already mapped under the"
                         " current taxonomy version")
+    t.add_argument("--vendor", default=None,
+                   help="only this vendor's claims (raw vendor text); each run commits on its own")
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
