@@ -3,8 +3,8 @@
 The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``targets`` and
 ``offerings`` (which may be omitted), and no others:
 
-- **dimension** ``{id, name, definition, aliases, [lookup_aliases], applies_to, [value_unit],
-  [platform]}``: one vendor-neutral comparable aspect. ``id`` is ``<family>.<snake>`` with the family one of
+- **dimension** ``{id, name, definition, aliases, [lookup_aliases], [lookup_only], applies_to,
+  [value_unit], [platform]}``: one vendor-neutral comparable aspect. ``id`` is ``<family>.<snake>`` with the family one of
   ``FAMILIES``; ``applies_to`` is ``all`` or a list of class ids (an entry matches its class and
   every class beneath it); ``platform: true`` marks an aspect of the backup product itself.
   The ``REQUIRED_DIMENSIONS`` must be present.
@@ -21,7 +21,9 @@ The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``t
 
 ``aliases`` may be omitted (none). ``lookup_aliases`` (dimensions and targets) are matched like
 aliases but are never candidate-search keys of the mapper (``aliases.search`` false): adding one
-leaves every other phrase's candidates, and so its stored decision, as it was. Dimensions, targets, offerings, object types, variants and
+leaves every other phrase's candidates, and so its stored decision, as it was. A
+``lookup_only: true`` dimension is never a candidate: its name and aliases are lookup keys too,
+for an aspect the mapper's model cannot file reliably from free wording. Dimensions, targets, offerings, object types, variants and
 editions may carry ``proposed: true``, the review marker ``taxonomy propose`` puts on the
 entries it adds; it changes nothing else. Unknown keys are refused, so a misspelt key is not silently
 ignored. ``validate`` collects every problem before raising ``TaxonomyError``, and nothing is
@@ -91,6 +93,7 @@ class Dimension:
     value_unit: str | None
     platform: bool
     lookup_aliases: tuple[str, ...] = ()  # exact lookup only: never a candidate-search key
+    lookup_only: bool = False  # its name and aliases too: never a candidate at all
 
 
 @dataclass(frozen=True)
@@ -168,10 +171,13 @@ class Taxonomy:
         return list(dict.fromkeys(rows))
 
     def lookup_only(self) -> set[tuple[str, str, str]]:
-        """The (alias, entity_type, scope) of every ``lookup_aliases`` entry: matched exactly
-        like any alias, but never a candidate-search key, so adding one does not change the
-        candidates (and the stored decisions) of any other phrase."""
+        """The (alias, entity_type, scope) of every ``lookup_aliases`` entry, and of every name
+        and alias of a ``lookup_only`` dimension: matched exactly like any alias, but never a
+        candidate-search key, so adding one does not change the candidates (and the stored
+        decisions) of any other phrase."""
         return ({(a, "dimension", "") for d in self.dimensions for a in d.lookup_aliases}
+                | {(a, "dimension", "") for d in self.dimensions if d.lookup_only
+                   for a in (normalize(d.name), *d.aliases)}
                 | {(a, "target", "") for t in self.targets for a in t.lookup_aliases})
 
 
@@ -339,7 +345,8 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
     seen: set[str] = set()
     for where, item in ck.entries("dimensions", raw):
         ck.keys(where, item, ("id", "name", "definition", "applies_to"),
-                ("aliases", "lookup_aliases", "value_unit", "platform", "proposed"))
+                ("aliases", "lookup_aliases", "lookup_only", "value_unit", "platform",
+                 "proposed"))
         did = ck.ident(where, item, PAIR_RE, "dimension", seen)
         label = f"{where} ({did})" if did else where
         family = did.partition(".")[0] if did else None
@@ -358,11 +365,12 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
             applies = None
         value_unit = ck.text(label, item, "value_unit", required=False)
         platform = ck.flag(label, item, "platform")
+        lookup_only = ck.flag(label, item, "lookup_only")
         ck.flag(label, item, "proposed")
         if did is not None and family in FAMILIES and name and definition:
             applies_to = None if applies in (None, "all") else tuple(dict.fromkeys(applies))
             out.append((Dimension(did, family, name, definition, aliases, applies_to,
-                                  value_unit, platform, lookup), label))
+                                  value_unit, platform, lookup, lookup_only), label))
     return out
 
 

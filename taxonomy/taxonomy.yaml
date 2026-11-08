@@ -1877,13 +1877,19 @@ dimensions:
   applies_to: all
 - id: protection.direct_to_cloud
   name: Direct-to-cloud backup
-  definition: Backing up from the protected machine or service straight to cloud storage, without 
-    a local backup server, appliance or repository in between, and whether a local cache is kept 
-    alongside for faster backups and restores.
-  aliases: [direct-to-cloud backup, direct to cloud backup, backup directly to the cloud]
-  lookup_aliases: [local cache for direct-to-cloud, local cache for 
-      direct-to-cloud backups, direct-to-cloud backup without local cache]
-  applies_to: all
+  definition: Backing up a machine or application straight from the protected host or its agent 
+    to cloud or object storage, and restoring directly from there, without a local backup server, 
+    appliance, gateway or repository in between, and whether a local cache is kept alongside for 
+    faster backups and restores.
+  # Lookup only: vendors use "direct" for different data paths, and blind checks of the model's
+  # picks found 6 of 10, then 7 of 15, right; the curated phrasings were 10 of 10.
+  lookup_only: true
+  aliases: [direct-to-cloud backup, direct to cloud backup, direct backup to cloud]
+  lookup_aliases: [local cache for direct-to-cloud, local cache for direct-to-cloud backups, 
+      direct-to-cloud backup without local cache, direct-to-cloud backup without local appliance,
+    direct cloud backup, direct cloud restore, direct-to-cloud recovery, client direct backup to 
+      cloud, direct backup to cloud storage library]
+  applies_to: [endpoint, virtualization, app, file, kubernetes]
 - id: protection.replica_backup_source
   name: Backup from database replicas
   definition: Whether backups of a replicated database or application, such as a SQL Server 
