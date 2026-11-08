@@ -685,6 +685,57 @@ async def _ids(conn):
     return [r[0] for r in await cur.fetchall()]
 
 
+async def test_inflected_phrases_hit_the_alias_without_a_call(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        plural = await _claim(conn, "Longest retentions", "Okta")
+        verb = await _claim(conn, "skipping automations during restores", "Okta")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        assert client.calls == [] and report.dimension_alias == 2
+        assert (await _mapping(conn, plural))["dimension_id"] == "retention.maximum_period"
+        assert (await _mapping(conn, verb))["dimension_id"] == "recovery.automation_bypass"
+        assert mapper.fold_inflections("malware scanning") == mapper.fold_inflections(
+            "malware scan")
+    finally:
+        await conn.close()
+
+
+async def test_a_variant_named_as_the_target_maps_to_its_target(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "longest retention", "FSx for Windows File Server")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        m = await _mapping(conn, cid)
+        assert client.calls == [] and report.variant_target == 1
+        assert (m["target_id"], m["variant_id"], m["target_method"]) == (
+            "aws.fsx", "windows", "alias")
+    finally:
+        await conn.close()
+
+
+async def test_the_product_named_as_the_target_is_no_target(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        # every test document's product is "P": a claim naming it as its target is about the
+        # product itself, not a workload; its scope may still name the target
+        cid = await _claim(conn, "longest retention", "P", target_scope="Okta")
+        offered = await _claim(conn, "longest retention", offering="P")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        m = await _mapping(conn, cid)
+        assert client.calls == [] and report.target_product == 1
+        assert (m["target_id"], m["target_method"]) == ("okta", "alias")  # from the scope
+        assert (report.offering_product, report.offering_unmapped) == (1, 0)
+        assert (await _mapping(conn, offered))["offering_id"] is None
+    finally:
+        await conn.close()
+
+
 async def test_keys_embedded_once_as_float32(vkb_dsn, tmp_path, monkeypatch):
     conn = await connect(vkb_dsn)
     try:

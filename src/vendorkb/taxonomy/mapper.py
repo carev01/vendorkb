@@ -54,6 +54,7 @@ written unmapped with no stamp, so the next run maps it again (``claims_to_retry
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import hashlib
 import json
 import logging
@@ -102,6 +103,8 @@ class MapReport:
     target_unmapped: int = 0
     target_none: int = 0  # no target text (product-wide unless the scope names a target)
     child_target: int = 0  # target_scope named a child target of T
+    variant_target: int = 0  # the target text was a variant alias: its target and variant
+    target_product: int = 0  # the target text named the claim's product: treated as no target
     scope_target: int = 0  # no T: target_scope named a target
     variant: int = 0
     object_type: int = 0
@@ -112,6 +115,7 @@ class MapReport:
     coverage_without_object_type: int = 0
     offering_mapped: int = 0
     offering_unmapped: int = 0
+    offering_product: int = 0  # the offering text was a product name of the vendor
     offering_none: int = 0  # no offering text (offering_from_edition among them)
     offering_from_edition: int = 0  # no offering text; set from a unique edition
     edition_mapped: int = 0
@@ -146,6 +150,36 @@ class _Claim:
     edition: str | None
 
 
+_SUFFIXES = (("ies", "y"), ("ing", ""), ("ed", ""), ("s", ""))
+
+
+def fold_inflections(text: str) -> str:
+    """``text`` (normalized) with each word's common inflection folded the same way for every
+    form: "scanning", "scanned" and "scan" -> "scan"; "restores" and "restore" -> "restor";
+    "policies" -> "policy". Only ever compared with other folded text."""
+    words = []
+    for w in text.split():
+        if len(w) > 4 and not w.endswith("ss"):
+            for suffix, repl in _SUFFIXES:
+                if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+                    w = w[:-len(suffix)] + repl
+                    break
+        if len(w) > 3 and w[-1] == w[-2] and w[-1] not in "aeiouls":
+            w = w[:-1]  # scann -> scan
+        if len(w) > 3 and w.endswith("e"):
+            w = w[:-1]
+        words.append(w)
+    return " ".join(words)
+
+
+def _unique_index(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """key -> value for keys that map to one value only (an ambiguous key is left out)."""
+    seen: dict[str, set] = {}
+    for key, value in pairs:
+        seen.setdefault(key, set()).add(value)
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+
+
 @dataclass
 class _Tax:
     """The loaded taxonomy v2, read once."""
@@ -157,11 +191,33 @@ class _Tax:
     class_parent: dict[str, str | None]
     dimensions: dict[str, tuple[str, str, list[str] | None]]  # id -> name, definition, applies
     vendor_offerings: dict[str, list[str]]
+    _folded: dict[tuple[str, str], dict[str, str]] = field(default_factory=dict)
+    _variants: dict[str, tuple[str, str]] | None = None
 
     def lookup(self, entity_type: str, scope: str, text: str | None) -> str | None:
+        """The exact alias, else the one entry whose alias folds to the same inflections
+        ("malware scanning" finds "malware scan"); None when absent or ambiguous."""
         if not text:
             return None
-        return self.aliases.get((entity_type, scope), {}).get(text)
+        table = self.aliases.get((entity_type, scope), {})
+        hit = table.get(text)
+        if hit is not None or not table:
+            return hit
+        key = (entity_type, scope)
+        if key not in self._folded:
+            self._folded[key] = _unique_index([(fold_inflections(a), e) for a, e in table.items()])
+        return self._folded[key].get(fold_inflections(text))
+
+    def variant_target(self, text: str | None) -> tuple[str, str] | None:
+        """(target, variant) when ``text`` is the alias of exactly one variant of any target:
+        "FSx for Windows File Server" as a target text is aws.fsx, variant windows."""
+        if not text:
+            return None
+        if self._variants is None:
+            pairs = [(a, (scope, v)) for (etype, scope), table in self.aliases.items()
+                     if etype == "variant" for a, v in table.items()]
+            self._variants = _unique_index(pairs + [(fold_inflections(a), tv) for a, tv in pairs])
+        return self._variants.get(text) or self._variants.get(fold_inflections(text))
 
     def lineage(self, class_id: str) -> list[str]:
         """``class_id`` and its ancestors, most specific first."""
@@ -214,6 +270,16 @@ async def _snapshot(conn: psycopg.AsyncConnection) -> _Tax:
             conn, "SELECT dimension_id, name, definition, applies_to FROM dimensions")},
         vendor_offerings=vendor_offerings,
     )
+
+
+async def _vendor_products(conn: psycopg.AsyncConnection) -> dict[str, set[str]]:
+    """vendor -> the normalized names of its products (documents.product) and of itself."""
+    out: dict[str, set[str]] = {}
+    for vendor, product in await _rows(conn, "SELECT DISTINCT vendor, product FROM documents"):
+        names = out.setdefault(vendor, {normalize(vendor)})
+        if product:
+            names.add(normalize(product))
+    return out
 
 
 def _norm(text: str | None) -> str | None:
@@ -583,7 +649,7 @@ def _resolve_scope(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
         report.child_target += 1
         return
     variant = tax.lookup("variant", t, scope)
-    if variant is not None:
+    if variant is not None and m.variant_id is None:
         m.variant_id = variant
         report.variant += 1
         return
@@ -597,13 +663,16 @@ def _resolve_scope(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
         report.scope_unmapped += 1
 
 
-def _resolve_offering(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
+def _resolve_offering(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport,
+                      products: frozenset[str] | set[str]) -> None:
     if c.offering is None:
         report.offering_none += 1
     else:
         m.offering_id = tax.lookup("offering", c.vendor, c.offering)
         if m.offering_id is not None:
             report.offering_mapped += 1
+        elif c.offering in products:  # a product name, not a commercial offering
+            report.offering_product += 1
         else:
             report.offering_unmapped += 1
     if c.edition is None:
@@ -642,6 +711,15 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
     report.claims = len(claims)
+    # A target text that names the claim's own product (and no taxonomy target) is about the
+    # product itself, not a workload: it is treated as no target text.
+    products = await _vendor_products(conn)
+    for i, c in enumerate(claims):
+        if (c.target is not None and c.target in products.get(c.vendor, ())
+                and tax.lookup("target", "", c.target) is None
+                and tax.variant_target(c.target) is None):
+            claims[i] = dataclasses.replace(c, target=None)
+            report.target_product += 1
     current: dict[Any, tuple] = {}
     if seed:
         cur = await conn.execute(
@@ -659,6 +737,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     target_keys = _Keys(tax.aliases.get(("target", ""), {}))
     dimension_keys = _Keys(tax.aliases.get(("dimension", ""), {}))
     target_queries = sorted({c.target for c in claims if c.target is not None
+                             and tax.variant_target(c.target) is None
                              and tax.lookup("target", "", c.target) is None})
     dimension_queries = sorted({c.capability for c in claims if c.capability is not None
                                 and tax.lookup("dimension", "", c.capability) is None})
@@ -706,8 +785,12 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         m = mapped[c.claim_id]
         if c.target is not None:
             hit = tax.lookup("target", "", c.target)
+            variant = tax.variant_target(c.target) if hit is None else None
             if hit is not None:
                 m.target_id, m.target_method = hit, "alias"
+            elif variant is not None:
+                (m.target_id, m.variant_id), m.target_method = variant, "alias"
+                report.variant_target += 1
             else:
                 a = target_adj.get(c.target)
                 m.target_id = a.choice if a is not None else None
@@ -718,7 +801,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         if m.target_id is not None:
             m.class_id = tax.target_class[m.target_id]
         _count(report, "target", m.target_method if c.target is not None else "none")
-        _resolve_offering(tax, c, m, report)
+        _resolve_offering(tax, c, m, report, products.get(c.vendor, frozenset()))
 
     # 3. Dimensions, the candidates drawn from the dimensions that apply to the target's class.
     classes_of: dict[str, list[str | None]] = {}
