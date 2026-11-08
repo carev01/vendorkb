@@ -167,9 +167,14 @@ def _settings(**kw) -> VendorkbSettings:
                             extract_model="anthropic/claude-haiku-5.5", **kw)
 
 
+async def _rows(conn, sql, *args):
+    cur = await conn.execute(sql, args)
+    return await cur.fetchall()
+
+
 async def _fresh(conn) -> None:
     await conn.execute("DROP TABLE IF EXISTS map_decisions, raw_claims, rejected_claims, extractions, "
-                       "extract_batches, chunks, documents CASCADE")
+                       "extract_batches, propose_runs, chunks, documents CASCADE")
     await init_schema(conn, embed_dim=8)
 
 
@@ -443,6 +448,51 @@ async def test_budget_guard_stops(vkb_dsn, tmp_path):
             max_usd=2.0, limit=1)
         assert len(limited.chat.completions.calls) == 1 and report.skipped_by_limit == 3
     finally:
+        await conn.close()
+
+
+async def test_spend_is_ledgered_and_capped_across_runs(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_dimensions(conn)
+        # each call reports $1; the cumulative cap is $1.50 over every run
+        client = FakeOpenAI(REPLIES, cost=1.0)
+        report = await propose.propose(
+            conn, client=client, embedder=FakeEmbedder(VECTORS),
+            settings=_settings(extract_concurrency=1, propose_budget_usd=1.5),
+            kind="dimension", distance_threshold=0.2, out_path=_copy_fixture(tmp_path),
+            max_usd=10.0, limit=None)
+        assert report.stopped_by_budget and report.spent_usd == 2.0  # stops once over $1.50
+        assert await _rows(conn, "SELECT kind, spent_usd FROM propose_runs") == [
+            ("dimension", 2.0)]
+        again = FakeOpenAI(REPLIES, cost=1.0)
+        report = await propose.propose(
+            conn, client=again, embedder=FakeEmbedder(VECTORS),
+            settings=_settings(propose_budget_usd=1.5), kind="dimension",
+            distance_threshold=0.2, out_path=_copy_fixture(tmp_path), max_usd=10.0, limit=None)
+        assert report.stopped_by_budget and again.chat.completions.calls == []
+        assert report.spent_before_usd == 2.0 and report.unproposed == 4
+    finally:
+        await conn.close()
+
+
+async def test_a_second_concurrent_run_is_locked_out(vkb_dsn, tmp_path):
+    conn, other = await connect(vkb_dsn), await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_dimensions(conn)
+        await other.execute("SELECT pg_advisory_lock(%s)", (propose.LOCK_KEY,))
+        out = _copy_fixture(tmp_path)
+        before = out.read_text()
+        client = FakeOpenAI(REPLIES)
+        report = await propose.propose(
+            conn, client=client, embedder=FakeEmbedder(VECTORS), settings=_settings(),
+            kind="dimension", distance_threshold=0.2, out_path=out, max_usd=2.0, limit=None)
+        assert report.locked and client.chat.completions.calls == []
+        assert out.read_text() == before
+    finally:
+        await other.close()
         await conn.close()
 
 

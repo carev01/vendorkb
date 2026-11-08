@@ -118,6 +118,17 @@ CREATE TABLE IF NOT EXISTS extract_batches (
     ended_at timestamptz
 );
 
+-- `taxonomy propose` spend, one row per run, updated after every call so a crash keeps it:
+-- the cumulative cap (settings.propose_budget_usd) sums every run (BACKLOG 15, M7).
+CREATE TABLE IF NOT EXISTS propose_runs (
+    run_id text PRIMARY KEY,
+    kind text NOT NULL,
+    model text NOT NULL,
+    spent_usd double precision NOT NULL DEFAULT 0,
+    started_at timestamptz NOT NULL DEFAULT now(),
+    ended_at timestamptz
+);
+
 -- vendor / product / version are copied from the chunk's document, never extracted.
 CREATE TABLE IF NOT EXISTS raw_claims (
     claim_id uuid PRIMARY KEY,

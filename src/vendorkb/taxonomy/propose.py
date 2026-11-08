@@ -48,6 +48,10 @@ far and the estimates in flight, would exceed ``max_usd``. Spend is the provider
 ``usage.cost`` when reported, else the token price. Clusters not sent are counted in
 ``unproposed``; the file still gets what was proposed. A 400 stops dispatching and is raised
 after the file is written; any other failure costs only its cluster (counted in ``invalid``).
+
+One run at a time (a session advisory lock; a second run returns ``locked`` without touching the
+file). Every run's spend is ledgered in ``propose_runs``, updated after each call, and the guard
+also stops before the spend of all runs together would exceed ``settings.propose_budget_usd``.
 """
 from __future__ import annotations
 
@@ -57,6 +61,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -237,6 +242,8 @@ class _Cluster:
 
 @dataclass
 class ProposeReport:
+    locked: bool = False            # another propose run holds the lock: nothing done
+    spent_before_usd: float = 0.0   # the ledgered spend of earlier runs
     kind: str = ""
     out_path: str = ""
     long_tail_path: str = ""
@@ -750,15 +757,44 @@ def _unit(vectors: np.ndarray) -> np.ndarray:
     return vectors / np.where(norms == 0, 1.0, norms)
 
 
+LOCK_KEY = 0x766B64  # single-flight across propose runs (sync 0x766B62, extract 0x766B63)
+
+
 async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embedder,
                   settings: VendorkbSettings, kind: Kind, distance_threshold: float,
                   out_path: str | Path, max_usd: float = 2.0,
                   limit: int | None = None) -> ProposeReport:
+    """See the module docstring: under the lock, with this run's spend ledgered."""
+    cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
+    if not (await cur.fetchone())[0]:  # type: ignore[index]
+        log.warning("taxonomy propose: another propose run holds the lock; nothing done")
+        return ProposeReport(locked=True, kind=kind, out_path=str(out_path))
+    run_id = f"propose-{uuid.uuid4()}"
+    try:
+        cur = await conn.execute("SELECT coalesce(sum(spent_usd), 0) FROM propose_runs")
+        before = float((await cur.fetchone())[0])  # type: ignore[index]
+        await conn.execute("INSERT INTO propose_runs (run_id, kind, model) VALUES (%s,%s,%s)",
+                           (run_id, kind, settings.extract_model))
+        return await _propose(conn, client=client, embedder=embedder, settings=settings,
+                              kind=kind, distance_threshold=distance_threshold,
+                              out_path=out_path, max_usd=max_usd, limit=limit,
+                              run_id=run_id, before=before)
+    finally:
+        await conn.execute("UPDATE propose_runs SET ended_at = now() WHERE run_id = %s",
+                           (run_id,))
+        await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+
+
+async def _propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embedder,
+                   settings: VendorkbSettings, kind: Kind, distance_threshold: float,
+                   out_path: str | Path, max_usd: float, limit: int | None, run_id: str,
+                   before: float) -> ProposeReport:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}, got {kind!r}")
     path = Path(out_path)
     tail_path = long_tail_path(path)
-    report = ProposeReport(kind=kind, out_path=str(path), long_tail_path=str(tail_path))
+    report = ProposeReport(kind=kind, out_path=str(path), long_tail_path=str(tail_path),
+                           spent_before_usd=before)
     # Before any paid work: a missing or broken file, or a model with no price, is refused.
     text = path.read_text(encoding="utf-8")
     tax = validate(parse_doc(text.encode("utf-8"), path))
@@ -830,6 +866,12 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
     spent, in_flight, stop = 0.0, 0.0, False
     fatal: Exception | None = None
     sem = asyncio.Semaphore(max(1, settings.extract_concurrency))
+    db = asyncio.Lock()  # ledger writes share the one connection
+
+    async def ledger() -> None:
+        async with db:
+            await conn.execute("UPDATE propose_runs SET spent_usd = %s WHERE run_id = %s",
+                               (spent, run_id))
 
     async def one(c: _Cluster) -> dict[str, Any] | None:
         nonlocal spent, in_flight, stop, fatal
@@ -839,11 +881,16 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
             system = systems[c.group.section]
             estimate = cost_usd((len(system) + len(user)) // CHARS_PER_TOKEN + 1,
                                 settings.extract_max_tokens, batch=False, price=price)
-            if stop or spent + in_flight + estimate > max_usd:
+            over_run = spent + in_flight + estimate > max_usd
+            over_all = before + spent + in_flight + estimate > settings.propose_budget_usd
+            if stop or over_run or over_all:
                 if not stop and fatal is None:
                     report.stopped_by_budget = True
-                    log.warning("taxonomy propose: budget $%.2f reached (spent $%.4f, in"
-                                " flight $%.4f); stopping", max_usd, spent, in_flight)
+                    log.warning("taxonomy propose: %s budget $%.2f reached (spent $%.4f, in"
+                                " flight $%.4f, earlier runs $%.4f); stopping",
+                                "run" if over_run else "cumulative",
+                                max_usd if over_run else settings.propose_budget_usd,
+                                spent, in_flight, before)
                 stop = True
                 report.unproposed += 1
                 return None
@@ -862,6 +909,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
                 return None
             except Exception as e:  # API errors and any odd provider shape: this cluster only
                 spent += estimate  # it may have been billed: count it against the cap
+                await ledger()
                 report.invalid += 1
                 report.errors.append(f"{first}: {type(e).__name__}: {e}")
                 log.warning("taxonomy propose: call failed for %r: %s", first, e)
@@ -869,6 +917,7 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
             finally:
                 in_flight -= estimate
             spent += cost
+            await ledger()
             try:
                 if error is not None:
                     raise ValueError(error)

@@ -339,6 +339,10 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
     finally:
         await conn.close()
     print(json.dumps(dataclasses.asdict(prep)))
+    if prep.locked:
+        print("another `vendorkb taxonomy propose` run holds the propose lock; nothing done",
+              file=sys.stderr)
+        return 0
     # A budget stop is a clean exit (re-run with a higher --max-usd to continue).
     return 0 if prep.invalid == 0 else 1
 
