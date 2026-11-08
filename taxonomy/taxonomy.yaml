@@ -183,6 +183,25 @@ dimensions:
   aliases: [log backup, transaction log backup, log shipping, archive log backup, wal backup, log 
       truncation, transaction log backup and restore, transaction log truncation]
   applies_to: [app, cloud.database]
+- id: protection.online_database_backup
+  name: Online and offline database backup
+  definition: Whether a database or application store can be backed up and restored while it stays 
+    open and running (online or hot backup), or only when shut down or taken offline (offline or 
+    cold backup).
+  aliases: [online database backup, offline database backup, online and offline backup]
+  lookup_aliases: [offline database restore, online and offline backup and restore, online and 
+      offline backups, online backup and restore, online backup without stopping database, online 
+      database restore]
+  applies_to: [app, cloud.database]
+- id: protection.native_database_interface
+  name: Database-native backup interfaces
+  definition: Whether backups and restores of a database or enterprise application run through its 
+    own backup interface, such as Oracle RMAN, SAP HANA Backint or SAP BR*Tools, so they can be 
+    driven from and recorded in the native tools and catalog.
+  aliases: [rman integration, backint integration, rman-based database backup]
+  lookup_aliases: [backint backup, backup and restore via backint, backup via backint, backup via 
+      br*tools, rman catalog support, rman script execution, rman-based backup, rman-based restore]
+  applies_to: [app, cloud.database]
 - id: protection.backup_copy
   name: Secondary backup copy
   definition: Copying backups to a second location or storage technology under separate retention.
@@ -785,6 +804,14 @@ dimensions:
       1-touch recovery]
   lookup_aliases: [recovery media creation]
   applies_to: [endpoint]
+- id: recovery.uefi_secure_boot
+  name: UEFI and Secure Boot support
+  definition: Whether machines that use UEFI firmware or Secure Boot can be backed up, recovered 
+    (bare-metal, instant or as a virtual machine) and booted afterwards, and whether the product's 
+    agents and kernel modules work with Secure Boot enabled.
+  aliases: [uefi secure boot support, secure boot support, uefi boot]
+  lookup_aliases: [uefi secure boot]
+  applies_to: [endpoint, virtualization, cloud.compute]
 - id: recovery.failover
   name: Failover and failback
   definition: Switching to replicas and back, including planned and test failovers.
@@ -1826,6 +1853,13 @@ dimensions:
     network (SAN, Fibre Channel or a dedicated data network) instead of the production LAN.
   aliases: [lan-free data transfer, lan-free backup and restore]
   lookup_aliases: [dedicated backup network, san backup]
+  applies_to: all
+- id: protection.off_host_backup
+  name: Off-host backup
+  definition: Running a backup's data movement or processing on a separate proxy, mount or media 
+    host, often from a storage or VSS snapshot, instead of on the production server, to take the 
+    backup load off it.
+  aliases: [off-host backup, offloaded backup]
   applies_to: all
 - id: protection.open_file
   name: Open file backup
