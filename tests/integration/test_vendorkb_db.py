@@ -125,3 +125,47 @@ async def test_a_dropped_table_is_recreated_even_when_the_marker_is_current(vkb_
         assert (await cur.fetchone())[0]
     finally:
         await conn.close()
+
+
+async def test_a_full_upgrade_over_a_populated_database_keeps_every_row(vkb_dsn):
+    """M12: the whole DDL re-run (as after a schema change) on a database with rows in every
+    table the services write: nothing is dropped, rewritten away or refused by a constraint."""
+    from tests.integration.test_capabilities_v2 import _claim, _fresh
+    from vendorkb.taxonomy import capabilities
+
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)  # schema, fixture taxonomy (dimensions, targets, aliases)
+        await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                     object_type="user", mapped_version=version)
+        await _claim(conn, "retention.maximum_period", mapped_version=version,
+                     value=30, unit="days")
+        await capabilities.build(conn)
+        await conn.execute("INSERT INTO extract_batches (batch_id, extractor_model,"
+                           " prompt_version, chunk_ids, status) VALUES ('b1','m','p','{}','processed')")
+        await conn.execute("INSERT INTO propose_runs (run_id, kind, model, spent_usd)"
+                           " VALUES ('r1','dimension','m',0.5)")
+        await conn.execute("INSERT INTO map_decisions (key, kind, phrase, candidates, choice, model,"
+                           " source, rules) VALUES ('k1','dimension','x','{a}','a','m','llm','r')")
+        await conn.execute("INSERT INTO embedding_cache (model, input_type, text, vec)"
+                           " VALUES ('m@8','document','x','\\x00')")
+        cur = await conn.execute("SELECT table_name FROM information_schema.tables"
+                                 " WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
+        tables = sorted(r[0] for r in await cur.fetchall())
+
+        async def counts() -> dict[str, int]:
+            out = {}
+            for t in tables:
+                cur = await conn.execute(f'SELECT count(*) FROM "{t}"')
+                out[t] = (await cur.fetchone())[0]
+            return out
+        before = await counts()
+        assert all(before[t] > 0 for t in ("documents", "chunks", "raw_claims", "capabilities",
+                                            "dimensions", "aliases", "propose_runs"))
+        await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")
+        await init_schema(conn, embed_dim=8)  # the full DDL runs again
+        assert await counts() == before
+        cur = await conn.execute("SELECT count(*) FROM taxonomy_meta WHERE key = 'schema_version'")
+        assert (await cur.fetchone())[0] == 1
+    finally:
+        await conn.close()
