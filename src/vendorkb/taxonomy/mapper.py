@@ -127,6 +127,7 @@ class MapReport:
     llm_none: int = 0
     llm_invalid: int = 0  # failed calls and replies outside the schema
     decisions_reused: int = 0  # adjudications answered from map_decisions (no call)
+    decisions_carried: int = 0  # same phrase, fewer or reordered candidates: earlier answer kept
     decisions_seeded: int = 0  # seed=True: decisions recorded from the stored mappings
     skipped_by_budget: int = 0  # adjudications not sent
     claims_skipped_by_budget: int = 0  # claims left unmapped by them
@@ -506,6 +507,7 @@ class _Adjudicator:
             if choice is None or choice in a.candidates:
                 a.choice, a.cached = choice, True
                 self.report.decisions_reused += 1
+        await self._carry([a for a in items if not a.cached])
         try:
             await asyncio.gather(*(self._one(a) for a in items if not a.cached))
         finally:  # paid decisions are kept even when the run stops
@@ -540,6 +542,32 @@ class _Adjudicator:
         await self._store(rows, "seed")
         self.report.decisions_seeded += len(rows)
 
+    async def _carry(self, items: list[_Adjudication]) -> None:
+        """Stability: a question whose candidates changed keeps the latest earlier answer for the
+        same phrase and class (same model family and prompt rules) when nothing new is offered
+        (its candidates are a subset of the earlier ones) and that answer is still among them,
+        or was none. A new candidate, or an answer that dropped out, means asking again. This
+        keeps repeated runs from flipping between equally plausible answers."""
+        if not items:
+            return
+        cur = await self.conn.execute(
+            "SELECT DISTINCT ON (kind, phrase, class_id) kind, phrase, class_id, candidates, choice"
+            " FROM map_decisions WHERE model = %s AND rules = %s"
+            " AND (kind, phrase, coalesce(class_id, '')) IN"
+            "  (SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))"
+            " ORDER BY kind, phrase, class_id, decided_at DESC",
+            (model_family(self.settings.map_model), PROMPT_RULES, [a.kind for a in items],
+             [a.text for a in items], [a.class_id or "" for a in items]))
+        earlier = {(k, p, c): (cands, choice) for k, p, c, cands, choice in await cur.fetchall()}
+        for a in items:
+            prev = earlier.get((a.kind, a.text, a.class_id))
+            if prev is None:
+                continue
+            cands, choice = prev
+            if set(a.candidates) <= set(cands) and (choice is None or choice in a.candidates):
+                a.choice, a.cached = choice, True
+                self.report.decisions_carried += 1
+
     async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> None:
         if not rows:
             return
@@ -547,9 +575,10 @@ class _Adjudicator:
         async with self.conn.cursor() as cur:
             await cur.executemany(
                 "INSERT INTO map_decisions (key, kind, phrase, class_id, candidates, choice,"
-                " model, source) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (key) DO NOTHING",
-                [(k, a.kind, a.text, a.class_id, list(a.candidates), a.choice, family, source)
-                 for k, a in rows])
+                " model, source, rules) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+                " ON CONFLICT (key) DO NOTHING",
+                [(k, a.kind, a.text, a.class_id, list(a.candidates), a.choice, family, source,
+                  PROMPT_RULES) for k, a in rows])
 
     async def _one(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings

@@ -628,12 +628,51 @@ async def test_a_decision_is_keyed_on_the_model_family_and_candidates(vkb_dsn, t
         assert client.calls == []
         await _run(conn, client, remap=True, map_model="claude-opus-5-5")
         assert len(client.calls) == 1
-        # other candidates (here: a different number of them) are another question
+        # a candidate the earlier question did not offer makes it a new question
         await conn.execute("TRUNCATE map_decisions")
-        await _run(conn, FakeOpenAI(), map_candidates=5)
+        await _run(conn, FakeOpenAI(), map_candidates=3)
         client = FakeOpenAI()
-        await _run(conn, client, remap=True, map_candidates=3)
+        await _run(conn, client, remap=True, map_candidates=5)
         assert len(client.calls) == 1
+    finally:
+        await conn.close()
+
+
+async def test_a_previous_answer_is_carried_when_nothing_new_is_offered(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta")
+        none = await _claim(conn, "the dashboard thing", "Okta")
+        await _run(conn, FakeOpenAI(), map_candidates=5)
+        # fewer candidates (a subset) still holding the earlier answer: carried, no call; a
+        # "none" is carried too, since no candidate is new
+        client = FakeOpenAI()
+        report = await _run(conn, client, remap=True, map_candidates=3)
+        assert client.calls == [] and report.decisions_carried == 2
+        assert (await _mapping(conn, cid))["dimension_id"] == "retention.maximum_period"
+        assert (await _mapping(conn, none))["dimension_method"] == "unmapped"
+        # answers decided under other prompt rules are never carried
+        await conn.execute("UPDATE map_decisions SET rules = 'older-rules'")
+        client = FakeOpenAI()
+        await _run(conn, client, remap=True, map_candidates=4)
+        assert len(client.calls) == 2
+    finally:
+        await conn.close()
+
+
+async def test_an_answer_no_longer_among_the_candidates_is_asked_again(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn, FakeOpenAI())
+        # the stored answer points at a candidate the new question does not offer
+        await conn.execute("UPDATE map_decisions SET choice = 'coverage.backup',"
+                           " candidates = array_append(candidates, 'coverage.backup')")
+        client = FakeOpenAI()
+        report = await _run(conn, client, remap=True, map_candidates=3)
+        assert len(client.calls) == 1 and report.decisions_carried == 0
     finally:
         await conn.close()
 
