@@ -78,7 +78,10 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
 - **mapper:** exact alias first, otherwise a Haiku adjudication over the nearest candidates
   (`map_model`, `map_candidates`) with one fixed reply schema. Nearest neighbour alone never
   maps. On the reviewed taxonomy, dimension precision is 0.88 (alias 0.96, LLM 0.84)
-  and target precision 0.98.
+  and target precision 0.98. `taxonomy map` maps only claims not yet stamped with the
+  current taxonomy version (`mapped_version`), so earlier decisions are kept; `--all` re-maps
+  every claim. Claims waiting on a skipped or failed adjudication stay unstamped and are
+  retried on the next run.
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
   product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
   facts never appear as target facts.
