@@ -349,7 +349,7 @@ async def _embed_all(embedder: _Embedder, texts: list[str], *, conn: psycopg.Asy
         if out is None:
             out = np.empty((len(texts), raw.shape[1]), dtype=np.float32)
         out[[row[t] for t in part]] = raw
-        async with conn.cursor() as cur:
+        async with conn.transaction(), conn.cursor() as cur:  # one commit per slice
             await cur.executemany(
                 "INSERT INTO embedding_cache (model, input_type, text, vec)"
                 " VALUES (%s, 'document', %s, %s) ON CONFLICT DO NOTHING",
