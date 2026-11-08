@@ -678,6 +678,41 @@ async def test_an_answer_no_longer_among_the_candidates_is_asked_again(vkb_dsn, 
         await conn.close()
 
 
+async def test_a_reasked_target_keeps_its_earlier_answer_over_none(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        await _run(conn, FakeOpenAI(), map_candidates=3)
+        # new candidates are offered, so both questions are asked again; both replies are none
+        nones = {"okta workforce": lambda c: "none", "keep copies for ages": lambda c: "none"}
+        client = FakeOpenAI(nones)
+        report = await _run(conn, client, remap=True, map_candidates=5)
+        assert len(client.calls) == 2 and report.decisions_kept == 1
+        m = await _mapping(conn, cid)
+        # the target keeps "okta", still offered; a dimension's none stands
+        assert (m["target_id"], m["target_method"]) == ("okta", "llm")
+        assert m["dimension_method"] == "unmapped"
+        cur = await conn.execute("SELECT choice FROM map_decisions WHERE kind = 'target'"
+                                 " ORDER BY decided_at DESC LIMIT 1")
+        assert (await cur.fetchone())[0] == "okta"  # stored as kept
+        # a none stored by an older run is read as the earlier answer, without a call
+        await conn.execute("UPDATE map_decisions SET choice = NULL WHERE kind = 'target'"
+                           " AND cardinality(candidates) = 5")
+        client = FakeOpenAI({})
+        report = await _run(conn, client, remap=True, map_candidates=5)
+        assert client.calls == [] and report.decisions_kept == 1
+        assert (await _mapping(conn, cid))["target_id"] == "okta"
+        # an earlier answer the question no longer offers is not kept
+        await conn.execute("UPDATE map_decisions SET choice = 'azure.sql' WHERE kind = 'target'"
+                           " AND cardinality(candidates) = 3")
+        report = await _run(conn, client, remap=True, map_candidates=5)
+        assert report.decisions_kept == 0
+        assert (await _mapping(conn, cid))["target_method"] == "unmapped"
+    finally:
+        await conn.close()
+
+
 async def test_failed_and_skipped_adjudications_are_not_stored(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
     try:

@@ -130,6 +130,7 @@ class MapReport:
     embeddings_new: int = 0  # strings embedded by the provider (and cached)
     decisions_reused: int = 0  # adjudications answered from map_decisions (no call)
     decisions_carried: int = 0  # same phrase, fewer or reordered candidates: earlier answer kept
+    decisions_kept: int = 0  # target asked again, answered none: the earlier answer, still offered
     decisions_seeded: int = 0  # seed=True: decisions newly recorded from the stored mappings
     skipped_by_budget: int = 0  # adjudications not sent
     claims_skipped_by_budget: int = 0  # claims left unmapped by them
@@ -547,6 +548,8 @@ class _Adjudicator:
         await self._carry([a for a in items if not a.cached])
         try:
             await asyncio.gather(*(self._one(a) for a in items if not a.cached))
+            await self._keep([a for a in items if a.kind == "target" and a.choice is None
+                              and (a.cached or a.decided)])
         finally:  # paid decisions are kept even when the run stops
             await self._store([(k, a) for k, a in keyed.items() if a.decided], "llm")
         self.report.spent_usd = self.spent
@@ -603,6 +606,32 @@ class _Adjudicator:
             if set(a.candidates) <= set(cands) and (choice is None or choice in a.candidates):
                 a.choice, a.cached = choice, True
                 self.report.decisions_carried += 1
+
+    async def _keep(self, items: list[_Adjudication]) -> None:
+        """A target question asked again, because new candidates were offered, keeps the answer
+        of the decision before it when it now answers none and that answer is still offered:
+        re-asked target questions answered none for obvious matches ("rhel" -> linux) far more
+        often than they dropped a wrong pick (taxonomy round 2, 2026-11-08). Dimensions are
+        left alone: there a re-asked none was the better answer as often as not. The kept answer
+        is what gets stored; a none stored by an older run is read the same way."""
+        if not items:
+            return
+        model = self.settings.map_model
+        keys = [decision_key(a, model) for a in items]
+        cur = await self.conn.execute(
+            "SELECT q.key, (SELECT m.choice FROM map_decisions m WHERE m.kind = 'target'"
+            "  AND m.phrase = q.phrase AND m.model = %s AND m.rules = %s AND m.key <> q.key"
+            "  AND m.decided_at < coalesce((SELECT d.decided_at FROM map_decisions d"
+            "   WHERE d.key = q.key), now())"
+            "  ORDER BY m.decided_at DESC LIMIT 1)"
+            " FROM unnest(%s::text[], %s::text[]) AS q(key, phrase)",
+            (model_family(model), PROMPT_RULES, keys, [a.text for a in items]))
+        earlier: dict[str, str | None] = dict(await cur.fetchall())
+        for key, a in zip(keys, items):
+            choice = earlier.get(key)
+            if choice is not None and choice in a.candidates:
+                a.choice = choice
+                self.report.decisions_kept += 1
 
     async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> int:
         """Insert decisions not stored yet; returns how many were inserted."""
