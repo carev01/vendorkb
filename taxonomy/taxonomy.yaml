@@ -20,7 +20,13 @@ dimensions:
       Cluster-scoped resource coverage, backup of ephemeral os disks, Ephemeral OS disk backup, 'backup
       of object records, fields and metadata', Record-level object backup, namespace-level backup 
       and restore, Namespace-level scope, protected node types, vpc and subnet configuration backup 
-      and restore, Network configuration coverage, file-based backup, nfs backup]
+      and restore, Network configuration coverage, file-based backup, nfs backup, azure file share 
+      backup, backup of replicated vms, bitlocker recovery key backup, database backup and recovery, 
+      database backup and restore, database instance protection, database protection and recovery, 
+      db2 backup and restore, hypervisor backup, key vault protection, kubernetes cluster backup, 
+      linux backup, nas protection, non-csi volume backup, object versioning backup, rdm and 
+      independent disk backup, read-only volume backup, sharepoint online backup, storage account 
+      protection, template vm backup, vm configuration backup, vm protection, vm template backup]
   applies_to: all
 - id: coverage.restore
   name: Object-type restore coverage
@@ -39,7 +45,8 @@ dimensions:
     authorization server recovery, restore application certificates from backup, Application 
       certificate restore, restore of privileged objects, Privileged object restore, restore to rdm 
       disk, Restore to raw device mapping disk, secondary index restore, database recovery, vm 
-      restore, virtual machine restore, vm restore from backups, vm recovery]
+      restore, virtual machine restore, vm restore from backups, vm recovery, archive mailbox 
+      restore, backup restore, bitlocker key restore, cluster recovery, file share restore]
   applies_to: all
 - id: coverage.export
   name: Object-type export coverage
@@ -54,7 +61,7 @@ dimensions:
       folder download, Download to local machine, export destination, send restored items as email 
       attachments, Restore as email attachment, object export with download link, Download link 
       export, send backup data by email, send backed-up items by email, Email delivery of backup 
-      data, restore to storage, restore as files]
+      data, restore to storage, restore as files, flat file restore]
   applies_to: all
 - id: coverage.compare
   name: Object-type comparison coverage
@@ -78,7 +85,7 @@ dimensions:
       field value restore, restore of file system settings, Restore file system settings, 
       authentication credential capture in snapshots, Credentials captured in snapshots, acl backup, 
       file and folder acl backup, folder-level acl backup, extended attributes backup, Extended 
-      attributes]
+      attributes, restore vm tags]
   applies_to: all
   value_unit: attributes
 - id: coverage.environment_types
@@ -96,7 +103,8 @@ dimensions:
     database engine support, supported versions, supported salesforce editions, salesforce edition 
       support, supported salesforce edition, Supported edition variants, supported kubernetes 
       distribution, supported kubernetes platform, Supported Kubernetes distributions, vmware 
-      vsphere version compatibility, Supported platform versions]
+      vsphere version compatibility, Supported platform versions, hypervisor support, virtual 
+      infrastructure support]
   applies_to: all
 - id: coverage.exclusions
   name: Documented coverage exclusions
@@ -111,7 +119,8 @@ dimensions:
   definition: Creating and managing native snapshots of the workload, kept in the provider's or 
     array's own format.
   aliases: [snapshot, snapshots, cloud-native snapshot, native snapshot, snapshot orchestration, 
-      snapshot policy, snapshot management, cloud-native snapshots]
+      snapshot policy, snapshot management, cloud-native snapshots, database snapshot backup, 
+      snapshot backups]
   applies_to: all
 - id: protection.snapshot_replication
   name: Snapshot copy and replication
@@ -152,13 +161,15 @@ dimensions:
       application consistent backup, application-aware backup, application-aware backups, 
       application-aware points in time, Application-consistent restore points, offloaded vss backups,
     vss-integrated database backup, vss snapshot backup to local shadow volumes, vss snapshot 
-      backups, Windows VSS snapshot backup, crash consistent backup]
+      backups, Windows VSS snapshot backup, crash consistent backup, crash-consistent backup, 
+      crash-consistent snapshot fallback, crash-consistent vm backup, file system consistent backup, 
+      vmware quiescing, vmware tools quiescing, volume shadow copy backup]
   applies_to: all
 - id: protection.changed_block_tracking
   name: Changed block tracking
   definition: Reading only changed blocks for incremental backups or restores.
   aliases: [changed block tracking, cbt, incremental forever, change tracking, resilient change 
-      tracking, block-level incremental, changed block tracking incremental backup]
+      tracking, block-level incremental, changed block tracking incremental backup, cbt backup]
   applies_to: all
 - id: protection.log_backup
   name: Transaction log backup
@@ -172,14 +183,16 @@ dimensions:
   aliases: [backup copy, secondary copy, copy job, 3-2-1, offsite copy, second copy, auxiliary copy, 
       expired snapshot recovery from replicated copy, Expired snapshot recovery from replica, 
       archival to object storage, export to object storage, Object storage archival, data center 
-      archival location, Archive location type, replication from backup, Backup replication]
+      archival location, Archive location type, replication from backup, Backup replication, backup 
+      copy to cloud, recovery point copy]
   applies_to: all
 - id: protection.replication
   name: Replication
   definition: Keeping a ready-to-start copy of a workload on another host, site or cloud.
   aliases: [replication, replica, vm replication, standby copy, live sync, cloud replication, 
       replica vm location, Replica target location, automatic application of subsequent backups to 
-      replica, Automatic replica sync, preseeded volume initial sync, Preseeded initial sync]
+      replica, Automatic replica sync, preseeded volume initial sync, Preseeded initial sync, 
+      block-level replication, continuous restore]
   applies_to: all
 - id: protection.continuous_data_protection
   name: Continuous data protection
@@ -193,7 +206,8 @@ dimensions:
   aliases: [storage snapshot, array snapshot, backup from storage snapshot, hardware snapshot, 
       intellisnap, storage integration, csi snapshot, csi driver, hardware snapshots, snapshots 
       using remote mirroring target volumes, consistent backup of remote mirror source volumes, 
-      Consistent backup of mirror sources, intellisnap backups, intellisnap full backup]
+      Consistent backup of mirror sources, intellisnap backups, intellisnap full backup, hardware 
+      snapshot backup, storage system integration]
   applies_to: [virtualization, app, file, kubernetes]
 - id: protection.discovery_auto_protection
   name: Automatic discovery and protection of new objects
@@ -220,7 +234,8 @@ dimensions:
       Automatic inclusion in schedules, automatic inclusion of subsites when root site selected, 
       Automatic hierarchy inclusion, automatic subsite discovery, Automatic nested site discovery, 
       tag-based database selection, tag-based inclusion and exclusion of resource groups from 
-      protection, Tag-based selection]
+      protection, Tag-based selection, resource synchronization interval, site collection discovery, 
+      vm migration detection]
   applies_to: all
 - id: protection.cross_account_backup
   name: Backups in a separate account or region
@@ -253,7 +268,7 @@ dimensions:
       custom backup schedule, automatic scheduled backups, scheduled backup jobs, scheduled 
       automatic backups, built-in backup schedules, automated backup, automated backups, combining 
       one-time and recurring schedules, One-time and recurring combined, multiple weekly schedules, 
-      Multiple schedules]
+      Multiple schedules, automatic backup, scheduled protection policies]
   applies_to: all
 - id: schedule.on_demand
   name: On-demand backup
@@ -261,7 +276,7 @@ dimensions:
   aliases: [on-demand backup, manual backup, backup now, ad hoc backup, on-demand backups, ad hoc 
       manual backups, manual on-demand backup, manual backups, on-demand manual backup, on-demand 
       snapshots, on-demand snapshot, manual backup policy start, manual start of backup copy policy, 
-      unscheduled data collection]
+      unscheduled data collection, run scheduled job immediately]
   applies_to: all
 - id: schedule.per_object_policy
   name: Per-object or per-group policies
@@ -281,7 +296,8 @@ dimensions:
   name: Maximum retention period
   definition: The longest retention period the product supports.
   aliases: [maximum retention, retention up to, unlimited retention, retain forever, keep forever, 
-      retention period, maximum snapshots per file share, forever retention]
+      retention period, maximum snapshots per file share, forever retention, backup retention period,
+    long-term retention, maximum recovery points, permanent retention]
   applies_to: all
   value_unit: years
 - id: retention.granularity
@@ -289,7 +305,12 @@ dimensions:
   definition: The units and options for setting retention, such as days, restore points, or GFS.
   aliases: [retention options, retention settings, restore points to keep, retention policy, gfs, 
       grandfather-father-son, gfs retention, gfs retention policy, automatic removal of expired 
-      restore points, Automatic expired point removal, backup retention policy]
+      restore points, Automatic expired point removal, backup retention policy, automatic backup 
+      expiration, automatic backup expiration and deletion, automatic deletion of expired backups, 
+      automatic removal of expired recovery points, automatic retention-based deletion, backup 
+      policy retention, configurable retention policies, custom retention policies, expiration-based
+      retention, recovery window, retention management, retention policy enforcement, 
+      retention-based backup deletion, retention-based pruning, retention-based purge]
   applies_to: all
 - id: retention.per_object
   name: Per-object retention
@@ -319,7 +340,7 @@ dimensions:
   definition: Whether backups can be kept in the customer's own storage or cloud account.
   aliases: [byos, bring your own storage, customer-owned storage, own storage account, customer 
       storage, vendor-hosted default storage, metadata stored in customer-owned storage, 
-      Customer-owned metadata storage]
+      Customer-owned metadata storage, vendor-provided storage]
   applies_to: all
 - id: storage.cloud_provider_choice
   name: Choice of storage cloud
@@ -353,7 +374,7 @@ dimensions:
   definition: Mapping workloads in several geographies to matching backup regions.
   aliases: [multi-geo, region mapping, multi-geo tenants, multi-geo tenant support, multi-geo tenant
       protection, multi-geo region mapping, multi-geo settings management, multi-geo data location 
-      display, Data location visibility]
+      display, Data location visibility, multi-geo backup]
   applies_to: [saas]
 - id: storage.redundancy
   name: Storage redundancy
@@ -378,13 +399,14 @@ dimensions:
   definition: Policy-driven movement of backups between storage tiers.
   aliases: [tiering, automatic tiering, move to archive, capacity tier, data movement between tiers, 
       lifecycle policy, cold storage tiering, storage tiering, archive tiering, backup data tiering, 
-      cloud tiering, storage rule tiering between storage pools, tiering of inactive data only]
+      cloud tiering, storage rule tiering between storage pools, tiering of inactive data only, 
+      lifecycle rules]
   applies_to: all
 - id: storage.data_reduction
   name: Data reduction
   definition: Compression and deduplication, including where and at what scope deduplication runs.
   aliases: [deduplication, compression, global deduplication, source-side deduplication, data 
-      reduction, dedup, compressed restore, backup compression]
+      reduction, dedup, compressed restore, backup compression, distributed segment processing]
   applies_to: all
 - id: storage.repository_types
   name: Backup repository types
@@ -398,7 +420,8 @@ dimensions:
       Object storage target, object storage repository, object storage repositories, object storage 
       repository integration, Object storage repository support, certified external object storage, 
       Certified third-party object storage, archiving storage account type, Archive storage account 
-      type, external storage directly attached to backup vm, Directly attached backup storage]
+      type, external storage directly attached to backup vm, Directly attached backup storage, dd 
+      boost integration]
   applies_to: all
 - id: storage.scale_out
   name: Scale-out repositories
@@ -411,7 +434,8 @@ dimensions:
   name: Tape support
   definition: Writing backups to physical or virtual tape, including WORM media.
   aliases: [tape, lto, tape library, virtual tape library, worm tape, tape out, tape archival, tape 
-      backup destination, offsite media tracking, media refresh]
+      backup destination, offsite media tracking, media refresh, barcode reading, barcode 
+      verification, worm media detection]
   applies_to: all
 - id: storage.portable_format
   name: Self-contained backup format
@@ -478,7 +502,7 @@ dimensions:
       exclude disks from restore scope, Exclude disks from restore, individual restore, Individual 
       item restore, individual vm or pvc selection for restore, Individual item selection for 
       restore, site and account content restore, Site or account level restore, recover files to 
-      source, granular backup and recovery]
+      source, granular backup and recovery, disk recovery, exclude objects from restore]
   applies_to: all
 - id: recovery.in_place
   name: Restore to original location
@@ -486,7 +510,8 @@ dimensions:
   aliases: [restore to original location, in-place restore, overwrite, original location, in-place 
       recovery, restore to original list, 1-click restore to original mailbox, restore to original 
       mailbox, file and folder restore to production site, restore posts to original location, vss 
-      restore to original location, restore to original organization, Restore to original tenant]
+      restore to original location, restore to original organization, Restore to original tenant, 
+      rollback restore]
   applies_to: all
 - id: recovery.alternate_location
   name: Restore to another location
@@ -502,7 +527,9 @@ dimensions:
       restore to on-premises sharepoint, restore to on-premises sharepoint server, Restore to 
       on-premises target, rename restored databases, rename restored disks, rename restored vm and 
       virtual disks, Rename on restore, export recovery, restore to recovery or alternate database, 
-      Restore to alternate database]
+      Restore to alternate database, cross-client restore, cross-cluster backup and restore, 
+      cross-cluster recovery, cross-cluster restore, cross-device restore, restore to different 
+      mailbox, restore to original or new location, system copy restore]
   applies_to: all
 - id: recovery.cross_account_region
   name: Cross-account and cross-region recovery
@@ -536,7 +563,7 @@ dimensions:
       cloud vm recovery, restore vms to cloud as cloud vms, vm restore to cloud as vm instances, VM 
       restore to cloud instance, restore to google compute engine from backup, restore to amazon ec2,
     Restore to native cloud instance, target provisioning for destination hypervisors, Destination 
-      target provisioning]
+      target provisioning, recovery to cloud, virtual machine conversion]
   applies_to: [virtualization, cloud.compute, endpoint, kubernetes]
 - id: recovery.instant
   name: Instant recovery
@@ -569,7 +596,7 @@ dimensions:
       point-in-time restore, point-in-time table restore, roll forward recovery, restore point 
       selection, point-in-time restore point selection, event-based restore point selection, restore
       to any restore point, restore to earlier restore point, Choice of restore point, recoverable 
-      range display]
+      range display, restore from specific backup, snapshot selection for recovery]
   applies_to: all
 - id: recovery.changes_only
   name: Restore only changed or deleted items
@@ -614,7 +641,7 @@ dimensions:
       overwrite original files on restore, overwrite restore mode, restore overwrite options, 
       Overwrite existing on restore, replace field values with null on restore, Field value nulling 
       on restore, overwrite live authentication settings on recovery, Overwrite live authentication 
-      settings]
+      settings, non-destructive restore]
   applies_to: all
 - id: recovery.automation_bypass
   name: Bypassing target-side automation on restore
@@ -643,7 +670,7 @@ dimensions:
   name: Hybrid identity recovery
   definition: Protecting and recovering on-premises directory and cloud identity together.
   aliases: [hybrid active directory, hybrid identity, ad and entra id, on-premises and cloud 
-      identity]
+      identity, recovery of on-premises synced objects]
   applies_to: [saas.identity, app.directory]
 - id: recovery.export_formats
   name: Export formats
@@ -651,7 +678,7 @@ dimensions:
   aliases: [pst export, csv export, export format, zip download, msg, eml, object export to json, 
       export to json, export objects to json files, export objects to json, export to json files, 
       export to pst, restore to pst file, download mailbox as pst, export archived records to csv, 
-      download as json, password-protected download]
+      download as json, password-protected download, restore as vhd, vmdk image export]
   applies_to: all
 - id: recovery.preview
   name: Preview before restore
@@ -668,7 +695,7 @@ dimensions:
     highlighting and multi-object support.
   aliases: [comparison wizard, compare tool, show changes only, side-by-side comparison, change 
       highlighting, added and deleted item count comparison, Added and deleted item counts, custom 
-      metadata comparison filters, Comparison filters]
+      metadata comparison filters, Comparison filters, restore from comparison results]
   applies_to: all
 - id: recovery.search_scope
   name: Search scope
@@ -733,7 +760,7 @@ dimensions:
   definition: Restoring a physical machine onto new or dissimilar hardware.
   aliases: [bare metal recovery, bmr, dissimilar hardware restore, recovery media, bare metal 
       restore, bare-metal restore, recovery to dissimilar hardware, simplified disaster recovery, 
-      1-touch recovery]
+      1-touch recovery, recovery media creation]
   applies_to: [endpoint]
 - id: recovery.failover
   name: Failover and failback
@@ -746,12 +773,14 @@ dimensions:
   definition: Preserving or remapping network identity such as MAC or IP addresses on restore.
   aliases: [preserve mac address, ip remapping, network mapping, re-ip, restore to new location with
       custom network settings, re-ip of recovered vms, re-ip with original ip address on failback, 
-      public ip assignment on restore]
+      public ip assignment on restore, public ip address assignment on restore, restore without 
+      network connection, security group association on recovery]
   applies_to: [virtualization, kubernetes.vm, cloud.compute]
 - id: recovery.resource_transforms
   name: Resource transformation on restore
   definition: Modifying resource definitions or manifests during restore.
-  aliases: [transforms, resource modifiers, manifest transformation, restore transforms]
+  aliases: [transforms, resource modifiers, manifest transformation, restore transforms, storage 
+      class mapping, storage class mapping on restore]
   applies_to: [kubernetes]
 - id: security.immutability
   name: Backup immutability
@@ -759,7 +788,8 @@ dimensions:
   aliases: [immutability, immutable backups, object lock, worm, retention lock, immutable storage, 
       hardened repository, backup data immutability, immutability for operational backups, immutable
       backup copies, worm immutable backups, object lock immutability, immutable vault, immutable 
-      cloud backup destination, Immutable backup destination, worm storage, WORM storage support]
+      cloud backup destination, Immutable backup destination, worm storage, WORM storage support, 
+      worm protection]
   applies_to: all
 - id: security.immutability_level
   name: Immutability level
@@ -785,7 +815,7 @@ dimensions:
   definition: Encryption of stored backups and its algorithm.
   aliases: [encryption at rest, aes-256, encrypted backups, backup encryption, backup data 
       encryption, aes-256 backup encryption, aes-256 encryption at rest, encrypted snapshot metadata,
-    Snapshot metadata encryption]
+    Snapshot metadata encryption, envelope encryption]
   applies_to: all
 - id: security.encryption_in_transit
   name: Encryption in transit
@@ -796,7 +826,7 @@ dimensions:
       connection, certificate-based secure connection, Certificate-based connection authentication, 
       https-only web ui access, ssl encrypted web ui communication, Console transport encryption, 
       server certificate validation using root or intermediate ca certificates, Server certificate 
-      validation]
+      validation, ssl certificate verification]
   applies_to: all
 - id: security.customer_managed_keys
   name: Customer-managed keys
@@ -810,7 +840,8 @@ dimensions:
       gateway kms key, kms connection shared across tenants, shared kms connection across tenants, 
       customer-managed encryption password, customer-supplied encryption password, legacy key vault 
       access policies, vault access policy permission model, Vault access policy model, built-in 
-      master encryption key, Vendor-managed keys, encryption key validation]
+      master encryption key, Vendor-managed keys, encryption key validation, vendor-managed 
+      encryption]
   applies_to: all
 - id: security.field_level_encryption
   name: Field-level encryption
@@ -838,7 +869,7 @@ dimensions:
       restore operator roles, restore operator role assignment, Role-based restore access, 
       group-based role assignment via sso, group-based access control via sso, group-based access 
       management, group-based role assignment, revoke backup share access, Revoking shared backup 
-      access]
+      access, compliance and review officer role, data protection officer role]
   applies_to: all
 - id: security.mfa
   name: Multi-factor authentication
@@ -877,7 +908,8 @@ dimensions:
     covered.
   aliases: [four-eyes, multi-user authorization, dual authorization, quorum approval, approval 
       workflow, action approval workflow, four-eye approval for disabling backups, Dual approval for
-      disabling backups]
+      disabling backups, quorum group configuration, quorum group management, quorum group operation
+      templates]
   applies_to: all
   platform: true
 - id: security.audit_logging
@@ -899,7 +931,8 @@ dimensions:
   definition: Hardening of the product's own servers or appliances, such as restricted root access, 
     firewalls and secure defaults.
   aliases: [hardening, hardened os, root access, secure configuration, hardened appliance, security 
-      baseline, automatic firewall rule creation during installation, Automatic firewall rules]
+      baseline, automatic firewall rule creation during installation, Automatic firewall rules, ddos
+      protection]
   applies_to: all
   platform: true
 - id: security.air_gap
@@ -917,7 +950,9 @@ dimensions:
 - id: cyber.detection_signatures
   name: Signature-based malware detection
   definition: Scanning backups with a signature-based engine.
-  aliases: [malware scan, antivirus scan, signature-based detection, virus scan, malware scanning]
+  aliases: [malware scan, antivirus scan, signature-based detection, virus scan, malware scanning, 
+      malware scanning of backup data, malware scanning of backups, on-demand malware scanning, 
+      scheduled malware scan]
   applies_to: all
 - id: cyber.detection_rules
   name: Rule-based scanning
@@ -964,7 +999,7 @@ dimensions:
   name: Quarantine and containment
   definition: Isolating or blocking use of suspicious restore points.
   aliases: [quarantine, contain, block infected restore point, quarantine backups, central 
-      quarantine destination, snapshot quarantine]
+      quarantine destination, snapshot quarantine, block restore of tagged snapshots]
   applies_to: all
 - id: cyber.clean_room
   name: Clean room recovery
@@ -989,12 +1024,14 @@ dimensions:
       verification, restore test, backup data validation, automated backup verification, scheduled 
       sandbox test restore, scheduled test boots of dr vms, restore validation, restore dry run, 
       disaster recovery dry run, DR dry run, dr rehearsal, Recovery rehearsal, restore point 
-      availability verification, restore point health check, Restore point verification]
+      availability verification, restore point health check, Restore point verification, service 
+      verification]
   applies_to: all
 - id: cyber.recovery_orchestration
   name: Recovery orchestration
   definition: Orchestrated recovery plans with steps, testing and reports.
-  aliases: [recovery orchestration, recovery plan, runbook, orchestrated failover, dr orchestration]
+  aliases: [recovery orchestration, recovery plan, runbook, orchestrated failover, dr orchestration, 
+      boot priority ordering, recovery run books]
   applies_to: all
 - id: cyber.security_posture
   name: Backup security posture
@@ -1026,7 +1063,8 @@ dimensions:
       session logs, session logs for backup copy jobs, Session logs, restore job monitoring, restore
       job status notifications, backup and restore session history, backup and restore session log, 
       Session history log, job log download, job log viewing, Job log access, enterprise application
-      monitoring, job monitoring, restore session log review, Restore session logs]
+      monitoring, job monitoring, restore session log review, Restore session logs, ransomware 
+      detection dashboard]
   applies_to: all
 - id: operations.reports
   name: Reports
@@ -1045,7 +1083,9 @@ dimensions:
       storage consumption monitoring, storage consumption reports, storage usage history, storage 
       consumption reporting, storage usage history graph, tenant storage consumption reporting, 
       deduplication ratio reporting, deduplication summary report, historical report data retention, 
-      historical reporting data retention, compliance violation reporting]
+      historical reporting data retention, compliance violation reporting, data usage reporting, 
+      disk space reporting, failed objects reporting, malware scan report, malware scan summary 
+      report, report data retention]
   applies_to: all
 - id: operations.notifications
   name: Notifications
@@ -1065,7 +1105,10 @@ dimensions:
       notifications until last retry, Retry notification suppression, send email via oauth 2.0 
       account, oauth 2.0 modern authentication for email sending, OAuth 2.0 email sending, generic 
       webhook integration with oauth 2.0 client credentials authentication, oauth 2.0 client 
-      credentials webhook authentication, Webhook authentication]
+      credentials webhook authentication, Webhook authentication, certificate expiration alert, 
+      certificate expiration warning, certificate expiry alert, disk space low alert, license 
+      expiration alert, license expiration notification, low disk space alert, malware detection 
+      alerts, quota alert threshold, storage capacity alerts, storage utilization alerts]
   applies_to: all
 - id: operations.multi_tenant_management
   name: Central and multi-tenant management
@@ -1077,7 +1120,7 @@ dimensions:
       management, multi-cluster management, apply agent settings to multiple servers, Bulk agent 
       configuration, centralized agent management, Central agent management, centralized management 
       console, Central management console, centralized monitoring of multiple management servers, 
-      Central monitoring of management servers]
+      Central monitoring of management servers, customer account management]
   applies_to: all
 - id: operations.api_automation
   name: APIs and automation
@@ -1085,7 +1128,8 @@ dimensions:
   aliases: [rest api, api, powershell, cli, terraform, automation, sdk, api access, rest api access, 
       public api, command-line interface, powershell cmdlets, 'restore using powershell direct, vix api
       or vsphere automation api', Programmatic restore interface, command line restore, api key 
-      revocation, api token revocation, API credential revocation]
+      revocation, api token revocation, API credential revocation, command-line backup, command-line
+      backup script, powershell backup job submission]
   applies_to: all
   platform: true
 - id: operations.ai_assistance
@@ -1118,7 +1162,8 @@ dimensions:
       installation, silent agent installation, automated upgrades, automatic updates, 'migration of job,
       log and user information during upgrade', 'migration of jobs, logs and user information during upgrade',
     Upgrade configuration migration, automatic client registration via configuration url, Automatic 
-      client registration, in-place agent upgrade without removal, In-place agent upgrade]
+      client registration, in-place agent upgrade without removal, In-place agent upgrade, group 
+      policy deployment, hotfix rollback, update rollback]
   applies_to: all
   platform: true
 - id: operations.high_availability
@@ -1131,7 +1176,7 @@ dimensions:
   name: Backup platform recovery
   definition: Recovering the backup product's own configuration and catalog after loss.
   aliases: [configuration backup, catalog recovery, disaster recovery of backup server, 
-      self-protection]
+      self-protection, index restore, scheduled catalog backup, self-backup, server database backup]
   applies_to: all
   platform: true
 - id: operations.diagnostics
@@ -1168,7 +1213,8 @@ dimensions:
       execution, Concurrent policy execution, configurable application read size, Configurable read 
       size, configurable number of backup streams, Parallel backup streams, configurable resource 
       limits for backup delete jobs, Deletion job resource limits, cpu priority control, maximum 
-      number of backup stripes, Maximum backup stripes]
+      number of backup stripes, Maximum backup stripes, backup performance tuning, backup 
+      performance tuning parameters, configurable block size for backup and restore]
   applies_to: all
 # ---------------- governance ----------------
 - id: governance.archiving
@@ -1182,7 +1228,8 @@ dimensions:
       archive policies, scheduled retention policy application, Scheduled retention policy, manual 
       start of archival policy, Manual archival start, archive hard deletion, hard delete after 
       archive, Permanent deletion after archive, disable automations during archiving, Bypassing 
-      automation during archiving, unix archiving, network share archiving]
+      automation during archiving, unix archiving, network share archiving, hard delete archived 
+      records, stubbing]
   applies_to: all
 - id: governance.legal_hold
   name: Legal hold
@@ -1199,7 +1246,7 @@ dimensions:
   definition: Discovering and classifying sensitive or regulated data.
   aliases: [data classification, sensitive data discovery, pii detection, dlp, data discovery, 
       sensitive data intelligence, sensitive data discovery and classification, sensitive data 
-      discovery scan, classification scans, data asset inventory]
+      discovery scan, classification scans, data asset inventory, mip labeling]
   applies_to: all
 - id: governance.rot_cleanup
   name: ROT data clean-up
@@ -1423,7 +1470,8 @@ dimensions:
   aliases: [incremental backup, incremental backups, incremental backup of changed items, full 
       backup fallback for objects without incremental support, Full backup fallback, full backup 
       every session, Always full backup, forever forward incremental backup, forever incremental 
-      backup, infinite incremental backups]
+      backup, infinite incremental backups, copy-only database backup, full database backup, full 
+      snapshot]
   applies_to: all
 - id: coverage.configurable_exclusions
   name: Backup inclusion and exclusion filters
@@ -1439,7 +1487,8 @@ dimensions:
       file extension exclusion filter, File extension exclusion, filtered ingestion, regex filtering
       of ingestion, Ingestion filtering, backup content filters with wildcard patterns, Wildcard 
       content filters, disk exclusion by tag, Tag-based exclusion, user-defined subclients for 
-      specific shares, User-defined data subsets, wildcard file selection]
+      specific shares, User-defined data subsets, wildcard file selection, selective backup, vm 
+      selection by name]
   applies_to: all
 - id: recovery.record_level
   name: Record-level restore
@@ -1516,14 +1565,14 @@ dimensions:
   aliases: [pause backup service, pause and resume backup scheduling, pause and resume scheduled 
       backups, pause backup, cancel runs at quiet time start, Cancels running jobs at blackout start,
     pause future protection runs, Pausing scheduled protection, disable archival policy, manual stop
-      of archival policy]
+      of archival policy, backup window enforcement, job hold]
   applies_to: all
 - id: security.immutability_period
   name: Immutability period
   definition: The length of time a backup stays immutable before the lock expires.
   aliases: [custom immutability period, default minimum immutability period, change immutability 
       period, default immutability period, default minimum immutability duration, immutability for 
-      specific duration]
+      specific duration, worm retention period]
   applies_to: all
   value_unit: days
 - id: governance.resource_tagging
@@ -1551,7 +1600,8 @@ dimensions:
     systems or KMS-encrypted volumes and databases, can be backed up and restored, and whether it is
     kept encrypted or decrypted.
   aliases: [backup of encrypted fields, encrypted field restore, restore encrypted fields, restore 
-      of encrypted field values, restore of encrypted fields]
+      of encrypted field values, restore of encrypted fields, bitlocker encrypted volume backup, 
+      transparent data encryption support]
   applies_to: all
 - id: recovery.version_selection
   name: Item version restore
@@ -1610,13 +1660,14 @@ dimensions:
     and compliance with backup schedules, RPO or SLA targets, shown as status, ratios or compliance reports.'
   aliases: [sla compliance ratio estimation, sla compliance monitoring, protection status report, 
       protection status reporting, protection status overview, protection status monitoring, rpo 
-      compliance reporting]
+      compliance reporting, policy compliance status]
   applies_to: all
 - id: protection.api_based_collection
   name: Provider APIs used for backup
   definition: Which SaaS or cloud provider APIs the product uses to read and restore data, such as 
     Microsoft Graph, EWS or a provider's backup storage API.
-  aliases: [backup via graph api, backup via onedrive api]
+  aliases: [backup via graph api, backup via onedrive api, api-based backup and restore, exchange 
+      web services backup]
   applies_to:
   - saas
 - id: security.encryption_password_recovery
@@ -1627,7 +1678,7 @@ dimensions:
 - id: protection.ndmp_backup
   name: NDMP backup
   definition: Backing up network-attached storage using the Network Data Management Protocol.
-  aliases: [ndmp backup, token-based backups]
+  aliases: [ndmp backup, token-based backups, cluster aware backup extension, ndmp multiplexing]
   applies_to: [file.nas]
 - id: protection.pre_post_scripts
   name: Pre- and post-backup scripts
@@ -1650,7 +1701,7 @@ dimensions:
   definition: Which transport modes are used to read and write virtual disk data, such as hot-add, 
     direct SAN access or network (NBD), and when each applies.
   aliases: [hotadd transport mode, hotadd transport mode backup, hotadd transport mode restore, 
-      direct san access, SAN transport mode]
+      direct san access, SAN transport mode, san mode restore]
   applies_to:
   - virtualization
 - id: vendor.license_usage_reporting
@@ -1663,7 +1714,7 @@ dimensions:
   definition: Whether operational metrics of the product can be exported to or scraped by external 
     monitoring platforms such as Prometheus, Datadog or Grafana, and which ones.
   aliases: [metrics export to external monitoring platforms, prometheus metrics export, prometheus 
-      remote write metrics export, metrics provider integration]
+      remote write metrics export, metrics provider integration, grafana alerting]
   applies_to: all
 - id: recovery.audit_field_preservation
   name: Audit field preservation on restore
@@ -1677,7 +1728,8 @@ dimensions:
   definition: Integration with professional services automation, remote monitoring and management, 
     or service desk tools, such as ConnectWise, Autotask, N-central or Jira, for ticket creation 
     from alerts, billing or deployment.
-  aliases: [psa integration, psa ticket creation from alerts, Ticket creation from alerts]
+  aliases: [psa integration, psa ticket creation from alerts, Ticket creation from alerts, 
+      integrated customer billing]
   applies_to: all
 - id: security.ssh_public_key_authentication
   name: SSH public key authentication
@@ -1706,7 +1758,10 @@ dimensions:
   definition: Whether workloads deployed in clustered or high-availability configurations can be 
     backed up and restored, such as SQL Server availability groups and failover cluster instances, 
     Oracle RAC, Exchange DAGs, Windows failover clusters and cluster shared volumes.
-  aliases: [availability group support, backup of only clustered disks, Clustered disk coverage]
+  aliases: [availability group support, backup of only clustered disks, Clustered disk coverage, 
+      backup of fault tolerant virtual machines, cluster-aware backup, dag node backup, failover 
+      cluster backup and restore, failover cluster protection, fault tolerant virtual machine backup,
+    multi-node rac backup, shared disk backup]
   applies_to:
   - app
   - endpoint.server
@@ -1716,7 +1771,7 @@ dimensions:
     objects, continuing past individual item errors, and resuming an interrupted backup from a checkpoint
     instead of starting over.'
   aliases: [checkpoint restart, checkpoint restart backups, rerun failed jobs, continue on error, 
-      automatic backup retry]
+      automatic backup retry, job resume]
   applies_to: all
 - id: protection.consistency_groups
   name: Consistency groups
@@ -1728,7 +1783,8 @@ dimensions:
   name: LAN-free and SAN transport
   definition: Moving backup data directly between the workload and backup storage over a storage 
     network (SAN, Fibre Channel or a dedicated data network) instead of the production LAN.
-  aliases: [lan-free data transfer, lan-free backup and restore]
+  aliases: [lan-free data transfer, lan-free backup and restore, dedicated backup network, san 
+      backup]
   applies_to: all
 - id: protection.open_file
   name: Open file backup
@@ -1759,7 +1815,8 @@ dimensions:
   definition: Whether administration and end-user access use a web browser interface rather than an 
     installed desktop console, what the web interface supports, and which browsers it requires.
   aliases: [web-based administration interface, web-based user interface, web ui browser support, 
-      browser support, web browser support, supported browser, Supported browsers]
+      browser support, web browser support, supported browser, Supported browsers, web browser file 
+      restore, web browser restore, web ui restore]
   applies_to: all
 - id: vendor.license_revocation
   name: Automatic license assignment and release
@@ -1878,7 +1935,7 @@ dimensions:
       kubernetes, installation on kubernetes cluster, Kubernetes platform support, linux-based 
       backup proxy servers, backup proxy server on linux, Linux proxy host support, nas installation,
     installation on nas, cloud deployment, deployment on cloud virtual machine, Cloud VM deployment, 
-      virtual appliance deployment, Virtual appliance delivery]
+      virtual appliance deployment, Virtual appliance delivery, vm deployment]
   applies_to: all
 - id: operations.multi_vendor_reporting
   name: Multi-vendor backup reporting
@@ -1929,7 +1986,7 @@ dimensions:
 - id: recovery.pre_post_scripts
   name: Pre- and post-restore scripts
   definition: Running custom scripts before and after a restore job.
-  aliases: [pre- and post-restore scripts, pre-restore scripts, post-restore scripts]
+  aliases: [pre- and post-restore scripts, pre-restore scripts, post-restore scripts, restore hooks]
   applies_to: all
 - id: recovery.draas
   name: Disaster recovery as a service
@@ -2358,7 +2415,8 @@ classes:
 targets:
 # ---- SaaS: productivity ----
 - {id: microsoft_365, name: Microsoft 365, class: saas.productivity, aliases: [m365, office 365, o365,
-    microsoft 365 tenant, microsoft 365 groups, microsoft 365 group]}
+    microsoft 365 tenant, microsoft 365 groups, microsoft 365 group, microsoft 365 gcc high, 
+      microsoft 365 government gcc high, microsoft groups]}
 - {id: microsoft_365.exchange_online, name: Exchange Online, class: saas.productivity, aliases: [
       exchange online, outlook online, exo]}
 - {id: microsoft_365.onedrive, name: OneDrive for Business, class: saas.productivity, aliases: [
@@ -2372,13 +2430,14 @@ targets:
       microsoft planner]}
 - {id: microsoft_365.onenote, name: OneNote, class: saas.productivity, aliases: [onenote]}
 - {id: microsoft_365.project_online, name: Project Online, class: saas.productivity, aliases: [
-      project online, project for the web]}
+      project online, project for the web, microsoft project online]}
 - {id: google_workspace, name: Google Workspace, class: saas.productivity, aliases: [g suite, gsuite,
-    google apps, google groups]}
+    google apps, google groups, google mail and google drive, google sites, google workspace for 
+      education]}
 - {id: google_workspace.gmail, name: Gmail, class: saas.productivity, aliases: [gmail, google mail, 
       google gmail]}
 - {id: google_workspace.drive, name: Google Drive, class: saas.productivity, aliases: [google drive, 
-      my drive]}
+      my drive, google docs, google forms, google sheets, google slides]}
 - {id: google_workspace.shared_drives, name: Google Shared Drives, class: saas.productivity, aliases: [
     shared drives, google shared drives, team drives]}
 - {id: google_workspace.calendar, name: Google Calendar, class: saas.productivity, aliases: [google 
@@ -2402,6 +2461,7 @@ targets:
     aliases:
     - entra external id
     - azure ad b2c
+    - azure active directory b2c
 - id: okta
   name: Okta Workforce Identity
   class: saas.identity
@@ -2417,22 +2477,26 @@ targets:
 - {id: ping_identity, name: Ping Identity, class: saas.identity, aliases: [ping identity, pingone, 
       pingfederate]}
 - {id: google_cloud_identity, name: Google Cloud Identity and IAM, class: saas.identity, aliases: [
-      google cloud identity, google iam, cloud identity, google directory]}
+      google cloud identity, google iam, cloud identity, google directory, google workspace 
+      directory]}
 - id: salesforce
   name: Salesforce
   class: saas.crm
   aliases: [salesforce platform, salesforce.com, sfdc, salesforce org, salesforce crm, salesforce 
       (legacy), salesforce industries, ncino, salesforce cpq, salesforce agentforce revenue 
-      management, salesforce agentforce]
+      management, salesforce agentforce, agentforce revenue management, experience cloud, salesforce
+      knowledge, salesforce revenue lifecycle management]
   object_aliases:
     audit_trail: [setup audit trail]
   variants:
   - {id: sales_cloud, name: Sales Cloud, aliases: [sales cloud]}
-  - {id: service_cloud, name: Service Cloud, aliases: [service cloud, salesforce field service]}
+  - {id: service_cloud, name: Service Cloud, aliases: [service cloud, salesforce field service, 
+        field service lightning]}
   - {id: industry_clouds, name: Industry clouds, aliases: [financial services cloud, health cloud, 
-        education cloud, vlocity, salesforce nonprofit cloud, salesforce financial services cloud]}
+        education cloud, vlocity, salesforce nonprofit cloud, salesforce financial services cloud, 
+        salesforce omnistudio]}
   - {id: marketing_cloud, name: Marketing Cloud, aliases: [marketing cloud, salesforce marketing 
-        cloud]}
+        cloud, pardot, salesforce marketing cloud account engagement (pardot)]}
   - {id: production_org, name: Production org, aliases: [production org, production orgs]}
   - {id: sandbox_org, name: Sandbox org, aliases: [sandbox, sandbox orgs, sandboxes]}
   - {id: developer_org, name: Developer org, aliases: [developer org, developer edition orgs]}
@@ -2443,12 +2507,14 @@ targets:
     - salesforce data cloud
   - id: commerce_cloud
     name: Salesforce Commerce Cloud
-    aliases: []
+    aliases:
+    - salesforce b2b commerce
 - {id: dynamics_365, name: Microsoft Dynamics 365, class: saas.crm, aliases: [dynamics 365, dynamics
-      crm, d365, dataverse, microsoft dynamics], variants: [{id: marketing, name: Dynamics 365 
-        Marketing, aliases: []}]}
+      crm, d365, dataverse, microsoft dynamics, microsoft dynamics 365 finance & operations], 
+    variants: [{id: marketing, name: Dynamics 365 Marketing, aliases: []}]}
 - {id: power_platform, name: Microsoft Power Platform, class: saas.crm, aliases: [power platform, 
-      power apps, power automate, power bi, microsoft power bi, power bi service]}
+      power apps, power automate, power bi, microsoft power bi, power bi service, microsoft power 
+      apps, microsoft power automate, power automate desktop, power bi workspaces, powerbi]}
 - {id: hubspot, name: HubSpot, class: saas.crm, aliases: [hubspot crm]}
 - {id: github, name: GitHub, class: saas.devops, aliases: [github, github enterprise, microsoft 
       github]}
@@ -2520,9 +2586,11 @@ targets:
 - {id: aws.documentdb, name: Amazon DocumentDB, class: cloud.database, aliases: [documentdb, amazon 
       documentdb]}
 - {id: aws.neptune, name: Amazon Neptune, class: cloud.database, aliases: [neptune, amazon neptune]}
-- {id: aws.s3, name: Amazon S3, class: cloud.object, aliases: [s3, amazon s3, s3 buckets, aws s3], 
-    variants: [{id: glacier, name: Amazon S3 Glacier, aliases: [glacier storage, Amazon Glacier, 
-          amazon s3 glacier, amazon s3 glacier deep archive]}]}
+- {id: aws.s3, name: Amazon S3, class: cloud.object, aliases: [s3, amazon s3, s3 buckets, aws s3, 
+      amazon s3 one zone, aws c2s - s3], variants: [{id: glacier, name: Amazon S3 Glacier, aliases: [
+        glacier storage, Amazon Glacier, amazon s3 glacier, amazon s3 glacier deep archive, amazon 
+          glacier deep archive, amazon s3 deep archive, amazon s3 glacier instant retrieval, amazon 
+          s3 glacier vault, aws c2s - glacier, aws glacier, aws gov - s3 glacier deep archive]}]}
 - {id: aws.efs, name: Amazon EFS, class: cloud.file, aliases: [efs, amazon efs, elastic file system, 
       aws efs]}
 - id: aws.fsx
@@ -2531,10 +2599,11 @@ targets:
   aliases: [fsx, amazon fsx]
   variants:
   - {id: windows, name: FSx for Windows File Server, aliases: [fsx for windows file server, fsx for 
-        windows]}
-  - {id: lustre, name: FSx for Lustre, aliases: [fsx for lustre]}
-  - {id: ontap, name: FSx for NetApp ONTAP, aliases: [fsx for netapp ontap, fsx for ontap]}
-  - {id: openzfs, name: FSx for OpenZFS, aliases: [fsx for openzfs]}
+        windows, amazon fsx for windows file server]}
+  - {id: lustre, name: FSx for Lustre, aliases: [fsx for lustre, amazon fsx for lustre]}
+  - {id: ontap, name: FSx for NetApp ONTAP, aliases: [fsx for netapp ontap, fsx for ontap, amazon 
+        fsx for netapp ontap]}
+  - {id: openzfs, name: FSx for OpenZFS, aliases: [fsx for openzfs, amazon fsx for openzfs]}
 - {id: aws.vpc, name: Amazon VPC configuration, class: cloud.network_config, aliases: [vpc, amazon 
       vpc, vpc configuration, aws vpc, aws vpc configuration]}
 - {id: aws.route53, name: Amazon Route 53, class: cloud.network_config, aliases: [route 53, route53, 
@@ -2544,13 +2613,13 @@ targets:
 - {id: azure, name: Microsoft Azure, class: cloud, aliases: [azure, microsoft azure, azure resource 
       manager], variants: [{id: government, name: Azure Government, aliases: [azure government]}]}
 - {id: azure.vm, name: Azure Virtual Machines, class: cloud.compute, aliases: [azure vm, azure vms, 
-      azure virtual machines, microsoft azure vms, microsoft azure virtual machines]}
+      azure virtual machines, microsoft azure vms, microsoft azure virtual machines, azure classic]}
 - {id: azure.managed_disk, name: Azure Managed Disks, class: cloud.compute, aliases: [azure managed 
       disks, managed disks, azure disks]}
 - {id: azure.sql_database, name: Azure SQL Database, class: cloud.database, aliases: [azure sql 
-      database, azure sql db, azure sql]}
+      database, azure sql db, azure sql, azure sql server]}
 - {id: azure.sql_managed_instance, name: Azure SQL Managed Instance, class: cloud.database, aliases: [
-    azure sql managed instance, sql managed instance, sql mi]}
+    azure sql managed instance, sql managed instance, sql mi, azure managed instance]}
 - {id: azure.sql_in_vm, name: SQL Server on Azure VMs, class: cloud.database, aliases: [sql server 
       on azure vm, sql in azure vm]}
 - {id: azure.postgresql, name: Azure Database for PostgreSQL, class: cloud.database, aliases: [azure
@@ -2566,13 +2635,16 @@ targets:
   - {id: nosql, name: Cosmos DB for NoSQL, aliases: [cosmos db for nosql, cosmos db sql api, azure 
         cosmos db for nosql]}
   - {id: mongodb, name: Cosmos DB for MongoDB, aliases: [cosmos db for mongodb, azure cosmos db for 
-        mongodb]}
-  - {id: cassandra, name: Cosmos DB for Apache Cassandra, aliases: [cosmos db for cassandra]}
-  - {id: postgresql, name: Cosmos DB for PostgreSQL, aliases: [cosmos db for postgresql]}
-  - {id: table, name: Cosmos DB for Table, aliases: [cosmos db table api]}
+        mongodb, azure cosmos db - mongodb]}
+  - {id: cassandra, name: Cosmos DB for Apache Cassandra, aliases: [cosmos db for cassandra, azure 
+        cosmos db for apache cassandra]}
+  - {id: postgresql, name: Cosmos DB for PostgreSQL, aliases: [cosmos db for postgresql, azure 
+        cosmos db for postgresql]}
+  - {id: table, name: Cosmos DB for Table, aliases: [cosmos db table api, azure cosmos db for table]}
   - {id: gremlin, name: Cosmos DB for Gremlin, aliases: [cosmos db gremlin]}
 - {id: azure.blob, name: Azure Blob Storage, class: cloud.object, aliases: [azure blob, blob storage,
-    azure blob storage, azure storage account]}
+    azure blob storage, azure storage account, azure archival locations, azure archive, azure 
+      archive storage]}
 - {id: azure.data_lake, name: Azure Data Lake Storage, class: cloud.object, aliases: [adls, data 
       lake storage gen2]}
 - {id: azure.files, name: Azure Files, class: cloud.file, aliases: [azure files, azure file shares, 
@@ -2591,13 +2663,14 @@ targets:
 - {id: gcp.persistent_disk, name: Google Persistent Disk, class: cloud.compute, aliases: [persistent
       disk, google persistent disk, compute engine disks]}
 - {id: gcp.cloud_sql, name: Google Cloud SQL, class: cloud.database, aliases: [cloud sql, google 
-      cloud sql, google cloud sql for postgresql, google cloud sql for mysql]}
+      cloud sql, google cloud sql for postgresql, google cloud sql for mysql, google cloud 
+      postgresql]}
 - {id: gcp.spanner, name: Google Cloud Spanner, class: cloud.database, aliases: [spanner, cloud 
       spanner]}
 - {id: gcp.alloydb, name: AlloyDB, class: cloud.database, aliases: [alloydb]}
 - {id: gcp.bigquery, name: BigQuery, class: cloud.database, aliases: [bigquery, google bigquery]}
 - {id: gcp.cloud_storage, name: Google Cloud Storage, class: cloud.object, aliases: [google cloud 
-      storage, gcs, cloud storage buckets]}
+      storage, gcs, cloud storage buckets, google cloud archive]}
 - {id: gcp.filestore, name: Google Filestore, class: cloud.file, aliases: [filestore, google 
       filestore]}
 - {id: gcp.vpc, name: Google Cloud VPC configuration, class: cloud.network_config, aliases: [google 
@@ -2611,27 +2684,31 @@ targets:
 - {id: s3_compatible_object_storage, name: S3-compatible object storage, class: cloud.object, 
     aliases: [s3-compatible storage, s3 compatible, s3-compatible object storage, on-premises object
       storage], variants: [{id: wasabi, name: Wasabi, aliases: [wasabi cloud object storage, wasabi 
-          cloud storage, wasabi hot cloud storage, wasabi]}, {id: scality_artesca, name: Scality 
-        ARTESCA, aliases: []}, {id: minio, name: MinIO, aliases: []}, {id: quantum_activescale, name: 
-        Quantum ActiveScale, aliases: []}]}
+          cloud storage, wasabi hot cloud storage, wasabi, wasabi cloud]}, {id: scality_artesca, 
+        name: Scality ARTESCA, aliases: []}, {id: minio, name: MinIO, aliases: []}, {id: 
+        quantum_activescale, name: Quantum ActiveScale, aliases: []}]}
 - {id: vmware_vsphere, name: VMware vSphere, class: virtualization.hypervisor, aliases: [vmware, 
-      vsphere, esxi, vcenter, vmware esxi, vmware vcenter, vmware vcenter server, vmware esx], 
-    variants: [{id: google_cloud_vmware_engine, name: Google Cloud VMware Engine, aliases: [google 
-          cloud vmware engine]}, {id: vmware_cloud_on_aws, name: VMware Cloud on AWS, aliases: [
-          vmware cloud on aws]}]}
+      vsphere, esxi, vcenter, vmware esxi, vmware vcenter, vmware vcenter server, vmware esx, 
+      vcenter server, vcenter server appliance, vmware cloud, vmware cloud on dell, vmware cloud on 
+      dell emc, vmware cloud sddc, vmware platform services controller, vmware vcenter server 
+      appliance, vmware vsan, vmware vvol], variants: [{id: google_cloud_vmware_engine, name: Google
+        Cloud VMware Engine, aliases: [google cloud vmware engine]}, {id: vmware_cloud_on_aws, name: 
+        VMware Cloud on AWS, aliases: [vmware cloud on aws, vmware cloud (vmc)]}]}
 - {id: vmware_cloud_director, name: VMware Cloud Director, class: virtualization.hypervisor, aliases: [
     vcloud director, cloud director]}
 - {id: microsoft_hyper_v, name: Microsoft Hyper-V, class: virtualization.hypervisor, aliases: [
-      hyper-v, hyperv, microsoft hyper-v], variants: [{id: azure_local, name: Azure Local, aliases: [
-        azure local]}]}
+      hyper-v, hyperv, microsoft hyper-v, hyper-v replica, microsoft system center virtual machine 
+      manager, scvmm, system center virtual machine manager], variants: [{id: azure_local, name: 
+        Azure Local, aliases: [azure local, azure local vms, azure stack hci, microsoft azure local]}]}
 - {id: nutanix_ahv, name: Nutanix AHV, class: virtualization.hypervisor, aliases: [ahv, nutanix ahv, 
-      nutanix, nutanix prism central]}
+      nutanix, nutanix prism central, ahv virtual machines, citrix ahv, nutanix aos, nutanix 
+      community edition, nutanix prism, nutanix prism element, prism element]}
 - {id: proxmox_ve, name: Proxmox VE, class: virtualization.hypervisor, aliases: [proxmox, proxmox ve]}
 - {id: red_hat_virtualization, name: Red Hat Virtualization, class: virtualization.hypervisor, 
-    aliases: [red hat virtualization, rhv, rhev, rhv/ovirt]}
+    aliases: [red hat virtualization, rhv, rhev, rhv/ovirt, red hat virtualization/ovirt]}
 - {id: oracle_linux_virtualization, name: Oracle Linux Virtualization Manager, class: 
     virtualization.hypervisor, aliases: [olvm, oracle linux virtualization manager, oracle linux vm, 
-      oracle vm]}
+      oracle vm, oracle vm server]}
 - {id: citrix_xenserver, name: Citrix XenServer, class: virtualization.hypervisor, aliases: [
       xenserver, citrix hypervisor, citrix xenserver, citrix hypervisor (xenserver)]}
 - {id: xcp_ng, name: XCP-ng, class: virtualization.hypervisor, aliases: [xcp-ng, vates xcp-ng]}
@@ -2639,25 +2716,27 @@ targets:
     aliases: [scale computing, hypercore]}
 - {id: hpe_morpheus_vm, name: HPE Morpheus VM Essentials, class: virtualization.hypervisor, aliases: [
     hpe morpheus, morpheus vm essentials, hpe vm essentials, hpe morpheus enterprise/vm essentials 
-      (hvm)]}
+      (hvm), hpe morpheus enterprise, hpe morpheus enterprise software]}
 - {id: sangfor_hci, name: Sangfor HCI, class: virtualization.hypervisor, aliases: [sangfor, sangfor 
       asv, sangfor hci]}
 - {id: ovirt, name: oVirt, class: virtualization.hypervisor, aliases: [ovirt, ovirt kvm, ovirt on 
       kvm]}
 - {id: openstack, name: OpenStack, class: virtualization.hypervisor, aliases: [openstack, nova, 
-      openstack cinder]}
+      openstack cinder, mirantis cloud platform, openstack nova, red hat openstack platform]}
 - {id: vergeos, name: VergeOS, class: virtualization.hypervisor, aliases: [vergeos, verge.io]}
 - {id: platform9, name: Platform9, class: virtualization.hypervisor, aliases: [platform9]}
 - {id: kvm, name: KVM, class: virtualization.hypervisor, aliases: [kvm, linux kvm, qemu, libvirt]}
 - {id: kubernetes_generic, name: Kubernetes, class: kubernetes, aliases: [kubernetes, k8s, 
       kubernetes clusters, kubernetes applications]}
 - {id: red_hat_openshift, name: Red Hat OpenShift, class: kubernetes, aliases: [openshift, red hat 
-      openshift, ocp, openshift container platform, red hat openshift container platform], variants: [
-    {id: rosa, name: Red Hat OpenShift Service on AWS, aliases: []}]}
-- {id: suse_rancher, name: SUSE Rancher, class: kubernetes, aliases: [rancher, suse rancher, rke2], 
-    variants: [{id: rke2, name: Rancher Kubernetes Engine 2 (RKE2), aliases: []}]}
-- {id: vmware_tanzu, name: VMware Tanzu, class: kubernetes, aliases: [tanzu, vmware tanzu], variants: [
-    {id: tkgi, name: VMware Tanzu Kubernetes Grid Integrated Edition, aliases: []}]}
+      openshift, ocp, openshift container platform, red hat openshift container platform, red hat 
+      openshift on ibm cloud], variants: [{id: rosa, name: Red Hat OpenShift Service on AWS, aliases: []}]}
+- {id: suse_rancher, name: SUSE Rancher, class: kubernetes, aliases: [rancher, suse rancher, rke2, 
+      rancher kubernetes engine], variants: [{id: rke2, name: Rancher Kubernetes Engine 2 (RKE2), 
+        aliases: []}]}
+- {id: vmware_tanzu, name: VMware Tanzu, class: kubernetes, aliases: [tanzu, vmware tanzu, vmware 
+      tanzu kubernetes grid, vmware vsphere kubernetes service, vsphere with tanzu], variants: [{id: 
+        tkgi, name: VMware Tanzu Kubernetes Grid Integrated Edition, aliases: []}]}
 - {id: openshift_virtualization, name: OpenShift Virtualization, class: kubernetes.vm, aliases: [
       openshift virtualization, red hat openshift virtualization, kubevirt on openshift, openshift 
       virtualization virtual machines]}
@@ -2667,15 +2746,19 @@ targets:
       docker desktop]}
 - {id: microsoft_sql_server, name: Microsoft SQL Server, class: app.database, aliases: [sql server, 
       mssql, microsoft sql, ms sql, microsoft sql server express edition, microsoft sql server vm, 
-      microsoft sql server agent]}
+      microsoft sql server agent, msde, sql always on availability groups, sql server always on 
+      availability groups, sql vdi]}
 - {id: oracle_database, name: Oracle Database, class: app.database, aliases: [oracle, oracle 
-      database, oracle rac, rman, oracle recovery manager (rman), oracle rman, oracle asm]}
-- {id: postgresql, name: PostgreSQL, class: app.database, aliases: [postgres, postgresql]}
+      database, oracle rac, rman, oracle recovery manager (rman), oracle rman, oracle asm, oracle 
+      fail safe, oracle rac one node, oracle real application clusters]}
+- {id: postgresql, name: PostgreSQL, class: app.database, aliases: [postgres, postgresql, edb 
+      postgres advanced server, patroni]}
 - {id: mysql, name: MySQL, class: app.database, aliases: [mysql]}
 - {id: mariadb, name: MariaDB, class: app.database, aliases: [mariadb]}
-- {id: mongodb, name: MongoDB, class: app.database, aliases: [mongodb, mongo]}
+- {id: mongodb, name: MongoDB, class: app.database, aliases: [mongodb, mongo, mongodb ops manager]}
 - {id: ibm_db2, name: IBM Db2, class: app.database, aliases: [db2, ibm db2, ibm db2 multinode]}
-- {id: sap_hana, name: SAP HANA, class: app.database, aliases: [sap hana, hana]}
+- {id: sap_hana, name: SAP HANA, class: app.database, aliases: [sap hana, hana, sap hana databases, 
+      sap hana system replication]}
 - {id: sap_maxdb, name: SAP MaxDB, class: app.database, aliases: [maxdb, sap maxdb]}
 - {id: sap_ase, name: SAP ASE, class: app.database, aliases: [sap ase, sybase, sybase ase]}
 - {id: informix, name: IBM Informix, class: app.database, aliases: [informix]}
@@ -2691,45 +2774,71 @@ targets:
 - {id: microsoft_exchange_server, name: Microsoft Exchange Server, class: app.collaboration, aliases: [
     exchange server, exchange on-premises, microsoft exchange, hosted exchange]}
 - {id: microsoft_sharepoint_server, name: Microsoft SharePoint Server, class: app.collaboration, 
-    aliases: [sharepoint server, sharepoint on-premises]}
+    aliases: [sharepoint server, sharepoint on-premises, sharepoint 2016]}
 - {id: hcl_domino, name: HCL Domino, class: app.collaboration, aliases: [domino, lotus notes, hcl 
-      notes, lotus domino, ibm domino]}
+      notes, lotus domino, ibm domino, ibm notes]}
 - {id: active_directory, name: Microsoft Active Directory, class: app.directory, aliases: [active 
       directory, ad, ad ds, on-premises active directory, active directory domain services], 
     variants: [{id: ad_lds, name: Active Directory Lightweight Directory Services (AD LDS), aliases: [
-        adam/ad lds, active directory application mode]}]}
+        adam/ad lds, active directory application mode, active directory lightweight directory 
+          services]}]}
 - {id: sap_applications, name: SAP applications, class: app.enterprise, aliases: [sap, sap erp, sap 
-      s/4hana, sap r/3]}
+      s/4hana, sap r/3, sap ecc]}
 - {id: meditech, name: MEDITECH, class: app.enterprise, aliases: [meditech]}
 - {id: smb_share, name: SMB file shares, class: file.nas, aliases: [smb, cifs, smb shares, windows 
-      file shares, cifs share, smb file systems, cifs shares]}
+      file shares, cifs share, smb file systems, cifs shares, windows network shares]}
 - {id: nfs_share, name: NFS file shares, class: file.nas, aliases: [nfs, nfs shares, nfs exports, 
-      nfs share, nfs server, nfs export path]}
+      nfs share, nfs server, nfs export path, linux nfs]}
 - {id: ndmp_nas, name: NDMP NAS, class: file.nas, aliases: [ndmp, ndmp backup, ndmp hosts, ndmp 
       server, ndmp servers, ndmp nas filers, ndmp clients]}
 - {id: netapp_ontap, name: NetApp ONTAP, class: file.nas, aliases: [netapp, ontap, netapp ontap, 
-      netapp clustered data ontap, netapp cluster-mode]}
+      netapp clustered data ontap, netapp cluster-mode, dell ontap, ibm n-series, lenovo dm, lenovo 
+      dm 5000, netapp - nfs, netapp - smb, netapp 7 mode, netapp 7-mode, netapp cifs, netapp 
+      cluster-mode cifs, netapp fas, netapp metrocluster, netapp n-series, netapp nas, netapp nas 
+      file servers, netapp ndmp servers, netapp nfs, netapp smb, netapp snapdiff, netapp snaplock, 
+      netapp snapmirror to tape, netapp snapvault, netapp storage, netapp storage array, netapp 
+      storage systems, netapp vfiler, network appliance]}
 - {id: dell_powerscale, name: Dell PowerScale, class: file.nas, aliases: [powerscale, isilon, dell 
-      emc isilon]}
+      emc isilon, isilon - nfs, isilon - smb]}
 - {id: windows_server, name: Microsoft Windows Server, class: endpoint.server, aliases: [windows 
-      server, windows servers, microsoft windows, windows server 2012 r2, windows server 2016, 
-      windows server core, on-premises windows server, windows server 2019, windows server 2022, 
-      windows file systems, windows file system, ntfs, windows 2000, Microsoft Windows 2000, windows
-      file servers, refs], variants: [{id: failover_cluster, name: Microsoft Windows Failover 
-        Cluster, aliases: [microsoft failover cluster, windows clusters, microsoft cluster server, 
-          microsoft cluster server (mscs), windows failover clusters, windows server failover 
-          cluster]}]}
+      server, windows servers, windows server 2012 r2, windows server 2016, windows server core, 
+      on-premises windows server, windows server 2019, windows server 2022, windows 2000, Microsoft 
+      Windows 2000, windows file servers, refs, microsoft ntfs, microsoft refs, microsoft windows 
+      file system, microsoft windows file systems, microsoft windows server 2008, microsoft windows 
+      server 2012, microsoft windows server 2012 r2, microsoft windows server core, microsoft wins, 
+      ntfs file systems, ntfs volumes, refs filesystems, refs volumes, storage spaces direct, 
+      windows 2003, windows deduplication, windows ntfs, windows refs, windows server 2003 r2, 
+      windows server 2008, windows server 2008 r2, windows small business server, windows storage 
+      server 2008], variants: [{id: failover_cluster, name: Microsoft Windows Failover Cluster, 
+        aliases: [microsoft failover cluster, windows clusters, microsoft cluster server, microsoft 
+          cluster server (mscs), windows failover clusters, windows server failover cluster, 
+          microsoft cluster, microsoft cluster service, microsoft cluster shared volumes, microsoft 
+          windows clusters, windows server clusters]}]}
 - id: linux
   name: Linux
   class: endpoint.server
   aliases: [linux, linux servers, linux computers, linux machines, linux server, ubuntu, oracle 
-      linux, centos, btrfs, debian, linux virtual machines, rocky linux, linux file servers]
+      linux, centos, btrfs, debian, linux virtual machines, rocky linux, linux file servers, alma 9, 
+      alma linux, almalinux, almalinux 9, amazon linux 2, amazon linux 2 ami, amazon linux 2023 ami, 
+      amazon linux v2, aws linux, azure linux, centos 7, centos 8, centos stream 9, centos/rhel, 
+      centos/rhel 8, debian 10, debian 13, debian linux, debian/ubuntu, euleros, ext2, 
+      ext2/ext3/ext4, ext3, ext4, flatcar stable, kylin, linux cluster, linux guest vms, linux 
+      logical volume manager, linux lvm, linux on system z, linux-based virtual machines, oracle 
+      enterprise linux, oracle enterprise linux 8, oracle linux 10, oracle linux 8, oracle linux 8.8,
+    photon 3.0, photon 4.0, rancheros, rocky linux 10, rocky linux 8, rocky linux 9, rocky linux 9.4,
+    suse, ubuntu 14.04 lts, ubuntu 16.04, ubuntu 20.04 lts, ubuntu 22.04 lts, ubuntu 24, ubuntu 
+      24.04, ubuntu 24.04 lts, xfs]
   variants:
-  - {id: linux_on_power, name: Linux on IBM Power, aliases: [linux on power, linux on ibm power]}
+  - {id: linux_on_power, name: Linux on IBM Power, aliases: [linux on power, linux on ibm power, 
+        linux on powerpc]}
   - id: sles
     name: SUSE Linux Enterprise Server
     aliases:
     - suse linux enterprise server
+    - sles
+    - sles 15
+    - suse linux enterprise
+    - suse linux enterprise server 15
   - id: fedora
     name: Fedora
     aliases: []
@@ -2738,21 +2847,41 @@ targets:
     aliases:
     - rhel 7.9
     - red hat enterprise linux
-- {id: ibm_aix, name: IBM AIX, class: endpoint.server, aliases: [aix, ibm aix]}
+    - linux redhat
+    - red hat enterprise linux 7.x
+    - red hat enterprise linux 9.x
+    - red hat linux
+    - redhat linux
+    - rhel 8.10
+    - rhel 8.4
+    - rhel 8.6
+    - rhel 8.7
+    - rhel 8.8
+    - rhel 8.9
+    - rhel 9
+    - rhel 9.2
+    - rhel 9.4
+- {id: ibm_aix, name: IBM AIX, class: endpoint.server, aliases: [aix, ibm aix, aix logical volume 
+      manager, aix lvm, jfs2]}
 - {id: oracle_solaris, name: Oracle Solaris, class: endpoint.server, aliases: [solaris, oracle 
-      solaris]}
+      solaris, solaris file system, solaris volume manager, solaris zfs, solaris zones]}
 - {id: hp_ux, name: HP-UX, class: endpoint.server, aliases: [hp-ux, hpux]}
-- {id: ibm_i, name: IBM i, class: endpoint.server, aliases: [ibm i, as400, iseries]}
+- {id: ibm_i, name: IBM i, class: endpoint.server, aliases: [ibm i, as400, iseries, ibm i file 
+      system]}
 - {id: windows_workstation, name: Windows workstations, class: endpoint.workstation, aliases: [
       windows 10, windows 11, windows desktops, windows laptops, windows workstation, windows client
-      computers, windows on arm]}
-- {id: macos, name: macOS, class: endpoint.workstation, aliases: [macos, mac os, os x, mac, mac os x]}
+      computers, windows on arm, laptop backup (windows), microsoft windows 11, microsoft windows 
+      vista, microsoft windows xp, windows 7, windows on arm64, windows xp, windows xp sp2]}
+- {id: macos, name: macOS, class: endpoint.workstation, aliases: [macos, mac os, os x, mac, mac os x,
+    apfs, darwin]}
 - {id: linux_workstation, name: Linux workstations, class: endpoint.workstation, aliases: [linux 
       desktops, linux workstation]}
 - {id: tape_library, name: Tape, class: storage.target, aliases: [tape, tape library, lto, virtual 
       tape library, vtl, tape libraries, automated tape library, automated tape libraries, robotic 
-      tape libraries, tape silo], variants: [{id: acsls, name: ACSLS (Automated Cartridge System 
-        Library Software), aliases: [acsls]}]}
+      tape libraries, tape silo, autoloader, ibm 3592, nas-attached libraries, ndmp autochangers, 
+      scsi libraries, shared tape libraries, stand-alone drives, storagetek, storagetek t10000, worm
+      media], variants: [{id: acsls, name: ACSLS (Automated Cartridge System Library Software), 
+        aliases: [acsls, acs robots, acsls library, oracle storagetek acsls, sun storagetek acsls]}]}
 - id: dedup_appliance
   name: Deduplication storage appliance
   class: storage.target
@@ -2760,9 +2889,11 @@ targets:
     pbba, deduplicating storage appliances, deduplication appliances]
   variants:
   - {id: data_domain, name: Dell Data Domain, aliases: [data domain, dd boost, powerprotect dd, dell
-        data domain, emc data domain, dell emc data domain]}
+        data domain, emc data domain, dell emc data domain, data domain boost, data domain cloud 
+        tier, data domain vtl, dell emc datadomain, dell powerprotect data domain, dell powerprotect
+        dd]}
   - {id: storeonce, name: HPE StoreOnce, aliases: [storeonce, catalyst, hpe storeonce, hpe storeonce
-        catalyst]}
+        catalyst, hpe storeonce gen5]}
   - {id: exagrid, name: ExaGrid, aliases: [exagrid]}
   - {id: quantum_dxi, name: Quantum DXi, aliases: [dxi, quantum dxi]}
   - {id: infiniguard, name: Infinidat InfiniGuard, aliases: [infiniguard]}
@@ -2770,38 +2901,44 @@ targets:
     name: NEC HYDRAstor
     aliases: []
 - {id: disk_storage, name: Disk storage, class: storage.target, aliases: [local disk, das, 
-      direct-attached storage, block storage repository, nas repository, san lun], variants: [{id: 
-        removable_media, name: Removable storage, aliases: [external hard drives, removable disks, 
-          removable drives, usb drives, usb external drives, usb flash drives]}]}
+      direct-attached storage, block storage repository, nas repository, san lun, file devices, file
+      system devices], variants: [{id: removable_media, name: Removable storage, aliases: [external 
+          hard drives, removable disks, removable drives, usb drives, usb external drives, usb flash
+          drives, cd/dvd, disk cartridges, external drive, external usb drives, rdx, removable 
+          devices, removable storage devices, usb, usb devices, usb storage]}]}
 - {id: microsoft_intune, name: Microsoft Intune, class: saas.identity, aliases: [microsoft intune]}
 - {id: kubevirt, name: KubeVirt, class: kubernetes.vm, aliases: [kubevirt, kubernetes virtual 
       machines, kubevirt virtual machines]}
 - {id: pure_storage_flasharray, name: Pure Storage FlashArray, class: storage.target, aliases: [
-      everpure flasharray, pure storage flasharray, pure flasharray, pure storage]}
+      everpure flasharray, pure storage flasharray, pure flasharray, pure storage, everpure cloud 
+      dedicated, pure, purity activecluster]}
 - {id: nas, name: NAS devices (generic), class: file.nas, aliases: [nas devices, nas systems, nas 
-      file servers, nas filers]}
+      file servers, nas filers, linux nas, nas clients]}
 - {id: ibm_cloud.object_storage, name: IBM Cloud Object Storage, class: cloud.object, aliases: [ibm 
-      cloud object storage]}
-- {id: ibm_ds8000, name: IBM DS8000, class: storage.target, aliases: [ibm ds8000]}
+      cloud object storage, ibm cleversafe, ibm cos]}
+- {id: ibm_ds8000, name: IBM DS8000, class: storage.target, aliases: [ibm ds8000, ibm system storage
+      ds8000]}
 - {id: splunk, name: Splunk, class: app.enterprise, aliases: [splunk, splunk enterprise]}
 - {id: ibm_san_volume_controller, name: IBM SAN Volume Controller (Storage Virtualize), class: 
     storage.target, aliases: [ibm san volume controller, ibm system storage san volume controller, 
       san volume controller, ibm svc, ibm storage virtualize for snapshot], variants: [{id: storwize,
       name: Storwize family storage systems, aliases: [ibm storwize family, storwize family, ibm 
-          storwize]}]}
+          storwize, ibm storwize v7000]}]}
 - {id: infinibox_nas, name: Infinidat InfiniBox, class: file.nas, aliases: [infinibox nas, infinidat
       infinibox nas, infinidat storage array]}
 - {id: microsoft_365.copilot, name: Microsoft 365 Copilot, class: saas.productivity, aliases: [
-      microsoft 365 copilot]}
+      microsoft 365 copilot, microsoft 365 copilot chat]}
 - {id: nutanix_files, name: Nutanix Files, class: file.nas, aliases: [nutanix files]}
 - {id: google_workspace.chat, name: Google Chat, class: saas.productivity, aliases: [google chat]}
 - {id: oracle_hcm, name: Oracle HCM, class: saas.other, aliases: [oracle hcm]}
-- {id: hdfs, name: Hadoop Distributed File System (HDFS), class: file, aliases: [hdfs]}
+- {id: hdfs, name: Hadoop Distributed File System (HDFS), class: file, aliases: [hdfs, hadoop]}
 - {id: workday, name: Workday, class: saas.other, aliases: [workday]}
 - {id: freebsd, name: FreeBSD, class: endpoint.server, aliases: [freebsd]}
-- {id: microsoft_365.viva_engage, name: Viva Engage, class: saas.productivity, aliases: [viva engage]}
+- {id: microsoft_365.viva_engage, name: Viva Engage, class: saas.productivity, aliases: [viva engage,
+    yammer]}
 - {id: alibaba_cloud.oss, name: Alibaba Cloud OSS, class: cloud.object, aliases: [alibaba cloud oss]}
-- {id: vast_data, name: VAST Data, class: storage.target, aliases: [vast data platform, vast data]}
+- {id: vast_data, name: VAST Data, class: storage.target, aliases: [vast data platform, vast data, 
+      hpe greenlake for file storage (vast), vast data platform/hpe greenlake for file storage]}
 - {id: ibm_zos, name: IBM z/OS, class: endpoint.server, aliases: [z/os]}
 - {id: charmed_kubernetes, name: Charmed Kubernetes, class: kubernetes, aliases: [charmed kubernetes]}
 - {id: datacore_sansymphony, name: DataCore SANsymphony, class: storage.target, aliases: [datacore 
@@ -2817,14 +2954,15 @@ targets:
 - {id: azure.virtual_desktop, name: Azure Virtual Desktop, class: cloud.compute, aliases: [azure 
       virtual desktop]}
 - {id: hpe_alletra, name: HPE Alletra, class: storage.target, aliases: [hpe alletra, hpe alletra 
-      storage mp]}
+      storage mp, hpe alletra 5000, hpe alletra 5000 series, hpe alletra 6000 series, hpe alletra 
+      9000 series, hpe alletra storage mp x10000, hpe greenlake for block storage]}
 - {id: ibm_spectrum_scale, name: 'IBM Storage Scale (Spectrum Scale, GPFS)', class: file, aliases: [
       ibm spectrum scale (gpfs)]}
-- {id: ibm_xiv, name: IBM XIV, class: storage.target, aliases: [ibm xiv]}
+- {id: ibm_xiv, name: IBM XIV, class: storage.target, aliases: [ibm xiv, ibm xiv storage array]}
 - {id: novell_groupwise, name: Novell GroupWise, class: app.collaboration, aliases: [novell 
       groupwise]}
 - {id: pure_flashblade, name: Pure Storage FlashBlade, class: storage.target, aliases: [pure 
-      flashblade]}
+      flashblade, dell emc flashblade]}
 - {id: verizon_cloud_storage, name: Verizon Cloud Storage, class: cloud.object, aliases: [verizon 
       cloud storage]}
 - {id: aws.snowball_edge, name: AWS Snowball Edge, class: storage.target, aliases: [aws snowball 
@@ -2833,7 +2971,7 @@ targets:
       gateway]}
 - {id: ceph_rbd, name: Ceph RBD, class: storage.target, aliases: [ceph rbd]}
 - {id: dell_avamar, name: Dell Avamar, class: storage.target, aliases: [dell emc avamar]}
-- {id: dell_unity, name: Dell Unity, class: file.nas, aliases: [dell unity]}
+- {id: dell_unity, name: Dell Unity, class: file.nas, aliases: [dell unity, dell emc unity]}
 - {id: digitalocean.kubernetes, name: DigitalOcean Kubernetes, class: kubernetes, aliases: [
       digitalocean kubernetes]}
 - {id: lustre, name: Lustre, class: file, aliases: [lustre]}
@@ -2844,9 +2982,13 @@ targets:
       pages]}
 - {id: sap_iq, name: SAP IQ, class: app.database, aliases: [sap iq]}
 - {id: microsoft_windows, name: Microsoft Windows (any edition), class: endpoint, aliases: [windows, 
-      windows vms]}
+      windows vms, 32-bit windows, exfat, fat, fat16, fat32, fat32 volumes, microsoft dynamic disks, 
+      microsoft storage spaces, storage spaces, windows dynamic disks, windows efs, windows guest 
+      vms, windows machines, windows physical machines, windows registry, windows storage space, 
+      windows storage spaces, windows system state, windows virtual machines, windows vss, microsoft
+      windows, ntfs, windows file system, windows file systems]}
 - {id: sap_on_oracle, name: SAP on Oracle, class: app.enterprise, aliases: [sap for oracle, sap on 
-      oracle]}
+      oracle, sap on oracle rac]}
 - {id: azure_stack_hub, name: Microsoft Azure Stack Hub, class: virtualization.hypervisor, aliases: [
     azure stack hub, microsoft azure stack hub, azure stack, microsoft azure stack]}
 - {id: dell_powerstore, name: Dell PowerStore, class: storage.target, aliases: [powerstore, dell 
@@ -2862,19 +3004,20 @@ targets:
       storage flashsystem]}
 - {id: glusterfs, name: GlusterFS, class: file, aliases: [glusterfs]}
 - {id: cockroachdb, name: CockroachDB, class: app.database, aliases: [cockroachdb]}
-- {id: openstack.swift, name: OpenStack Swift, class: cloud.object, aliases: [openstack swift]}
+- {id: openstack.swift, name: OpenStack Swift, class: cloud.object, aliases: [openstack swift, swift]}
 - {id: google_workspace.classroom, name: Google Classroom, class: saas.productivity, aliases: [
       google classroom]}
 - {id: azure_vmware_solution, name: Azure VMware Solution, class: virtualization.hypervisor, aliases: [
     azure vmware solution, azure vmware]}
 - {id: apache_hive, name: Apache Hive, class: app.database, aliases: [apache hive]}
-- {id: hpe_3par, name: HPE 3PAR StoreServ, class: storage.target, aliases: [hp 3par]}
+- {id: hpe_3par, name: HPE 3PAR StoreServ, class: storage.target, aliases: [hp 3par, 3par]}
 - {id: cisco_hyperflex, name: Cisco HyperFlex, class: storage.target, aliases: [cisco hyperflex]}
 - {id: aws.outposts, name: AWS Outposts, class: cloud.compute, aliases: [aws outposts]}
-- {id: hpe_nimble, name: HPE Nimble Storage, class: storage.target, aliases: [hpe nimble storage]}
+- {id: hpe_nimble, name: HPE Nimble Storage, class: storage.target, aliases: [hpe nimble storage, 
+      nimble]}
 - {id: anthropic_claude, name: Anthropic Claude, class: saas.other, aliases: [claude desktop]}
 - {id: microsoft_fabric, name: Microsoft Fabric, class: cloud.database, aliases: [microsoft fabric]}
-- {id: qumulo, name: Qumulo, class: file.nas, aliases: [qumulo]}
+- {id: qumulo, name: Qumulo, class: file.nas, aliases: [qumulo, qumulo file storage]}
 - {id: greenplum, name: Greenplum, class: app.database, aliases: [greenplum]}
 - {id: azure.app_service, name: Azure App Service, class: cloud.compute, aliases: [azure app service]}
 - {id: netapp_storagegrid, name: NetApp StorageGRID, class: cloud.object, aliases: [netapp 
@@ -2882,29 +3025,31 @@ targets:
 - {id: gcp.firestore, name: Google Cloud Firestore, class: cloud.database, aliases: [google cloud 
       firestore]}
 - {id: hitachi_vsp, name: Hitachi Virtual Storage Platform (VSP), class: storage.target, aliases: [
-      hitachi vantara storage array, hitachi vantara]}
+      hitachi vantara storage array, hitachi vantara, hitachi storage arrays]}
 - {id: power_platform.copilot_studio, name: Microsoft Copilot Studio, class: saas.crm, aliases: [
       copilot studio, microsoft copilot studio]}
-- {id: synology_nas, name: Synology NAS, class: file.nas, aliases: [synology nas]}
+- {id: synology_nas, name: Synology NAS, class: file.nas, aliases: [synology nas, synology dsm]}
 - {id: dell_vnx, name: Dell EMC VNX / CLARiiON, class: storage.target, aliases: [dell emc vnx / 
       clariion]}
-- {id: dell_xtremio, name: Dell EMC XtremIO, class: storage.target, aliases: [dell emc xtremio]}
+- {id: dell_xtremio, name: Dell EMC XtremIO, class: storage.target, aliases: [dell emc xtremio, 
+      xtremio]}
 - {id: apache_hbase, name: Apache HBase, class: app.database, aliases: [hbase, apache hbase]}
 - {id: pinecone, name: Pinecone, class: cloud.database, aliases: [pinecone]}
 - {id: fujitsu_eternus, name: Fujitsu ETERNUS AF/DX, class: storage.target, aliases: [fujitsu 
-      eternus af / dx]}
+      eternus af / dx, fujitsu eternus af / dx storage array, fujitsu eternus af dx storage array]}
 - {id: apache_cloudstack, name: Apache CloudStack, class: virtualization.hypervisor, aliases: [
       apache cloudstack]}
 - {id: aws.glue, name: AWS Glue Data Catalog, class: cloud.database, aliases: [aws glue]}
 - {id: hitachi_nas, name: Hitachi NAS (HNAS / VSP One File), class: file.nas, aliases: [hitachi nas 
-      (vsp one file), hitachi nas]}
+      (vsp one file), hitachi nas, bluearc, hnas]}
 - {id: adobe_marketo, name: Adobe Marketo Engage, class: saas.crm, aliases: [adobe marketo engage]}
 - {id: dell_celerra, name: Dell EMC Celerra / VNX File, class: file.nas, aliases: [dell emc vnx / 
-      celerra, emc celerra, celerra, emc vnx (celerra)]}
+      celerra, emc celerra, celerra, emc vnx (celerra), celerra file server]}
 - {id: sap_successfactors, name: SAP SuccessFactors, class: saas.other, aliases: [sap successfactors]}
 - {id: azure.foundry, name: Microsoft Foundry, class: cloud, aliases: [microsoft foundry]}
 - {id: azure.synapse, name: Azure Synapse Analytics, class: cloud.database, aliases: [azure synapse]}
-- {id: virtuozzo, name: Virtuozzo, class: virtualization.hypervisor, aliases: [virtuozzo]}
+- {id: virtuozzo, name: Virtuozzo, class: virtualization.hypervisor, aliases: [virtuozzo, virtuozzo 
+      infrastructure, virtuozzo server]}
 - {id: shopify, name: Shopify, class: saas.other, aliases: [shopify]}
 - {id: azure.elastic_san, name: Azure Elastic SAN, class: cloud.compute, aliases: [azure elastic san]}
 - {id: huawei_oceanstor, name: Huawei OceanStor, class: storage.target, aliases: [huawei storage 
@@ -2916,7 +3061,7 @@ targets:
       hitachi content platform]}
 - {id: dell_vplex, name: Dell EMC VPLEX, class: storage.target, aliases: [dell emc vplex, emc vplex]}
 - {id: alibaba_cloud.apsaradb_rds, name: Alibaba Cloud ApsaraDB RDS, class: cloud.database, aliases: [
-    alibaba cloud apsaradb rds]}
+    alibaba cloud apsaradb rds, alibaba cloud apsaradb rds for postgresql]}
 - {id: android, name: Android, class: endpoint, aliases: [android]}
 - {id: azure.data_box, name: Azure Data Box, class: storage.target, aliases: [azure data box]}
 - {id: oracle_eloqua, name: Oracle Eloqua, class: saas.crm, aliases: [oracle eloqua]}
@@ -2932,12 +3077,13 @@ targets:
       storage array]}
 - {id: ibm_netezza, name: IBM Netezza, class: app.database, aliases: [ibm netezza]}
 - {id: oracle_cloud.object_storage, name: OCI Object Storage, class: cloud.object, aliases: [oci 
-      object storage]}
+      object storage, oracle archive, oracle cloud archive, oracle cloud infrastructure archive 
+      storage]}
 - {id: quickbase, name: Quickbase, class: saas.other, aliases: [quickbase]}
 - {id: alfresco, name: Alfresco Content Services, class: app.enterprise, aliases: [alfresco]}
 - {id: microsoft_365_backup_storage, name: Microsoft 365 Backup Storage, class: storage.service, 
     aliases: [microsoft 365 backup storage]}
-- {id: gardener, name: Gardener, class: kubernetes, aliases: [gardener]}
+- {id: gardener, name: Gardener, class: kubernetes, aliases: [gardener, aws gardener]}
 - {id: netapp_solidfire, name: NetApp SolidFire, class: storage.target, aliases: [netapp solidfire]}
 - {id: braze, name: Braze, class: saas.crm, aliases: [braze]}
 - {id: dell_powerflex, name: Dell PowerFlex, class: storage.target, aliases: [dell powerflex storage,
@@ -2953,6 +3099,281 @@ targets:
 - {id: aws.s3_tables, name: Amazon S3 Tables, class: cloud.database, aliases: [aws s3 tables]}
 - {id: opentext_content_server, name: OpenText Content Server, class: app.enterprise, aliases: [
       opentext content server]}
+- {id: eleven_eleven_object_storage, name: 11:11 Cloud Object Storage, class: cloud.object, aliases: [
+    11:11 cloud object storage]}
+- {id: activecampaign, name: ActiveCampaign, class: saas.crm, aliases: [activecampaign]}
+- {id: adbutler, name: AdButler, class: saas.other, aliases: [ad butler, adbutler]}
+- {id: airtable, name: Airtable, class: saas.work_management, aliases: [airtable]}
+- {id: alibaba_cloud.ecs, name: Alibaba Cloud ECS, class: cloud.compute, aliases: [alibaba cloud ecs,
+    alibaba cloud elastic compute service]}
+- {id: aws.bedrock, name: Amazon Bedrock, class: cloud, aliases: [amazon bedrock, amazon bedrock 
+      agentcore, aws bedrock]}
+- {id: aws.ecr, name: Amazon ECR, class: cloud, aliases: [amazon ecr, amazon elastic container 
+      registry, aws ecr]}
+- {id: aws.eks_anywhere, name: Amazon EKS Anywhere, class: kubernetes, aliases: [amazon eks anywhere,
+    eks anywhere]}
+- {id: aws.elastic_vmware_service, name: Amazon Elastic VMware Service, class: 
+    virtualization.hypervisor, aliases: [amazon elastic vmware service, amazon evs, aws elastic 
+      vmware service]}
+- {id: aws.keyspaces, name: Amazon Keyspaces, class: cloud.database, aliases: [amazon keyspaces, 
+      amazon keyspaces (for apache cassandra)]}
+- {id: aws.lambda, name: AWS Lambda, class: cloud.compute, aliases: [amazon lambda, aws lambda]}
+- {id: aws.msk, name: Amazon MSK, class: cloud.database, aliases: [amazon msk, amazon managed 
+      streaming for apache kafka]}
+- {id: aws.rds.custom_oracle, name: Amazon RDS Custom for Oracle, class: cloud.database, aliases: [
+      amazon rds custom for oracle]}
+- {id: aws.timestream, name: Amazon Timestream, class: cloud.database, aliases: [amazon timestream]}
+- {id: aws.workspaces, name: Amazon WorkSpaces, class: cloud.compute, aliases: [amazon workspaces]}
+- {id: amplitude, name: Amplitude, class: saas.other, aliases: [amplitude]}
+- {id: gcp.anthos, name: Google Anthos (GKE Enterprise), class: kubernetes, aliases: [anthos, google
+      anthos, gke enterprise]}
+- {id: apache_phoenix, name: Apache Phoenix, class: app.database, aliases: [apache phoenix]}
+- {id: aws.cloudformation, name: AWS CloudFormation, class: cloud, aliases: [aws cloudformation]}
+- {id: aws.iam, name: AWS IAM, class: saas.identity, aliases: [aws iam, aws identity and access 
+      management]}
+- {id: aws.secrets_manager, name: AWS Secrets Manager, class: cloud, aliases: [aws secrets manager]}
+- {id: azure.mariadb, name: Azure Database for MariaDB, class: cloud.database, aliases: [azure 
+      database for mariadb]}
+- {id: azure.queue_storage, name: Azure Queue Storage, class: cloud, aliases: [azure queue storage]}
+- {id: azure.vmss, name: Azure Virtual Machine Scale Sets, class: cloud.compute, aliases: [azure 
+      virtual machine scale sets, azure vmss]}
+- {id: backblaze_b2, name: Backblaze B2, class: cloud.object, aliases: [backblaze, backblaze b2, 
+      backblaze b2 cloud storage]}
+- {id: beegfs, name: BeeGFS, class: file, aliases: [beegfs, fhgfs]}
+- {id: blueconic, name: BlueConic, class: saas.crm, aliases: [blueconic]}
+- {id: braintree, name: Braintree, class: saas.other, aliases: [braintree payments, braintree]}
+- {id: buffalo_nas, name: Buffalo NAS, class: file.nas, aliases: [buffalo nas]}
+- {id: synology_c2_object_storage, name: Synology C2 Object Storage, class: cloud.object, aliases: [
+      c2 object storage, synology c2 object storage]}
+- {id: capsule_crm, name: Capsule CRM, class: saas.crm, aliases: [capsule crm]}
+- {id: dell_centera, name: Dell EMC Centera, class: storage.target, aliases: [centera, emc centera, 
+      ibm centera, dell emc centera]}
+- {id: ceph_object_gateway, name: Ceph Object Gateway (RGW), class: cloud.object, aliases: [ceph 
+      object gateway, ceph rgw, rados gateway, ceph object storage, ceph rados gateway]}
+- {id: cephfs, name: CephFS, class: file, aliases: [cephfs, ceph file system]}
+- {id: chargebee, name: Chargebee, class: saas.other, aliases: [chargebee]}
+- {id: openai_chatgpt_enterprise, name: ChatGPT Enterprise, class: saas.other, aliases: [chatgpt 
+      enterprise]}
+- {id: cleverreach, name: CleverReach, class: saas.crm, aliases: [cleverreach]}
+- {id: clickhouse, name: ClickHouse, class: app.database, aliases: [clickhouse]}
+- {id: clicksign, name: Clicksign, class: saas.other, aliases: [clicksign]}
+- {id: cloudera, name: Cloudera (CDH / CDP), class: app.database, aliases: [cloudera]}
+- {id: cloudian_hyperstore, name: Cloudian HyperStore, class: cloud.object, aliases: [cloudian, 
+      cloudian hyperstore]}
+- {id: cpanel, name: cPanel, class: app.enterprise, aliases: [cpanel]}
+- {id: cubbit, name: Cubbit DS3, class: cloud.object, aliases: [cubbit]}
+- {id: datacore_swarm, name: DataCore Swarm, class: cloud.object, aliases: [datacore swarm]}
+- {id: dell_compellent, name: Dell SC Series (Compellent), class: storage.target, aliases: [dell 
+      compellent, compellent, dell sc series, dell emc storage center]}
+- {id: dell_ecs, name: Dell ECS (Elastic Cloud Storage), class: cloud.object, aliases: [dell ecs, 
+      emc ecs, dell elastic cloud storage, dell emc ecs, dell emc elastic cloud storage, emc elastic
+      cloud storage]}
+- {id: dell_fluidfs, name: Dell FluidFS, class: file.nas, aliases: [dell fluidfs, fluidfs]}
+- {id: dell_nativeedge, name: Dell NativeEdge, class: virtualization.hypervisor, aliases: [dell 
+      nativeedge, nativeedge, nativeedge virtual machines]}
+- {id: microsoft_dfs, name: Microsoft DFS (Distributed File System), class: file.nas, aliases: [dfs, 
+      microsoft dfs, dfs replication, dfs shares, dfs-r, dfsr, distributed file system]}
+- {id: domo, name: Domo, class: saas.other, aliases: [domo]}
+- {id: eucalyptus_walrus, name: Eucalyptus Walrus, class: cloud.object, aliases: [eucalyptus-walrus]}
+- {id: files_com, name: Files.com, class: saas.file_sharing, aliases: [files.com]}
+- {id: front_app, name: Front, class: saas.work_management, aliases: [front]}
+- {id: fujitsu_eternus_ax_hx, name: Fujitsu ETERNUS AX/HX, class: storage.target, aliases: [fujitsu 
+      ax/hx, fujitsu ax/hx storage]}
+- {id: fujitsu_eternus_cs, name: Fujitsu ETERNUS CS data protection appliances, class: 
+    storage.target, aliases: [fujitsu eternus cs high end, fujitsu eternus cs, fujitsu eternus cs800]}
+- {id: huawei_fusionstorage, name: Huawei FusionStorage, class: storage.target, aliases: [
+      fusionstorage, huawei fusionstorage]}
+- {id: gladly, name: Gladly, class: saas.work_management, aliases: [gladly]}
+- {id: gofileroom, name: GoFileRoom, class: saas.other, aliases: [go file room, gofileroom]}
+- {id: gcp.gemini_enterprise, name: Google Gemini Enterprise, class: cloud, aliases: [google cloud 
+      gemini enterprise, gemini enterprise]}
+- {id: gcp.transfer_appliance, name: Google Transfer Appliance, class: storage.target, aliases: [
+      google transfer appliance]}
+- {id: hackerrank, name: HackerRank, class: saas.other, aliases: [hackerrank]}
+- {id: help_scout, name: Help Scout, class: saas.work_management, aliases: [helpscout, help scout]}
+- {id: hitachi_vsp_one_object, name: Hitachi VSP One Object, class: cloud.object, aliases: [hitachi 
+      vsp one object storage, hitachi vsp one object]}
+- {id: hpe_eva, name: HPE EVA (Enterprise Virtual Array), class: storage.target, aliases: [hp eva]}
+- {id: hpe_primera, name: HPE Primera, class: storage.target, aliases: [hpe primera, primera]}
+- {id: hpe_xp, name: HPE XP Storage, class: storage.target, aliases: [hpe xp]}
+- {id: huawei_cloud_obs, name: Huawei Cloud Object Storage Service (OBS), class: cloud.object, 
+    aliases: [huawei object storage]}
+- {id: huawei_oceanprotect, name: Huawei OceanProtect, class: storage.target, aliases: [huawei 
+      oceanprotect]}
+- {id: ibm_cloud.kubernetes_service, name: IBM Cloud Kubernetes Service, class: kubernetes, aliases: [
+    ibm cloud kubernetes service]}
+- {id: ibm_ds6000, name: IBM DS6000, class: storage.target, aliases: [ibm ds6000, ibm system storage
+      ds6000]}
+- {id: ibm_powerha, name: IBM PowerHA SystemMirror, class: endpoint.server, aliases: [ibm powerha, 
+      ibm powerha systemmirror, powerha systemmirror, powerha]}
+- {id: ibm_powervm, name: IBM PowerVM, class: virtualization.hypervisor, aliases: [ibm powervm, 
+      powervm, ibm vio]}
+- {id: ibm_spectrum_accelerate, name: IBM Spectrum Accelerate, class: storage.target, aliases: [ibm 
+      spectrum accelerate]}
+- {id: microsoft_iis, name: Microsoft IIS, class: app.enterprise, aliases: [iis, microsoft iis, 
+      internet information services, microsoft internet information services]}
+- {id: impossible_cloud, name: Impossible Cloud, class: cloud.object, aliases: [impossible cloud]}
+- {id: intercom, name: Intercom, class: saas.crm, aliases: [intercom]}
+- {id: sgi_irix, name: SGI IRIX, class: endpoint.server, aliases: [irix, sgi irix]}
+- {id: kintone, name: Kintone, class: saas.other, aliases: [kintone]}
+- {id: azure.arc_kubernetes, name: Azure Arc-enabled Kubernetes, class: kubernetes, aliases: [
+      kubernetes azure arc, azure arc-enabled kubernetes]}
+- {id: apache_kudu, name: Apache Kudu, class: app.database, aliases: [kudu, apache kudu]}
+- {id: loggly, name: Loggly, class: saas.other, aliases: [loggly]}
+- {id: longhorn, name: Longhorn, class: storage.target, aliases: [longhorn]}
+- {id: looker, name: Looker, class: saas.other, aliases: [looker]}
+- {id: magento, name: Magento (Adobe Commerce), class: saas.other, aliases: [magento, adobe commerce]}
+- {id: mailchimp, name: Mailchimp, class: saas.crm, aliases: [mailchimp]}
+- {id: mattermost, name: Mattermost, class: saas.productivity, aliases: [mattermost]}
+- {id: microsoft_365.defender, name: Microsoft 365 Defender, class: saas.productivity, aliases: [
+      microsoft 365 defender]}
+- {id: microsoft_365.lists, name: Microsoft Lists, class: saas.productivity, aliases: [microsoft 365
+      lists, microsoft lists]}
+- {id: microsoft_access, name: Microsoft Access, class: app.database, aliases: [microsoft access, ms
+      access]}
+- {id: azure.key_vault, name: Azure Key Vault, class: cloud, aliases: [microsoft azure key vault, 
+      azure key vault]}
+- {id: microsoft_dns_server, name: Microsoft DNS Server, class: app.directory, aliases: [microsoft 
+      dns, microsoft dns server]}
+- {id: microsoft_365.forms, name: Microsoft Forms, class: saas.productivity, aliases: [microsoft 
+      forms]}
+- {id: microsoft_project_server, name: Microsoft Project Server, class: app.collaboration, aliases: [
+    microsoft project server, project server]}
+- {id: microsoft_365.todo, name: Microsoft To Do, class: saas.productivity, aliases: [microsoft to 
+      do]}
+- {id: microsoft_virtual_pc, name: Microsoft Virtual PC, class: virtualization.hypervisor, aliases: [
+    microsoft virtual pc]}
+- {id: microsoft_virtual_server, name: Microsoft Virtual Server, class: virtualization.hypervisor, 
+    aliases: [microsoft virtual server, microsoft virtual server 2005]}
+- {id: mirantis_kubernetes_engine, name: Mirantis Kubernetes Engine, class: kubernetes, aliases: [
+      mirantis kubernetes engine]}
+- {id: mixpanel, name: Mixpanel, class: saas.other, aliases: [mixpanel]}
+- {id: moengage, name: MoEngage, class: saas.crm, aliases: [moengage]}
+- {id: nec_expresscluster, name: NEC EXPRESSCLUSTER (CLUSTERPRO), class: endpoint.server, aliases: [
+      nec clusterpro/expresscluster, nec expresscluster, nec clusterpro, expresscluster, clusterpro]}
+- {id: nec_storage, name: NEC Storage M series (iStorage), class: storage.target, aliases: [nec 
+      storage array, nec istorage]}
+- {id: netgear_readydata, name: Netgear ReadyDATA, class: file.nas, aliases: [netgear readydata, 
+      readydata]}
+- {id: novell_netware, name: Novell NetWare, class: endpoint.server, aliases: [netware, novell 
+      netware]}
+- {id: new_relic, name: New Relic, class: saas.other, aliases: [new relic]}
+- {id: nexentastor, name: NexentaStor, class: file.nas, aliases: [nexentastor]}
+- {id: noobaa, name: NooBaa, class: cloud.object, aliases: [noobaa]}
+- {id: novell_edirectory, name: Novell eDirectory, class: app.directory, aliases: [novell edirectory,
+    edirectory, netiq edirectory]}
+- {id: novell_oes, name: Novell Open Enterprise Server (OES), class: endpoint.server, aliases: [
+      novell storage services, novell open enterprise server, open enterprise server, novell oes, 
+      nss volumes, oes file system]}
+- {id: nutanix_nc2, name: Nutanix Cloud Clusters (NC2), class: virtualization.hypervisor, aliases: [
+      nutanix cloud cluster on aws, nutanix cloud clusters (nc2), nc2 on aws, nc2 on azure, nutanix 
+      cloud clusters]}
+- {id: nutanix_ndb, name: Nutanix Database Service (NDB), class: app.database, aliases: [nutanix 
+      database service, nutanix era, nutanix database service (ndb)]}
+- {id: nutanix_objects, name: Nutanix Objects, class: cloud.object, aliases: [nutanix objects]}
+- {id: oracle_ocfs2, name: Oracle Cluster File System (OCFS2), class: file, aliases: [ocfs2, oracle 
+      cluster file system, oracle cluster file system 2]}
+- {id: oracle_cloud.file_storage, name: OCI File Storage, class: cloud.file, aliases: [oci file 
+      storage, oci file storage service, oracle cloud infrastructure file storage]}
+- {id: oracle_cloud.oke, name: Oracle Kubernetes Engine (OKE), class: kubernetes, aliases: [oci 
+      kubernetes engine, oke, oracle container engine for kubernetes, oci kubernetes engine (oke), 
+      oracle kubernetes engine]}
+- {id: odoo, name: Odoo ERP, class: app.enterprise, aliases: [odoo erp, odoo]}
+- {id: microsoft_skype_for_business_server, name: Microsoft Skype for Business Server (Lync / OCS), 
+    class: app.collaboration, aliases: [office communications server, skype for business server, 
+      lync server, microsoft lync server, microsoft office communications server]}
+- {id: onstor, name: ONStor NAS, class: file.nas, aliases: [onstor, onstor nas]}
+- {id: opennebula, name: OpenNebula, class: virtualization.hypervisor, aliases: [opennebula]}
+- {id: openshift_data_foundation, name: Red Hat OpenShift Data Foundation, class: storage.target, 
+    aliases: [openshift data foundation, openshift container storage, red hat openshift container 
+      storage, red hat openshift data foundation]}
+- {id: oracle_acfs, name: Oracle ACFS (ASM Cluster File System), class: file, aliases: [oracle acfs, 
+      acfs, oracle asm cluster file system, oracle automatic storage management cluster file system]}
+- {id: oracle_cloud_vmware_solution, name: Oracle Cloud VMware Solution, class: 
+    virtualization.hypervisor, aliases: [oracle cloud vmware solution, ocvs, oracle cloud vmware 
+      solution (ocvs)]}
+- {id: oracle_erp_cloud, name: Oracle ERP Cloud, class: saas.other, aliases: [oracle erp, oracle erp
+      cloud]}
+- {id: oracle_exadata, name: Oracle Exadata, class: app.database, aliases: [oracle exadata, exadata, 
+      exadata database machine, oracle exadata cloud service, oracle exadata database machine]}
+- {id: oracle_private_cloud_appliance, name: Oracle Private Cloud Appliance, class: 
+    virtualization.hypervisor, aliases: [oracle private cloud appliance, oracle pca]}
+- {id: oracle_sales_cloud, name: Oracle Sales Cloud, class: saas.crm, aliases: [oracle sales cloud]}
+- {id: oracle_service_cloud, name: Oracle Service Cloud, class: saas.crm, aliases: [oracle service 
+      cloud]}
+- {id: oracle_virtualbox, name: Oracle VirtualBox, class: virtualization.hypervisor, aliases: [
+      oracle virtualbox, virtualbox, oracle vm virtualbox]}
+- {id: oracle_zfs_storage_appliance, name: Oracle ZFS Storage Appliance, class: file.nas, aliases: [
+      oracle zfs, oracle zfs storage, zfs storage appliance, zfssa, oracle zfs storage appliance]}
+- {id: outreach, name: Outreach, class: saas.crm, aliases: [outreach]}
+- {id: ovhcloud, name: OVHcloud, class: cloud, aliases: [ovh, ovhcloud, ovh cloud]}
+- {id: pacemaker, name: Pacemaker (Linux HA cluster), class: endpoint.server, aliases: [pacemaker]}
+- {id: panasas_panfs, name: Panasas PanFS, class: file, aliases: [panfs, panasas panfs, panasas 
+      activescale file system, panasas]}
+- {id: paypal, name: PayPal, class: saas.other, aliases: [paypal]}
+- {id: portworx_enterprise, name: Portworx Enterprise, class: storage.target, aliases: [portworx, 
+      portworx enterprise]}
+- {id: presto, name: Presto, class: app.database, aliases: [presto, prestodb]}
+- {id: procom_nas, name: Procom NAS, class: file.nas, aliases: [procom nas]}
+- {id: progress_openedge, name: Progress OpenEdge, class: app.database, aliases: [progress openedge 
+      db, progress openedge, openedge]}
+- {id: qstar_asm, name: QStar Archive Storage Manager, class: storage.target, aliases: [qstar, qstar
+      asm, qstar archive storage manager]}
+- {id: quobyte, name: Quobyte, class: file, aliases: [quobyte]}
+- {id: rabbitmq, name: RabbitMQ, class: app.database, aliases: [rabbitmq]}
+- {id: rackspace, name: Rackspace, class: cloud, aliases: [rackspace]}
+- {id: rackspace.cloud_files, name: Rackspace Cloud Files, class: cloud.object, aliases: [rackspace 
+      cloud files]}
+- {id: microsoft_remote_desktop_services, name: Microsoft Remote Desktop Services, class: 
+    endpoint.server, aliases: [remote desktop services, microsoft remote desktop services]}
+- {id: sap_on_db2, name: SAP on Db2, class: app.enterprise, aliases: [sap on db2, sap for db2]}
+- {id: scality_ring, name: Scality RING, class: cloud.object, aliases: [scality ring]}
+- {id: scylladb, name: ScyllaDB, class: app.database, aliases: [scylladb, scylla]}
+- {id: seagate_lyve_cloud, name: Seagate Lyve Cloud, class: cloud.object, aliases: [seagate lyve 
+      cloud, lyve cloud]}
+- {id: twilio_segment, name: Twilio Segment, class: saas.crm, aliases: [segment, twilio segment]}
+- {id: twilio_sendgrid, name: Twilio SendGrid, class: saas.other, aliases: [sendgrid, twilio 
+      sendgrid]}
+- {id: signifyd, name: Signifyd, class: saas.other, aliases: [signifyd]}
+- {id: silk_cloud_storage, name: Silk Software-Defined Cloud Storage, class: storage.target, aliases: [
+    silk software defined cloud storage (azure), silk software defined cloud storage]}
+- {id: skype_for_business, name: Skype for Business, class: saas.productivity, aliases: [skype for 
+      business]}
+- {id: spectro_cloud_palette, name: Spectro Cloud Palette, class: kubernetes, aliases: [spectro 
+      cloud, spectro cloud palette]}
+- {id: sqlite, name: SQLite, class: app.database, aliases: [sqlite]}
+- {id: square, name: Square, class: saas.other, aliases: [square]}
+- {id: stripe, name: Stripe, class: saas.other, aliases: [stripe]}
+- {id: apache_superset, name: Apache Superset, class: app.enterprise, aliases: [superset, apache 
+      superset]}
+- {id: swiftstack, name: SwiftStack, class: cloud.object, aliases: [swiftstack]}
+- {id: tencent_cloud, name: Tencent Cloud, class: cloud, aliases: [tencent cloud]}
+- {id: tencent_cloud.cos, name: Tencent Cloud Object Storage, class: cloud.object, aliases: [tencent
+      cloud object storage, tencent cloud cos]}
+- {id: tintri_intelliflash, name: Tintri IntelliFlash, class: storage.target, aliases: [tintri 
+      intelliflash, intelliflash]}
+- {id: tintri_vmstore, name: Tintri VMstore, class: storage.target, aliases: [tintri vmstore, 
+      vmstore]}
+- {id: treasure_data, name: Treasure Data CDP, class: saas.crm, aliases: [treasure data cdp, 
+      treasure data]}
+- {id: trino, name: Trino, class: app.database, aliases: [trino]}
+- {id: truenas, name: TrueNAS, class: file.nas, aliases: [truenas]}
+- {id: twilio, name: Twilio, class: saas.other, aliases: [twilio]}
+- {id: vcluster, name: vCluster, class: kubernetes, aliases: [vcluster]}
+- {id: veritas_storage_foundation, name: Veritas Storage Foundation (VxFS / VxVM), class: file, 
+    aliases: [veritas file system, vxfs, veritas volume manager, vxvm, veritas storage foundation]}
+- {id: gcp.vertex_ai, name: Google Vertex AI, class: cloud, aliases: [vertex ai, google vertex ai]}
+- {id: vertica, name: Vertica, class: app.database, aliases: [vertica]}
+- {id: vmware_workstation, name: VMware Workstation and Fusion, class: virtualization.hypervisor, 
+    aliases: [vmware fusion, vmware workstation, vmware workstation pro, vmware fusion pro, vmware 
+      player, vmware workstation player]}
+- {id: vmware_nsx, name: VMware NSX, class: virtualization, aliases: [vmware nsx-t, vmware nsx, 
+      nsx-t]}
+- {id: zadara, name: Zadara, class: cloud.object, aliases: [zadara]}
+- {id: zoho_crm, name: Zoho CRM, class: saas.crm, aliases: [zoho crm]}
+- {id: zoho_recruit, name: Zoho Recruit, class: saas.other, aliases: [zoho recruit]}
+- {id: zoom, name: Zoom, class: saas.productivity, aliases: [zoom]}
+- {id: zuora, name: Zuora, class: saas.other, aliases: [zuora]}
 offerings:
 - vendor: Veeam
   id: veeam.data_platform
