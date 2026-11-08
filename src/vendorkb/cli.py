@@ -257,6 +257,17 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+async def _mcp(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from vendorkb.mcp_app import build_app
+
+    config = uvicorn.Config(build_app(settings), host=args.host, port=args.port,
+                            loop="asyncio", log_level="info", proxy_headers=True)
+    await uvicorn.Server(config).serve()
+    return 0
+
+
 async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     from vendorkb.claims import regate
 
@@ -408,6 +419,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="adjudication budget per run (default 1.0)")
     s.add_argument("--warmup-seconds", type=float, default=1500.0,
                    help="how long to wait for a scaled-to-zero endpoint (default 1500)")
+    s = sub.add_parser("mcp", help="serve the MCP tools over streamable HTTP at /mcp"
+                                   " (MCP_BEARER_TOKEN required)")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8080)
     s = sub.add_parser("claims", help="maintain stored claims")
     cl = s.add_subparsers(dest="claims_cmd", required=True)
     c = cl.add_parser("regate", help="re-run the current evidence gate over every raw claim; "
@@ -476,7 +491,7 @@ def _parser() -> argparse.ArgumentParser:
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
              "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
              "refresh": _refresh, "claims": _claims, "taxonomy": _taxonomy,
-             "capabilities": _capabilities}
+             "capabilities": _capabilities, "mcp": _mcp}
 
 
 def main(argv: list[str] | None = None) -> int:

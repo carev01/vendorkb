@@ -54,6 +54,9 @@ stack.
     number and negation; `vendorkb claims regate` re-applies it to stored claims.
   - `vendorkb extract --unextracted [--vendor V]`: every chunk with no done or failed v3
     extraction by any model (new and re-synced chunks; the Opus teacher chunks are not redone).
+  - `vendorkb mcp` (`mcp_app.py` HTTP + bearer gate, `mcp_server.py` tools, `mcp_backend.py`
+    data access): the agent interface of DESIGN §6 over streamable HTTP at `/mcp`
+    (`MCP_BEARER_TOKEN` required; Helm `mcp.enabled`, docs/deploy/k3s.md §7b).
   - `vendorkb refresh` (`claims/refresh.py`, hourly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
