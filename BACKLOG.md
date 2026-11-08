@@ -205,13 +205,31 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     vector as raw float32 bytes, read back bit for bit, so a re-map embeds only strings it has
     never seen (`embeddings_cached` / `embeddings_new` in the map report). Strings over 1,000
     characters are never cached.
-29. **The rest of the unmapped long tail.** 61k claims still name a target the taxonomy lacks,
-    across about 9k distinct strings; the top 300 were curated on 2026-11-08. 128k claims have
-    no dimension, mostly product-specific features, and 73k distinct phrases are left after the
-    top 300. Repeat the curated round on the next slices; `map_decisions` keeps each round's
-    re-map at cents.
-30. **Ten more dimension gaps** are in the 2026-11-08 curation notes; six were added. Review the
-    rest with the comparison tables in mind.
+29. **Done 2026-11-08 (round 2):** Opus curators decided the 1,456 unmapped target strings named
+    by two or more vendors or backing 15+ claims, and a blind Fable review accepted their
+    proposals: 177 new targets, 621 target aliases, 72 variant aliases, and four Windows aliases
+    moved from `windows_server` to `microsoft_windows`. Claims with an unmapped target fell from
+    61,118 to 48,006, and 461 targets now have facts (286 before). Left: 48k claims over 7.3k
+    strings (about half on single-vendor strings, 11.6k on strings the curators judged generic
+    or not a workload), and 127k claims with no dimension. Round 2's 1,456 strings gave 13k
+    claims; the next slice gives less.
+30. **Closed 2026-11-08:** the "ten" gaps were ten phrases that collapsed into six dimensions,
+    all added. The round-2 dimension curators found 95 gap phrases in about 15 themes: online or
+    offline database backup (~140 claims), console password policy (~100), database-native
+    backup interfaces such as RMAN or Backint (~60), NORECOVERY or STANDBY restores (~50), UEFI
+    and Secure Boot (~45), off-host backup (~40), and smaller ones (direct-to-cloud backup,
+    white-label branding, cross-version restore, interface languages). None of them appears in
+    the comparison tables, so none was added; the list is in the round-2 report section.
+31. **Alias-only taxonomy changes ask questions again.** Candidate search embeds every alias, so
+    a new alias pulls its entity into the top-5 candidates of many other phrases, and each such
+    question is asked again. The 194 round-2 dimension aliases (1,364 claims) would have caused
+    about 90k re-asks (~$9). In a one-vendor pilot the re-asked answers were no better (a blind
+    grade of 60 changes: 27 new better, 27 old better), and broad aliases pushed earlier answers
+    out of the candidates (246 questions, and one comparison-table row lost its fact). All 194
+    are held in `taxonomy/held-dimension-aliases.json`. Build candidate keys so an alias
+    addition is lookup-only (or carry an answer when only alias keys changed). Done when
+    applying the held file asks fewer than 1k questions in `taxonomy map --max-usd 0`
+    (`skipped_by_budget`).
 28. **Agent-level eval as a regression gate.** The 2026-11-08 run (4 enumeration questions,
     search-only versus all tools, Sonnet agents) is in the report; turn it into a repeatable
     script with more questions.

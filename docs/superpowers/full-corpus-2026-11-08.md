@@ -204,3 +204,97 @@ Fixed on production in the same day, and measured:
 | OpenRouter | about $4.2 |
 | Voyage | about 4.5M tokens (seed and two re-maps) |
 | Curation and review | Claude subagents |
+
+## Taxonomy round 2 (2026-11-08, evening; BACKLOG 29 and 30)
+
+The second curated round over the unmapped long tail, run like the first one (Opus curators, a
+blind Fable review, a blind check of mapped claims). Taxonomy `2-31b1b705`.
+
+| | before | after |
+|---|---|---|
+| claims with an unmapped target | 61,118 | **48,006** |
+| claims with a target (alias or LLM) | 341,095 | 354,232 |
+| targets with at least one fact | 286 | **461** |
+| target-specific capability rows | 295,365 | 305,278 |
+| `target_unmapped` capability rows | 41,941 | 32,069 |
+| claims with no dimension | 127,667 | 127,276 |
+| comparison-table rows with a fact | 423 / 423 (405 specific) | 423 / 423 (406 specific) |
+
+### What was curated
+
+- **Targets:** the 1,456 unmapped target strings named by two or more vendors or backing 15+
+  claims (22.7k claims), round-1 strings excluded, in five alphabetical slices. Curators chose
+  alias 331, variant alias 73, new target 191, generic 290, not a workload 571. Cross-slice
+  duplicates were merged before the review (Centera, Lync/Skype for Business Server).
+- **Dimensions:** the 1,354 unmapped capability phrases named by two or more vendors (7.4k
+  claims): alias 195, none 1,064, gap 95.
+- **Review:** 786 of 794 proposals accepted. Two rejections were aliases to ids merged away
+  by the dedupe; they were re-pointed and accepted. Four class corrections from the reviewer
+  were taken (Longhorn, Netgear ReadyDATA, Veritas Storage Foundation, Zadara).
+- **Applied:** 177 new targets, 621 target aliases, 72 variant aliases. "microsoft windows",
+  "windows file system(s)" and "ntfs" moved from `windows_server` to `microsoft_windows`.
+  About 40 of the new targets are SaaS applications documented only by Securiti's
+  data-subject-request connectors; they follow the braze/marketo/eloqua precedent.
+- **Blind check:** 100 claims mapped through round-2 entries, one per phrase; 99 correct. The
+  wrong one, "external usb drives" as a disk-storage variant (source data as often as a
+  destination), was dropped.
+
+### Dimension aliases held back
+
+Every alias is a candidate-search key, so a new alias pulls its entity into the top-5
+candidates of many other phrases, and each such question is asked again.
+
+- A free count (`taxonomy map --max-usd 0`) found 108k questions to ask again, about $11. The 194
+  dimension aliases drove ~90k of them while mapping 1,364 claims directly.
+- **Pilot (Acronis, $0.22):** 79% of the re-asked dimension questions kept their answer. A
+  blind grade of 60 changed answers (old versus new, order hidden) found 27 new better, 27 old
+  better, 4 both acceptable and 2 both wrong: churn, not improvement.
+- Keeping the 18 cheapest aliases still hurt. In the re-map, 246 re-asked dimension questions
+  lost their earlier answer from the candidates (coverage.backup, given broad aliases such as
+  "database backup and recovery", entered 109 of them), and one comparison-table row lost its
+  only fact.
+- All 194 are held in `taxonomy/held-dimension-aliases.json` until candidate search ignores
+  alias-only changes (BACKLOG 31). Without them the table row is back.
+
+### Re-asked targets that answered none
+
+- When new targets entered a phrase's candidates, 551 re-asked target questions (5,975 claims)
+  went from a pick to none. Only 639 (1,991 claims) went the other way.
+- 464 of the 551 still offered the earlier answer, mostly obvious matches: "rhel" -> linux,
+  "windows server 2003" -> windows_server, "vmware esx server" -> vmware_vsphere, "ibm iseries"
+  -> ibm_i.
+- **Fix (mapper):** a re-asked target answered none keeps an earlier answer still offered, and
+  that is what gets stored. A none stored by an older run is read the same way. The re-map
+  restored 499 answers. Dimensions are left alone: there the blind grade preferred the re-asked
+  none as often as not.
+
+### Dimension gaps (BACKLOG 30)
+
+The 95 gap phrases fall into about 15 themes. None appears in the comparison tables, so none was
+added:
+- online or offline (hot or cold) database backup, ~140 claims;
+- console password policy, ~100;
+- database-native backup interfaces (RMAN, Backint, BR*Tools), ~60;
+- database restore recovery state (NORECOVERY, STANDBY), ~50;
+- UEFI and Secure Boot, ~45;
+- off-host backup, ~40;
+- direct-to-cloud backup, white-label branding, cross-version restore and interface languages,
+  25-30 each;
+- product lifecycle dates, backup source in replicated databases and certificate lifecycle,
+  12-16 each.
+
+### Measured and not adopted
+
+- **Version folding:** stripping trailing versions before the alias lookup ("ubuntu 24.04" ->
+  "ubuntu") would resolve 792 claims (1.3% of the tail). Not built. It surfaced the "microsoft
+  windows" alias, now moved.
+- **Paying for all re-asks:** about $11, see above.
+
+### Spend (round 2)
+
+| | |
+|---|---|
+| OpenRouter (Haiku 5.5) | $2.36 (pilot $0.22, re-map $2.12, two top-ups $0.01) |
+| Anthropic | $0 |
+| Voyage | 91 new strings (the embedding cache served the rest) |
+| Curation, review and grading | Claude subagents (9 curators, 4 reviewers, 2 graders) |
