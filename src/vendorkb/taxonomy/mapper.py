@@ -29,7 +29,10 @@ Strings are compared normalized (``cluster.normalize``), each distinct one resol
 
 Nearest neighbour alone never maps. One adjudication is made per distinct (kind, string,
 candidate set) and cached for the run; it carries up to ``MAX_CONTEXTS`` of the claims using the
-string (capability, target, target scope, vendor) as context, and its strict JSON reply is
+string (capability, target, target scope, vendor, evidence quote) as context -- the quote
+measurably helps: on the 150 labelled non-alias claims, dimension precision 82.8% -> 88.6% and
+wrong picks 21 -> 14 (a softer "none" rule found more dimensions but lost precision) -- and its
+strict JSON reply is
 ``{"choice": <integer>}`` -- one fixed schema for every call (the candidates are numbered 1..k
 in the prompt; 0 is none; anything else is ``llm_invalid``). Calls go to ``map_model`` on
 ``map_backend``, ``extract_concurrency`` at a time; each is estimated before it is sent (its
@@ -74,6 +77,7 @@ __all__ = ["MapReport", "map_claims"]
 Kind = Literal["target", "dimension"]
 MAP_MAX_TOKENS = 1024  # one short JSON reply; headroom for any thinking the effort allows
 MAX_CONTEXTS = 3  # example claims shown per adjudication
+QUOTE_CHARS = 300  # evidence quote kept per example claim
 _NN_BLOCK = 1024  # query rows per similarity matmul
 _EMBED_SLICE = 4096  # texts per embed call (the embedder batches further)
 _NO_CLASS = "(none)"
@@ -129,6 +133,7 @@ class _Claim:
     capability_raw: str
     target_raw: str | None
     target_scope_raw: str | None
+    evidence_quote: str  # whitespace collapsed, at most QUOTE_CHARS
     capability: str | None  # None: blank after normalization (never adjudicated)
     target: str | None
     target_scope: str | None
@@ -215,12 +220,12 @@ async def _claims(conn: psycopg.AsyncConnection, unmapped_at: str | None) -> lis
     """The v3 claims; with ``unmapped_at``, only those not stamped with that version."""
     pending = " AND mapped_version IS DISTINCT FROM %s" if unmapped_at is not None else ""
     cur = await conn.execute(
-        "SELECT claim_id, vendor, capability_raw, target_raw, target_scope, offering, edition"
-        f" FROM raw_claims WHERE prompt_version LIKE %s{pending} ORDER BY claim_id",
+        "SELECT claim_id, vendor, capability_raw, target_raw, target_scope, offering, edition,"
+        f" evidence_quote FROM raw_claims WHERE prompt_version LIKE %s{pending} ORDER BY claim_id",
         (PROMPT_FAMILY, *(() if unmapped_at is None else (unmapped_at,))))
-    return [_Claim(cid, vendor, cap, tgt, scope, _norm(cap), _norm(tgt), _norm(scope),
-                   _norm(off), _norm(ed))
-            for cid, vendor, cap, tgt, scope, off, ed in await cur.fetchall()]
+    return [_Claim(cid, vendor, cap, tgt, scope, " ".join((quote or "").split())[:QUOTE_CHARS],
+                   _norm(cap), _norm(tgt), _norm(scope), _norm(off), _norm(ed))
+            for cid, vendor, cap, tgt, scope, off, ed, quote in await cur.fetchall()]
 
 
 # ---- nearest candidates ---------------------------------------------------------------------
@@ -288,7 +293,7 @@ class _Adjudication:
     text: str
     candidates: tuple[str, ...]
     class_id: str | None = None  # dimension: the workload class the candidates apply to
-    contexts: list[tuple[str, str, str, str]] = field(default_factory=list)
+    contexts: list[tuple[str, str, str, str, str]] = field(default_factory=list)
     claims: int = 0
     choice: str | None = None
     skipped: bool = False
@@ -296,7 +301,8 @@ class _Adjudication:
 
     def add_context(self, c: _Claim) -> None:
         self.claims += 1
-        ctx = (c.capability_raw, c.target_raw or "-", c.target_scope_raw or "-", c.vendor)
+        ctx = (c.capability_raw, c.target_raw or "-", c.target_scope_raw or "-", c.vendor,
+               c.evidence_quote or "-")
         if ctx not in self.contexts:
             self.contexts.append(ctx)
 
@@ -306,7 +312,8 @@ _SYSTEM: dict[Kind, str] = {
 You map the target of a claim extracted from backup-product documentation to one entry of a
 workload taxonomy. The target is the workload, platform, service or storage the claim applies
 to. You get the target phrase, up to three claims that use it (capability | target | target
-scope | vendor) and the nearest taxonomy targets, numbered (number. id | name | details).
+scope | vendor | evidence quote) and the nearest taxonomy targets, numbered (number. id | name |
+details).
 
 Choose a candidate only when the phrase names that same workload (its name, an abbreviation or
 another name for it). Answer "none" when the phrase names a broader or narrower workload than
@@ -317,8 +324,9 @@ sure. Reply with JSON {"choice": <the candidate's number>}, or {"choice": 0} for
 You map the capability of a claim extracted from backup-product documentation to one dimension
 of a vendor-neutral comparison taxonomy. A dimension is one comparable aspect, defined by its
 name and definition. You get the capability phrase, up to three claims that use it (capability
-| target | target scope | vendor), the workload class of the claim's target, and the nearest
-dimensions that apply to that class, numbered (number. id | name | definition).
+| target | target scope | vendor | evidence quote: the documentation sentence the claim comes
+from), the workload class of the claim's target, and the nearest dimensions that apply to that
+class, numbered (number. id | name | definition).
 
 Choose the candidate whose definition covers what the capability states: the capability may be
 narrower than the dimension (one value or one option of it), never about something else. A
@@ -342,7 +350,7 @@ def _user_message(tax: _Tax, a: _Adjudication) -> str:
     lines = [f"Phrase: {a.text}", f"Kind: {a.kind}"]
     if a.kind == "dimension":
         lines.append(f"Workload class: {a.class_id or _NO_CLASS}")
-    lines += ["", "Claims (capability | target | target scope | vendor):"]
+    lines += ["", "Claims (capability | target | target scope | vendor | evidence quote):"]
     lines += [f"- {' | '.join(ctx)}" for ctx in a.contexts[:MAX_CONTEXTS]]
     lines += ["", "Candidates (number. id | name | details):"]
     lines += [f"{n}. {eid} | {' | '.join(_details(tax, a.kind, eid))}"

@@ -130,7 +130,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 19. **Done: taxonomy v2 reviewed by Claude** at the user's request. The decision log is
     `taxonomy/review-2026-11-06.tsv`, and the user may spot-check any row.
 20. **$ Dimension adjudication precision is 0.84** on the reviewed taxonomy (the alias path is
-    0.96). Try a stronger
+    0.96). *2026-11-08: the evidence quote in each example claim raised it to 88.6% on the 150
+    labelled non-alias claims (wrong 21 -> 14); still open: a stronger map_model, candidate
+    pre-filtering, and the missed dimensions (20 of 27 "none" answers had a fitting dimension).*
+    Try a stronger
     `map_model` on the 300 labelled claims, add the evidence quote to the prompt, or pre-filter
     candidates by family. The adjudicated labels from two graders are in the session scratchpad
     (`mapgrade2/`).

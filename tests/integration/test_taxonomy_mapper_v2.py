@@ -268,8 +268,10 @@ async def test_llm_choice_and_none(vkb_dsn, tmp_path):
             "type": "object", "properties": {"choice": {"type": "integer"}},
             "required": ["choice"], "additionalProperties": False}
         assert _kind(user) == "target"
-        # the claim's capability, target, target scope and vendor are the context
-        assert "keep copies for ages | Okta Workforce | - | examplevendor" in user
+        # the claim's capability, target, target scope, vendor and evidence quote are the context
+        assert "Claims (capability | target | target scope | vendor | evidence quote):" in user
+        assert ("keep copies for ages | Okta Workforce | - | examplevendor | synthetic quote"
+                in user)
     finally:
         await conn.close()
 
@@ -544,6 +546,23 @@ async def test_remap_maps_every_claim(vkb_dsn, tmp_path):
         assert len(client.calls) == 2
         assert (await _mapping(conn, old))["dimension_id"] == "retention.maximum_period"
         assert (await _mapping(conn, new))["mapped_version"] is not None
+    finally:
+        await conn.close()
+
+
+async def test_context_quote_is_collapsed_and_capped(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta")
+        await conn.execute("UPDATE raw_claims SET evidence_quote=%s WHERE claim_id=%s",
+                           ("Copies  are\nkept " + "x" * 500, cid))
+        client = FakeOpenAI()
+        await _run(conn, client)
+        [user] = [c["messages"][-1]["content"] for c in client.calls]
+        line = next(x for x in user.splitlines() if x.startswith("- keep copies for ages"))
+        quote = line.rsplit(" | ", 1)[1]
+        assert quote.startswith("Copies are kept xxx") and len(quote) == mapper.QUOTE_CHARS
     finally:
         await conn.close()
 
