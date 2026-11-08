@@ -694,6 +694,64 @@ async def test_crash_while_polling_resumes_the_paid_batch(vkb_dsn):
         await conn.close()
 
 
+async def test_crash_between_submit_and_ledger_holds_the_chunks(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        a, b = await _doc(conn, texts=(TEXT, TEXT + " B"))
+        batches = FakeBatches({a: ("succeeded", _message({"claims": [GOOD]})),
+                               b: ("succeeded", _message({"claims": []}))})
+        real_create = batches.create
+
+        async def create_then_crash(*, requests):
+            await real_create(requests=requests)  # the provider has the (paid) batch
+            raise RuntimeError("pod evicted before the reply was handled")
+        batches.create = create_then_crash
+        client = FakeClient(batches=batches)
+        try:
+            await extract.run(conn, [a, b], client=client, settings=_settings(), mode="batch",
+                              poll_seconds=0)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("the crash should have ended the run")
+        # the ledger row was written before the submit: its estimate counts, its chunks wait
+        [(bid, status, est, held)] = await _rows(
+            conn, "SELECT batch_id, status, est_cost_usd, chunk_ids FROM extract_batches")
+        assert bid.startswith("pending-") and status == "submitted" and est > 0
+        assert sorted(held) == sorted([a, b])
+        batches.create = real_create
+        report = await extract.run(conn, [a, b], client=client, settings=_settings(),
+                                   mode="batch", poll_seconds=0)
+        assert len(batches.created) == 1  # never submitted again
+        assert (report.unconfirmed_batches, report.held_chunks, report.resumed_batches) == (1, 2, 0)
+        assert await extract._spent(conn) == est
+    finally:
+        await conn.close()
+
+
+async def test_a_refused_submit_leaves_no_ledger_row(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        batches = FakeBatches({})
+
+        async def refuse(*, requests):
+            raise anthropic.BadRequestError(
+                "bad", response=httpx.Response(400, request=httpx.Request(
+                    "POST", "https://api.anthropic.com/v1/messages/batches")), body=None)
+        batches.create = refuse
+        try:
+            await extract.run(conn, [a], client=FakeClient(batches=batches),
+                              settings=_settings(), mode="batch", poll_seconds=0)
+        except anthropic.BadRequestError:
+            pass
+        assert await _rows(conn, "SELECT count(*) FROM extract_batches") == [(0,)]
+    finally:
+        await conn.close()
+
+
 async def test_transient_poll_errors_are_retried(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -993,6 +1051,27 @@ async def test_openai_runs_concurrently_and_stops_at_the_budget(vkb_dsn):
         assert spent <= 0.05 + 4 * 0.01
         [(n_ids,)] = await _rows(conn, "SELECT cardinality(chunk_ids) FROM extract_batches")
         assert n_ids == report.done
+    finally:
+        await conn.close()
+
+
+async def test_an_unparseable_paid_reply_is_recorded_with_its_cost(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [a] = await _doc(conn)
+        odd = _chat({"claims": []}, cost=0.03)
+        odd.choices[0].message = None  # a reply shape the parser does not expect
+        client = FakeOpenAI({"Amazon RDS": odd})
+        try:
+            await extract.run(conn, [a], client=client, settings=_oa(), mode="sync")
+        except AttributeError:
+            pass
+        else:
+            raise AssertionError("an unexpected reply should still stop the run")
+        assert abs(await extract._spent(conn) - 0.03) < 1e-9  # the paid call is ledgered
+        [(status, error)] = await _rows(conn, "SELECT status, error FROM extractions")
+        assert status == "errored" and error == "parse:AttributeError"
     finally:
         await conn.close()
 

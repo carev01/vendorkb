@@ -117,17 +117,21 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     under the old vendor is not re-mapped. **M2: stale vendor/product on re-tag.** `store.update_metadata` re-tags a document without
     touching chunks, so `raw_claims` and `capabilities` keep the old vendor and product. Fix:
     take both from `documents` through `chunks` in `capabilities.build`.
-14. **Reserved (2026-11-08):** DocExtractor's delta records carry no version (only its
-    products endpoint has one, per product), and v1 answers from the latest docs.
-    **M3: `documents.version` is never written.** Every claim's `version` is NULL. Either
-    populate it from the feed, or document it as reserved.
-15. **Spend-safety gaps in `extract` and `taxonomy propose`:**
-    - **M5:** a crash between `batches.create` and the ledger insert leaves a paid batch
-      unledgered, so its chunks are paid for twice. Fix: insert the ledger row first.
-    - **M6:** the sync-mode estimate uses Haiku prices for any model. An unexpected exception
-      in `_call`/`_parse_openai` also skips recording the call's cost. Fix: refuse unknown-priced
-      models without an override, and record errored outcomes.
-    - **M7:** `taxonomy propose` caps each run, but has no cumulative ledger or lock.
+14. **Done 2026-11-08 (documented as reserved):** DocExtractor's delta records carry no version
+    (only its products endpoint has one, per product), so `documents.version` and every
+    claim's `version` stay NULL and answers come from the latest documents; `schema.sql` says
+    so where the column is declared. A product-level version would label every document of a
+    product with the current release, which is wrong for older pages.
+15. **Done 2026-11-08:**
+    - **M5:** the batch ledger row is written under a `pending-` id before `batches.create`
+      and renamed to the provider's id; a row left by a crash keeps its estimate in the budget
+      and holds its chunks back (`unconfirmed_batches`, `held_chunks`) until a person
+      reconciles it. A 4xx refusal deletes it.
+    - **M6:** unknown-priced models were already refused (`price_per_mtok`); now a paid reply
+      that fails to parse is recorded errored (`parse:<Error>`) with its usage and cost, and
+      still stops the run.
+    - **M7:** `taxonomy propose` takes an advisory lock and ledgers every run in `propose_runs`
+      (spend updated per call), with a cumulative cap `propose_budget_usd` (default $20).
 16. **Done 2026-11-08 (item 27):** keys are cached in `embedding_cache` and held as float32.
     Was: **M9: `taxonomy map` memory and cost.** It re-embeds about 24k keys on every run and holds
     them as Python float lists, more than 2 GB. Fix: convert to float32 per batch, and cache key
@@ -135,9 +139,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 17. **Done 2026-11-08 (the lock half):** `init_schema` skips its DDL when the stored schema
     marker matches and every table exists, and otherwise waits at most 10 s per lock (an ad-hoc
     read held the sync job's DDL for 24 minutes, queueing readers behind it).
-    **M12: no test of `init_schema` on a populated database.** One more test gap remains. Also
-    review whether every `init_schema` call needs the exclusive locks that
-    `ADD COLUMN IF NOT EXISTS` takes.
+    **M12 done 2026-11-08:** a test re-runs the whole DDL over a database with rows in every
+    table the services write and checks every count. The locks: `ADD COLUMN IF NOT EXISTS`
+    takes ACCESS EXCLUSIVE even when the column exists, but the DDL now runs only when the
+    schema marker changes (a deploy), bounded by the 10 s lock timeout, so every other
+    `init_schema` call takes none; no change.
 
 ## Local extractor (DESIGN.md M5: trained on Vast, served on Azure)
 

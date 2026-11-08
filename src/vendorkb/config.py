@@ -42,6 +42,9 @@ class VendorkbSettings(BaseSettings):
     anthropic_api_key: str = ""
     extract_model: str = "claude-haiku-5-5"
     extract_budget_usd: float = 25.0
+    # `taxonomy propose`: a cap on the spend of all runs together (`propose_runs`), on top
+    # of each run's --max-usd.
+    propose_budget_usd: float = 20.0
     # "openai": any OpenAI-compatible endpoint (e.g. OpenRouter, extract_model
     # "anthropic/claude-haiku-5.5:batch"), sync mode only, extract_concurrency calls at once.
     extract_backend: Literal["anthropic", "openai"] = "anthropic"

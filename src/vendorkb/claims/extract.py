@@ -9,9 +9,12 @@ smoke-test path) or through the Message Batches API (half price; results matched
 matched chunk span as ``evidence_quote``) or refused (``rejected_claims``).
 
 Paid work is ledgered in ``extract_batches`` (no foreign key to chunks, so sync deleting
-chunks mid-run never erases spend): a batch row is written right after
-``batches.create`` succeeds, before polling, and a batch-mode run first resumes every batch
-not yet ``processed``. Sync-mode spend goes on a ``sync-<uuid>`` row. The budget's spend so
+chunks mid-run never erases spend): a batch row is written under a ``pending-<uuid>`` id before
+``batches.create`` and renamed to the provider's batch id once it returns, so a crash between
+the two leaves the spend counted. A batch-mode run first resumes every batch not yet
+``processed``; a ``pending-`` row (submitted or not, nobody knows) is never polled: its chunks
+are held back, never submitted again, until a person checks the provider's batch list and
+fixes or deletes the row (``unconfirmed_batches`` / ``held_chunks`` in the report). Sync-mode spend goes on a ``sync-<uuid>`` row. The budget's spend so
 far is the ledger's sum; the pre-submit estimate reserves ``extract_max_tokens`` of output per
 request, so it bounds the worst case.
 
@@ -71,6 +74,7 @@ DEFAULT_STATE_VALUES = ("on", "off")
 BOUND_VALUES = ("max", "min", "exact")
 LOCK_KEY = 0x766B63  # single-flight across extract runs (sync uses 0x766B62)
 SYNC_LEDGER_PREFIX = "sync-"
+PENDING_LEDGER_PREFIX = "pending-"  # a batch row written before its batches.create returned
 
 # List prices (USD per million tokens, input / output); the Batches API halves both. Haiku's
 # is the rate for prompts of 100K tokens or fewer, which every chunk prompt is. A model not
@@ -327,6 +331,8 @@ class ExtractReport:
     output_tokens: int = 0
     est_cost_usd: float = 0.0  # cost of the results this run stored (incl. resumed batches)
     resumed_batches: int = 0
+    unconfirmed_batches: int = 0  # pending- ledger rows: the submit outcome is unknown
+    held_chunks: int = 0      # requested chunks in those rows, never submitted again
     reset_truncated: int = 0  # truncated chunks reset by retry_truncated
     stopped_by_budget: bool = False
     locked: bool = False
@@ -691,16 +697,35 @@ async def _call(client: Any, chunk: ChunkRow, settings: VendorkbSettings
     """One extraction call; returns the outcome and, for a 400, the error to stop the run on
     (a request-shape bug fails every chunk the same way). Transient errors (429, 5xx,
     connection) are retried by the client (``max_retries``) before they land here."""
+    is_openai = settings.extract_backend == "openai"
     try:
-        if settings.extract_backend == "openai":
-            return _parse_openai(await client.chat.completions.create(
-                **build_openai_request(chunk, settings))), None
-        return _parse(await client.messages.create(**build_request(chunk, settings))), None
+        reply = (await client.chat.completions.create(**build_openai_request(chunk, settings))
+                 if is_openai else
+                 await client.messages.create(**build_request(chunk, settings)))
     except (anthropic.BadRequestError, openai.BadRequestError) as e:
         return _api_error(e), e
     except (anthropic.RateLimitError, anthropic.APIStatusError, anthropic.APIConnectionError,
             openai.RateLimitError, openai.APIStatusError, openai.APIConnectionError) as e:
         return _api_error(e), None
+    try:
+        return (_parse_openai(reply) if is_openai else _parse(reply)), None
+    except Exception as e:  # noqa: BLE001 - a paid reply of an unexpected shape: its cost is
+        # recorded with the chunk errored, and the error still stops the run
+        return _unparsed(reply, is_openai, e), e
+
+
+def _unparsed(reply: Any, is_openai: bool, error: Exception) -> _Outcome:
+    """An errored outcome carrying whatever usage a reply the parser choked on reports."""
+    outcome = _Outcome("errored", f"parse:{type(error).__name__}")
+    usage = getattr(reply, "usage", None)
+    if is_openai:
+        outcome.input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        outcome.output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        outcome.cost = _reported_cost(usage)
+    elif usage is not None:
+        (outcome.input_tokens, outcome.output_tokens, outcome.cache_write_tokens,
+         outcome.cache_read_tokens) = _usage(reply)
+    return outcome
 
 
 async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
@@ -850,14 +875,32 @@ async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids
     log.info("extract: batch %s processed (%d results, $%.4f)", batch_id, len(seen), actual)
 
 
+async def _held_by_unconfirmed(conn: psycopg.AsyncConnection, settings: VendorkbSettings,
+                               report: ExtractReport) -> set[str]:
+    """The chunk ids of ``pending-`` batch rows: a run crashed between writing the row and
+    learning the batch id, so the batch may exist (and be paid for) at the provider."""
+    cur = await conn.execute(
+        "SELECT batch_id, chunk_ids FROM extract_batches WHERE status='submitted'"
+        " AND batch_id LIKE %s AND extractor_model=%s AND prompt_version=%s",
+        (PENDING_LEDGER_PREFIX + "%", settings.extract_model, PROMPT_VERSION))
+    rows = await cur.fetchall()
+    for batch_id, chunk_ids in rows:
+        log.warning("extract: batch row %s (%d chunks) never learned its batch id: check the"
+                    " provider's batch list, then set its batch_id or delete it; its chunks"
+                    " are held back", batch_id, len(chunk_ids))
+    report.unconfirmed_batches = len(rows)
+    return {str(c) for _, chunk_ids in rows for c in chunk_ids}
+
+
 async def _resume_batches(conn: psycopg.AsyncConnection, *, client: Any,
                           settings: VendorkbSettings, report: ExtractReport,
                           poll_seconds: float) -> None:
     cur = await conn.execute(
         "SELECT batch_id, chunk_ids FROM extract_batches WHERE status='submitted'"
-        " AND batch_id NOT LIKE %s AND extractor_model=%s AND prompt_version=%s"
-        " ORDER BY submitted_at", (SYNC_LEDGER_PREFIX + "%", settings.extract_model,
-                                   PROMPT_VERSION))
+        " AND batch_id NOT LIKE %s AND batch_id NOT LIKE %s AND extractor_model=%s"
+        " AND prompt_version=%s ORDER BY submitted_at",
+        (SYNC_LEDGER_PREFIX + "%", PENDING_LEDGER_PREFIX + "%", settings.extract_model,
+         PROMPT_VERSION))
     for batch_id, chunk_ids in await cur.fetchall():
         log.info("extract: resuming batch %s (%d requests)", batch_id, len(chunk_ids))
         await _process_batch(conn, batch_id, list(chunk_ids), client=client,
@@ -880,16 +923,25 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
             break
         items.append((chunk, request))
     for group in _groups(items):
-        batch = await client.messages.batches.create(requests=[
-            Request(custom_id=chunk.chunk_id,
-                    params=cast(MessageCreateParamsNonStreaming, request))
-            for chunk, request in group])
         chunk_ids = [chunk.chunk_id for chunk, _ in group]
-        await conn.execute(
+        pending_id = f"{PENDING_LEDGER_PREFIX}{uuid.uuid4()}"
+        await conn.execute(  # ledger first: a crash after the submit must not lose the spend
             "INSERT INTO extract_batches (batch_id, extractor_model, prompt_version, chunk_ids,"
             " est_cost_usd, status) VALUES (%s,%s,%s,%s,%s,'submitted')",
-            (batch.id, settings.extract_model, PROMPT_VERSION, chunk_ids,
+            (pending_id, settings.extract_model, PROMPT_VERSION, chunk_ids,
              sum(_estimate(r, batch=True, settings=settings) for _, r in group)))
+        try:
+            batch = await client.messages.batches.create(requests=[
+                Request(custom_id=chunk.chunk_id,
+                        params=cast(MessageCreateParamsNonStreaming, request))
+                for chunk, request in group])
+        except anthropic.APIStatusError as e:
+            if e.status_code < 500:  # refused outright: no batch exists, nothing is owed
+                await conn.execute("DELETE FROM extract_batches WHERE batch_id=%s",
+                                   (pending_id,))
+            raise  # a 5xx or a dropped connection may still have created it: the row stays
+        await conn.execute("UPDATE extract_batches SET batch_id=%s WHERE batch_id=%s",
+                           (batch.id, pending_id))
         log.info("extract: submitted batch %s (%d requests)", batch.id, len(group))
         await _process_batch(conn, batch.id, chunk_ids, client=client, settings=settings,
                              report=report, poll_seconds=poll_seconds)
@@ -920,6 +972,7 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         if mode == "batch":
             await _resume_batches(conn, client=client, settings=settings, report=report,
                                   poll_seconds=poll_seconds)
+        held = await _held_by_unconfirmed(conn, settings, report)
         chunks = await _load_chunks(conn, ids)
         final = await _final_ids(conn, ids, settings.extract_model)
         missing = [i for i in ids if i not in chunks and i not in final]
@@ -929,7 +982,8 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         report.skipped_deleted += len(missing)
         report.skipped = sum(1 for s in final.values() if s == "done")
         report.skipped_failed = sum(1 for s in final.values() if s == "failed")
-        pending = [chunks[i] for i in ids if i in chunks and i not in final]
+        report.held_chunks = sum(1 for i in ids if i in held and i not in final)
+        pending = [chunks[i] for i in ids if i in chunks and i not in final and i not in held]
         if not pending:
             return report
         spent = await _spent(conn)

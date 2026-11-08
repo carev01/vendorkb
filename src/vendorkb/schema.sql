@@ -61,6 +61,9 @@ CREATE TABLE IF NOT EXISTS sync_seen (
 -- M3/M4: claim extraction and the capability table. A chunk is replaced (new chunk_id) when
 -- its document is re-synced, so everything keyed on chunk_id cascades with it: the new
 -- chunks are extracted afresh, and no claim outlives the evidence it quotes.
+-- Reserved (BACKLOG 14): never written. DocExtractor's delta records carry no version (only
+-- its products endpoint has one, per product), so documents.version and the claims'
+-- version stay NULL, and answers come from the latest documents.
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS version text;
 
 -- One row per (chunk, model, prompt version): the idempotency key. ``status`` is 'done'
@@ -115,6 +118,17 @@ CREATE TABLE IF NOT EXISTS extract_batches (
     actual_cost_usd double precision,
     status text NOT NULL CHECK (status IN ('submitted', 'processed')),
     submitted_at timestamptz NOT NULL DEFAULT now(),
+    ended_at timestamptz
+);
+
+-- `taxonomy propose` spend, one row per run, updated after every call so a crash keeps it:
+-- the cumulative cap (settings.propose_budget_usd) sums every run (BACKLOG 15, M7).
+CREATE TABLE IF NOT EXISTS propose_runs (
+    run_id text PRIMARY KEY,
+    kind text NOT NULL,
+    model text NOT NULL,
+    spent_usd double precision NOT NULL DEFAULT 0,
+    started_at timestamptz NOT NULL DEFAULT now(),
     ended_at timestamptz
 );
 
