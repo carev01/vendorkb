@@ -66,6 +66,10 @@ class VendorkbSettings(BaseSettings):
     map_backend: Literal["anthropic", "openai"] = "anthropic"
     map_base_url: str = ""
     map_api_key: str = ""
+    # MCP server (`vendorkb mcp`): the bearer token every request must carry (required), and
+    # the Host headers it answers (comma-separated; "host:*" allows any port).
+    mcp_bearer_token: str = ""
+    mcp_allowed_hosts: str = "localhost:*,127.0.0.1:*,vendorkb-mcp,vendorkb-mcp:*"
     map_candidates: int = 5
 
 

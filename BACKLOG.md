@@ -75,7 +75,10 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
     31 across 23 questions appear under "No supporting passage found for" instead of the list.
     Either retrieval found weak evidence, or the answer step dropped a line its citation check
     rejected. Diagnose which before changing anything.
-12. **MCP server** (DESIGN.md M2/§6). Not built.
+12. **MCP server** (DESIGN.md M2/§6). *Built 2026-11-08: `vendorkb mcp`, seven read-only tools,
+    bearer token, Helm Deployment/Service/LAN ingress. Open: a public HTTPS route with OAuth
+    for Copilot Studio, and an agent-level eval (cross-vendor answers with query_capabilities
+    vs search only, the M4 done-when).*
 
 ## Final-review minors (M3/M4 branch)
 

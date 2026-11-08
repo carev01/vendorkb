@@ -109,3 +109,22 @@ claimsRefresh:
   resources:
     requests: {cpu: 250m, memory: 1Gi}
     limits: {cpu: "2", memory: 4Gi}
+
+# The MCP server for the downstream agent (src/vendorkb/mcp_app.py). Secret key it needs:
+# MCP_BEARER_TOKEN (every request carries it as `Authorization: Bearer <token>`); tools also use
+# EMBED/RERANK (search) and JUDGE (answer_question) keys already in the secret.
+mcp:
+  enabled: false
+  replicas: 1
+  # Host headers the server answers (DNS-rebinding guard): the in-cluster service names and the
+  # ingress host. "host:*" allows any port.
+  allowedHosts: "vendorkb-mcp,vendorkb-mcp:*,vendorkb-mcp.vendorkb.svc,vendorkb-mcp.vendorkb.svc:*,vendorkb-mcp.vendorkb.svc.cluster.local:*,vendorkb-mcp.k3s.home.lan"
+  ingress:
+    enabled: false
+    className: traefik
+    host: ""               # e.g. vendorkb-mcp.k3s.home.lan (add it to allowedHosts)
+    tlsSecret: ""
+    annotations: {}
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {cpu: "1", memory: 1Gi}
