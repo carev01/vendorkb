@@ -47,7 +47,8 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
    - Re-extract the pilot under the new prompt version, then repeat the 100-claim Opus
      spot-check.
    - Done when precision is ≥95%. About $10 on OpenRouter.
-2. **$ Re-extract the 335 chunks that hit the output limit.** Use max_tokens 4000. About $0.40.
+2. **Closed 2026-11-08 (superseded):** the 335 pilot chunks that hit the output limit were
+   re-extracted with the rest of the corpus under claims-v3 (item 18).
    Fold into item 1.
 3. **Done 2026-11-08: `vendorkb extract --unextracted [--vendor]`** (and `vendorkb refresh`). Claims cascade-delete with their chunks, and
    the pilot id files name chunk ids that a re-sync replaces. Nothing finds "chunks with no `done`
@@ -55,13 +56,14 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 4. **Done 2026-11-08: extraction beyond the pilot.** About 227k chunks remain. The plan is the Opus-distilled
    local model on Vast (item 18), not an API model. Do it after item 1, so the corpus is
    extracted with the good prompt.
-5. **A valid Anthropic API key.** The `sk-ant-usr` token in `.env` returns 401, so the pilot
+5. **Closed 2026-11-08:** the Anthropic API key works since 2026-11-06 and the Opus teacher set
+   was captured (item 18). Was: **A valid Anthropic API key.** The `sk-ant-usr` token in `.env` returns 401, so the pilot
    ran through OpenRouter. The Opus teacher capture (item 18) needs it for Batches pricing. The Batches path (`--mode batch --backend anthropic`) is tested only
    with fakes and has never run live.
 
 ## Taxonomy and capabilities (M4)
 
-6. **Review taxonomy v1 on PR #1** (https://github.com/carev01/vendorkb/pull/1, branch
+6. **Closed 2026-11-08 (superseded by v2, item 22; PR #1 closed, branch kept):** Was: **Review taxonomy v1 on PR #1** (https://github.com/carev01/vendorkb/pull/1, branch
    `taxonomy-v1`). It has 2,071 features and 969 targets. Known issues:
    - duplicate-looking targets under different parents (`platforms.kubernetes` vs
      `kubernetes.cluster`);
@@ -70,7 +72,7 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
    - wrong aliases.
 
    The budget ran out before proposals for the smaller clusters.
-7. **$ LLM adjudication in the mapper** (DESIGN.md §5.4 step 3). Nearest-neighbour mapping is
+7. **Done (2026-11-07, items 20 and 23):** Was: **$ LLM adjudication in the mapper** (DESIGN.md §5.4 step 3). Nearest-neighbour mapping is
    15–60% precise at every cosine band measured, so until this exists only alias mappings are
    trustworthy.
 8. **Capability table vendors in enumeration answers.** Add alias-only table vendors to the
@@ -115,7 +117,8 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       in `_call`/`_parse_openai` also skips recording the call's cost. Fix: refuse unknown-priced
       models without an override, and record errored outcomes.
     - **M7:** `taxonomy propose` caps each run, but has no cumulative ledger or lock.
-16. **M9: `taxonomy map` memory and cost.** It re-embeds about 24k keys on every run and holds
+16. **Done 2026-11-08 (item 27):** keys are cached in `embedding_cache` and held as float32.
+    Was: **M9: `taxonomy map` memory and cost.** It re-embeds about 24k keys on every run and holds
     them as Python float lists, more than 2 GB. Fix: convert to float32 per batch, and cache key
     vectors by (text, model).
 17. **Done 2026-11-08 (the lock half):** `init_schema` skips its DDL when the stored schema
@@ -162,8 +165,8 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     labelled non-alias claims (wrong 21 -> 14); still open: a stronger map_model, candidate
     pre-filtering, and the missed dimensions (20 of 27 "none" answers had a fitting dimension).*
     Try a stronger
-    `map_model` on the 300 labelled claims, add the evidence quote to the prompt, or pre-filter
-    candidates by family. The adjudicated labels from two graders are in the session scratchpad
+    `map_model` on the 300 labelled claims (*the user prefers not to, 2026-11-08*), add the
+    evidence quote to the prompt, or pre-filter candidates by family. The adjudicated labels from two graders are in the session scratchpad
     (`mapgrade2/`).
 21. **Offering recall is 0.59.** Offering-name variants such as "Veeam Data Cloud for Azure" are
     not aliased. Add aliases, or adjudicate offerings like dimensions.
@@ -200,7 +203,8 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     §7a). This needs the user's Azure login and serverless A100 quota.
 26. **Copilot exposure of the MCP server:** a public HTTPS route with OAuth in front of `/mcp`,
     then Copilot Studio onboarding. DocExtractor's public route (traefik with a Cloudflare
-    origin certificate) is a ready pattern. Add a LAN DNS record for `vendorkb-mcp.k3s.home.lan`.
+    origin certificate) is a ready pattern. The LAN DNS record for `vendorkb-mcp.k3s.home.lan`
+    exists since 2026-11-08.
 27. **Done 2026-11-08:** `embedding_cache` keeps each (model@dimension, input type, text)
     vector as raw float32 bytes, read back bit for bit, so a re-map embeds only strings it has
     never seen (`embeddings_cached` / `embeddings_new` in the map report). Strings over 1,000
@@ -235,6 +239,6 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     the new dimensions', mapping 2,228 claims). A new entity still re-asks the phrases near it, but an entity chosen before for
     the same question now stays among its candidates. Adding four dimensions had displaced the
     earlier answer of 438 questions; with the fix, 1,089 questions went back to an earlier pick.
-28. **Agent-level eval as a regression gate.** The 2026-11-08 run (4 enumeration questions,
-    search-only versus all tools, Sonnet agents) is in the report; turn it into a repeatable
-    script with more questions.
+28. **Done 2026-11-08:** `eval/agent_eval.py prepare|call|score` with `eval/agent_baseline.json`
+    (23 questions, recall 96.0%, precision 94.9%; a mean dropping more than 5 points fails).
+    Report: `docs/superpowers/agent-eval-gate-2026-11-08.md`.
