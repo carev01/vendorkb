@@ -81,7 +81,9 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 
 Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
-13. **M2: stale vendor/product on re-tag.** `store.update_metadata` re-tags a document without
+13. **Done 2026-11-08 (capabilities side): `capabilities.build` takes vendor and product from
+    `documents`.** `raw_claims` still keeps the extraction-time values, and an offering mapped
+    under the old vendor is not re-mapped. **M2: stale vendor/product on re-tag.** `store.update_metadata` re-tags a document without
     touching chunks, so `raw_claims` and `capabilities` keep the old vendor and product. Fix:
     take both from `documents` through `chunks` in `capabilities.build`.
 14. **M3: `documents.version` is never written.** Every claim's `version` is NULL. Either

@@ -138,7 +138,12 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             "  OR min(value) OVER k <> max(value) OVER k"
             f" THEN md5(jsonb_build_array({key})::text)::uuid END,"
             " fetched_at = max(fetched_at) OVER k"
-            " FROM (SELECT r.*, d.fetched_at, dim.platform FROM raw_claims r"
+            # vendor and product come from the document, not the claim: the sync re-tags a
+            # document (store.update_metadata) without touching its chunks or their claims
+            " FROM (SELECT r.claim_id, d.vendor, d.product, r.offering_id, r.edition_id,"
+            "  r.dimension_id, r.class_id, r.target_id, r.variant_id, r.object_type_id, r.kind,"
+            "  r.support, r.availability, r.default_state, r.value, r.unit, r.bound,"
+            "  r.conditions, d.fetched_at, dim.platform FROM raw_claims r"
             "  JOIN chunks ch ON ch.chunk_id = r.chunk_id"
             "  JOIN documents d ON d.doc_id = ch.doc_id"
             "  JOIN dimensions dim ON dim.dimension_id = r.dimension_id"
