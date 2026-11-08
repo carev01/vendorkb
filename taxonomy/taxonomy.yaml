@@ -108,7 +108,6 @@ dimensions:
       support, supported salesforce edition, Supported edition variants, supported kubernetes 
       distribution, supported kubernetes platform, Supported Kubernetes distributions, vmware 
       vsphere version compatibility, Supported platform versions]
-  lookup_aliases: [hypervisor support, virtual infrastructure support]
   applies_to: all
 - id: coverage.exclusions
   name: Documented coverage exclusions
@@ -161,14 +160,11 @@ dimensions:
   name: Application-consistent backup
   definition: Backups that quiesce applications so their data is consistent on restore.
   aliases: [application-consistent, app-consistent, application-aware processing, vss, quiesce, 
-      crash-consistent, freeze and thaw, pre and post scripts, application-consistent backups, 
-      application consistent backup, application-aware backup, application-aware backups, 
-      application-aware points in time, Application-consistent restore points, offloaded vss backups,
-    vss-integrated database backup, vss snapshot backup to local shadow volumes, vss snapshot 
-      backups, Windows VSS snapshot backup, crash consistent backup]
-  lookup_aliases: [crash-consistent backup, crash-consistent snapshot fallback, crash-consistent vm 
-      backup, file system consistent backup, vmware quiescing, vmware tools quiescing, volume shadow
-      copy backup]
+      freeze and thaw, pre and post scripts, application-consistent backups, application consistent 
+      backup, application-aware backup, application-aware backups, application-aware points in time, 
+      Application-consistent restore points, offloaded vss backups, vss-integrated database backup, 
+      vss snapshot backup to local shadow volumes, vss snapshot backups, Windows VSS snapshot backup]
+  lookup_aliases: [vmware quiescing, vmware tools quiescing, volume shadow copy backup]
   applies_to: all
 - id: protection.changed_block_tracking
   name: Changed block tracking
@@ -325,8 +321,7 @@ dimensions:
   definition: The longest retention period the product supports.
   aliases: [maximum retention, retention up to, unlimited retention, retain forever, keep forever, 
       retention period, maximum snapshots per file share, forever retention]
-  lookup_aliases: [backup retention period, long-term retention, maximum recovery points, permanent 
-      retention]
+  lookup_aliases: [long-term retention, maximum recovery points, permanent retention]
   applies_to: all
   value_unit: years
 - id: retention.granularity
@@ -335,12 +330,7 @@ dimensions:
   aliases: [retention options, retention settings, restore points to keep, retention policy, gfs, 
       grandfather-father-son, gfs retention, gfs retention policy, automatic removal of expired 
       restore points, Automatic expired point removal, backup retention policy]
-  lookup_aliases: [automatic backup expiration, automatic backup expiration and deletion, automatic 
-      deletion of expired backups, automatic removal of expired recovery points, automatic 
-      retention-based deletion, backup policy retention, configurable retention policies, custom 
-      retention policies, expiration-based retention, recovery window, retention management, 
-      retention policy enforcement, retention-based backup deletion, retention-based pruning, 
-      retention-based purge]
+  lookup_aliases: [configurable retention policies, custom retention policies, recovery window]
   applies_to: all
 - id: retention.per_object
   name: Per-object retention
@@ -371,7 +361,6 @@ dimensions:
   aliases: [byos, bring your own storage, customer-owned storage, own storage account, customer 
       storage, vendor-hosted default storage, metadata stored in customer-owned storage, 
       Customer-owned metadata storage]
-  lookup_aliases: [vendor-provided storage]
   applies_to: all
 - id: storage.cloud_provider_choice
   name: Choice of storage cloud
@@ -894,7 +883,6 @@ dimensions:
       customer-managed encryption password, customer-supplied encryption password, legacy key vault 
       access policies, vault access policy permission model, Vault access policy model, built-in 
       master encryption key, Vendor-managed keys, encryption key validation]
-  lookup_aliases: [vendor-managed encryption]
   applies_to: all
 - id: security.field_level_encryption
   name: Field-level encryption
