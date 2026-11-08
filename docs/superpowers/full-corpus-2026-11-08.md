@@ -491,3 +491,39 @@ Taxonomy `2-c9fd3d55` (200 offerings, was 75).
 - **Left:** 15,173 claims, mostly texts judged not an offering and strings with fewer than 5
   claims.
 
+## Dimension precision (2026-11-08, late; BACKLOG 20)
+
+A fresh labelled sample: 200 claims, claim weighted, whose dimension the model decided (156
+picks, 44 none), graded blind by Opus and Fable against every dimension; they agreed on 180,
+and the 20 disagreements were adjudicated (where both readings hold, both answers count).
+
+| | precision | recall |
+|---|---|---|
+| 2026-11-06 (old labels, taxonomy 2-f64001c6) | 0.877 | 0.777 |
+| **2026-11-08 (this sample, taxonomy 2-c9fd3d55)** | **0.904** | **0.851** |
+
+- **Where the errors are:** 15 wrong picks (6 should be none) and 16 misses. In 25 of the 31,
+  the right dimension was not among the five candidates: it ranks about 25th by phrase
+  embedding (median), because the phrase lacks the cue the evidence sentence carries
+  ("external protection engine" is off-host backup only in context). Class applicability never
+  excluded it.
+- **Replayed on the sample** (`eval/map_replay.py`: the mapper's own request path, nothing
+  stored, about $0.03 a variant):
+
+  | variant | precision | recall | right dimension among the candidates |
+  |---|---|---|---|
+  | 5 candidates (today) | 0.876-0.887 | 0.810 | 149 of 174 |
+  | 8 candidates | 0.805 | 0.741 | 151 |
+  | 10 candidates | 0.768 | 0.695 | 152 |
+  | 5, then a keyword second pass for none answers | 0.839-0.855 | 0.839-0.845 | 154 |
+  | keyword retrieval only / fused with embedding | - | - | 110 / 140 |
+
+  Answers the labels do not cover count as wrong, so the wider variants are scored
+  pessimistically (22 and 28 such answers), but they add the right dimension for only 2-3 more
+  items. The second pass picked 6 right and 6 doubtful answers out of 46 none answers.
+- **Not adopted.** The replay's five-candidate row sits below the stored mapping because the
+  labels accept the stored answer wherever graders called it correct: compare variants with each
+  other. Retrieval that reads the evidence quote is the remaining lever; it changes every
+  question's candidates (a full re-ask, about $28, plus Voyage tokens for the quotes).
+- **Spend:** OpenRouter about $0.20; grading by Claude subagents (2 graders).
+

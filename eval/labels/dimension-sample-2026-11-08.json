@@ -1,0 +1,2624 @@
+{
+ "taxonomy_version": "2-c9fd3d55",
+ "graders": "Opus and Fable, blind; 20 disagreements adjudicated by Claude",
+ "items": [
+  {
+   "item_id": "d000",
+   "claim_id": "6c2ea3f7-57ce-40d3-9464-4faa887dce3a",
+   "phrase": "rule groups",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "virtual machines",
+   "evidence_quote": "You can define a single rule or a group of rules.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d001",
+   "claim_id": "db36771a-2e24-42c5-8c66-b7d670f5ba9f",
+   "phrase": "archive log restore",
+   "class_id": "app.database",
+   "vendor": "Commvault",
+   "target_text": "Oracle RAC",
+   "evidence_quote": "Choose if you want to apply the archive files to the data files or if you want to restore the archive log files:",
+   "assigned_2026_11_08": "coverage.restore",
+   "acceptable": [
+    "coverage.restore"
+   ]
+  },
+  {
+   "item_id": "d002",
+   "claim_id": "f4a0108a-0cb9-4a00-8c0c-d94fec8b69d0",
+   "phrase": "multi-tenant app registration",
+   "class_id": "saas.identity",
+   "vendor": "Rubrik",
+   "target_text": "Microsoft Entra ID",
+   "evidence_quote": "RSC creates an Entra ID app registration within the Rubrik Azure tenant and configures the application for multi\\-tenant access.",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "security.source_authentication_methods"
+   ]
+  },
+  {
+   "item_id": "d003",
+   "claim_id": "faa257dc-1be1-4691-a5ec-c4a41839ac2a",
+   "phrase": "alert tokens",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "JOB OPERATION\\> | The type of job, for example, Data Aging",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d004",
+   "claim_id": "ceb25f0f-20bd-4996-b2fb-d7341095b996",
+   "phrase": "vhd export",
+   "class_id": "cloud.compute",
+   "vendor": "Axcient",
+   "target_text": "Microsoft Azure",
+   "evidence_quote": "Export any recovery point to Azure format Virtual Hard Disk (VHD) – up to 32TiB per disk.",
+   "assigned_2026_11_08": "recovery.export_formats",
+   "acceptable": [
+    "recovery.export_formats"
+   ]
+  },
+  {
+   "item_id": "d005",
+   "claim_id": "395ebe6f-e337-4bc4-843e-d696792fd59b",
+   "phrase": "qscript for list of required media for auxiliary copy",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "| [ListRequiredMediaForAuxCopy](listrequiredmediaforauxcopy.html) | Lists required media for an auxiliary copy job. Accepts as input running auxiliary copy job Id. |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.api_automation"
+   ]
+  },
+  {
+   "item_id": "d006",
+   "claim_id": "635c758d-0e1f-43ff-939d-30ad04cd06fd",
+   "phrase": "automatic tape import from mail slot",
+   "class_id": "storage.target",
+   "vendor": "Veeam",
+   "target_text": "tape libraries",
+   "evidence_quote": "If you loaded the tapes to the mail slot, import the tapes.",
+   "assigned_2026_11_08": "storage.tape",
+   "acceptable": [
+    "storage.tape"
+   ]
+  },
+  {
+   "item_id": "d007",
+   "claim_id": "cb2b3cbf-b96f-4e5f-b697-7682010f5fbd",
+   "phrase": "purge migration job directive",
+   "class_id": "(none)",
+   "vendor": "Bacula",
+   "target_text": "-",
+   "evidence_quote": "The new **Purge Migration Job** directive may be added to the Migration Job definition in the Director’s configuration file.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d008",
+   "claim_id": "f5813b3e-18bd-43ea-8495-bb571f6cb244",
+   "phrase": "data-source connection management",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "| Modify data-source connections | Allows a user to create or modify data-source connections. |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d009",
+   "claim_id": "99d51bfb-634b-416b-a627-c0568a978c73",
+   "phrase": "scheduled discovery scans",
+   "class_id": "cloud.database",
+   "vendor": "Veeam",
+   "target_text": "Oracle Autonomous Data Warehouse",
+   "evidence_quote": "Set the specific time for your scan, choose Daily, Weekly, or Monthly from the **Periodic Schedule Frequency**, and specify any time of the day, week, or month.",
+   "assigned_2026_11_08": "protection.discovery_auto_protection",
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d010",
+   "claim_id": "08b7ed46-cbc9-4c16-9eb2-00a556444d96",
+   "phrase": "search backup data at restore",
+   "class_id": "saas.identity",
+   "vendor": "Druva",
+   "target_text": "Microsoft Entra ID",
+   "evidence_quote": "When you click the **Restore Data** button, you see the snapshot viewer dialog. The dialog also provides an option to search the data.",
+   "assigned_2026_11_08": "recovery.item_search",
+   "acceptable": [
+    "recovery.item_search"
+   ]
+  },
+  {
+   "item_id": "d011",
+   "claim_id": "9e580546-6c20-4f76-90b0-dd7e7caff161",
+   "phrase": "delayed storage policy copy retention for deleted files",
+   "class_id": "endpoint",
+   "vendor": "Commvault",
+   "target_text": "Windows file system",
+   "evidence_quote": "Storage policy copy retention can start immediately or be delayed for a specified period of time.",
+   "assigned_2026_11_08": "retention.after_source_deletion",
+   "acceptable": [
+    "retention.after_source_deletion"
+   ]
+  },
+  {
+   "item_id": "d012",
+   "claim_id": "bc5bf9b2-abff-464c-b9fd-e33ebc87025a",
+   "phrase": "vault original and duplicate images",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "NetBackup",
+   "evidence_quote": "One Vault profile can vault original backup images from some NetBackup backup policies and also duplicate and vault images from other backup policies.",
+   "assigned_2026_11_08": "protection.backup_copy",
+   "acceptable": [
+    "protection.backup_copy"
+   ]
+  },
+  {
+   "item_id": "d013",
+   "claim_id": "f7bcfe73-92a7-4caf-9b95-d5ab0ab96a1b",
+   "phrase": "last snapshot of day retention",
+   "class_id": "(none)",
+   "vendor": "Datto",
+   "target_text": "-",
+   "evidence_quote": "The last snapshot of the day is retained for 90 days.",
+   "assigned_2026_11_08": "retention.granularity",
+   "acceptable": [
+    "retention.granularity"
+   ]
+  },
+  {
+   "item_id": "d014",
+   "claim_id": "32520f3b-3edd-4a7d-abc8-baa304684280",
+   "phrase": "individual file restore from dump during local restore",
+   "class_id": "file.nas",
+   "vendor": "Bacula",
+   "target_text": "NDMP",
+   "evidence_quote": "It is not possible to restore individual files from a dump during the local restore (with `where=\">/path/\"` option).",
+   "assigned_2026_11_08": "recovery.granularity",
+   "acceptable": [
+    "recovery.granularity"
+   ]
+  },
+  {
+   "item_id": "d015",
+   "claim_id": "c57e7e84-3cad-4f80-b184-8c2b5f3b1f0f",
+   "phrase": "snapshot-based ndmp backups",
+   "class_id": "storage.target",
+   "vendor": "Cohesity",
+   "target_text": "Dell EMC VNX",
+   "evidence_quote": "Make sure that the backup is created from a snapshot.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d016",
+   "claim_id": "100ec93e-0a75-4aa7-821a-165bc1672d51",
+   "phrase": "remediation guidance for failed prechecks",
+   "class_id": "cloud.object",
+   "vendor": "Druva",
+   "target_text": "Azure Blob Storage",
+   "evidence_quote": "**Actionable remediation**: Displays immediate, step\\-by\\-step resolution guidance directly in the console if a precheck fails.",
+   "assigned_2026_11_08": "operations.diagnostics",
+   "acceptable": [
+    "operations.diagnostics"
+   ]
+  },
+  {
+   "item_id": "d017",
+   "claim_id": "b4ea5b31-956c-49f2-a88e-a45f3ffc4e34",
+   "phrase": "odata query preview",
+   "class_id": "app.database",
+   "vendor": "Cohesity",
+   "target_text": "Microsoft SQL Server",
+   "evidence_quote": "The Preview feature displays the query string that contains OData keywords and operators.",
+   "assigned_2026_11_08": "recovery.search_filters",
+   "acceptable": [
+    "protection.discovery_auto_protection",
+    "operations.api_automation"
+   ]
+  },
+  {
+   "item_id": "d018",
+   "claim_id": "a938026c-650b-482d-9c9c-a5bcf9260dd1",
+   "phrase": "code signing verification",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "Code signature verification is performed on product binaries, such as .exe , .dll , jar files, and installer packages.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "security.platform_hardening"
+   ]
+  },
+  {
+   "item_id": "d019",
+   "claim_id": "71e6cde1-c25a-4904-8846-d850adb15146",
+   "phrase": "end-of-life platform support",
+   "class_id": "app.collaboration",
+   "vendor": "Commvault",
+   "target_text": "Microsoft SharePoint Server 2010",
+   "evidence_quote": "| Microsoft SharePoint Server 2010 | Up to and including Commvault Feature Release 2023 (11\\.30\\) |",
+   "assigned_2026_11_08": "vendor.operating_system_support",
+   "acceptable": [
+    "coverage.workload_variants"
+   ]
+  },
+  {
+   "item_id": "d020",
+   "claim_id": "9ee1bcec-e8f0-4616-be66-43eb1e3e978e",
+   "phrase": "scheduled report generation",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "You can create schedules that automatically generate and email reports to specific users on a recurring basis.",
+   "assigned_2026_11_08": "operations.reports",
+   "acceptable": [
+    "operations.reports"
+   ]
+  },
+  {
+   "item_id": "d021",
+   "claim_id": "e41230e6-ffd2-4600-90d9-f47da62cf76d",
+   "phrase": "msdp data integrity checking",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "NetBackup performs several data integrity checks.",
+   "assigned_2026_11_08": "cyber.integrity_verification",
+   "acceptable": [
+    "cyber.integrity_verification"
+   ]
+  },
+  {
+   "item_id": "d022",
+   "claim_id": "e5c3c672-7dc8-4726-bdcb-428e0d648420",
+   "phrase": "job timing analysis",
+   "class_id": "(none)",
+   "vendor": "Bacula",
+   "target_text": "-",
+   "evidence_quote": "The BWeb `btime` module, which is accessible in the Statistics \\\\(\\\\rightarrow\\\\) Timing screen, permits visualization of Job progress during a time period",
+   "assigned_2026_11_08": "operations.dashboards",
+   "acceptable": [
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d023",
+   "claim_id": "1fe4ad46-8cac-468d-b5da-544054574623",
+   "phrase": "passport classification",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "-",
+   "evidence_quote": "Additionally, Securiti lets you classify passport document types and data elements for these localities during discovery scans, as shown below.",
+   "assigned_2026_11_08": "governance.classification",
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d024",
+   "claim_id": "56d95fa6-ae7f-4b77-9312-59d4fe91bfec",
+   "phrase": "pre and post failover and failback scripts",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Commvault",
+   "target_text": "VMware vSphere",
+   "evidence_quote": "To configure options for pre and post failover and failback scripts, in the row for the VM, click the **Actions** button ![action_button](/media/f0d850d4-17f0-4904-9e87-b433b21429a2/7cd7e025ac1d969d.png), and then select **Script**, and then choose the script that you want to configure.",
+   "assigned_2026_11_08": "recovery.failover",
+   "acceptable": [
+    "recovery.failover"
+   ]
+  },
+  {
+   "item_id": "d025",
+   "claim_id": "4a728386-9ac1-4a65-90bd-79013a692832",
+   "phrase": "sharing link recovery",
+   "class_id": "saas.productivity",
+   "vendor": "Acronis",
+   "target_text": "shared drives",
+   "evidence_quote": "Sharing links for files and folders are not recovered.",
+   "assigned_2026_11_08": "coverage.restore",
+   "acceptable": [
+    "coverage.restore"
+   ]
+  },
+  {
+   "item_id": "d026",
+   "claim_id": "53d988a7-a44d-45dc-8220-8df91f1c69fb",
+   "phrase": "clone recyclable save sets",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "NetWorker does not clone save sets that are recyclable or eligible for recycling.",
+   "assigned_2026_11_08": "protection.backup_copy",
+   "acceptable": [
+    "protection.backup_copy"
+   ]
+  },
+  {
+   "item_id": "d027",
+   "claim_id": "86ad68fa-ec09-4d1c-8350-3aa4d9014a80",
+   "phrase": "storage and load utilization insights",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "Platform Insights-Optimize, plan, and scale your data management by providing insights into your cluster's storage and load utilization, along with other essential performance metrics.",
+   "assigned_2026_11_08": "operations.dashboards",
+   "acceptable": [
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d028",
+   "claim_id": "40890440-2e94-4b9e-b2a1-aa3b74e01f5e",
+   "phrase": "backup of unused file system space",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Dell",
+   "target_text": "VMware vSphere",
+   "evidence_quote": "| Backup of unused file system space | No | Yes |",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d029",
+   "claim_id": "091eb0ea-4bfa-419a-aacf-5bc8a277a2be",
+   "phrase": "key rotation interval",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "By default, the key rotation interval is 90 days, though this is configurable.",
+   "assigned_2026_11_08": "security.key_rotation",
+   "acceptable": [
+    "security.key_rotation"
+   ]
+  },
+  {
+   "item_id": "d030",
+   "claim_id": "c2110273-16fa-4f83-8328-4e02e03209c9",
+   "phrase": "application item restore",
+   "class_id": "app.collaboration",
+   "vendor": "Veeam",
+   "target_text": "Microsoft Exchange",
+   "evidence_quote": "[Microsoft Exchange items](restore_msexchange.html)",
+   "assigned_2026_11_08": "recovery.granularity",
+   "acceptable": [
+    "recovery.granularity"
+   ]
+  },
+  {
+   "item_id": "d031",
+   "claim_id": "f92d7778-8420-4b51-bfbe-aa28635874df",
+   "phrase": "restore to new database name",
+   "class_id": "app.database",
+   "vendor": "Bacula",
+   "target_text": "PostgreSQL",
+   "evidence_quote": "To restore a single database to a new name, the two files `createdb.sql` and `data.sqlc` (or `data.sql`) must be selected.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d032",
+   "claim_id": "755b8f05-a719-46be-8e4c-eee64d37b65b",
+   "phrase": "automatic and manual mount point creation for snapshots",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "* Automatic and manual mount point creation for snapshots that comprise a Recovery Point for ContinuousDataReplicator.",
+   "assigned_2026_11_08": "data_use.data_integration",
+   "acceptable": [
+    "data_use.data_integration"
+   ]
+  },
+  {
+   "item_id": "d033",
+   "claim_id": "f6c7cfdc-b1f1-4944-bfc3-ca8e697598ea",
+   "phrase": "mailbox backup and recovery",
+   "class_id": "saas.productivity",
+   "vendor": "Cohesity",
+   "target_text": "Exchange Online",
+   "evidence_quote": "Cohesity Cloud Services currently uses EWS APIs to protect user data in Exchange Online.",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d034",
+   "claim_id": "d27062da-a0d7-43e5-b1b9-063200934d3f",
+   "phrase": "vm-level job priority change",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "hypervisors",
+   "evidence_quote": "You can change job priority only for VM Admin jobs, not for child jobs.",
+   "assigned_2026_11_08": "operations.performance_controls",
+   "acceptable": [
+    "operations.performance_controls"
+   ]
+  },
+  {
+   "item_id": "d035",
+   "claim_id": "d28089bf-d568-42cf-a3cf-37f22ec70042",
+   "phrase": "agent-based application-aware backup",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Commvault",
+   "target_text": "VMware Cloud Director",
+   "evidence_quote": "| VMware Cloud Director | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ |",
+   "assigned_2026_11_08": "protection.agent_based",
+   "acceptable": [
+    "protection.agent_based"
+   ]
+  },
+  {
+   "item_id": "d036",
+   "claim_id": "33bd5f9b-b89b-44cc-a551-a1f9c03e3a35",
+   "phrase": "dsr automation indexing",
+   "class_id": "saas.work_management",
+   "vendor": "Veeam",
+   "target_text": "ServiceNow Files",
+   "evidence_quote": "Securiti builds an index of all primary Data element types, which includes: * Username * Email * Passport Number * Driver License Number * US SSN * TSA Precheck Number * US Tax Payer ID * US DoD ID Number * US VISA Number * US Alien Registration Number * IN Aadhaar Card Number * IN PAN Number * BR CPF * AU Medicare Number * AU Tax File Number * NZ NHI * MRN |",
+   "assigned_2026_11_08": "governance.privacy_requests",
+   "acceptable": [
+    "governance.privacy_requests"
+   ]
+  },
+  {
+   "item_id": "d037",
+   "claim_id": "8892170d-b5d8-47ca-a5d1-a0e01658fbc1",
+   "phrase": "scheduled client updates",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "IBM Storage Protect for Databases",
+   "evidence_quote": "Do not schedule automatic client deployments to systems that have any of the following applications installed on them:",
+   "assigned_2026_11_08": "operations.deployment_upgrade",
+   "acceptable": [
+    "operations.deployment_upgrade"
+   ]
+  },
+  {
+   "item_id": "d038",
+   "claim_id": "8454a086-2ed0-4090-bb4b-bff04a1027bb",
+   "phrase": "file level sensitivity label",
+   "class_id": "(none)",
+   "vendor": "AvePoint",
+   "target_text": "-",
+   "evidence_quote": "Click the toggle button to the right of **File level sensitivity label** to enable sensitivity label for files.",
+   "assigned_2026_11_08": "governance.classification",
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d039",
+   "claim_id": "5eb92abc-bdf4-4e4a-83f6-0fa7a4d6aa31",
+   "phrase": "backup plugin",
+   "class_id": "saas.productivity",
+   "vendor": "Bacula",
+   "target_text": "Microsoft 365",
+   "evidence_quote": "Bacula Enterprise** Microsoft 365 Plugin is applicable on environments using any enterprise plan where target services of this plugin are included:",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.workload_variants"
+   ]
+  },
+  {
+   "item_id": "d040",
+   "claim_id": "3cfe4c10-4d64-4bcf-8b06-a6315d86c27f",
+   "phrase": "skip circular logging-enabled databases in incremental backup",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "This option performs an incremental backup of only databases where circular logging is not enabled.",
+   "assigned_2026_11_08": "protection.incremental_backup",
+   "acceptable": [
+    "protection.incremental_backup"
+   ]
+  },
+  {
+   "item_id": "d041",
+   "claim_id": "5acf0a67-dc25-400c-aff0-1b723d4a3b45",
+   "phrase": "mark next backup full for data verification failed subclients",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "Specifies to convert the next backup job on a subclient to Full backup job if any Data Verification Failed jobs exist for the subclient.",
+   "assigned_2026_11_08": "protection.incremental_backup",
+   "acceptable": [
+    "protection.incremental_backup"
+   ]
+  },
+  {
+   "item_id": "d042",
+   "claim_id": "e9c282e2-afc0-4bef-b7e2-9a1afc825113",
+   "phrase": "protected users quota alarm",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "Veeam Backup & Replication",
+   "evidence_quote": "| Protected users quota | This alarm checks whether your company has exceeded the max allowed number of users stored in a backup repository. | Company | Yes |",
+   "assigned_2026_11_08": "vendor.license_usage_reporting",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d043",
+   "claim_id": "0e304905-8885-4bdf-bff3-79d6893fccc7",
+   "phrase": "tail-log backup restore from secondary data domain",
+   "class_id": "app.database",
+   "vendor": "Dell",
+   "target_text": "Microsoft SQL Server",
+   "evidence_quote": "However, when you restore from the secondary Data Domain system, the tail-log backup option is not supported.",
+   "assigned_2026_11_08": "protection.log_backup",
+   "acceptable": [
+    "protection.log_backup"
+   ]
+  },
+  {
+   "item_id": "d044",
+   "claim_id": "811b366a-7d38-4d5b-ba8f-bc116587e7f8",
+   "phrase": "apply local firewall settings to recovery environment",
+   "class_id": "(none)",
+   "vendor": "Arctera",
+   "target_text": "-",
+   "evidence_quote": "For example, if you turn on the firewall for your local computer and then select this option, the firewall settings are applied for the recovery environment too.",
+   "assigned_2026_11_08": "recovery.network_settings",
+   "acceptable": [
+    "recovery.bare_metal",
+    null
+   ]
+  },
+  {
+   "item_id": "d045",
+   "claim_id": "e90ade9e-7e29-474e-a1e2-2b58c3525d89",
+   "phrase": "detail reports",
+   "class_id": "cloud.compute",
+   "vendor": "Cohesity",
+   "target_text": "Microsoft Azure Virtual Machines",
+   "evidence_quote": "Detail reports are related to a specific enterprise object, such as a backup job.",
+   "assigned_2026_11_08": "operations.reports",
+   "acceptable": [
+    "operations.reports"
+   ]
+  },
+  {
+   "item_id": "d046",
+   "claim_id": "600607fd-b683-4a02-8fc3-fe3c792cb117",
+   "phrase": "import third-party data",
+   "class_id": "storage.target",
+   "vendor": "Commvault",
+   "target_text": "EMC Avamar",
+   "evidence_quote": "Review the following requirements to import Avamar filesystem data to Commvault storage:",
+   "assigned_2026_11_08": "data_use.migration",
+   "acceptable": [
+    "data_use.migration"
+   ]
+  },
+  {
+   "item_id": "d047",
+   "claim_id": "ba81ffbe-aa2e-411a-aa28-7e056a78c74d",
+   "phrase": "chat thread export",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "You can now save any completed chat thread as a file to share with others or review later.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.ai_assistance"
+   ]
+  },
+  {
+   "item_id": "d048",
+   "claim_id": "6a0fcf72-8a18-4c92-a03a-77e79e7305dd",
+   "phrase": "scheduled seeding jobs",
+   "class_id": "saas.work_management",
+   "vendor": "Salesforce",
+   "target_text": "ServiceNow",
+   "evidence_quote": "Provider: the data provider that the scheduled seeding job is defined to process, meaning either Salesforce, or ServiceNow",
+   "assigned_2026_11_08": "data_use.sandbox_seeding",
+   "acceptable": [
+    "data_use.sandbox_seeding"
+   ]
+  },
+  {
+   "item_id": "d049",
+   "claim_id": "b71556d0-70bf-4c89-9448-9761c2999e91",
+   "phrase": "private endpoint creation for vaults with protected items",
+   "class_id": "(none)",
+   "vendor": "Microsoft",
+   "target_text": "Recovery Services vaults",
+   "evidence_quote": "You can create private endpoints for Azure Backup only for Recovery Services vaults that don't have any items protected to it (or haven't had any items attempted to be protected or registered to them in the past).",
+   "assigned_2026_11_08": "operations.private_networking",
+   "acceptable": [
+    "operations.private_networking"
+   ]
+  },
+  {
+   "item_id": "d050",
+   "claim_id": "5bc92511-b655-4c10-a884-899e791c581f",
+   "phrase": "object storage support",
+   "class_id": "(none)",
+   "vendor": "Atempo",
+   "target_text": "EMC CSS",
+   "evidence_quote": "**type**: One value in : \\['amazon\\_s3', 'activescale', 'ecs', 'storagegrid', 'huawei\\_oceanstor\\_pacific', 'generic\\_s3', 'wasabi', 'scaleway', 'alibaba\\_cloud', 'ovh\\_cloud', 'ibm\\_cloud\\_object\\_storage', 'cloudian\\_hyperstore', 'ugloo', 'artesca', 'hcap', 'centera', 'emc\\_css', 'ddn', 'scality\\_ring', 'scality\\_ring\\_cdmi', 'swift', 'azure', 'gcs', 'scality', 'lyve\\_cloud', 'datacore\\_swarm', 'hualu', 'outscale\\_s3', 'ddn\\_infinia', 'qumulo\\_",
+   "assigned_2026_11_08": "storage.repository_types",
+   "acceptable": [
+    "storage.repository_types"
+   ]
+  },
+  {
+   "item_id": "d051",
+   "claim_id": "c57f3c56-396c-4693-8034-937366acd040",
+   "phrase": "protection group deletion",
+   "class_id": "cloud.database",
+   "vendor": "Cohesity",
+   "target_text": "Azure Cosmos DB - NoSQL",
+   "evidence_quote": "You can delete a Protection Group if you:",
+   "assigned_2026_11_08": "retention.survives_policy_deletion",
+   "acceptable": [
+    "retention.survives_policy_deletion"
+   ]
+  },
+  {
+   "item_id": "d052",
+   "claim_id": "05859620-f620-409a-be7d-cdb82a80093d",
+   "phrase": "background fingerprint loading from recent client backups",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "| **FPCacheWithImageSet** | Controls the source from which the NetBackup Deduplication Engine (**spoold**) loads fingerprints into the fingerprint cache in the background after startup.If set to yes, **spoold** loads fingerprints from the most recent backups of existing clients.See [About the last backups of clients](v172515154-173432076 \"About the last backups of clients\").If set to no: * When **EnableLocalPredictiveSamplingCache\\=false**, finge",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "storage.data_reduction",
+    null
+   ]
+  },
+  {
+   "item_id": "d053",
+   "claim_id": "392cb727-1f71-4ef7-ad89-b8620d6e7208",
+   "phrase": "dynamic target volume allocation",
+   "class_id": "storage.target",
+   "vendor": "IBM",
+   "target_text": "IBM Storwize",
+   "evidence_quote": "This solution creates dynamic target volumes on the storage system during a backup operation.",
+   "assigned_2026_11_08": "storage.capacity_scaling",
+   "acceptable": [
+    "protection.snapshot"
+   ]
+  },
+  {
+   "item_id": "d054",
+   "claim_id": "e82eaaa7-48ae-4afd-a472-d97036ab799a",
+   "phrase": "snapshot retention",
+   "class_id": "cloud",
+   "vendor": "Veeam",
+   "target_text": "AWS",
+   "evidence_quote": "If a snapshot is older than the specified time limit, the backup appliance removes the snapshot from the chain.",
+   "assigned_2026_11_08": "retention.granularity",
+   "acceptable": [
+    "retention.granularity"
+   ]
+  },
+  {
+   "item_id": "d055",
+   "claim_id": "e10c9ff3-48cd-4d12-ab02-22fab68e6f9a",
+   "phrase": "agent uninstallation protection",
+   "class_id": "endpoint",
+   "vendor": "Acronis",
+   "target_text": "Windows",
+   "evidence_quote": "The Agent uninstallation protection setting prevents users or third\\-party software from uninstalling Agent for Windows or modifying its components outside the period configured in the Allow updates or uninstallation of the selected agents for the following period field.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "security.platform_hardening"
+   ]
+  },
+  {
+   "item_id": "d056",
+   "claim_id": "1df46c56-8b09-4b62-8521-7d2a64873bb3",
+   "phrase": "restore to ldap server",
+   "class_id": "app.directory",
+   "vendor": "Veeam",
+   "target_text": "Microsoft Active Directory",
+   "evidence_quote": "In the Specify the user account to be used to connect to LDAP server section, select either of the following options:",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d057",
+   "claim_id": "4af336ad-7128-4b9f-aaff-caf10c7e4d95",
+   "phrase": "metrics report",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "You can access the Metrics Report feature on Command Center.",
+   "assigned_2026_11_08": "operations.reports",
+   "acceptable": [
+    "operations.reports"
+   ]
+  },
+  {
+   "item_id": "d058",
+   "claim_id": "353f2ad0-1172-43eb-be8e-020cd35e1515",
+   "phrase": "restore to alternate storage class",
+   "class_id": "kubernetes",
+   "vendor": "Dell",
+   "target_text": "Kubernetes",
+   "evidence_quote": "When restoring a nonsnapshot Container Storage Interface (CSI) storage volume to an alternate storage class, ensure that the target storage class supports the access mode of the backed-up PVC.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d059",
+   "claim_id": "2489d264-5654-4be2-8b6b-158f9e498ec6",
+   "phrase": "user authentication",
+   "class_id": "app.directory",
+   "vendor": "Cohesity",
+   "target_text": "Active Directory",
+   "evidence_quote": "IT Analytics supports user authentication and optionally supports authorization using Active Directory (AD) or Lightweight Directory Access Protocol (LDAP).",
+   "assigned_2026_11_08": "security.directory_authentication",
+   "acceptable": [
+    "security.directory_authentication"
+   ]
+  },
+  {
+   "item_id": "d060",
+   "claim_id": "962f0313-b792-40ed-9a82-b4ee3aefdf2a",
+   "phrase": "risk rule for bot protection",
+   "class_id": "(none)",
+   "vendor": "AvePoint",
+   "target_text": "Azure Application Gateway",
+   "evidence_quote": "| Application Gateway Waf Policies | Bot Protection should be enabled for Azure Application Gateway WAF | This policy ensures that bot protection is enabled in all Azure Application Gateway Web Application Firewall (WAF) policies | Azure built\\-in policy | August 2026 |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d061",
+   "claim_id": "96960de1-5510-4dba-80e4-04c4c53ca863",
+   "phrase": "pre-snapshot command for snapshot-based image backup",
+   "class_id": "endpoint.server",
+   "vendor": "IBM",
+   "target_text": "Linux",
+   "evidence_quote": "Linux® only: This option is only valid if the LVM is installed and configured on your system, allowing you to perform a snapshot\\-based image backup.",
+   "assigned_2026_11_08": "protection.pre_post_scripts",
+   "acceptable": [
+    "protection.pre_post_scripts"
+   ]
+  },
+  {
+   "item_id": "d062",
+   "claim_id": "ca091fdf-c550-4b27-a482-c0c7b03f5d45",
+   "phrase": "rest api create migration organization",
+   "class_id": "(none)",
+   "vendor": "Atempo",
+   "target_text": "-",
+   "evidence_quote": "**name (required)**: Name of the new migration organization.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.api_automation"
+   ]
+  },
+  {
+   "item_id": "d063",
+   "claim_id": "fef7325f-80fb-4d73-96ee-5244196e5a71",
+   "phrase": "ipsec tunnel status refresh interval",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "The appliance refreshes tunnel status approximately every 15 minutes, and also immediately after you create, edit, or delete a tunnel.",
+   "assigned_2026_11_08": "operations.private_networking",
+   "acceptable": [
+    "operations.private_networking"
+   ]
+  },
+  {
+   "item_id": "d064",
+   "claim_id": "0a4f0c58-bd25-4db5-bcf4-648ecd8ffd25",
+   "phrase": "snmp notifications",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "-",
+   "evidence_quote": "Select the Send SNMP notifications for this job check box if you want to receive SNMP traps when the job completes successfully.",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d065",
+   "claim_id": "6b099c77-5b44-4320-aadc-71b9e0e58bc8",
+   "phrase": "alert modification alert",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "Existing alerts have been modified",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d066",
+   "claim_id": "30ef3337-68e9-4462-b242-18c5082ad41d",
+   "phrase": "cross-region restore with re-encryption",
+   "class_id": "cloud.database",
+   "vendor": "Cohesity",
+   "target_text": "Amazon DocumentDB",
+   "evidence_quote": "l For a cross-region restore, you can re-encrypt the snapshot with a KMS key in the target region.",
+   "assigned_2026_11_08": "recovery.cross_account_region",
+   "acceptable": [
+    "recovery.cross_account_region"
+   ]
+  },
+  {
+   "item_id": "d067",
+   "claim_id": "489734c6-0044-4e60-82dd-57124d3e7824",
+   "phrase": "document metadata scan",
+   "class_id": "saas.work_management",
+   "vendor": "Veeam",
+   "target_text": "Zendesk Support",
+   "evidence_quote": "This option scans properties of the files such as file names, types, created by, created on, and so on.",
+   "assigned_2026_11_08": "governance.classification",
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d068",
+   "claim_id": "6e74819a-1831-4063-83e6-0abcf9395d1a",
+   "phrase": "immutable volumes",
+   "class_id": "(none)",
+   "vendor": "Bacula",
+   "target_text": "-",
+   "evidence_quote": "When immutability is configured in the Bacula Device resource, `SetVolumeImmutable = yes`, to store the Bacula volumes, Bacula will set the Immutable attribute for the disk volume file if:",
+   "assigned_2026_11_08": "security.immutability",
+   "acceptable": [
+    "security.immutability"
+   ]
+  },
+  {
+   "item_id": "d069",
+   "claim_id": "065eed85-98ad-4156-88c9-6db730eea336",
+   "phrase": "restore using smb v1",
+   "class_id": "file.nas",
+   "vendor": "Cohesity",
+   "target_text": "NAS",
+   "evidence_quote": "l Cohesity does not support restoring NAS volumes and data using SMBv1.",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "coverage.workload_variants"
+   ]
+  },
+  {
+   "item_id": "d070",
+   "claim_id": "9d9039e2-ce72-4fb2-8306-321b420d586d",
+   "phrase": "teams tagging settings",
+   "class_id": "saas.productivity",
+   "vendor": "AvePoint",
+   "target_text": "Microsoft Teams",
+   "evidence_quote": "| Teams Tagging Settings | Control how tags are used across your organization. | Scan Mode |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d071",
+   "claim_id": "f8afda64-ca3f-420a-b484-9096cfacb35a",
+   "phrase": "recovery agent file restore",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "IBM",
+   "target_text": "VMware vSphere",
+   "evidence_quote": "Log on to the system where you want to restore files. recovery agent must be installed on the system.",
+   "assigned_2026_11_08": "recovery.granularity",
+   "acceptable": [
+    "recovery.granularity"
+   ]
+  },
+  {
+   "item_id": "d072",
+   "claim_id": "34620ab3-5096-40c5-96f3-e0b971a268af",
+   "phrase": "multiple archival locations",
+   "class_id": "app.database",
+   "vendor": "Rubrik",
+   "target_text": "MongoDB",
+   "evidence_quote": "Multiple archival locations provide granular control over where RSC archives your MongoDB snapshots.",
+   "assigned_2026_11_08": "protection.backup_copy",
+   "acceptable": [
+    "protection.backup_copy"
+   ]
+  },
+  {
+   "item_id": "d073",
+   "claim_id": "f7c1a5c8-3723-4d80-aa1a-81a1cf69533c",
+   "phrase": "rest api entity management",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "Commvault software supports REST APIs that you can use to perform operations, such as suspending or resuming a job, and to manage entities, such as updating subclient properties.",
+   "assigned_2026_11_08": "operations.api_automation",
+   "acceptable": [
+    "operations.api_automation"
+   ]
+  },
+  {
+   "item_id": "d074",
+   "claim_id": "a1da137f-df62-43be-9fe8-2194add6aaa9",
+   "phrase": "cloud mediaagent power management",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "You can configure the power management feature for a MediaAgent that is hosted on the cloud.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d075",
+   "claim_id": "92a2a838-8a85-427e-8b98-43bdefb36610",
+   "phrase": "browse latest data",
+   "class_id": "storage.target",
+   "vendor": "Commvault",
+   "target_text": "Huawei OceanStore V3 and V5",
+   "evidence_quote": "| | [Browse the Latest Data](./browse_and_restore_all_versions_of_file_for_ndmp_agent.html) |",
+   "assigned_2026_11_08": "recovery.preview",
+   "acceptable": [
+    "recovery.preview"
+   ]
+  },
+  {
+   "item_id": "d076",
+   "claim_id": "c6eb79f6-9d6f-4cd4-8604-3665bb4f54c1",
+   "phrase": "geographic server location map",
+   "class_id": "app.collaboration",
+   "vendor": "Commvault",
+   "target_text": "Microsoft Exchange",
+   "evidence_quote": "| Sensitivity by Location | A map highlighting the geographic locations of the servers where the emails are located. Larger circles on the map indicate that a larger number of servers are located there relative to other locations. To zoom in and out of the map, hover over the map with your mouse and then use the mouse scroll wheel to zoom in and out. |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "governance.classification",
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d077",
+   "claim_id": "1b66f3aa-48bc-4e37-b90e-e456379c69c9",
+   "phrase": "provisioning from remote snapshots",
+   "class_id": "storage.target",
+   "vendor": "Portworx",
+   "target_text": "Pure Storage FlashArray",
+   "evidence_quote": "Replication of FADA volume snapshots to another FlashArray and provisioning of volumes from remote snapshots",
+   "assigned_2026_11_08": "protection.snapshot_replication",
+   "acceptable": [
+    "protection.snapshot_replication"
+   ]
+  },
+  {
+   "item_id": "d078",
+   "claim_id": "86e8cf8f-340b-4715-8f4e-a9c83315255b",
+   "phrase": "unadopted licenses report",
+   "class_id": "(none)",
+   "vendor": "AvePoint",
+   "target_text": "-",
+   "evidence_quote": "This is the total number of licenses that have been purchased but not used.",
+   "assigned_2026_11_08": "vendor.license_usage_reporting",
+   "acceptable": [
+    "vendor.license_usage_reporting"
+   ]
+  },
+  {
+   "item_id": "d079",
+   "claim_id": "7a416534-60b5-4a8e-b25a-696321bae7da",
+   "phrase": "jdbc connector",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "Amazon Athena",
+   "evidence_quote": "| Athena DB | Securiti will remove support for the Athena JDBC driver 2\\.x in an upcoming release. Securiti recommends migrating to the driver version 3\\.2\\.0 now to avoid disruption. | [https://downloads.athena.us\\-east\\-1\\.amazonaws.com/drivers/JDBC/3\\.2\\.0/athena\\-jdbc\\-3\\.2\\.0\\-with\\-dependencies.jar](https://downloads.athena.us-east-1.amazonaws.com/drivers/JDBC/3.2.0/athena-jdbc-3.2.0-with-dependencies.jar) |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d080",
+   "claim_id": "22dba80f-c82a-45b0-8b04-4c0306234987",
+   "phrase": "backup to removable drives",
+   "class_id": "storage.target",
+   "vendor": "Arcserve",
+   "target_text": "USB, FireWire",
+   "evidence_quote": "| Disaster Recovery | * Bootable on Legacy/Bios firmware from a CD or a USB stick * Store backups on any accessible hard disk, including network storage (SAN, NAS, iSCSI), removable drives (USB, FireWire), and optical media (CD, DVD, Blu\\-Ray) * Verify backup images to ensure data integrity * Create compressed and encrypted backup image files for efficiency, security and disaster recovery * Run wizard\\-based recovery of files, folders, or a compl",
+   "assigned_2026_11_08": "storage.repository_types",
+   "acceptable": [
+    "storage.repository_types"
+   ]
+  },
+  {
+   "item_id": "d081",
+   "claim_id": "3a218731-647e-46c1-b9da-afe2c4ff7ac8",
+   "phrase": "server-side protection",
+   "class_id": "(none)",
+   "vendor": "Acronis",
+   "target_text": "-",
+   "evidence_quote": "This option defines whether Antivirus \\& Antimalware protection protects network folders that are shared by you from the external incoming connections from other servers in the network that may potentially bring threats.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d082",
+   "claim_id": "9e82d9d1-9b1f-4437-a8f0-c51a7b754226",
+   "phrase": "email client backup",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "Apple Mail 9.2",
+   "evidence_quote": "| * Outlook Express * Outlook 2016, 2013, 2010, 2007 \\- Optimized for performance * Outlook 2016, 2013, 2010, 2007 \\- Optimized for efficiency * Lotus Notes 8\\.5 * Thunderbird 38\\.0\\.1 | * Apple Mail 9\\.2 * Postbox 4\\.0\\.8 * Outlook 2011 * Outlook 2016 * Thunderbird 38\\.0\\.1 | Thunderbird 38\\.0\\.1 |",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d083",
+   "claim_id": "b583ca56-3508-4b62-80d6-131d72584cac",
+   "phrase": "crash-consistent backup fallback",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "If the Take a Crash Consistent backup if unable to perform an App Consistent backup is enabled in that Cohesity cluster, a crash-consistent snapshot is captured.",
+   "assigned_2026_11_08": "protection.application_consistent",
+   "acceptable": [
+    "protection.application_consistent"
+   ]
+  },
+  {
+   "item_id": "d084",
+   "claim_id": "efe64e77-0408-4358-89d9-665f50fe4bd5",
+   "phrase": "iban pattern detection",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "Luxembourg",
+   "evidence_quote": "Luxembourg &amp; Luxembourgish IBAN &amp; Detects IBAN numbers (up to 34 alphanumeric characters) for Luxembourgish. \\ \\hline",
+   "assigned_2026_11_08": "governance.classification",
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d085",
+   "claim_id": "3d9e6260-f13f-4352-94d3-21277c861732",
+   "phrase": "minimum upper-case characters in administrator passwords",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "-",
+   "evidence_quote": "| [SET MINPWCHARUPPER](/docs/en/SSEQVQ_8.2.2/srv.reference/r_cmd_minpwcharuppercase_set.html \"Use this command to set the minimum number of upper-case alphabetic characters that are required to be in administrator passwords.\") | Sets the minimum number of upper\\-case alphabetic characters that are required to be in administrator passwords. |",
+   "assigned_2026_11_08": "security.password_policy",
+   "acceptable": [
+    "security.password_policy"
+   ]
+  },
+  {
+   "item_id": "d086",
+   "claim_id": "1ed61066-af54-431d-94a7-a97066ad7342",
+   "phrase": "journal message archiving",
+   "class_id": "app.collaboration",
+   "vendor": "Commvault",
+   "target_text": "Exchange Journal Mailbox",
+   "evidence_quote": "| Data archiving (Journal messages backup) | Supported |",
+   "assigned_2026_11_08": "governance.archiving",
+   "acceptable": [
+    "governance.archiving"
+   ]
+  },
+  {
+   "item_id": "d087",
+   "claim_id": "1a273341-9e02-4c3e-b9d4-6dc19c6a625b",
+   "phrase": "agent-based application backup",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Commvault",
+   "target_text": "Oracle VM",
+   "evidence_quote": "| Oracle VM (streaming) | tick | tick | tick | tick | tick | tick |",
+   "assigned_2026_11_08": "protection.agent_based",
+   "acceptable": [
+    "protection.agent_based"
+   ]
+  },
+  {
+   "item_id": "d088",
+   "claim_id": "712c731f-b4ea-4fb0-a813-348ed8714776",
+   "phrase": "failback availability",
+   "class_id": "(none)",
+   "vendor": "Rubrik",
+   "target_text": "-",
+   "evidence_quote": "Failback availability: The failback option is available only for Rubrik Cloud Vault (RCV) locations with Multi\\-region redundancy that have been failed over.",
+   "assigned_2026_11_08": "recovery.failover",
+   "acceptable": [
+    "recovery.failover",
+    "storage.redundancy"
+   ]
+  },
+  {
+   "item_id": "d089",
+   "claim_id": "1d9b9242-23a6-4827-affc-b3e3cae3a3ed",
+   "phrase": "self-managed encryption",
+   "class_id": "(none)",
+   "vendor": "N-Able",
+   "target_text": "-",
+   "evidence_quote": "You **must** store this somewhere secure as we do **not** store this for devices that use **self\\-managed encryption**.",
+   "assigned_2026_11_08": "security.client_side_encryption",
+   "acceptable": [
+    "security.client_side_encryption",
+    "security.customer_managed_keys"
+   ]
+  },
+  {
+   "item_id": "d090",
+   "claim_id": "75ee9388-a385-4b43-8131-a71d6c9dd6da",
+   "phrase": "server-side compression",
+   "class_id": "app.database",
+   "vendor": "Veeam",
+   "target_text": "Oracle",
+   "evidence_quote": "In this case, Veeam Plug\\-In sends uncompressed data to the backup repository.",
+   "assigned_2026_11_08": "storage.data_reduction",
+   "acceptable": [
+    "storage.data_reduction"
+   ]
+  },
+  {
+   "item_id": "d091",
+   "claim_id": "5d4446e7-f36d-42dc-8c15-3a64171dd2d7",
+   "phrase": "scanner cli utility bundled with agent",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "-",
+   "evidence_quote": "This utility is bundled with the Enterprise Workloads agent.",
+   "assigned_2026_11_08": "operations.api_automation",
+   "acceptable": [
+    "operations.api_automation"
+   ]
+  },
+  {
+   "item_id": "d092",
+   "claim_id": "816c80ab-8705-4c20-9004-e54b0e4dadc4",
+   "phrase": "policy set validation",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "-",
+   "evidence_quote": "Verifies and reports on conditions the administrator must consider before activating the policy set.",
+   "assigned_2026_11_08": "operations.policy_guardrails",
+   "acceptable": [
+    "operations.policy_guardrails"
+   ]
+  },
+  {
+   "item_id": "d093",
+   "claim_id": "093aadb6-adc9-4e9c-9e4d-cf113ef94f4e",
+   "phrase": "remove source database copy from staging server",
+   "class_id": "cloud.database",
+   "vendor": "Veeam",
+   "target_text": "Azure SQL",
+   "evidence_quote": "\\[Applies only if you perform backup using a staging server] Removes the copy of the source database from the staging server.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d094",
+   "claim_id": "508b73f4-b280-4c44-9473-f11754255fc9",
+   "phrase": "ssh fingerprint verification for linux hosts",
+   "class_id": "endpoint.server",
+   "vendor": "Veeam",
+   "target_text": "Linux servers",
+   "evidence_quote": "Untrusted Linux VMs and Linux servers must be allowed to connect to the backup server only using manual SSH fingerprint verification.",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "security.source_authentication_methods"
+   ]
+  },
+  {
+   "item_id": "d095",
+   "claim_id": "212bed1c-0df2-454a-8cdd-da08ac969e5e",
+   "phrase": "archive attribute reset for journal-based and incremental-by-date backups",
+   "class_id": "endpoint",
+   "vendor": "IBM",
+   "target_text": "Windows",
+   "evidence_quote": "Incremental backup operations which do not examine the stored client attributes on the server, such as journal\\-based backup or incremental\\-by\\-date processing.",
+   "assigned_2026_11_08": "protection.incremental_backup",
+   "acceptable": [
+    "protection.incremental_backup"
+   ]
+  },
+  {
+   "item_id": "d096",
+   "claim_id": "61f5c035-e5a8-473d-b7e8-4e13cdadf5de",
+   "phrase": "memory expansion",
+   "class_id": "(none)",
+   "vendor": "Axcient",
+   "target_text": "-",
+   "evidence_quote": "Axcient memory upgrade kits include a pair of additional memory modules that may be used to upgrade the BDR, two memory sockets at a time.",
+   "assigned_2026_11_08": "vendor.hardware_support",
+   "acceptable": [
+    "vendor.hardware_support"
+   ]
+  },
+  {
+   "item_id": "d097",
+   "claim_id": "8e8ab607-b62b-4fce-aeb6-3e840e04be2d",
+   "phrase": "report import from another system",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "Click Load to import a report from another Avamar system.",
+   "assigned_2026_11_08": "operations.reports",
+   "acceptable": [
+    "operations.reports"
+   ]
+  },
+  {
+   "item_id": "d098",
+   "claim_id": "ecd8d7a7-54eb-4a3d-b634-813cb0f7fcfd",
+   "phrase": "backup compression levels",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "-",
+   "evidence_quote": "From the Compression level list, select a compression level for the backup: None, Dedupe\\-friendly, Optimal, High or Extreme.",
+   "assigned_2026_11_08": "storage.data_reduction",
+   "acceptable": [
+    "storage.data_reduction"
+   ]
+  },
+  {
+   "item_id": "d099",
+   "claim_id": "e027b0c5-99ae-488b-8959-9b026e0772be",
+   "phrase": "retire client",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "The license for the client is released.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "vendor.license_revocation"
+   ]
+  },
+  {
+   "item_id": "d100",
+   "claim_id": "99387dc5-d97b-41c9-b727-82608f72456c",
+   "phrase": "space reclamation for cloud-container storage pools",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "cloud-container storage pools",
+   "evidence_quote": "| 8\\.1\\.5 | Server * [Reduce the cost of cloud\\-container storage pools by reclaiming space](http://www.ibm.com/support/knowledgecenter/SSEQVQ_8.1.5/srv.common/r_techchg_cld_reclaim_815.html#r_techchg_cld_reclaim_815 \"(Opens in a new tab or window)\")",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d101",
+   "claim_id": "930a159f-832d-45c0-8431-511be1dc0ce3",
+   "phrase": "custom tags on snapshots",
+   "class_id": "cloud.compute",
+   "vendor": "Veeam",
+   "target_text": "Azure virtual machines",
+   "evidence_quote": "You can assign up to 5 custom tags in addition to tags assigned to source volumes.",
+   "assigned_2026_11_08": "governance.resource_tagging",
+   "acceptable": [
+    "governance.resource_tagging"
+   ]
+  },
+  {
+   "item_id": "d102",
+   "claim_id": "aebaae6c-f5e6-423b-a020-299effa5aa46",
+   "phrase": "jbxexercise utility with ndmp autochanger",
+   "class_id": "storage.target",
+   "vendor": "Dell",
+   "target_text": "NDMP autochangers",
+   "evidence_quote": "You cannot use the `jbxexercise` utility with an NDMP autochanger.",
+   "assigned_2026_11_08": "storage.tape",
+   "acceptable": [
+    "storage.tape"
+   ]
+  },
+  {
+   "item_id": "d103",
+   "claim_id": "c72f5b4f-c9b9-413a-944c-1d580b9c0211",
+   "phrase": "out-of-place system state restore",
+   "class_id": "endpoint",
+   "vendor": "Commvault",
+   "target_text": "Windows",
+   "evidence_quote": "IIS metabase file to repair a IIS server using Microsoft procedures.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d104",
+   "claim_id": "46fd3195-bbe2-40d5-a338-7e0010c61877",
+   "phrase": "pre-scripts and post-scripts with backups",
+   "class_id": "endpoint.server",
+   "vendor": "Dell",
+   "target_text": "Linux",
+   "evidence_quote": "File System agent on AIX, Linux, or Windows",
+   "assigned_2026_11_08": "protection.pre_post_scripts",
+   "acceptable": [
+    "protection.pre_post_scripts"
+   ]
+  },
+  {
+   "item_id": "d105",
+   "claim_id": "ead63523-1f27-4cf4-a218-c0e0edc99938",
+   "phrase": "data migration via snow family devices",
+   "class_id": "storage.target",
+   "vendor": "Commvault",
+   "target_text": "AWS Snowball Edge",
+   "evidence_quote": "| | The following AWS Snow Family devices are supported:* AWS Snowball Edge * AWS Snowball * AWS Snowmobile * AWS Snowcone See [Migrating Data to Amazon S3 Using Snowball](./migrating_data_to_amazon_s3_using_snow_family_devices.html). | | |",
+   "assigned_2026_11_08": "data_use.migration",
+   "acceptable": [
+    "data_use.migration"
+   ]
+  },
+  {
+   "item_id": "d106",
+   "claim_id": "d533c1b9-b656-4155-96d2-246aed59b660",
+   "phrase": "domain and policy-based client management",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "Once the client is added and registered, you can add a client to the system in a domain and policy.",
+   "assigned_2026_11_08": "operations.multi_tenant_management",
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d107",
+   "claim_id": "0d21f776-d11f-4de2-a1b2-9769cb5ef2a5",
+   "phrase": "automated port request fulfillment",
+   "class_id": "cloud.database",
+   "vendor": "Veeam",
+   "target_text": "Google Cloud SQL for MySQL",
+   "evidence_quote": "| Port | **Automated**Securiti automatically extracts and attaches one or more Auto\\-generated PD reports showing all the personal data associated with the data subject.",
+   "assigned_2026_11_08": "operations.api_automation",
+   "acceptable": [
+    "governance.privacy_requests"
+   ]
+  },
+  {
+   "item_id": "d108",
+   "claim_id": "aa220662-f923-4771-a604-67a66db3926c",
+   "phrase": "restore to recovery storage group",
+   "class_id": "app.collaboration",
+   "vendor": "Axcient",
+   "target_text": "Microsoft Exchange Server",
+   "evidence_quote": "If you only want to mount a copy of the restored data (for example to extract some individual mailboxes) then you can use the[recovery storage group](http://support.microsoft.com/kb/824126) feature to mount the restored data without interrupting the production information store.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d109",
+   "claim_id": "41da507f-7c73-465f-825b-8efc8a2fc5c0",
+   "phrase": "archive and restore",
+   "class_id": "saas.crm",
+   "vendor": "AvePoint",
+   "target_text": "Salesforce",
+   "evidence_quote": "| AuthorizationForm | Supported | Supported |",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d110",
+   "claim_id": "205f4433-2ea7-4973-bb7d-40f40056e14b",
+   "phrase": "two-factor authentication secret key reissue",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "After the key is deleted, users can access the new secret key based on the following interfaces they log on for the first time:",
+   "assigned_2026_11_08": "security.mfa",
+   "acceptable": [
+    "security.mfa"
+   ]
+  },
+  {
+   "item_id": "d111",
+   "claim_id": "54c01007-9f88-4b6f-9e88-efddb7d3292f",
+   "phrase": "geo-replication status monitoring",
+   "class_id": "(none)",
+   "vendor": "Acronis",
+   "target_text": "-",
+   "evidence_quote": "Geo\\-replication status shows if the data from the primary backup location is copied to the replication location.",
+   "assigned_2026_11_08": "protection.replication",
+   "acceptable": [
+    "storage.redundancy"
+   ]
+  },
+  {
+   "item_id": "d112",
+   "claim_id": "798521fc-f1a1-4459-8536-85e8f2cc38bd",
+   "phrase": "ai risk assessment and governance",
+   "class_id": "saas.productivity",
+   "vendor": "Veeam",
+   "target_text": "Microsoft 365",
+   "evidence_quote": "This dashboard supports risk assessment, governance, and oversight of AI\\-driven interactions across OneDrive, SharePoint, Outlook, and Teams.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null,
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d113",
+   "claim_id": "79b2fe18-a154-4f70-9849-3bdf358fb847",
+   "phrase": "role creation via command line",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "Use XML to create a role.",
+   "assigned_2026_11_08": "security.rbac",
+   "acceptable": [
+    "security.rbac"
+   ]
+  },
+  {
+   "item_id": "d114",
+   "claim_id": "715db63c-ae90-4813-83be-5378b8c92ab0",
+   "phrase": "cdc data processing on cluster",
+   "class_id": "cloud.database",
+   "vendor": "Cohesity",
+   "target_text": "Azure SQL Managed Instance",
+   "evidence_quote": "l Cohesity Cluster - CDCdata processing is performed on the client (Cohesity cluster nodes).",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "protection.off_host_backup"
+   ]
+  },
+  {
+   "item_id": "d115",
+   "claim_id": "6a957a5f-eba3-4bbf-b5cb-1888e19bcbf1",
+   "phrase": "object storage job details",
+   "class_id": "cloud.object",
+   "vendor": "Veeam",
+   "target_text": "object storage",
+   "evidence_quote": "The following details are available for protected object storage:",
+   "assigned_2026_11_08": "operations.dashboards",
+   "acceptable": [
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d116",
+   "claim_id": "cefe824d-5b19-4e24-95a9-ff2ee466b4e2",
+   "phrase": "prune jobs from argument file",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "To prune multiple jobs provided in the [jobstodelete.txt](files/features/cli/jobstodelete.txt) file.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.api_automation",
+    null
+   ]
+  },
+  {
+   "item_id": "d117",
+   "claim_id": "74818e40-5bb2-4e5e-8f22-64b8cfcba2fb",
+   "phrase": "deployment sequencing",
+   "class_id": "saas.crm",
+   "vendor": "Gearset",
+   "target_text": "Salesforce CPQ",
+   "evidence_quote": "**Deployment Sequencing:** Gearset automatically determines the correct order of operations, preventing deployment failures caused by missing parent records or related metadata.",
+   "assigned_2026_11_08": "data_use.devops_deployment",
+   "acceptable": [
+    "data_use.devops_deployment"
+   ]
+  },
+  {
+   "item_id": "d118",
+   "claim_id": "3ebf5ea6-c512-456f-b53f-aae665ea369c",
+   "phrase": "admin alert for succeeded jobs anomaly",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "| Not available | Anomaly in number of succeeded jobs | Information | The number of succeeded jobs is less than the system threshold. |",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d119",
+   "claim_id": "f4a16345-79d0-41f2-8110-24a6d4cf6219",
+   "phrase": "mcp server actions",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "-",
+   "evidence_quote": "The following actions are not supported by the MCP Server:",
+   "assigned_2026_11_08": "operations.ai_assistance",
+   "acceptable": [
+    "operations.ai_assistance"
+   ]
+  },
+  {
+   "item_id": "d120",
+   "claim_id": "2bcbdb04-6202-498e-a01f-a0dea2ee3a18",
+   "phrase": "restore to another instance",
+   "class_id": "cloud.object",
+   "vendor": "Commvault",
+   "target_text": "Azure Data Lake Storage Gen2",
+   "evidence_quote": "Displays the Azure Data Lake Storage Gen2 instance under the Azure Data Lake Storage Gen2 virtual client to which the selected data will be restored.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d121",
+   "claim_id": "b0f6043b-0138-46e1-b2b7-1b8d01eb0e4d",
+   "phrase": "object storage as backup target",
+   "class_id": "app.database",
+   "vendor": "Veeam",
+   "target_text": "MongoDB",
+   "evidence_quote": "As target repositories for backups of MongoDB replica sets created by [MongoDB Backup](mongo_backup.html).",
+   "assigned_2026_11_08": "storage.repository_types",
+   "acceptable": [
+    "storage.repository_types"
+   ]
+  },
+  {
+   "item_id": "d122",
+   "claim_id": "8621dda3-9587-41cc-8f9f-c8902b7e4e8a",
+   "phrase": "differential backup with full backup for restore",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "-",
+   "evidence_quote": "The output volumes used in this backup may be used in conjunction with preceding volumes in the full backup during a database restore operation.",
+   "assigned_2026_11_08": "protection.incremental_backup",
+   "acceptable": [
+    "protection.incremental_backup"
+   ]
+  },
+  {
+   "item_id": "d123",
+   "claim_id": "145dcc90-6c69-4cdf-8736-6451c715122e",
+   "phrase": "instant volume mount from archive",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "physical servers",
+   "evidence_quote": "| | Instant volume mount from an archive | No | No | No | Supp orted (CA,T A) | Supp orted (CA,T A) | Suppo rted (CA,T A) | Supp orted (CA,T A) | Supp orted (CA,T A) | Supp orted (CA,T A) | No |",
+   "assigned_2026_11_08": "data_use.data_integration",
+   "acceptable": [
+    "data_use.data_integration",
+    "recovery.archive_restore",
+    "recovery.instant"
+   ]
+  },
+  {
+   "item_id": "d124",
+   "claim_id": "f430dbf3-2a25-4fdd-80d7-46b053d4849f",
+   "phrase": "restore from previous release offline backups",
+   "class_id": "(none)",
+   "vendor": "Arcserve",
+   "target_text": "-",
+   "evidence_quote": "Restore from offline backups made with a previous release of the agent (through the Backup Manager only).",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d125",
+   "claim_id": "240203fa-e6aa-45d6-ba38-22dd9f48b117",
+   "phrase": "backup file size anomaly monitoring",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "-",
+   "evidence_quote": "Unusual activity in backup file sizes (Windows and Linux clients, and virtual machines).",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "cyber.detection_behavior"
+   ]
+  },
+  {
+   "item_id": "d126",
+   "claim_id": "abfc483b-3e5b-48b8-b951-1b07465d2a8a",
+   "phrase": "traffic control between aws and on-premises",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "AWS PrivateLink",
+   "evidence_quote": "Commvault supports AWS VPC, AWS Transit Gateway, and AWS Privatelink to control and direct traffic between AWS and on\\-premises networks.",
+   "assigned_2026_11_08": "operations.private_networking",
+   "acceptable": [
+    "operations.private_networking"
+   ]
+  },
+  {
+   "item_id": "d127",
+   "claim_id": "3b71135f-39eb-4d3e-8a0c-340826a650ae",
+   "phrase": "restore from backups",
+   "class_id": "app.collaboration",
+   "vendor": "Veeam",
+   "target_text": "Microsoft SharePoint",
+   "evidence_quote": "If your Veeam Explorer for Microsoft SharePoint comes as part of a standalone Veeam Backup for Microsoft 365 installation, you cannot restore from Veeam Backup \\& Replication backups by default.",
+   "assigned_2026_11_08": "coverage.restore",
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d128",
+   "claim_id": "d7871169-121a-4b37-8547-9bcc10bfc35d",
+   "phrase": "role-based authorization",
+   "class_id": "(none)",
+   "vendor": "Portworx",
+   "target_text": "-",
+   "evidence_quote": "A role is the name given to a set of RBAC rules which enable access to certain SDK calls.",
+   "assigned_2026_11_08": "security.rbac",
+   "acceptable": [
+    "security.rbac"
+   ]
+  },
+  {
+   "item_id": "d129",
+   "claim_id": "db83b156-1cc5-4615-8713-6e8664162387",
+   "phrase": "protection rule matching criteria",
+   "class_id": "app.collaboration",
+   "vendor": "Dell",
+   "target_text": "Exchange servers",
+   "evidence_quote": "| Exchange servers | DB Name | Does not contain , Does not equal , Ends with , Equals , Matches RegEx , Does Not Match RegEx | N/A |",
+   "assigned_2026_11_08": "protection.discovery_auto_protection",
+   "acceptable": [
+    "protection.discovery_auto_protection"
+   ]
+  },
+  {
+   "item_id": "d130",
+   "claim_id": "b44eacc7-e97e-4718-bfb2-fcf84b0a19e7",
+   "phrase": "event module mapping",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "CrowdStrike",
+   "evidence_quote": "Every Druva product is mapped to a specific event module ID:",
+   "assigned_2026_11_08": "cyber.siem_integration",
+   "acceptable": [
+    "cyber.siem_integration"
+   ]
+  },
+  {
+   "item_id": "d131",
+   "claim_id": "efc731ed-4947-4ac7-82f5-3a5240973c40",
+   "phrase": "allowed restore directories",
+   "class_id": "(none)",
+   "vendor": "Bacula",
+   "target_text": "-",
+   "evidence_quote": "This new directive lets the deamon control which directories are allowed to be used as a restore destination on a per\\-director basis.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d132",
+   "claim_id": "071b91b5-83c5-4f24-997e-b894d8ed1b3d",
+   "phrase": "code review rule for use of deprecated api version",
+   "class_id": "saas.crm",
+   "vendor": "Gearset",
+   "target_text": "Salesforce",
+   "evidence_quote": "[Use of deprecated: API version](https://docs.gearset.com/en/articles/14121507-code-reviews-rule-use-of-deprecated-api-version)",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "data_use.devops_deployment",
+    null
+   ]
+  },
+  {
+   "item_id": "d133",
+   "claim_id": "676fa33a-2352-4265-8be4-383720feb52d",
+   "phrase": "file copy task",
+   "class_id": "(none)",
+   "vendor": "Arcserve",
+   "target_text": "-",
+   "evidence_quote": "The file copy task lets you copy individual files to the specified destination.",
+   "assigned_2026_11_08": "protection.backup_copy",
+   "acceptable": [
+    "protection.backup_copy"
+   ]
+  },
+  {
+   "item_id": "d134",
+   "claim_id": "985f09b7-260b-4e25-a72f-3c9f56886035",
+   "phrase": "nightly data aggregation and purge",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "Data aggregation will begin with the nightly purge cycle after all of the above pre\\-requisite steps have been fulfilled.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d135",
+   "claim_id": "1a502f4c-3de9-4ad9-96d3-62d3efd95e15",
+   "phrase": "configurable data transfer buffers",
+   "class_id": "app.collaboration",
+   "vendor": "IBM",
+   "target_text": "HCL Domino",
+   "evidence_quote": "The number and size of the buffers can be specified with the /buffers parameter.",
+   "assigned_2026_11_08": "operations.performance_controls",
+   "acceptable": [
+    "operations.performance_controls"
+   ]
+  },
+  {
+   "item_id": "d136",
+   "claim_id": "633d8d2b-d37a-4fd0-904e-f93ae85767d3",
+   "phrase": "exclude items from backup",
+   "class_id": "saas.productivity",
+   "vendor": "Spanning",
+   "target_text": "Microsoft 365",
+   "evidence_quote": "To manage backup errors, you can exclude specific files, attachments, or emails that have triggered non\\-critical errors.",
+   "assigned_2026_11_08": "coverage.configurable_exclusions",
+   "acceptable": [
+    "coverage.configurable_exclusions"
+   ]
+  },
+  {
+   "item_id": "d137",
+   "claim_id": "b8220519-c9d8-4b31-b640-9b08fffb8c6b",
+   "phrase": "token-based client registration",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "-",
+   "evidence_quote": "This method uses tokens, which are unique, randomly generated strings of characters, to authenticate clients and verify that the requests are coming from a legitimate eDiscovery Download Client.",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d138",
+   "claim_id": "9204b77f-fc98-4d99-81d7-40b8aa1c9178",
+   "phrase": "advanced backup format improves merge performance",
+   "class_id": "(none)",
+   "vendor": "Arcserve",
+   "target_text": "-",
+   "evidence_quote": "If you configure the backup format to Advanced, the merge performance is improved significantly.",
+   "assigned_2026_11_08": "operations.performance_controls",
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d139",
+   "claim_id": "d01493f8-7182-4fea-91ed-ed26ba203de0",
+   "phrase": "accelerated failover via native snapshot revert",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Veeam",
+   "target_text": "Proxmox VE",
+   "evidence_quote": "VM replica restore points are stored in a native Proxmox VE format next to replica virtual disk files, which allows Veeam Backup \\& Replication to accelerate failover operations.",
+   "assigned_2026_11_08": "recovery.failover",
+   "acceptable": [
+    "recovery.failover"
+   ]
+  },
+  {
+   "item_id": "d140",
+   "claim_id": "b31cef52-0dfb-4b28-86be-0107e676bce2",
+   "phrase": "cross-system database restore",
+   "class_id": "app.database",
+   "vendor": "Cohesity",
+   "target_text": "SAP HANA",
+   "evidence_quote": "You can restore the SAP HANA database backed up on the Cohesity cluster to a new or active database on a different SAP HANA system.",
+   "assigned_2026_11_08": "recovery.alternate_location",
+   "acceptable": [
+    "recovery.alternate_location"
+   ]
+  },
+  {
+   "item_id": "d141",
+   "claim_id": "5175fc28-104f-4c7d-8149-8fe4dc84c2cc",
+   "phrase": "lz4 compression",
+   "class_id": "(none)",
+   "vendor": "Bacula",
+   "target_text": "-",
+   "evidence_quote": "Fix pragma pack to allow lz4\\.c work on Solaris and other machines",
+   "assigned_2026_11_08": "storage.data_reduction",
+   "acceptable": [
+    "storage.data_reduction"
+   ]
+  },
+  {
+   "item_id": "d142",
+   "claim_id": "5431e45f-5300-428b-bbdd-a21a23d2ce7e",
+   "phrase": "database view of backup, restore and validation activities",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "The v\\_activities view contains a record for each backup, restore, or validation activity.",
+   "assigned_2026_11_08": "operations.reports",
+   "acceptable": [
+    "operations.reports"
+   ]
+  },
+  {
+   "item_id": "d143",
+   "claim_id": "280847ab-deed-4663-bb38-661521f0cb52",
+   "phrase": "renewal guidance profiles",
+   "class_id": "saas.productivity",
+   "vendor": "AvePoint",
+   "target_text": "SharePoint Online",
+   "evidence_quote": "If you want to show guidance, select a guidance profile from the drop\\-down list.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d144",
+   "claim_id": "3a8aa0be-2e73-4406-9c6d-d7c7b523702a",
+   "phrase": "automatic deletion of revoked keys",
+   "class_id": "(none)",
+   "vendor": "Commvault",
+   "target_text": "key management servers",
+   "evidence_quote": "If the key is revoked, Commvault software deletes it automatically.",
+   "assigned_2026_11_08": "security.key_rotation",
+   "acceptable": [
+    "security.key_rotation"
+   ]
+  },
+  {
+   "item_id": "d145",
+   "claim_id": "d0b1c6e2-5fee-4bfb-a3e3-7c82dfc02f02",
+   "phrase": "external protection engine",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "Supports deploying an external protection engine that is optimized to move data with high-capacity backup streams",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "protection.off_host_backup",
+    null
+   ]
+  },
+  {
+   "item_id": "d146",
+   "claim_id": "91ab2570-5a6e-4dc7-8d43-1847d0b83b5f",
+   "phrase": "pool failover with mixed replication factors",
+   "class_id": "(none)",
+   "vendor": "Portworx",
+   "target_text": "-",
+   "evidence_quote": "Pool failover does not occur if any volume in the pool has a replication factor greater than 1\\.",
+   "assigned_2026_11_08": "recovery.failover",
+   "acceptable": [
+    "recovery.failover",
+    null
+   ]
+  },
+  {
+   "item_id": "d147",
+   "claim_id": "2f5dc640-f956-41a9-90cd-7043afb9a8a1",
+   "phrase": "cross-region restore from archive tier",
+   "class_id": "(none)",
+   "vendor": "Microsoft",
+   "target_text": "-",
+   "evidence_quote": "No. Cross‑Region Restore (CRR) from Archive‑tier recovery points \\- including recovery points that are rehydrated into Standard tier during restore.",
+   "assigned_2026_11_08": "recovery.cross_account_region",
+   "acceptable": [
+    "recovery.cross_account_region"
+   ]
+  },
+  {
+   "item_id": "d148",
+   "claim_id": "2795aee4-7e62-4715-b07f-4485208d01e6",
+   "phrase": "vmotion migration with mo ref id preservation",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Veeam",
+   "target_text": "VMware vSphere",
+   "evidence_quote": "When you migrate VMs to the same vCenter Server, the system preserves the MoRef IDs.",
+   "assigned_2026_11_08": "data_use.migration",
+   "acceptable": [
+    "data_use.migration"
+   ]
+  },
+  {
+   "item_id": "d149",
+   "claim_id": "0d0bb30c-4487-4699-b4b3-24ff3ef72510",
+   "phrase": "longer retention via data export",
+   "class_id": "(none)",
+   "vendor": "AvePoint",
+   "target_text": "-",
+   "evidence_quote": "We are exploring premium options that will allow longer retention periods by exporting the data, but they are not available yet.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d150",
+   "claim_id": "82e393fe-b7bb-4b23-beb2-8abb256d1262",
+   "phrase": "tab migration",
+   "class_id": "saas.productivity",
+   "vendor": "AvePoint",
+   "target_text": "Microsoft Teams",
+   "evidence_quote": "| Add a tab | YouTube | × | × | |",
+   "assigned_2026_11_08": "data_use.migration",
+   "acceptable": [
+    "data_use.migration"
+   ]
+  },
+  {
+   "item_id": "d151",
+   "claim_id": "397b1160-e08b-449c-92c5-20a7980bc0a4",
+   "phrase": "custom dictionary keyword limit",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "-",
+   "evidence_quote": "You can create a custom dictionary up to a limit of 200 keywords.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "governance.classification"
+   ]
+  },
+  {
+   "item_id": "d152",
+   "claim_id": "5d137811-18e5-4dc5-9e4b-cbcc70659ad2",
+   "phrase": "user-assigned managed identity",
+   "class_id": "(none)",
+   "vendor": "Microsoft",
+   "target_text": "-",
+   "evidence_quote": "Azure Backup supports system\\-assigned and user\\-assigned [managed identities](/en-us/entra/identity/managed-identities-azure-resources/overview).",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "security.source_authentication_methods"
+   ]
+  },
+  {
+   "item_id": "d153",
+   "claim_id": "7c11f2e6-33a6-4d53-959f-cc8601c9a87a",
+   "phrase": "storage analytics",
+   "class_id": "storage.target",
+   "vendor": "Cohesity",
+   "target_text": "EMC VNX",
+   "evidence_quote": "| EMC VNX | NaviCLI 443, 2163, 6389, 6390, 6391, 6392 |",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d154",
+   "claim_id": "24fd3c24-308f-4a27-bec7-d5a5ce7c8ece",
+   "phrase": "core dump management",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "Provides core dump management for troubleshooting and analysis.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d155",
+   "claim_id": "6bc3a9a7-ddac-47a9-acf5-df532c1ffff8",
+   "phrase": "data comparison",
+   "class_id": "saas.crm",
+   "vendor": "Commvault",
+   "target_text": "Salesforce",
+   "evidence_quote": "You can view the changes made to the data or the metadata in a Salesforce organization by comparing Salesforce backups.",
+   "assigned_2026_11_08": "recovery.comparison_tooling",
+   "acceptable": [
+    "recovery.comparison_tooling"
+   ]
+  },
+  {
+   "item_id": "d156",
+   "claim_id": "f64ee6b8-4a7a-4307-b83a-4236a3cac06d",
+   "phrase": "minimum free space for agent database storage",
+   "class_id": "(none)",
+   "vendor": "Atempo",
+   "target_text": "-",
+   "evidence_quote": "Paths can be added to increase storage, but at least 1 TB of free space is required.",
+   "assigned_2026_11_08": "storage.capacity_scaling",
+   "acceptable": [
+    "storage.capacity_scaling"
+   ]
+  },
+  {
+   "item_id": "d157",
+   "claim_id": "cfaac146-0c85-4757-a734-6b5804595566",
+   "phrase": "email notification of pst download link",
+   "class_id": "saas.productivity",
+   "vendor": "Keepit",
+   "target_text": "Microsoft Exchange Online",
+   "evidence_quote": "When the job completes, you will receive an in\\-app message and an email with the link.",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d158",
+   "claim_id": "6a01151d-9cbd-4934-acec-b18fecc70354",
+   "phrase": "smtp authentication",
+   "class_id": "saas.productivity",
+   "vendor": "Veeam",
+   "target_text": "Microsoft OneDrive",
+   "evidence_quote": "If an SMTP server requires an authentication for outgoing mail, select the The SMTP server requires authentication check box and provide authentication credentials.",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d159",
+   "claim_id": "0cbe97e7-0cf1-427e-80a8-345b4be57ef0",
+   "phrase": "stale file handle error recovery",
+   "class_id": "(none)",
+   "vendor": "Dell",
+   "target_text": "-",
+   "evidence_quote": "Enables the client to continue write operations and complete the backup process even after encountering the stale file handle error.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.job_retry_resume"
+   ]
+  },
+  {
+   "item_id": "d160",
+   "claim_id": "13b6a1be-ca64-49de-9208-7bcf1c227f8b",
+   "phrase": "linux servers as log shipping servers",
+   "class_id": "endpoint.server",
+   "vendor": "Veeam",
+   "target_text": "Linux",
+   "evidence_quote": "Keep in mind that the list will also include Linux servers added to the backup infrastructure; however, Linux servers cannot be used as log shipping servers due to technical limitations in the current version.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "vendor.operating_system_support",
+    "operations.deployment_platform"
+   ]
+  },
+  {
+   "item_id": "d161",
+   "claim_id": "6a41210e-c834-44e2-bce9-faf2f4ce9ad1",
+   "phrase": "display user tables and indexes in meta-tree",
+   "class_id": "app.database",
+   "vendor": "Atempo",
+   "target_text": "Oracle",
+   "evidence_quote": "The next step is to enable a new feature in the Oracle application's meta-tree that displays all user tables and indexes in the database, sorted by schema or user name, then by table or index name, then by partition name, if applicable.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d162",
+   "claim_id": "3da2b8eb-e80c-4973-8b1c-292f842044bf",
+   "phrase": "oauth 2.0 authentication for alert emails",
+   "class_id": "saas.productivity",
+   "vendor": "Arcserve",
+   "target_text": "Gmail",
+   "evidence_quote": "To send alert emails using a Gmail account with OAuth 2\\.0 authentication, you need to create a Google Cloud project in Gmail.",
+   "assigned_2026_11_08": "operations.notifications",
+   "acceptable": [
+    "operations.notifications"
+   ]
+  },
+  {
+   "item_id": "d163",
+   "claim_id": "9161eb78-5c10-435e-b851-a838863d79ca",
+   "phrase": "file source export with tar archiving",
+   "class_id": "(none)",
+   "vendor": "Storware",
+   "target_text": "-",
+   "evidence_quote": "**FILE** - select if your command produces a single file/directory (or multiple files) - if you provide a directory or path with wildcards, Storware Backup & Recovery will create a TAR archive - you have to specify the **Source Path** for this source type.",
+   "assigned_2026_11_08": "coverage.export",
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d164",
+   "claim_id": "835c3fa9-eec3-4391-967e-4a88f37ac5f7",
+   "phrase": "session idle timeout",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "| Session idle timeout | Logs out the user session if there is no activity for the specified period of time. See [Configure when idle sessions should time out](v138836799-173432023 \"Configure when idle sessions should time out\"). |",
+   "assigned_2026_11_08": "security.session_timeout",
+   "acceptable": [
+    "security.session_timeout"
+   ]
+  },
+  {
+   "item_id": "d165",
+   "claim_id": "2dd7b5d2-cf04-48e6-a7d5-5d32d270193c",
+   "phrase": "cidr allow-list for ui load balancer",
+   "class_id": "(none)",
+   "vendor": "Portworx",
+   "target_text": "-",
+   "evidence_quote": "| `service.pxBackupUILoadBalancerSourceRanges` | Optional CIDR allow\\-list for the Portworx Backup UI LoadBalancer service (defense\\-in\\-depth). Rendered as `spec.loadBalancerSourceRanges` only when `service.pxBackupUIServiceType` is `LoadBalancer` and the list is non\\-empty; support varies by cloud provider/load\\-balancer implementation and this is not a substitute for an internal LoadBalancer | `[]` |",
+   "assigned_2026_11_08": "security.ip_restrictions",
+   "acceptable": [
+    "security.ip_restrictions"
+   ]
+  },
+  {
+   "item_id": "d166",
+   "claim_id": "2d4978ad-dba6-4a06-89b0-eb4acc07adc3",
+   "phrase": "archiving and cleanup jobs on disabled mailboxes",
+   "class_id": "app.collaboration",
+   "vendor": "Commvault",
+   "target_text": "Microsoft Exchange",
+   "evidence_quote": "You cannot run any archiving or cleanup jobs.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "governance.archiving"
+   ]
+  },
+  {
+   "item_id": "d167",
+   "claim_id": "1cd64fce-caeb-4b9f-bdbb-71050f231cb0",
+   "phrase": "ip address independence for backups",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "File Server",
+   "evidence_quote": "There will be no effect on the backup as Druva does not use IP address as a unique identifier for backups.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d168",
+   "claim_id": "bd5fa199-02f0-4b8a-bc89-85b1b5859ccc",
+   "phrase": "append-only mode",
+   "class_id": "storage.target",
+   "vendor": "IBM",
+   "target_text": "IBM 3592 tape drives",
+   "evidence_quote": "You can also use the CHECKTAPEPOS option for IBM 3592 Generation 5 and later drives.",
+   "assigned_2026_11_08": "security.immutability",
+   "acceptable": [
+    "security.immutability"
+   ]
+  },
+  {
+   "item_id": "d169",
+   "claim_id": "84e86d97-b9a6-4599-9578-e2f91bf601ae",
+   "phrase": "nic protection",
+   "class_id": "cloud",
+   "vendor": "Commvault",
+   "target_text": "Microsoft Azure",
+   "evidence_quote": "Network interface cards (NICs)",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d170",
+   "claim_id": "9e607bd3-c904-48c6-abb3-22de105e5817",
+   "phrase": "certificate verification",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Dell",
+   "target_text": "VMware vCenter",
+   "evidence_quote": "Upon verification of the certificate, the Verify User button next to the Host Credentials becomes enabled.",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "security.source_authentication_methods"
+   ]
+  },
+  {
+   "item_id": "d171",
+   "claim_id": "9c63740e-d118-42f8-a45f-2ac2262bbabe",
+   "phrase": "write cache maximum size",
+   "class_id": "endpoint.server",
+   "vendor": "IBM",
+   "target_text": "Linux",
+   "evidence_quote": "The maximum cache size is 90% of the available space for the selected folder.",
+   "assigned_2026_11_08": "storage.capacity_scaling",
+   "acceptable": [
+    "storage.capacity_scaling"
+   ]
+  },
+  {
+   "item_id": "d172",
+   "claim_id": "c2b7a2c0-1048-4150-bda1-074078460145",
+   "phrase": "archive search for outlook",
+   "class_id": "(none)",
+   "vendor": "Barracuda",
+   "target_text": "Microsoft Outlook",
+   "evidence_quote": "Barracuda Archive Search for Outlook supports Outlook versions 2013, 2016, 2019, 2021, and Outlook for Microsoft 365\\.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null,
+    "recovery.item_search"
+   ]
+  },
+  {
+   "item_id": "d173",
+   "claim_id": "9e32d2b0-bd8b-44fd-8261-d200160750e8",
+   "phrase": "ssl connection",
+   "class_id": "app.database",
+   "vendor": "Veeam",
+   "target_text": "MySQL",
+   "evidence_quote": "| Use SSL | This option is enabled by default. Disable the **Use SSL** toggle if your SSL Certificate has expired or disabled. You can disable this toggle option during Activation. |",
+   "assigned_2026_11_08": "security.encryption_in_transit",
+   "acceptable": [
+    "security.encryption_in_transit"
+   ]
+  },
+  {
+   "item_id": "d174",
+   "claim_id": "a4096e14-a4b8-4af9-adf3-e6a55748803d",
+   "phrase": "backup tag variables",
+   "class_id": "app.database",
+   "vendor": "Commvault",
+   "target_text": "Oracle",
+   "evidence_quote": "You can include variables in the tag.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d175",
+   "claim_id": "667abd9e-f4da-4844-b13a-0cc298db6c10",
+   "phrase": "pre-scripts and post-scripts with backups",
+   "class_id": "storage.target",
+   "vendor": "Dell",
+   "target_text": "PowerMax",
+   "evidence_quote": "NOTE: For PowerMax and PowerStore assets, a pre-script or post-script runs only once, regardless of the number of assets on the host.",
+   "assigned_2026_11_08": "protection.pre_post_scripts",
+   "acceptable": [
+    "protection.pre_post_scripts"
+   ]
+  },
+  {
+   "item_id": "d176",
+   "claim_id": "771fc19f-dba3-4994-8864-4604e4b5ea5b",
+   "phrase": "multiple object versions restore",
+   "class_id": "cloud.object",
+   "vendor": "Veeam",
+   "target_text": "object storage",
+   "evidence_quote": "Besides, you can restore multiple versions of the same object.",
+   "assigned_2026_11_08": "recovery.version_selection",
+   "acceptable": [
+    "recovery.version_selection"
+   ]
+  },
+  {
+   "item_id": "d177",
+   "claim_id": "35da3d58-a4ad-4a8c-9a8a-c689d5a86142",
+   "phrase": "manual instance discovery",
+   "class_id": "app.database",
+   "vendor": "Commvault",
+   "target_text": "IBM DB2",
+   "evidence_quote": "Manually discover all existing DB2 instances, on all the DB2 versions that are on a client, that you want to back up and restore.",
+   "assigned_2026_11_08": "protection.discovery_auto_protection",
+   "acceptable": [
+    "protection.discovery_auto_protection"
+   ]
+  },
+  {
+   "item_id": "d178",
+   "claim_id": "cb538c45-221c-442e-bb64-27a5dcabc305",
+   "phrase": "rename files on restore",
+   "class_id": "(none)",
+   "vendor": "Arcserve",
+   "target_text": "-",
+   "evidence_quote": "Creates a new file if the file name already exists.",
+   "assigned_2026_11_08": "recovery.conflict_handling",
+   "acceptable": [
+    "recovery.conflict_handling"
+   ]
+  },
+  {
+   "item_id": "d179",
+   "claim_id": "c39faaf2-fd49-4203-a90d-5779ff8f051c",
+   "phrase": "active directory forest restore",
+   "class_id": "app.directory",
+   "vendor": "Veeam",
+   "target_text": "Microsoft Active Directory",
+   "evidence_quote": "If the settings are correct, click Finish to start the Active Directory forest restore.",
+   "assigned_2026_11_08": "coverage.restore",
+   "acceptable": [
+    "coverage.restore"
+   ]
+  },
+  {
+   "item_id": "d180",
+   "claim_id": "c84d7249-5607-489f-8cbf-f036599bb4ed",
+   "phrase": "end-user restore through console",
+   "class_id": "virtualization.hypervisor",
+   "vendor": "Commvault",
+   "target_text": "Microsoft Hyper-V",
+   "evidence_quote": "End users of virtual machines cannot perform restores through the CommCell Console unless they are also authorized as CommCell users.",
+   "assigned_2026_11_08": "recovery.self_service",
+   "acceptable": [
+    "recovery.self_service"
+   ]
+  },
+  {
+   "item_id": "d181",
+   "claim_id": "4e9845f4-7ada-4256-87c5-db639b9b2db7",
+   "phrase": "nested mount points",
+   "class_id": "cloud.file",
+   "vendor": "Commvault",
+   "target_text": "Azure NetApp Files",
+   "evidence_quote": "Nested mount points are not supported for Azure NetApp Files.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "coverage.exclusions"
+   ]
+  },
+  {
+   "item_id": "d182",
+   "claim_id": "c4da07d4-a42c-4ba2-b85a-2828a4eaafc9",
+   "phrase": "restore list views",
+   "class_id": "saas.productivity",
+   "vendor": "Veeam",
+   "target_text": "SharePoint Online",
+   "evidence_quote": "Select the Restore List Views check box if you want to restore list views of the restored list.",
+   "assigned_2026_11_08": "coverage.restore",
+   "acceptable": [
+    "coverage.restore"
+   ]
+  },
+  {
+   "item_id": "d183",
+   "claim_id": "eac135a1-96c4-4a37-9e1e-6fc0ccf15884",
+   "phrase": "quorum approval requests",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "The Pending Requests tab lists all the pending requests for logged-in user's approval.",
+   "assigned_2026_11_08": "security.multi_person_authorization",
+   "acceptable": [
+    "security.multi_person_authorization"
+   ]
+  },
+  {
+   "item_id": "d184",
+   "claim_id": "877d281e-6bd0-4266-9616-9fc78a40f1f9",
+   "phrase": "cross hardware restore",
+   "class_id": "endpoint.server",
+   "vendor": "Commvault",
+   "target_text": "Linux",
+   "evidence_quote": "Restore from a BIOS machine to a UEFI machine is not supported.",
+   "assigned_2026_11_08": "recovery.bare_metal",
+   "acceptable": [
+    "recovery.bare_metal"
+   ]
+  },
+  {
+   "item_id": "d185",
+   "claim_id": "296d87d2-c88c-4215-a592-e9c3724f47fa",
+   "phrase": "kerberos authentication",
+   "class_id": "file.nas",
+   "vendor": "Rubrik",
+   "target_text": "NFS",
+   "evidence_quote": "Kerberos\\-based authentication",
+   "assigned_2026_11_08": "security.source_authentication_methods",
+   "acceptable": [
+    "security.source_authentication_methods"
+   ]
+  },
+  {
+   "item_id": "d186",
+   "claim_id": "2e26f6ae-1eb5-4ced-9bd0-a08e75be782a",
+   "phrase": "mvg volume in disk pool and storage unit configurations",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "It can be used by NetBackup in the same way as a regular volume in a disk pool and storage unit configurations.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "storage.scale_out",
+    null
+   ]
+  },
+  {
+   "item_id": "d187",
+   "claim_id": "2546b75b-6693-4c4c-91ed-269e2c438235",
+   "phrase": "hardware health monitoring",
+   "class_id": "(none)",
+   "vendor": "Cohesity",
+   "target_text": "-",
+   "evidence_quote": "Depending on the appliance model, you can view data about the following compute node components from the shell.",
+   "assigned_2026_11_08": "operations.dashboards",
+   "acceptable": [
+    "operations.dashboards"
+   ]
+  },
+  {
+   "item_id": "d188",
+   "claim_id": "b7412b8f-6584-4f0e-9fc1-e525ee1b950d",
+   "phrase": "client scheduling",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "-",
+   "evidence_quote": "You can use client scheduling to automate the data protection services.",
+   "assigned_2026_11_08": "schedule.types",
+   "acceptable": [
+    "schedule.types"
+   ]
+  },
+  {
+   "item_id": "d189",
+   "claim_id": "7c80ce9b-6ec0-4468-978b-645b6167ebd7",
+   "phrase": "data collection from vendor subsystems",
+   "class_id": "file.nas",
+   "vendor": "Cohesity",
+   "target_text": "NetApp",
+   "evidence_quote": "When the IT Analytics system collects data from any vendor subsystem, the collection process expects name/value pairs to be in US English, and requires the installation to be done by an Administrator with a US English locale.",
+   "assigned_2026_11_08": "operations.multi_vendor_reporting",
+   "acceptable": [
+    "operations.multi_vendor_reporting"
+   ]
+  },
+  {
+   "item_id": "d190",
+   "claim_id": "e58ddac2-5510-44c4-b304-6befbc2c6cc8",
+   "phrase": "air-gapped metering mode",
+   "class_id": "(none)",
+   "vendor": "Veeam",
+   "target_text": "-",
+   "evidence_quote": "During the installation of Veeam Kasten, make sure to configure the metering mode to \"airgap\" for optimal performance and security.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "operations.air_gapped_deployment"
+   ]
+  },
+  {
+   "item_id": "d191",
+   "claim_id": "59fd8d7e-4e94-48da-872b-ceede6a0e1ab",
+   "phrase": "backup of empty folder to resolve misconfigured folder alert",
+   "class_id": "(none)",
+   "vendor": "Druva",
+   "target_text": "-",
+   "evidence_quote": "inSync will back up the empty folder.",
+   "assigned_2026_11_08": "coverage.backup",
+   "acceptable": [
+    "coverage.backup"
+   ]
+  },
+  {
+   "item_id": "d192",
+   "claim_id": "c2a673d1-2ccf-4ddb-a625-66d9351f8067",
+   "phrase": "restore ntfs file permissions",
+   "class_id": "(none)",
+   "vendor": "Barracuda",
+   "target_text": "VMware QuickSpin",
+   "evidence_quote": "Restore NTFS File Permissions",
+   "assigned_2026_11_08": "recovery.permissions",
+   "acceptable": [
+    "recovery.permissions"
+   ]
+  },
+  {
+   "item_id": "d193",
+   "claim_id": "32100882-195a-4275-983a-5f72a2ab0707",
+   "phrase": "streaming backups",
+   "class_id": "cloud.compute",
+   "vendor": "Commvault",
+   "target_text": "Amazon EC2",
+   "evidence_quote": "Streaming backups.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    "protection.image_level_backup"
+   ]
+  },
+  {
+   "item_id": "d194",
+   "claim_id": "a29aca05-6a10-4e32-9d69-f13aec8e3d23",
+   "phrase": "firmware upgrade",
+   "class_id": "(none)",
+   "vendor": "Rubrik",
+   "target_text": "-",
+   "evidence_quote": "BIOS, BMC, and HDD Disks are selected by default.",
+   "assigned_2026_11_08": "operations.deployment_upgrade",
+   "acceptable": [
+    "operations.deployment_upgrade"
+   ]
+  },
+  {
+   "item_id": "d195",
+   "claim_id": "7caa9fdb-c3bf-463d-ad4a-9651442908ea",
+   "phrase": "restore from archived recovery points",
+   "class_id": "(none)",
+   "vendor": "Datto",
+   "target_text": "Datto SIRIS",
+   "evidence_quote": "Existing cloud recovery points remain retained.",
+   "assigned_2026_11_08": "recovery.archive_restore",
+   "acceptable": [
+    "recovery.archive_restore",
+    "retention.survives_policy_deletion",
+    "retention.after_source_deletion"
+   ]
+  },
+  {
+   "item_id": "d196",
+   "claim_id": "272b7ec3-48cd-4eb0-9af9-3927725018ac",
+   "phrase": "supported linux distribution and kernel version",
+   "class_id": "endpoint.server",
+   "vendor": "Portworx",
+   "target_text": "Red Hat Enterprise Linux",
+   "evidence_quote": "| RHEL 8\\.9 with default multipath v0\\.8\\.4 | Up to 4\\.18\\.0\\-513\\.18\\.1\\.el8\\_9\\.x86\\_64 |",
+   "assigned_2026_11_08": "vendor.operating_system_support",
+   "acceptable": [
+    "vendor.operating_system_support"
+   ]
+  },
+  {
+   "item_id": "d197",
+   "claim_id": "7a0d8594-035c-41ef-a871-d78c47101394",
+   "phrase": "control service switchover",
+   "class_id": "(none)",
+   "vendor": "Arcserve",
+   "target_text": "-",
+   "evidence_quote": "This section explains how to replicate the Control Service data, and how to switch the roles of two Control Services when the active Control Service is down.",
+   "assigned_2026_11_08": "operations.high_availability",
+   "acceptable": [
+    "operations.high_availability"
+   ]
+  },
+  {
+   "item_id": "d198",
+   "claim_id": "b1527286-84eb-49f4-94a6-eff101e3a190",
+   "phrase": "track space efficient copy set elements",
+   "class_id": "(none)",
+   "vendor": "IBM",
+   "target_text": "IBM FlashCopy",
+   "evidence_quote": "However, the only valid roles for a Track Space Efficient element is the Target 1 role of a FlashCopy session or the Journal role of a Global Mirror or Metro Global Mirror session.",
+   "assigned_2026_11_08": null,
+   "acceptable": [
+    null
+   ]
+  },
+  {
+   "item_id": "d199",
+   "claim_id": "70184803-b782-4f16-b661-5ce554baa403",
+   "phrase": "migration conflict resolution",
+   "class_id": "saas.productivity",
+   "vendor": "AvePoint",
+   "target_text": "SharePoint Online",
+   "evidence_quote": "| Skip | Ignore the conflicting object and do nothing in the destination. | A new object will be created. |",
+   "assigned_2026_11_08": "data_use.migration",
+   "acceptable": [
+    "data_use.migration"
+   ]
+  }
+ ]
+}
