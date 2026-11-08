@@ -432,3 +432,7 @@ CREATE TABLE IF NOT EXISTS map_decisions (
     source text NOT NULL CHECK (source IN ('llm', 'seed')),
     decided_at timestamptz NOT NULL DEFAULT now()
 );
+-- 2026-11-08: the prompt rules a decision was made under (mapper.PROMPT_RULES), so a question
+-- whose candidates changed can carry an earlier answer made under the same rules only.
+ALTER TABLE map_decisions ADD COLUMN IF NOT EXISTS rules text;
+CREATE INDEX IF NOT EXISTS map_decisions_phrase_idx ON map_decisions (kind, phrase);
