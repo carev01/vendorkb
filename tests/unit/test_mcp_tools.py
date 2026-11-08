@@ -104,8 +104,17 @@ async def test_query_capabilities_cites_every_fact():
     assert r.structured_content["conflicts"] == [{"conflict_group": "g1", "size": 7,
                                                   "claim_ids": ["c2", "c9"]}]
     [(_, f, limit)] = backend.calls
-    assert limit == 25
+    assert limit == 20
     assert (f.dimension, f.target, f.vendor) == ("immutability", "RDS", None)
+
+
+async def test_long_quotes_are_trimmed_in_the_text_only():
+    long = "x" * (ms.QUOTE_SHOWN + 100)
+    async with Client(ms.build_server(FakeBackend(caps=CapResult(
+            facts=[_fact(evidence_quote=long)])))) as c:
+        r = await c.call_tool("query_capabilities", {"vendor": "Examplevendor"})
+    assert f'quote: "{"x" * ms.QUOTE_SHOWN} […]"' in r.content[0].text
+    assert r.structured_content["facts"][0]["evidence_quote"] == long
 
 
 async def test_query_capabilities_limit_and_hint():

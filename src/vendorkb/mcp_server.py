@@ -30,6 +30,7 @@ log = logging.getLogger(__name__)
 MAX_K = 25
 MAX_LIMIT = 200
 WIDE_SHOWN = 10  # product-wide facts shown at most: the workload-specific facts come first
+QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content has it whole)
 # Per search hit in the text output (structured content has it whole): agent clients cap a tool
 # result's size, and 8 x 2,500 characters overflowed them in the 2026-11-08 agent eval.
 PASSAGE_CHARS = 1200
@@ -90,7 +91,10 @@ def format_fact(n: int, f: Fact) -> str:
              f"{f.support.upper()}"]
     if quals:
         lines.append("    " + "; ".join(quals))
-    lines.append(f'    quote: "{" ".join(f.evidence_quote.split())}"')
+    quote = " ".join(f.evidence_quote.split())
+    if len(quote) > QUOTE_SHOWN:
+        quote = quote[:QUOTE_SHOWN] + " […]"
+    lines.append(f'    quote: "{quote}"')
     lines.append(f"    source: {f.title or 'untitled'} — {f.url or 'no url'}"
                  f" (chunk {f.chunk_id}; {when})")
     return "\n".join(lines)
@@ -206,7 +210,7 @@ def build_server(backend: Backend) -> MCPServer:
             object_type: str | None = None,
             support: Literal["supported", "partial", "not_supported", "unclear"] | None = None,
             availability: str | None = None, value_min: float | None = None,
-            value_max: float | None = None, limit: int = 25) -> CallToolResult:
+            value_max: float | None = None, limit: int = 20) -> CallToolResult:
         f = CapFilter(vendor=vendor, offering=offering, edition=edition, dimension=dimension,
                       family=family, target=target, object_type=object_type, support=support,
                       availability=availability, value_min=value_min, value_max=value_max)
