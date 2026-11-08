@@ -157,6 +157,23 @@ def check_call(tool: str, arm: str, log: Path | None, max_searches: int) -> str 
     return None
 
 
+def parse_reply(status: int, body: str) -> tuple[int, str]:
+    """(exit code, text to print) of an MCP tools/call reply, plain JSON or server-sent events.
+    An empty or non-JSON reply (the server restarting, say) is an error that says so."""
+    if "data:" in body:
+        body = next(line[5:].strip() for line in body.splitlines() if line.startswith("data:"))
+    try:
+        msg = json.loads(body)
+    except json.JSONDecodeError:
+        return 1, (f"error: HTTP {status} with no usable reply ({body[:200]!r}); the server may be"
+                   " restarting: try the call again")
+    if "error" in msg:
+        return 1, f"error: {msg['error']}"
+    res = msg["result"]
+    return 0, (("TOOL ERROR: " if res.get("isError") else "")
+               + "\n".join(c.get("text", "") for c in res.get("content", [])))
+
+
 def _call(args: argparse.Namespace) -> int:
     import httpx
 
@@ -177,17 +194,9 @@ def _call(args: argparse.Namespace) -> int:
         "params": {"name": args.tool, "arguments": arguments}},
         headers={"authorization": f"Bearer {token}", "content-type": "application/json",
                  "accept": "application/json, text/event-stream"})
-    body = r.text
-    if "data:" in body:
-        body = next(line[5:].strip() for line in body.splitlines() if line.startswith("data:"))
-    msg = json.loads(body)
-    if "error" in msg:
-        print(f"error: {msg['error']}", file=sys.stderr)
-        return 1
-    res = msg["result"]
-    print(("TOOL ERROR: " if res.get("isError") else "")
-          + "\n".join(c.get("text", "") for c in res.get("content", [])))
-    return 0
+    code, text = parse_reply(r.status_code, r.text)
+    print(text, file=sys.stderr if code else sys.stdout)
+    return code
 
 
 def _prepare(args: argparse.Namespace) -> int:
