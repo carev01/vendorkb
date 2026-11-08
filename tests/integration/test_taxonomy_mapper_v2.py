@@ -162,7 +162,8 @@ def _extended(tmp_path) -> Path:
 
 
 async def _fresh(conn, tmp_path) -> None:
-    await conn.execute("DROP TABLE IF EXISTS map_decisions, raw_claims, rejected_claims, extractions, "
+    await conn.execute("DROP TABLE IF EXISTS embedding_cache, map_decisions, raw_claims, rejected_claims,"
+                       " extractions, "
                        "extract_batches, chunks, documents CASCADE")
     await init_schema(conn, embed_dim=8)
     await load.load_taxonomy(conn, _extended(tmp_path))
@@ -775,6 +776,44 @@ async def test_the_product_named_as_the_target_is_no_target(vkb_dsn, tmp_path):
         await conn.close()
 
 
+async def test_embeddings_are_reused_by_later_runs(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        first = FakeEmbedder()
+        report = await _run(conn, embedder=first)
+        embedded = [t for texts, _ in first.calls for t in texts]
+        assert embedded and report.embeddings_new == len(embedded) == report.embedded_strings
+        cur = await conn.execute("SELECT count(*) FROM embedding_cache")
+        assert (await cur.fetchone())[0] == len(embedded)
+        before = await _mapping(conn, cid)
+        # a full re-map embeds nothing: every vector comes from the cache, bit for bit
+        again = FakeEmbedder()
+        report = await _run(conn, embedder=again, remap=True)
+        assert again.calls == [] and report.embeddings_cached == len(embedded)
+        assert await _mapping(conn, cid) == before
+        # a new phrase is the only text embedded
+        await _claim(conn, "the dashboard thing", "Okta")
+        third = FakeEmbedder()
+        await _run(conn, embedder=third)
+        assert [t for texts, _ in third.calls for t in texts] == ["the dashboard thing"]
+        # a string over 1,000 characters is embedded every time, never cached
+        await _claim(conn, " ".join(["retention"] * 120), "Okta")
+        for _ in range(2):
+            embedder = FakeEmbedder()
+            await _run(conn, embedder=embedder, remap=True)
+            assert [len(t) for texts, _ in embedder.calls for t in texts] == [1199]
+        cur = await conn.execute("SELECT max(length(text)) FROM embedding_cache")
+        assert (await cur.fetchone())[0] < 1000
+        # another embedding model shares nothing
+        fourth = FakeEmbedder()
+        await _run(conn, embedder=fourth, remap=True, embed_model="other-model")
+        assert len([t for texts, _ in fourth.calls for t in texts]) > 1
+    finally:
+        await conn.close()
+
+
 async def test_keys_embedded_once_as_float32(vkb_dsn, tmp_path, monkeypatch):
     conn = await connect(vkb_dsn)
     try:
@@ -783,14 +822,14 @@ async def test_keys_embedded_once_as_float32(vkb_dsn, tmp_path, monkeypatch):
         await _claim(conn, "the dashboard thing", "Okta Workforce", target_scope="nope")
         embedder = FakeEmbedder()
         seen = []
-        real = mapper._unit
+        real = mapper._embed_all
 
-        def spy(vectors):
-            out = real(vectors)
+        async def spy(*args, **kwargs):
+            out = await real(*args, **kwargs)
             seen.append(out.dtype)
             return out
 
-        monkeypatch.setattr(mapper, "_unit", spy)
+        monkeypatch.setattr(mapper, "_embed_all", spy)
         report = await _run(conn, embedder=embedder)
         assert len(embedder.calls) == 1
         texts = embedder.calls[0][0]
