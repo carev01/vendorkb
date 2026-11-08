@@ -290,12 +290,33 @@ async def test_enumeration_closing_line_lists_unlisted_vendors(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_enumeration_second_pass_asks_again_for_the_vendors_left_out(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B", "C", "D"], products=[], aliases={})
+    hits = [_hit(1, "A"), _hit(2, "B"), _hit(3, "C")]
+    _patch_enum(monkeypatch, hits, ["A", "B", "C"], dropped=["D"])
+    # the first answer leaves B and C out; the second sees only their passages, numbered 1-2
+    client = FakeClient(["A (VBR): does X [1]", "B (VBR): does Y [1]\nC (VBR): nope [9]"])
+    r = await _run_enum(client, idx)
+    assert len(client.calls) == 2
+    second = client.calls[1]["messages"][1]["content"]
+    assert "Vendors: B (VBR); C (VBR)\n" in second and "body 1" not in second
+    assert r["vendors_listed"] == ["A", "B"] and r["lines_dropped"] == 1
+    assert "B (VBR): does Y" in r["answer"]
+    assert [c["chunk_id"] for c in r["citations"]] == ["c1", "c2"]  # [1] of B renumbered to [2]
+    assert r["answer"].endswith("Passages found but not judged to show it: C.\n"
+                                "No supporting passage found for: D.")
+    assert r["usage"]["prompt_tokens"] == 20  # both calls counted
+
+
+@pytest.mark.asyncio
 async def test_enumeration_all_lines_dropped_refuses(monkeypatch):
     idx = ScopeIndex(vendors=["A", "B"], products=[], aliases={})
     _patch_enum(monkeypatch, [_hit(1, "B")], ["A", "B"])
-    r = await _run_enum(FakeClient(["A (VBR): does X [1]\nZ: nope [1]"]), idx)
-    assert r["lines_dropped"] == 2
-    assert r["answer"] == REFUSAL + "\nNo supporting passage found for: A, B."
+    # the second pass (over B, the kept vendor with passages) writes nothing usable either
+    r = await _run_enum(FakeClient(["A (VBR): does X [1]\nZ: nope [1]", "Z: nope [1]"]), idx)
+    assert r["lines_dropped"] == 3
+    assert r["answer"] == (REFUSAL + "\nPassages found but not judged to show it: B."
+                           "\nNo supporting passage found for: A.")
 
 
 @pytest.mark.asyncio
@@ -328,6 +349,8 @@ async def test_comparison_closing_line_for_empty_facet(monkeypatch):
 def test_closing_line_and_check_lines_units():
     assert ans.closing_line([]) == ""
     assert ans.closing_line(["b", "a"]) == "No supporting passage found for: a, b."
+    assert ans.unconfirmed_line([]) == ""
+    assert ans.unconfirmed_line(["b", "a"]) == "Passages found but not judged to show it: a, b."
     kept, listed, dropped = ans.check_enumeration_lines(
         "A: x [1]\n\nB (P): y [9]", [_hit(1, "A")], ["A", "B"])
     assert kept == "A: x [1]" and listed == ["A"] and dropped == 1
@@ -416,17 +439,17 @@ async def test_enumeration_refusal_prefix_does_not_skip_check(monkeypatch):
 async def test_enumeration_bare_refusal_still_refuses(monkeypatch):
     idx = ScopeIndex(vendors=["A"], products=[], aliases={})
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
-    r = await _run_enum(FakeClient([REFUSAL]), idx)
-    assert r["answer"] == REFUSAL + "\nNo supporting passage found for: A."
+    r = await _run_enum(FakeClient([REFUSAL, REFUSAL]), idx)
+    assert r["answer"] == REFUSAL + "\nPassages found but not judged to show it: A."
 
 
 @pytest.mark.asyncio
 async def test_enumeration_parenthesised_vendor_listed_end_to_end(monkeypatch):
     idx = ScopeIndex(vendors=_V, products=[], aliases={})
     _patch_enum(monkeypatch, _H, _V)
-    r = await _run_enum(FakeClient(["Hornetsecurity (Altaro) (VM Backup): X [3]"]), idx)
-    assert r["vendors_listed"] == ["Hornetsecurity (Altaro)"] and r["lines_dropped"] == 0
-    assert "Hornetsecurity (Altaro)" not in r["answer"].rsplit("found for:", 1)[1]
+    r = await _run_enum(FakeClient(["Hornetsecurity (Altaro) (VM Backup): X [3]", REFUSAL]), idx)
+    assert r["vendors_listed"] == ["Hornetsecurity (Altaro)"] and r["lines_dropped"] == 1
+    assert "Hornetsecurity (Altaro)" not in r["answer"].rsplit("show it:", 1)[1]
     assert r["lines_naming_other_vendors"] == 0
 
 
@@ -568,7 +591,7 @@ async def test_enumeration_uses_a_larger_budget_and_flags_truncation(monkeypatch
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
     client = FinishClient(["A: x [1]"], "length")
     r = await _run_enum(client, idx)
-    assert client.calls[0]["max_tokens"] == 8000
+    assert client.calls[0]["max_tokens"] == ans.ENUMERATION_MAX_TOKENS == 16000
     assert r["truncated"] is True and "truncated" in caplog.text
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
     r = await _run_enum(FinishClient(["A: x [1]"], "stop"), idx)

@@ -88,10 +88,15 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 ## Retrieval and answers
 
 10. **Comparison facet recall is below target.** It is 0.833 with the rerank, against 0.9.
-11. **Enumeration vendors that land in the closing line.** Of the vendors the labels expect,
-    31 across 23 questions appear under "No supporting passage found for" instead of the list.
-    Either retrieval found weak evidence, or the answer step dropped a line its citation check
-    rejected. Diagnose which before changing anything.
+11. **Done 2026-11-08.** Diagnosed on the 23 labelled questions (419 expected vendors): 362
+    listed; 32 had passages the model wrote no line for (a 60-passage prompt makes it skip
+    vendors, e.g. Acronis pre/post scripts at rerank 0.885); 24 fell below the relevance floor; 1
+    line was dropped by the citation check; one answer was cut off (reasoning used the 8,000
+    tokens). Fix: a second call over the kept vendors the first answer left out, with only their
+    passages (listed 362 -> 386, unlabelled vendors 16 -> 23, about $0.005 an answer), a
+    16,000-token budget, and a closing line that tells "Passages found but not judged to show
+    it" apart from "No supporting passage found for" (expected vendors in the latter 57 -> 24,
+    all below the floor).
 12. **MCP server** (DESIGN.md M2/§6). *Built 2026-11-08: `vendorkb mcp`, seven read-only tools,
     bearer token, Helm Deployment/Service/LAN ingress. Open: a public HTTPS route with OAuth
     for Copilot Studio, and an agent-level eval (cross-vendor answers with query_capabilities
