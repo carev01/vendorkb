@@ -527,3 +527,48 @@ and the 20 disagreements were adjudicated (where both readings hold, both answer
   question's candidates (a full re-ask, about $28, plus Voyage tokens for the quotes).
 - **Spend:** OpenRouter about $0.20; grading by Claude subagents (2 graders).
 
+
+
+## Retrieval and answers (2026-11-08, late; BACKLOG 8, 10, 11)
+
+### Enumeration vendors in the closing line (11)
+
+Production retrieval for the 23 labelled enumeration questions was saved once (1.47M rerank
+tokens) and the answer step replayed from it. Of 419 expected vendors:
+
+| fate | vendors |
+|---|---|
+| listed | 362 |
+| kept with passages, no line written | 32 |
+| below the relevance floor (0.54) | 24 |
+| line dropped by the citation check | 1 |
+
+Many unwritten vendors had strong passages (Acronis pre/post scripts 0.885, Keepit Salesforce
+metadata 0.852, Google bandwidth throttling 0.83): with up to 60 passages for 30-odd vendors the
+model skips some. One answer was cut off: the model's reasoning used most of the 8,000 tokens.
+
+- **Second pass:** one more call over the kept vendors the first answer left out, with only their
+  passages; same citation check, markers renumbered into the full list. End to end: listed
+  expected vendors 362 -> **386** (92.1%), unlabelled vendors 16 -> 23, about $0.005 an answer.
+- **Budget:** 8,000 -> 16,000 tokens (no truncation after).
+- **Closing line:** "Passages found but not judged to show it: ..." now stands apart from "No
+  supporting passage found for: ...". Expected vendors under the latter: 57 -> 24, all below the
+  floor.
+
+### Comparison facet recall (10)
+
+0.833 (15 of 18 sides), unchanged on today's corpus. All 3 misses are the Azure Backup side; the
+gold article is among the side's candidates (positions 7-20) and the reranker ranks it 6th-15th,
+behind generic pages. Per-side queries (the other side's names removed) and one chunk per
+document first changed nothing; 8 passages per side would recover one of the three. Not adopted.
+
+### Capability-table vendors in answers (8)
+
+Not adopted: it trades precision for recall (0.952 -> 0.984 recall, 0.877 -> 0.842 precision on
+the 11-06 measurement) and needs a question-to-taxonomy mapping inside `answer()`. Agents combine
+the table and search through the MCP tools already.
+
+### Spend
+
+About 1.98M rerank tokens (1.47M enumeration, 0.46M comparisons, 0.05M tracing), OpenRouter
+about $0.45 (answer model), Claude subagents none.

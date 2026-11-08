@@ -75,19 +75,25 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 7. **Done (2026-11-07, items 20 and 23):** Was: **$ LLM adjudication in the mapper** (DESIGN.md §5.4 step 3). Nearest-neighbour mapping is
    15–60% precise at every cosine band measured, so until this exists only alias mappings are
    trustworthy.
-8. **Capability table vendors in enumeration answers.** Add alias-only table vendors to the
-   enumeration candidates in `answer()`, behind an eval. Measured on the 23 labelled questions:
-   - retrieval alone: vendor recall 0.952, precision 0.877;
-   - table ∪ retrieval: recall 0.984, precision 0.842.
-
-   The per-vendor citation check should hold precision. The table recall is partly circular, so
-   re-measure after item 4.
+8. **Closed 2026-11-08 (not adopted):** adding capability-table vendors to `answer()`'s
+   enumeration candidates traded precision for recall on the 23 labelled questions (recall
+   0.952 -> 0.984, precision 0.877 -> 0.842, partly circular), and `answer()` would first have to
+   map the question to taxonomy filters, which nearest-neighbour mapping does poorly. Agents
+   already combine the table and search through the MCP tools (agent gate: recall 96%,
+   precision 95%); `answer()` stays retrieval-only, now with the item 11 second pass.
 9. **Calibrate the remaining thresholds.** The clustering (0.12), mapper (0.80) and resolution
    (0.85) thresholds are all uncalibrated.
 
 ## Retrieval and answers
 
-10. **Comparison facet recall is below target.** It is 0.833 with the rerank, against 0.9.
+10. **Measured 2026-11-08, nothing adopted:** comparison facet recall is 0.833 (15 of 18 sides)
+    against a 0.9 target. All 3 misses are the Azure Backup side, and in each the gold article is
+    among the side's 20 candidates (positions 7-20) but the reranker puts it 6th-15th, behind
+    generic pages (Overview, best practices). Searching and reranking each side with the other
+    sides' names removed, and preferring distinct documents, changed nothing (0.833, same misses);
+    5 -> 8 passages per side would recover 1 of the 3 for 60% longer comparison prompts. At the
+    answer level 9 of 10 comparisons address every side, so the single-article metric is the
+    stricter of the two.
 11. **Done 2026-11-08.** Diagnosed on the 23 labelled questions (419 expected vendors): 362
     listed; 32 had passages the model wrote no line for (a 60-passage prompt makes it skip
     vendors, e.g. Acronis pre/post scripts at rerank 0.885); 24 fell below the relevance floor; 1
