@@ -5,7 +5,8 @@ of the claims-v3 family (``propose.PROMPT_FAMILY``) mapped under the current tax
 with a dimension. Each row is keyed on its claim and gets:
 
 - ``scope`` (workload dimensions, i.e. not ``platform``):
-  - ``target_unmapped``: the claim names a target that matched no taxonomy target. It is not a
+  - ``target_unmapped``: the claim names a target that matched no taxonomy target
+    (``target_method`` 'unmapped'; a target text naming the product itself is no target). It is not a
     product-wide statement: "backup of Lotus Notes is not supported" says nothing about backup
     in general.
   - ``product_wide``: no target text at all.
@@ -149,7 +150,7 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             " SELECT claim_id, vendor, product, offering_id, edition_id, dimension_id,"
             " class_id, target_id, variant_id, object_type_id, kind, support, availability,"
             " default_state, value, unit, bound, conditions, fetched_at, %(ver)s,"
-            " CASE WHEN target_id IS NULL AND NOT platform AND target_raw IS NOT NULL"
+            " CASE WHEN target_id IS NULL AND NOT platform AND target_method = 'unmapped'"
             "  THEN 'target_unmapped' WHEN target_id IS NULL AND NOT platform THEN 'product_wide'"
             "  WHEN offering_id IS NOT NULL THEN 'offering' ELSE 'product' END,"
             " CASE WHEN (bool_or(support = 'not_supported') OVER k"
@@ -162,7 +163,7 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             " FROM (SELECT r.claim_id, d.vendor, d.product, r.offering_id, r.edition_id,"
             "  r.dimension_id, r.class_id, r.target_id, r.variant_id, r.object_type_id, r.kind,"
             "  r.support, r.availability, r.default_state, r.value, r.unit, r.bound,"
-            "  r.conditions, d.fetched_at, dim.platform, r.target_raw,"
+            "  r.conditions, d.fetched_at, dim.platform, r.target_method,"
             f"  {_norm('r.capability_raw')} AS cap_norm,"
             f"  CASE WHEN r.object_type_id IS NULL THEN {_norm('r.target_scope')} END AS scope_norm,"
             f"  {_norm('r.conditions')} AS cond_norm FROM raw_claims r"

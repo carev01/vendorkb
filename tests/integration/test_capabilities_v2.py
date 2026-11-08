@@ -299,6 +299,8 @@ async def test_a_target_text_that_did_not_map_is_not_product_wide(vkb_dsn):
         # "backup of Lotus Notes is not supported": the workload is named but not in the taxonomy
         lotus = await _claim(conn, "coverage.backup", target_text="Lotus Notes",
                              support="not_supported", mapped_version=v)
+        await conn.execute("UPDATE raw_claims SET target_method = 'unmapped' WHERE claim_id = %s",
+                           (lotus,))
         wide = await _claim(conn, "retention.maximum_period", mapped_version=v)  # no target text
         await capabilities.build(conn)
         caps = await _caps(conn)
@@ -309,6 +311,20 @@ async def test_a_target_text_that_did_not_map_is_not_product_wide(vkb_dsn):
         assert res.unresolved_target[0].target_raw == "Lotus Notes"
         res = await capabilities.query(conn, CapFilter(target="okta"))  # can't be a match
         assert str(lotus) not in _ids(res.facts + res.product_wide + res.unresolved_target)
+    finally:
+        await conn.close()
+
+
+async def test_a_target_text_naming_the_product_is_not_an_unmapped_target(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        # the mapper leaves target_method NULL when the target text is the product itself
+        cid = await _claim(conn, "retention.maximum_period", target_text="P", mapped_version=v)
+        await conn.execute("UPDATE raw_claims SET target_method = NULL WHERE claim_id = %s",
+                           (cid,))
+        await capabilities.build(conn)
+        assert (await _caps(conn))[cid]["scope"] == "product_wide"
     finally:
         await conn.close()
 
