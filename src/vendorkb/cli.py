@@ -316,7 +316,8 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
                                                      settings=settings, max_usd=args.max_usd,
                                                      remap=args.remap, vendor=args.vendor,
-                                                     seed=args.seed_decisions)
+                                                     seed=args.seed_decisions,
+                                                     reask=frozenset(args.reask))
             finally:
                 close = getattr(client, "close", None)
                 if close is not None:
@@ -473,6 +474,10 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--seed-decisions", action="store_true",
                    help="record in map_decisions the adjudication decisions the stored mappings"
                         " imply (no LLM call, no claim changed); embeds the phrases")
+    t.add_argument("--reask", action="append", default=[], metavar="ID",
+                   help="ask again (and replace) stored decisions whose answer is this entity,"
+                        " e.g. after sharpening its definition; repeatable. Only claims this run"
+                        " maps are covered: use it with a new taxonomy version or --all")
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
