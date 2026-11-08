@@ -72,7 +72,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 from ruamel.yaml.util import load_yaml_guess_indent
 
-from vendorkb.claims.extract import cost_usd, price_per_mtok
+from vendorkb.claims.extract import PROMPT_FAMILY, cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
 from vendorkb.taxonomy.llm import build_request, call, object_schema
@@ -85,7 +85,6 @@ __all__ = ["KINDS", "ProposeReport", "long_tail_path", "propose"]
 Kind = Literal["dimension", "target", "object_type", "offering"]
 KINDS: tuple[Kind, ...] = ("dimension", "target", "object_type", "offering")
 Section = Literal["dimension", "target", "object_type", "offering", "edition"]
-PROMPT_FAMILY = "claims-v3%"  # claims-v3, claims-v3.1, ...
 MAX_CLUSTER_STRINGS = 15_000  # ~1.8 GB of distance matrices
 CHARS_PER_TOKEN = 3
 MAX_MEMBERS_IN_PROMPT = 40

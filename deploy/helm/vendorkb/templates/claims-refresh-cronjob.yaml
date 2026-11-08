@@ -1,0 +1,64 @@
+{{- if .Values.claimsRefresh.enabled }}
+{{- $c := .Values.claimsRefresh }}
+{{- $endpoint := required "claimsRefresh.extract.baseUrl is required: the extraction endpoint (deploy/azure), ending in /v1" $c.extract.baseUrl }}
+# `vendorkb refresh`, often: it contacts nothing until the sync has brought chunks no
+# extraction has touched, then wakes the scaled-to-zero extraction endpoint once per burst,
+# extracts them, maps their claims and rebuilds capabilities (src/vendorkb/claims/refresh.py).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vendorkb-claims-refresh
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $c.schedule | quote }}
+  suspend: {{ $c.suspend }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $c.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: {{ $c.backoffLimit }}
+      activeDeadlineSeconds: {{ $c.activeDeadlineSeconds }}
+      template:
+        metadata:
+          annotations:
+            checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        spec:
+          restartPolicy: Never
+          {{- include "vendorkb.pullSecrets" . | nindent 10 }}
+          {{- include "vendorkb.podSecurity" . | nindent 10 }}
+          containers:
+            - name: claims-refresh
+              image: {{ include "vendorkb.image" . }}
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - vendorkb
+                - refresh
+                - --settle-minutes
+                - {{ $c.settleMinutes | quote }}
+                - --extract-limit
+                - {{ $c.extract.limit | quote }}
+                - --map-max-usd
+                - {{ $c.map.maxUsd | quote }}
+                - --warmup-seconds
+                - {{ $c.extract.warmupSeconds | quote }}
+              {{- include "vendorkb.env" . | nindent 14 }}
+                # These win over the shared ConfigMap and secret (env beats envFrom).
+                - {name: EXTRACT_BACKEND, value: openai}
+                - {name: EXTRACT_BASE_URL, value: {{ $endpoint | quote }}}
+                - {name: EXTRACT_MODEL, value: {{ $c.extract.model | quote }}}
+                - {name: EXTRACT_MAX_TOKENS, value: {{ $c.extract.maxTokens | quote }}}
+                - {name: EXTRACT_EFFORT, value: low}
+                - {name: EXTRACT_CONCURRENCY, value: {{ $c.extract.concurrency | quote }}}
+                # GPU time is billed by Azure, not per token: nominal prices keep the
+                # extraction ledger (real API spend) at zero.
+                - {name: EXTRACT_PRICE_IN_PER_MTOK, value: "0.000001"}
+                - {name: EXTRACT_PRICE_OUT_PER_MTOK, value: "0.000001"}
+                - {name: MAP_BACKEND, value: {{ $c.map.backend | quote }}}
+                - {name: MAP_BASE_URL, value: {{ $c.map.baseUrl | quote }}}
+                - {name: MAP_MODEL, value: {{ $c.map.model | quote }}}
+              {{- include "vendorkb.envFrom" . | nindent 14 }}
+              {{- include "vendorkb.containerSecurity" . | nindent 14 }}
+              resources: {{- toYaml $c.resources | nindent 16 }}
+{{- end }}

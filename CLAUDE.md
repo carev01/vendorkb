@@ -52,6 +52,12 @@ stack.
     spend ledger, a run lock and a budget cap;
   - a verbatim evidence gate: word-bounded exact match, or fuzzy match that keeps every
     number and negation; `vendorkb claims regate` re-applies it to stored claims.
+  - `vendorkb extract --unextracted [--vendor V]`: every chunk with no done or failed v3
+    extraction by any model (new and re-synced chunks; the Opus teacher chunks are not redone).
+  - `vendorkb refresh` (`claims/refresh.py`, hourly CronJob `vendorkb-claims-refresh`): acts
+    only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
+    the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
+    MAP_API_KEY, else the EXTRACT_ ones) and rebuilds capabilities.
 - Production holds 74,885 v1 (Haiku) pilot claims.
 
 **Taxonomy v2 and claims v3 (2026-11-06; spec `specs/2026-11-06-taxonomy-v2-claims-v3-design.md`,

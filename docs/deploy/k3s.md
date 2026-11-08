@@ -232,6 +232,33 @@ The CronJob runs every 30 minutes with `concurrencyPolicy: Forbid` and
 `--max-tokens 5000000` (`sync.maxTokens`, per run), which also bounds a large wave of
 `updated` articles such as a VLM image-enrichment run.
 
+## 7a. Reactive claims refresh
+
+`vendorkb refresh` (`claims/refresh.py`) keeps claims and capabilities current without a GPU
+running between DocExtractor refreshes. The CronJob `vendorkb-claims-refresh` runs it hourly.
+Until the sync has written chunks that no extraction has touched, a run is two queries and
+contacts nothing. When such chunks exist and no new document has arrived for
+`claimsRefresh.settleMinutes` (or the backlog fills a run), it wakes the distilled extractor
+(`deploy/azure`, scaled to zero), extracts every chunk with no finished extraction, maps the
+claims not yet mapped under the current taxonomy version (`claimsRefresh.map.maxUsd` per run),
+and rebuilds capabilities. Chunks that only errored never trigger a run; they ride along with
+the next one.
+
+Add the two keys to the secret, then enable it with the endpoint's URL:
+
+```
+kubectl -n vendorkb patch secret vendorkb-secret --type merge -p \
+  "{\"stringData\":{\"EXTRACT_API_KEY\":\"$SERVE_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\"}}"
+helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
+  --set claimsRefresh.enabled=true \
+  --set claimsRefresh.extract.baseUrl=https://<app>.<region>.azurecontainerapps.io/v1
+kubectl -n vendorkb create job --from=cronjob/vendorkb-claims-refresh refresh-check  # one run now
+```
+
+A run prints a JSON report (`new_chunks`, `due`, `reason`, and the extract and map reports of a
+due run). By hand, through the port-forward: `vendorkb extract --unextracted [--vendor V]`
+extracts what is missing, and `vendorkb taxonomy map` maps only claims not yet mapped.
+
 ## 8. Verify
 
 Through the port-forward, with `VENDORKB_DSN` set as in step 4:
