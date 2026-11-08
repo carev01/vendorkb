@@ -36,7 +36,7 @@ rather than the less specific rows of the vendor.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import psycopg
@@ -104,7 +104,8 @@ class Fact:
 @dataclass(frozen=True)
 class Conflict:
     conflict_group: str
-    facts: list[Fact]
+    facts: list[Fact]  # at most CONFLICT_MEMBERS of them, current first
+    size: int = 0  # all members of the group
 
 
 @dataclass
@@ -114,6 +115,7 @@ class CapResult:
     product_wide: list[Fact] = field(default_factory=list)
     conflicts: list[Conflict] = field(default_factory=list)
     hint: str | None = None
+    totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
 
 
 async def build(conn: psycopg.AsyncConnection) -> int:
@@ -241,6 +243,9 @@ _ORDER = (" ORDER BY c.vendor, c.product NULLS FIRST, c.offering_id NULLS FIRST,
           " c.doc_version DESC, c.claim_id")
 
 
+_N_FACT = len(fields(Fact))
+
+
 def _fact(row: tuple) -> Fact:
     values = list(row)
     doc_version = values[28]
@@ -248,8 +253,17 @@ def _fact(row: tuple) -> Fact:
     return Fact(*values)
 
 
-async def query(conn: psycopg.AsyncConnection, f: CapFilter) -> CapResult:
-    """The rows matching ``f``, grouped as the module docstring describes."""
+CONFLICT_MEMBERS = 10  # members listed per conflict group (``Conflict.size`` counts them all)
+
+
+async def query(conn: psycopg.AsyncConnection, f: CapFilter,
+                limit: int | None = None) -> CapResult:
+    """The rows matching ``f``, grouped as the module docstring describes; with ``limit``, at
+    most that many rows per group, ``totals`` keeping the full counts. A limited group is
+    filled round-robin across vendors (every vendor's first row in the usual order, then every
+    vendor's second, ...) and returned in that order, so a broad filter shows many vendors
+    rather than the first few alphabetically. Each conflict group lists at most
+    ``CONFLICT_MEMBERS`` members."""
     version = await current_version(conn)
     targets = dimensions = offerings = None
     if f.target is not None:
@@ -304,9 +318,13 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter) -> CapResult:
                "  AND lower(c.vendor) = ANY(%(general_vendors)s::text[]))"
                " OR (c.edition_id IS NULL"
                "  AND c.offering_id = ANY(%(edition_offerings)s::text[]))))")
+    grp = f"CASE WHEN {wide} THEN 'product_wide' WHEN {exact} THEN 'facts' ELSE 'product_level' END"
+    params["limit"] = limit
     sql = (
-        f"SELECT CASE WHEN {wide} THEN 'product_wide' WHEN {exact} THEN 'facts'"
-        f" ELSE 'product_level' END, {_FACT_COLUMNS}{_FROM}"
+        f"SELECT {grp} AS grp, count(*) OVER (PARTITION BY {grp}) AS total,"
+        f" row_number() OVER (PARTITION BY {grp}{_ORDER}) AS pos,"
+        f" row_number() OVER (PARTITION BY {grp}, c.vendor{_ORDER}) AS vendor_pos,"
+        f" {_FACT_COLUMNS}{_FROM}"
         " WHERE c.taxonomy_version = %(ver)s"
         " AND (%(vendor)s::text IS NULL OR lower(c.vendor) = lower(%(vendor)s::text))"
         " AND (%(dims)s::text[] IS NULL OR c.dimension_id = ANY(%(dims)s::text[]))"
@@ -320,25 +338,38 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter) -> CapResult:
         " AND (NOT %(has_target)s OR c.target_id = ANY(%(targets)s::text[])"
         f"  OR ({wide} AND c.dimension_id = ANY(%(target_dims)s::text[])))"
         f" AND ({exact} OR {general})" + _ORDER)
+    # the window ranks rows inside each group; the outer filter keeps the first ``limit``
+    if limit is None:
+        sql = f"SELECT * FROM ({sql}) s ORDER BY s.pos"
+    else:  # round-robin across vendors: rank by the row's position within its vendor
+        sql = (f"SELECT * FROM (SELECT s.*, row_number() OVER (PARTITION BY s.grp ORDER BY"
+               f" s.vendor_pos, s.pos) AS rr FROM ({sql}) s) t WHERE t.rr <= %(limit)s"
+               " ORDER BY t.rr")
     cur = await conn.execute(sql, params)
-    result = CapResult()
+    result = CapResult(totals={"facts": 0, "product_level": 0, "product_wide": 0})
     groups: dict[str, list[Fact]] = {"facts": result.facts,
                                      "product_level": result.product_level,
                                      "product_wide": result.product_wide}
     for row in await cur.fetchall():
-        groups[row[0]].append(_fact(row[1:]))
+        groups[row[0]].append(_fact(row[4:4 + _N_FACT]))  # after grp, total, pos, vendor_pos
+        result.totals[row[0]] = int(row[1])
 
     met = sorted({x.conflict_group for g in groups.values() for x in g
                   if x.conflict_group is not None})
     if met:
+        # a conflict group can hold thousands of rows: list the first CONFLICT_MEMBERS
         cur = await conn.execute(
-            f"SELECT {_FACT_COLUMNS}{_FROM} WHERE c.taxonomy_version = %s"
-            " AND c.conflict_group = ANY(%s::uuid[])" + _ORDER, (version, met))
+            f"SELECT * FROM (SELECT count(*) OVER (PARTITION BY c.conflict_group),"
+            f" row_number() OVER (PARTITION BY c.conflict_group{_ORDER}), {_FACT_COLUMNS}{_FROM}"
+            " WHERE c.taxonomy_version = %s AND c.conflict_group = ANY(%s::uuid[])) s"
+            " WHERE s.row_number <= %s ORDER BY s.row_number", (version, met, CONFLICT_MEMBERS))
         members: dict[str, list[Fact]] = {g: [] for g in met}
+        sizes: dict[str, int] = {}
         for row in await cur.fetchall():
-            fact = _fact(row)
+            fact = _fact(row[2:])
             members[str(fact.conflict_group)].append(fact)
-        result.conflicts = [Conflict(g, members[g]) for g in met]
+            sizes[str(fact.conflict_group)] = int(row[0])
+        result.conflicts = [Conflict(g, members[g], sizes.get(g, 0)) for g in met]
     if not (result.facts or result.product_level or result.product_wide):
         result.hint = await _hint(conn, f, targets, dimensions)
     return result

@@ -29,7 +29,10 @@ log = logging.getLogger(__name__)
 
 MAX_K = 25
 MAX_LIMIT = 200
-PASSAGE_CHARS = 2500  # per search hit in the text output (structured content has it whole)
+WIDE_SHOWN = 10  # product-wide facts shown at most: the workload-specific facts come first
+# Per search hit in the text output (structured content has it whole): agent clients cap a tool
+# result's size, and 8 x 2,500 characters overflowed them in the 2026-11-08 agent eval.
+PASSAGE_CHARS = 1200
 
 INSTRUCTIONS = """\
 vendorkb answers questions about backup vendors' technical documentation, precisely and with
@@ -102,19 +105,20 @@ def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]
     structured: dict[str, Any] = {}
     n = 0
     for key, title, facts in groups:
-        shown = facts[:limit]
+        shown = facts[:min(limit, WIDE_SHOWN) if key == "product_wide" else limit]
+        total = max(res.totals.get(key, 0), len(facts))
         structured[key] = [dataclasses.asdict(f) for f in shown]
-        structured[f"{key}_total"] = len(facts)
+        structured[f"{key}_total"] = total
         if not facts:
             continue
-        head = f"{title}: {len(facts)}" + (f" (first {limit} shown)" if len(facts) > limit
-                                            else "")
+        head = f"{title}: {total}" + (f" (first {len(shown)} shown)" if total > len(shown)
+                                       else "")
         lines = [head]
         for f in shown:
             n += 1
             lines.append(format_fact(n, f))
         parts.append("\n".join(lines))
-    structured["conflicts"] = [{"conflict_group": c.conflict_group,
+    structured["conflicts"] = [{"conflict_group": c.conflict_group, "size": c.size,
                                 "claim_ids": [f.claim_id for f in c.facts]}
                                for c in res.conflicts]
     if res.conflicts:
@@ -130,7 +134,8 @@ def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]
 def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
     parts, rows = [], []
     for n, h in enumerate(hits, 1):
-        text = h.text if len(h.text) <= PASSAGE_CHARS else h.text[:PASSAGE_CHARS] + " […]"
+        text = h.text if len(h.text) <= PASSAGE_CHARS else (
+            h.text[:PASSAGE_CHARS] + f" […] (read_section {h.chunk_id} for the rest)")
         section = " › ".join(h.section_path)
         parts.append(f"[{n}] {h.vendor} · {h.product or 'unknown product'} — {h.title}"
                      f"{f' › {section}' if section else ''}\n    source: {h.url or 'no url'}"
@@ -201,7 +206,7 @@ def build_server(backend: Backend) -> MCPServer:
             object_type: str | None = None,
             support: Literal["supported", "partial", "not_supported", "unclear"] | None = None,
             availability: str | None = None, value_min: float | None = None,
-            value_max: float | None = None, limit: int = 40) -> CallToolResult:
+            value_max: float | None = None, limit: int = 25) -> CallToolResult:
         f = CapFilter(vendor=vendor, offering=offering, edition=edition, dimension=dimension,
                       family=family, target=target, object_type=object_type, support=support,
                       availability=availability, value_min=value_min, value_max=value_max)
@@ -209,7 +214,7 @@ def build_server(backend: Backend) -> MCPServer:
             raise ToolError("query_capabilities needs at least one filter (e.g. dimension and "
                             "target; see list_dimensions and list_targets)")
         try:
-            res = await backend.capabilities(f)
+            res = await backend.capabilities(f, max(1, min(limit, MAX_LIMIT)))
         except Exception as e:
             raise _fail("query_capabilities", e) from e
         text, structured = format_capabilities(res, max(1, min(limit, MAX_LIMIT)))
@@ -221,7 +226,7 @@ def build_server(backend: Backend) -> MCPServer:
         "the search (names from list_vendors). Use it for details the capability table does "
         "not hold, and to check vendors it does not list."))
     async def search_docs(query: str, vendor: list[str] | None = None,
-                          product: list[str] | None = None, k: int = 8) -> CallToolResult:
+                          product: list[str] | None = None, k: int = 5) -> CallToolResult:
         if not query.strip():
             raise ToolError("search_docs needs a query")
         try:

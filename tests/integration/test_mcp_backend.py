@@ -66,7 +66,7 @@ async def test_browse_query_search_and_read(vkb_dsn, backend):
     assert targets[0]["id"] == "okta" and targets[0]["class"] == "saas.identity"
     assert await backend.targets("no such workload", 10) == []
 
-    res = await backend.capabilities(CapFilter(dimension="backed up objects", target="Okta"))
+    res = await backend.capabilities(CapFilter(dimension="backed up objects", target="Okta"), 25)
     [fact] = res.facts
     assert (fact.vendor, fact.url, fact.evidence_quote) == (
         "examplevendor", "http://docs/okta", "Okta users are backed up")

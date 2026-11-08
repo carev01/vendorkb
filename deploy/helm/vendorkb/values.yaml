@@ -125,6 +125,6 @@ mcp:
     host: ""               # e.g. vendorkb-mcp.k3s.home.lan (add it to allowedHosts)
     tlsSecret: ""
     annotations: {}
-  resources:
+  resources:   # queries are bounded in SQL; 2Gi leaves room for concurrent tool calls
     requests: {cpu: 100m, memory: 512Mi}
-    limits: {cpu: "1", memory: 1Gi}
+    limits: {cpu: "2", memory: 2Gi}

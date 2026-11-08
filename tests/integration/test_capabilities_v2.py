@@ -256,6 +256,37 @@ async def test_value_range_and_qualifier_filters(vkb_dsn):
         await conn.close()
 
 
+async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        for _ in range(3):  # three facts for okta, one conflicting on support
+            await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                         object_type="user", mapped_version=v)
+        await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                     object_type="user", support="not_supported", mapped_version=v)
+        for _ in range(2):
+            await _claim(conn, "retention.maximum_period", mapped_version=v)  # product-wide
+        await capabilities.build(conn)
+        monkeypatch.setattr(capabilities, "CONFLICT_MEMBERS", 2)
+        res = await capabilities.query(conn, CapFilter(target="okta"), limit=1)
+        assert (len(res.facts), len(res.product_wide)) == (1, 1)
+        assert res.totals == {"facts": 4, "product_level": 0, "product_wide": 2}
+        [conflict] = res.conflicts
+        assert (len(conflict.facts), conflict.size) == (2, 4)  # members capped, size kept
+        # a limited group is filled round-robin across vendors
+        await _claim(conn, "coverage.backup", "okta", vendor="othervendor",
+                     class_id="saas.identity", object_type="user", mapped_version=v)
+        await capabilities.build(conn)
+        two = await capabilities.query(conn, CapFilter(target="okta"), limit=2)
+        assert {f.vendor for f in two.facts} == {"examplevendor", "othervendor"}
+        unbounded = await capabilities.query(conn, CapFilter(target="okta", vendor="examplevendor"))
+        assert len(unbounded.facts) == 4 and unbounded.totals["facts"] == 4
+        assert len(unbounded.conflicts[0].facts) == 2  # members are always capped
+    finally:
+        await conn.close()
+
+
 async def test_conflict_group_and_is_current(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

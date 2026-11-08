@@ -50,8 +50,8 @@ class FakeBackend:
         return [{"id": "aws.rds", "name": "Amazon RDS", "class": "cloud.database",
                  "parent": None, "aliases": ["RDS"]}]
 
-    async def capabilities(self, f):
-        self.calls.append(("capabilities", f))
+    async def capabilities(self, f, limit):
+        self.calls.append(("capabilities", f, limit))
         if self.fail:
             raise self.fail
         return self.caps
@@ -85,7 +85,7 @@ async def test_query_capabilities_cites_every_fact():
                               bound="max", conditions="Enterprise edition", is_current=False,
                               conflict_group="g1")],
         product_wide=[_fact(claim_id="c3", target_id=None, dimension_id="retention.maximum")],
-        conflicts=[Conflict("g1", [_fact(claim_id="c2"), _fact(claim_id="c9")])])
+        conflicts=[Conflict("g1", [_fact(claim_id="c2"), _fact(claim_id="c9")], size=7)])
     backend = FakeBackend(caps=caps)
     async with Client(ms.build_server(backend)) as c:
         r = await c.call_tool("query_capabilities", {"dimension": "immutability",
@@ -101,18 +101,23 @@ async def test_query_capabilities_cites_every_fact():
     assert "Product-wide facts (no specific workload): 1" in text and "[3]" in text
     assert "1 conflict group(s)" in text
     assert r.structured_content["facts_total"] == 2
-    assert r.structured_content["conflicts"] == [{"conflict_group": "g1",
+    assert r.structured_content["conflicts"] == [{"conflict_group": "g1", "size": 7,
                                                   "claim_ids": ["c2", "c9"]}]
-    [(_, f)] = backend.calls
+    [(_, f, limit)] = backend.calls
+    assert limit == 25
     assert (f.dimension, f.target, f.vendor) == ("immutability", "RDS", None)
 
 
 async def test_query_capabilities_limit_and_hint():
-    many = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(5)])
-    async with Client(ms.build_server(FakeBackend(caps=many))) as c:
+    # the backend already returns at most `limit` rows per group; totals keep the full counts
+    capped = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(2)],
+                       totals={"facts": 5000, "product_level": 0, "product_wide": 0})
+    backend = FakeBackend(caps=capped)
+    async with Client(ms.build_server(backend)) as c:
         r = await c.call_tool("query_capabilities", {"vendor": "Examplevendor", "limit": 2})
-    assert "Facts: 5 (first 2 shown)" in r.content[0].text
+    assert "Facts: 5000 (first 2 shown)" in r.content[0].text
     assert len(r.structured_content["facts"]) == 2
+    assert r.structured_content["facts_total"] == 5000 and backend.calls[-1][2] == 2
     empty = CapResult(hint="no fact for target 'tape'; search the documentation instead")
     async with Client(ms.build_server(FakeBackend(caps=empty))) as c:
         r = await c.call_tool("query_capabilities", {"target": "tape"})
@@ -137,7 +142,7 @@ async def test_search_docs_and_read_section():
         text = r.content[0].text
         assert "[1] Examplevendor · Example Backup — Page 1 › Guide › RDS" in text
         assert "source: https://docs.example/1 (chunk k1)" in text
-        assert text.endswith(" […]")  # long passages are trimmed in the text only
+        assert text.endswith(" […] (read_section k2 for the rest)")  # trimmed in the text only
         assert len(r.structured_content["hits"][1]["text"]) == ms.PASSAGE_CHARS + 50
         assert backend.calls[-1] == ("search", "rds immutability", ["Examplevendor"], None,
                                      ms.MAX_K)

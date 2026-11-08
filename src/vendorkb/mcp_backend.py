@@ -28,7 +28,8 @@ class Backend(Protocol):
     async def dimensions(self, query: str | None, family: str | None,
                          limit: int) -> list[dict[str, Any]]: ...
     async def targets(self, query: str | None, limit: int) -> list[dict[str, Any]]: ...
-    async def capabilities(self, f: capabilities.CapFilter) -> capabilities.CapResult: ...
+    async def capabilities(self, f: capabilities.CapFilter,
+                           limit: int) -> capabilities.CapResult: ...
     async def search(self, query: str, vendor: list[str] | None, product: list[str] | None,
                      k: int) -> SearchResult: ...
     async def section(self, chunk_id: str, expand: Expand) -> list[Hit]: ...
@@ -116,10 +117,11 @@ class DbBackend:
         return [{"id": r[0], "name": r[1], "class": r[2], "parent": r[3], "aliases": list(r[4])}
                 for r in rows]
 
-    async def capabilities(self, f: capabilities.CapFilter) -> capabilities.CapResult:
+    async def capabilities(self, f: capabilities.CapFilter,
+                           limit: int) -> capabilities.CapResult:
         conn = await connect(self.settings.vendorkb_dsn)
-        try:
-            return await capabilities.query(conn, f)
+        try:  # bounded in SQL: a broad filter matches hundreds of thousands of rows
+            return await capabilities.query(conn, f, limit=limit)
         finally:
             await conn.close()
 
