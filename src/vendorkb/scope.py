@@ -93,6 +93,29 @@ _WORD_NAMES = frozenset({
     "monday", "application", "infrastructure", "documentation", "docs", "notices", "sentinel"})
 
 
+# A product name made only of these words ("Backup and Recovery", "Security Center") names
+# nobody's product on its own: it is a surface only after its vendor's name. Alone it matched
+# phrases such as "Microsoft's Entra Backup and Recovery" to Storware's product (cv-12).
+_GENERIC_WORDS = frozenset({
+    "backup", "backups", "recovery", "restore", "and", "&", "cloud", "data", "protection",
+    "manager", "management", "console", "server", "agent", "suite", "platform", "service",
+    "services", "for", "the", "online", "storage", "archive", "archiving", "replication",
+    "security", "enterprise", "center", "edition"})
+
+
+def _is_generic(product: str) -> bool:
+    words = re.findall(r"[a-z0-9&]+", product.lower())
+    return bool(words) and all(w in _GENERIC_WORDS for w in words)
+
+
+def _vendor_names(vendor: str) -> list[str]:
+    """A vendor's name and the parts around a parenthesis: "Hornetsecurity (Altaro)" ->
+    that, "Hornetsecurity" and "Altaro"."""
+    names = [vendor, re.sub(r"\s*\([^)]*\)", "", vendor).strip(),
+             *re.findall(r"\(([^)]*)\)", vendor)]
+    return list(dict.fromkeys(n for n in names if n))
+
+
 def _pattern(name: str) -> re.Pattern[str]:
     flags = 0 if name.lower() in _WORD_NAMES else re.IGNORECASE
     return re.compile(rf"(?<!\w){re.escape(name)}(?!\w)", flags)
@@ -112,8 +135,14 @@ def find_facets(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]
     """(vendors, products) the question names, in question order; ignores cross-vendor wording."""
     # surface text -> list of target names (direct names target themselves)
     surfaces: dict[str, list[str]] = {}
-    for name in [*index.vendors, *index.products]:
+    for name in index.vendors:
         surfaces.setdefault(name, [name])
+    for name in index.products:
+        if not _is_generic(name):
+            surfaces.setdefault(name, [name])
+        elif name in index.product_vendors:
+            for vendor in _vendor_names(index.product_vendors[name]):
+                surfaces.setdefault(f"{vendor} {name}", [name])
     for source, vendor in index.source_vendors.items():
         # distinctive sources only: unique to one vendor and naming it ("Veeam Agent for Linux")
         if source in index.source_products and vendor.lower() in source.lower():

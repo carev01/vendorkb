@@ -1771,6 +1771,10 @@
   - article_id: 1cde879f-5152-4b0e-a9e8-9d4e762ee9ed
     section: What's soft delete?
   - article_id: b0eadd12-baf7-484e-8fb0-f0fd756aaba5
+  - article_id: a6481417-ece0-481d-a73e-c4279e5eec5f
+    graded: 2026-11-08 side support (Opus and Fable), Backup security best practices
+  - article_id: ecc02e55-394d-4e8d-8020-33c62a938c19
+    graded: 2026-11-08 side support (Opus and Fable), Reliability in Azure Backup
   vendors:
   - Veeam
   - Microsoft
@@ -3111,6 +3115,14 @@
     section: Restore an SAP HANA database with the AWS Backup console
   - article_id: 701cef74-dfa9-4bba-bdc2-f2be4482fb1e
     section: Common user errors for backup and restore of SAP HANA databases
+  - article_id: f030f167-8430-47d9-88d7-f780560e77e6
+    graded: 2026-11-08 side support (Opus and Fable), Overview
+  - article_id: e94136da-c7ca-4691-8d46-1e6d9e4a67b6
+    graded: 2026-11-08 side support (Opus and Fable), Architecture
+  - article_id: 5e1e575d-ddb9-4d61-b226-9f57b95090ef
+    graded: 2026-11-08 side support (Opus and Fable), HANA System Replication database
+  - article_id: 8423fe23-4b4a-4f9f-a367-d417d7259274
+    graded: 2026-11-08 side support (Opus and Fable), Instance snapshot
   vendors:
   - AWS
   - Microsoft
@@ -3141,6 +3153,14 @@
     section: Private Endpoint Deployment
   - article_id: 8681e4eb-61b9-4039-895b-fe141981e39e
     section: Considerations
+  - article_id: 082f4084-c2fb-422c-9120-850277419d56
+    graded: 2026-11-08 side support (Opus and Fable), Overview
+  - article_id: 42dbbcab-047b-4aa2-8947-66ee0f8f22c0
+    graded: 2026-11-08 side support (Opus and Fable), Overview
+  - article_id: ae06b89a-2c1b-427b-b1c5-a46e0e2606fa
+    graded: 2026-11-08 side support (Opus and Fable), Create and manage
+  - article_id: 1e404498-e630-4d09-8073-6155185f9a15
+    graded: 2026-11-08 side support (Opus and Fable), Azure Backup guidance and best practices
   vendors:
   - Cohesity
   - Microsoft

@@ -634,6 +634,28 @@ async def test_comparison_quota_survives_rerank(vkb_dsn):
         await conn.close()
 
 
+async def test_comparison_drops_repeated_passages_within_a_facet(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        a1, a2, b = await _doc(conn, "A", "PA"), await _doc(conn, "A", "PA2"), await _doc(conn, "B", "PB")
+        # the same page published twice (two guides): identical text, identical score
+        for d in (a1, a2):
+            for i in range(3):
+                await _chunk(conn, d, i, f"alpha page{i} s0.9{i}", 0)
+        await _chunk(conn, a1, 3, "alpha other s0.10", 0)
+        for i in range(5):
+            await _chunk(conn, b, i, f"alpha bee{i} s0.5{i}", 0)
+        rr = FakeReranker(lambda t: float(t.split(" s")[-1]))
+        res = await compare_facets(conn, "alpha", embedder=FakeEmbedder(_vec(0)), reranker=rr,
+                                   facets=[("vendor", "A"), ("vendor", "B")])
+        a_texts = [h.text for h in res.hits if h.vendor == "A"]
+        assert len(a_texts) == len(set(a_texts)) == 4  # three pages once each, then the other
+        assert sum("alpha other" in t for t in a_texts) == 1
+    finally:
+        await conn.close()
+
+
 async def test_comparison_empty_facet(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

@@ -110,3 +110,22 @@ def test_aliases_file_is_read_as_data():
     assert idx.aliases["VBR"] == ["Veeam Backup & Replication"]
     assert isinstance(idx, ScopeIndex)
     assert {m for m in sys.modules if m.startswith("answer_api")} == before
+
+
+def test_a_generic_product_name_needs_its_vendor(tmp_path):
+    p = tmp_path / "aliases.json"
+    p.write_text(json.dumps({"Entra Backup and Recovery": "Entra ID Backup"}))
+    idx = load_scope_index(["Microsoft", "Storware", "Cohesity"],
+                           ["Entra ID Backup", "Backup and Recovery", "Security Center"], p,
+                           product_vendors={"Entra ID Backup": "Microsoft",
+                                            "Backup and Recovery": "Storware",
+                                            "Security Center": "Cohesity"})
+    # alone, "Backup and Recovery" names nobody's product in particular
+    assert detect_scope("How long can backups be kept with Backup and Recovery?", idx) == ([], [])
+    assert detect_scope("Does Storware Backup and Recovery keep 90 days?", idx) == (
+        [], ["Backup and Recovery"])
+    assert detect_scope("What does Cohesity Security Center report?", idx) == (
+        [], ["Security Center"])
+    # the cv-12 wording: Microsoft's Entra product, not Storware's
+    assert detect_scope("Microsoft's built-in Entra Backup and Recovery", idx) == (
+        ["Microsoft"], ["Entra ID Backup"])
