@@ -61,6 +61,12 @@ stack.
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
     MAP_API_KEY, else the EXTRACT_ ones) and rebuilds capabilities.
+  - a re-synced page (`store.write_document`) whose chunks carry claims keeps them, with
+    `chunks.superseded_at` set, so its facts survive until the new version is extracted and
+    mapped; `capabilities build` then retires them (`store.retire_superseded`). Superseded chunks
+    stay out of search, extraction and the refresh trigger (every chunk query that ranks or
+    selects needs `superseded_at IS NULL`); their citations still resolve (`read_section` of a
+    superseded chunk returns its own version).
 - Production holds 74,885 v1 (Haiku) pilot claims.
 
 **Taxonomy v2 and claims v3 (2026-11-06; spec `specs/2026-11-06-taxonomy-v2-claims-v3-design.md`,
@@ -103,8 +109,11 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   dimension the model cannot file reliably can be `lookup_only: true` (never a candidate, not
   even pinned: only its curated phrasings map).
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
-  product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
-  facts never appear as target facts.
+  product_wide), conflict groups and `is_current` (by `documents.fetched_at`, except that a row
+  on a superseded chunk ranks below every current-version row of its key, whatever the date).
+  `capabilities.evidence_superseded` marks facts whose claim is on a superseded chunk; the MCP
+  fact text says "from an earlier version of the page". Product-wide facts never appear as
+  target facts.
 - **Not on production yet:** the branch's `init_schema` drops the v1
   features/targets/aliases/capabilities tables, so never run it against production before
   merge and deploy. Extraction scripts that write to production must skip `init_schema`.

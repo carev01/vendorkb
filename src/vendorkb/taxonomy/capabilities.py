@@ -22,8 +22,8 @@ with a dimension. Each row is keyed on its claim and gets:
 - ``is_current``: the key's rows from its most recently fetched document
   (``documents.fetched_at``, also kept as ``doc_version``); the latest document wins and the
   older rows stay, so the conflict stays visible. A row whose claim sits on a superseded chunk
-  loses a tie on fetch time to a current-version row: an update refreshes the page's
-  ``fetched_at`` while the old version's claims are still in the table.
+  ranks below every current-version row of its key, whatever the dates: its ``fetched_at`` is
+  its page's new fetch time (an update refreshes it), not its own version's.
 - ``evidence_superseded``: the row's claim is on a superseded chunk, an earlier version of its
   page kept until the new version is extracted and mapped (``store.retire_superseded``, which
   ``build`` runs first). The fact stays in every answer, marked.
@@ -167,8 +167,9 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             "   AND bool_or(support IN ('supported', 'partial')) OVER k)"
             "  OR min(value) OVER k <> max(value) OVER k"
             f" THEN md5(jsonb_build_array({key})::text)::uuid END,"
-            # a superseded row (false sorts first) never ties a current-version row for current
-            " rank() OVER (k ORDER BY fetched_at DESC, superseded) = 1, superseded"
+            # current-version rows (superseded false sorts first) outrank superseded ones, then
+            # the latest document wins
+            " rank() OVER (k ORDER BY superseded, fetched_at DESC) = 1, superseded"
             # vendor and product come from the document, not the claim: the sync re-tags a
             # document (store.update_metadata) without touching its chunks or their claims
             " FROM (SELECT r.claim_id, d.vendor, d.product, r.offering_id, r.edition_id,"

@@ -582,3 +582,52 @@ async def test_a_superseded_row_is_not_current_against_its_pages_new_version(vkb
             (str(new), True), (str(old), False)]
     finally:
         await conn.close()
+
+
+async def test_a_superseded_row_never_outranks_a_current_version_row_of_another_page(vkb_dsn):
+    """A superseded row carries its page's new fetch time, not its own version's: it must not
+    beat an older page's current statement on that date."""
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        # page A was just re-synced (fetched_at refreshed): its claim is on the earlier version
+        a = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                         superseded=True, support="supported", mapped_version=v,
+                         fetched_at=T0 + timedelta(days=10))
+        await _tail_chunk(conn, await _doc_of(conn, a))  # its new version is not extracted yet
+        b = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                         support="not_supported", mapped_version=v, fetched_at=T0)
+        assert await capabilities.build(conn) == 2
+        caps = await _caps(conn)
+        assert (caps[a]["is_current"], caps[b]["is_current"]) == (False, True)
+        assert caps[a]["conflict_group"] == caps[b]["conflict_group"] is not None
+        res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
+        assert [(f.claim_id, f.is_current) for f in res.facts] == [
+            (str(b), True), (str(a), False)]
+    finally:
+        await conn.close()
+
+
+async def test_build_keeps_a_superseded_fact_until_every_new_claim_is_mapped(vkb_dsn):
+    """Every chunk of the new version is extracted, but one claim is not mapped yet."""
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        old = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           superseded=True, mapped_version=v)
+        new = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           doc_id=await _doc_of(conn, old), mapped_version=None)
+        # the new version's only chunk is extracted; its claim is not in the table (unmapped)
+        assert await capabilities.build(conn) == 1
+        caps = await _caps(conn)
+        assert set(caps) == {old} and caps[old]["evidence_superseded"] is True
+        res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
+        assert [(f.claim_id, f.evidence_superseded) for f in res.facts] == [(str(old), True)]
+
+        await conn.execute("UPDATE raw_claims SET mapped_version = %s WHERE claim_id = %s",
+                           (v, new))
+        assert await capabilities.build(conn) == 1
+        caps = await _caps(conn)
+        assert set(caps) == {new} and caps[new]["evidence_superseded"] is False
+    finally:
+        await conn.close()

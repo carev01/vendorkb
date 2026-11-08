@@ -36,7 +36,7 @@ async def _part_a(conn) -> set[str]:
     for vendor in PILOT_VENDORS:
         cur = await conn.execute(
             "SELECT coalesce(d.product, ''), count(*) FROM chunks c JOIN documents d USING (doc_id)"
-            " WHERE d.vendor = %s GROUP BY 1", (vendor,))
+            " WHERE d.vendor = %s AND c.superseded_at IS NULL GROUP BY 1", (vendor,))
         counts = dict(await cur.fetchall())
         total = sum(counts.values())
         for product, n in sorted(counts.items()):
@@ -44,7 +44,7 @@ async def _part_a(conn) -> set[str]:
             cur = await conn.execute(
                 "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
                 " WHERE d.vendor = %s AND coalesce(d.product, '') = %s"
-                " ORDER BY md5(c.chunk_id::text || %s) LIMIT %s",
+                " AND c.superseded_at IS NULL ORDER BY md5(c.chunk_id::text || %s) LIMIT %s",
                 (vendor, product, SEED, take))
             out.update(r[0] for r in await cur.fetchall())
     return out
@@ -53,8 +53,8 @@ async def _part_a(conn) -> set[str]:
 async def _part_b(conn, questions: list[dict]) -> set[str]:
     docs = sorted({a for q in questions for e in q.get("expected_vendors", [])
                    for a in e.get("article_ids", [])})
-    cur = await conn.execute("SELECT chunk_id::text FROM chunks WHERE doc_id::text = ANY(%s)",
-                             (docs,))
+    cur = await conn.execute("SELECT chunk_id::text FROM chunks WHERE doc_id::text = ANY(%s)"
+                             " AND superseded_at IS NULL", (docs,))
     return {r[0] for r in await cur.fetchall()}
 
 

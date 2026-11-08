@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS chunks (
 
 -- 2026-11-08 (docs/superpowers/specs/2026-11-08-topic-expansion-design.md, Part A): a re-synced
 -- page that has claims keeps its previous chunks, ``superseded_at`` set (NULL = the current
--- version), until the new version is extracted and mapped (``store.retire_superseded``). So
+-- version), until the new version is extracted and mapped (``store.retire_superseded``). They
+-- are kept for their claims only: search, extraction and the refresh trigger skip them. So
 -- (doc_id, ordinal) is unique among the current chunks only: the inline UNIQUE of the earlier
 -- schema (named chunks_doc_id_ordinal_key) becomes a partial unique index.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS superseded_at timestamptz;
@@ -408,7 +409,8 @@ $$;
 -- named), else 'product'. Rows sharing the conflict key (vendor, product, offering, edition,
 -- dimension, target, variant, object type) but differing in support or in a stated value
 -- share a ``conflict_group``; ``is_current`` marks the key's rows from its most recently
--- fetched document. No foreign keys into the
+-- fetched document (a row on a superseded chunk ranks below every current-version row).
+-- No foreign keys into the
 -- taxonomy tables: a ``taxonomy load`` replaces them, and stale rows wait for map and build.
 -- (No ``feature_id`` column: that is what the v1-drop block above keys on.)
 CREATE TABLE IF NOT EXISTS capabilities (

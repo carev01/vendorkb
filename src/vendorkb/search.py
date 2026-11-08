@@ -131,6 +131,7 @@ async def _vector_rows_many(conn: psycopg.AsyncConnection,
 
 
 def _vec_sql(vector_column: str, where: str) -> str:
+    # ``where`` must be ``_filters`` output: it carries the current-chunk condition.
     # Inner ORDER BY distance alone keeps the HNSW index usable (adding a tiebreak column
     # there forces an exact scan); the outer sort makes the order of equal distances stable.
     return (f"SELECT * FROM (SELECT {_COLS}, c.{vector_column} <=> %s AS dist "
