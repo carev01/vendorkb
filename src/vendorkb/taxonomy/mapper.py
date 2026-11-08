@@ -967,11 +967,13 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             if mapped[c.claim_id].class_id not in seen:
                 seen.append(mapped[c.claim_id].class_id)
     applicable: dict[str | None, np.ndarray] = {}  # class -> mask over dimension entities
+    # What may be pinned: a lookup_only dimension (no search key) is never offered.
     allowed_ids: dict[str | None, set[str]] = {}
+    searchable = set(dimension_keys.entities)
     for class_ids in classes_of.values():
         for cid in class_ids:
             if cid not in applicable:
-                allowed_ids[cid] = allowed = tax.applicable(cid)
+                allowed_ids[cid] = allowed = tax.applicable(cid) & searchable
                 applicable[cid] = np.asarray([e in allowed for e in dimension_keys.entities],
                                              dtype=bool)
     dim_cands = candidates(dimension_keys, dimension_queries,

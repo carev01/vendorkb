@@ -790,6 +790,31 @@ async def test_an_earlier_pick_stays_among_the_candidates(vkb_dsn, tmp_path):
         await conn.close()
 
 
+async def test_a_lookup_only_dimension_is_never_offered_even_as_an_earlier_pick(vkb_dsn,
+                                                                               tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn, FakeOpenAI())
+        assert (await _mapping(conn, cid))["dimension_id"] == "retention.maximum_period"
+        doc = yaml.safe_load(_extended(tmp_path).read_text())
+        for d in doc["dimensions"]:
+            if d["id"] == "retention.maximum_period":
+                d["lookup_only"] = True
+        out = tmp_path / "lookup-only.yaml"
+        out.write_text(yaml.safe_dump(doc, sort_keys=False))
+        await load.load_taxonomy(conn, out)
+        client = FakeOpenAI()
+        await _run(conn, client)
+        [call] = [c["messages"][-1]["content"] for c in client.calls
+                  if _kind(c["messages"][-1]["content"]) == "dimension"]
+        assert "retention.maximum_period" not in _candidates(call)
+        assert (await _mapping(conn, cid))["dimension_method"] == "unmapped"
+    finally:
+        await conn.close()
+
+
 async def test_reask_asks_again_the_questions_answered_with_an_entity(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
     try:
