@@ -19,9 +19,20 @@ CREATE TABLE IF NOT EXISTS chunks (
     text text NOT NULL,
     token_count int NOT NULL,
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
-    embedding vector({embed_dim}) NOT NULL,
-    UNIQUE (doc_id, ordinal)
+    embedding vector({embed_dim}) NOT NULL
 );
+
+-- 2026-11-08 (docs/superpowers/specs/2026-11-08-topic-expansion-design.md, Part A): a re-synced
+-- page that has claims keeps its previous chunks, ``superseded_at`` set (NULL = the current
+-- version), until the new version is extracted and mapped (``store.retire_superseded``). So
+-- (doc_id, ordinal) is unique among the current chunks only: the inline UNIQUE of the earlier
+-- schema (named chunks_doc_id_ordinal_key) becomes a partial unique index.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS superseded_at timestamptz;
+ALTER TABLE chunks DROP CONSTRAINT IF EXISTS chunks_doc_id_ordinal_key;
+CREATE UNIQUE INDEX IF NOT EXISTS chunks_doc_ordinal_current_idx ON chunks (doc_id, ordinal)
+    WHERE superseded_at IS NULL;
+CREATE INDEX IF NOT EXISTS chunks_superseded_idx ON chunks (doc_id)
+    WHERE superseded_at IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);
@@ -60,7 +71,8 @@ CREATE TABLE IF NOT EXISTS sync_seen (
 
 -- M3/M4: claim extraction and the capability table. A chunk is replaced (new chunk_id) when
 -- its document is re-synced, so everything keyed on chunk_id cascades with it: the new
--- chunks are extracted afresh, and no claim outlives the evidence it quotes.
+-- chunks are extracted afresh, and no claim outlives the evidence it quotes. A chunk that
+-- carries claims is kept, superseded, until the new version is mapped (``chunks.superseded_at``).
 -- Reserved (BACKLOG 14): never written. DocExtractor's delta records carry no version (only
 -- its products endpoint has one, per product), so documents.version and the claims'
 -- version stay NULL, and answers come from the latest documents.
@@ -389,7 +401,8 @@ $$;
 
 -- capabilities v2 (``taxonomy.capabilities``): one row per claims-v3 claim mapped under the
 -- current taxonomy version with a dimension, rebuilt from raw_claims by ``capabilities
--- build``. Keyed on the claim, so a claim's deletion (a document re-sync) cascades here.
+-- build``. Keyed on the claim, so a claim's deletion (its page removed, or retired after a
+-- re-sync) cascades here.
 -- ``doc_version`` is the claim's ``documents.fetched_at``. ``scope``: 'product_wide' (no
 -- target, and a workload dimension; an offering may be named), else 'offering' (an offering is
 -- named), else 'product'. Rows sharing the conflict key (vendor, product, offering, edition,

@@ -34,18 +34,63 @@ async def stored_hashes(conn: psycopg.AsyncConnection,
 
 async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_hash: str,
                          chunks: list[Chunk], vectors: list[list[float]]) -> None:
-    await conn.execute("DELETE FROM documents WHERE doc_id=%s", (meta.doc_id,))
+    """Store a new version of a page (a first write, or an update).
+
+    The rule: the facts of the last extracted version stay until the next one is mapped. When
+    any current chunk of the page carries a claim, the page's older superseded chunks are
+    deleted and its current chunks are kept with ``superseded_at`` set (their claims, and the
+    capabilities built from them, stay in every query); ``retire_superseded`` deletes them once
+    the new chunks are extracted and mapped. A page with no claims is replaced outright: a
+    version that was never extracted carries no fact worth keeping."""
     await conn.execute(
         "INSERT INTO documents(doc_id, vendor, product, source, source_id, title, url,"
-        " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        " ON CONFLICT (doc_id) DO UPDATE SET vendor = EXCLUDED.vendor,"
+        " product = EXCLUDED.product, source = EXCLUDED.source, source_id = EXCLUDED.source_id,"
+        " title = EXCLUDED.title, url = EXCLUDED.url, content_hash = EXCLUDED.content_hash,"
+        " fetched_at = EXCLUDED.fetched_at",
         (meta.doc_id, meta.vendor, meta.product, meta.source, meta.source_id, meta.title,
          meta.url, content_hash, datetime.now(UTC)))
+    cur = await conn.execute(
+        "SELECT EXISTS (SELECT 1 FROM chunks c JOIN raw_claims r USING (chunk_id)"
+        " WHERE c.doc_id = %s AND c.superseded_at IS NULL)", (meta.doc_id,))
+    if (await cur.fetchone())[0]:  # type: ignore[index]
+        await conn.execute("DELETE FROM chunks WHERE doc_id = %s AND superseded_at IS NOT NULL",
+                           (meta.doc_id,))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE doc_id = %s"
+                           " AND superseded_at IS NULL", (meta.doc_id,))
+    else:
+        await conn.execute("DELETE FROM chunks WHERE doc_id = %s AND superseded_at IS NULL",
+                           (meta.doc_id,))
     async with conn.cursor() as cur:
         await cur.executemany(
             "INSERT INTO chunks(chunk_id, doc_id, section_path, ordinal, text, token_count,"
             " embedding) VALUES (%s,%s,%s,%s,%s,%s,%s)",
             [(uuid.uuid4(), meta.doc_id, list(c.section_path), c.ordinal, c.text,
               c.token_count, v) for c, v in zip(chunks, vectors, strict=True)])
+
+
+async def retire_superseded(conn: psycopg.AsyncConnection, taxonomy_version: str | None) -> int:
+    """Delete the superseded chunks of every page whose current version is fully extracted and
+    mapped; the cascade removes their extractions, claims and capability rows. Returns the
+    number of chunks deleted.
+
+    A page is ready when each of its current chunks has a final extraction (done or failed) of
+    the claims-v3 family and none of their claims of that family is mapped under any other
+    taxonomy version than ``taxonomy_version`` (None: the extraction condition only)."""
+    # Imported here, not at the top: ``sync`` imports this module and must stay free of the
+    # claims stack (anthropic) in its 1 Gi pod (tests/unit/test_vendorkb_cli_imports.py).
+    from vendorkb.claims.extract import PROMPT_FAMILY
+    cur = await conn.execute(
+        "DELETE FROM chunks s WHERE s.superseded_at IS NOT NULL AND NOT EXISTS ("
+        " SELECT 1 FROM chunks c WHERE c.doc_id = s.doc_id AND c.superseded_at IS NULL AND ("
+        "  NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        "   AND e.status IN ('done', 'failed') AND e.prompt_version LIKE %(family)s)"
+        "  OR (%(version)s::text IS NOT NULL AND EXISTS (SELECT 1 FROM raw_claims r"
+        "   WHERE r.chunk_id = c.chunk_id AND r.prompt_version LIKE %(family)s"
+        "   AND r.mapped_version IS DISTINCT FROM %(version)s::text))))",
+        {"family": PROMPT_FAMILY, "version": taxonomy_version})
+    return cur.rowcount
 
 
 async def update_metadata(conn: psycopg.AsyncConnection, meta: DocMeta) -> bool:
