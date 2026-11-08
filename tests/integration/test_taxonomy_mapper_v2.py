@@ -162,7 +162,7 @@ def _extended(tmp_path) -> Path:
 
 
 async def _fresh(conn, tmp_path) -> None:
-    await conn.execute("DROP TABLE IF EXISTS raw_claims, rejected_claims, extractions, "
+    await conn.execute("DROP TABLE IF EXISTS map_decisions, raw_claims, rejected_claims, extractions, "
                        "extract_batches, chunks, documents CASCADE")
     await init_schema(conn, embed_dim=8)
     await load.load_taxonomy(conn, _extended(tmp_path))
@@ -204,11 +204,11 @@ async def _mapping(conn, claim_id) -> dict:
 
 
 async def _run(conn, client=None, embedder=None, max_usd=1.0, remap=False, vendor=None,
-               **settings):
+               seed=False, **settings):
     return await mapper.map_claims(conn, embedder=embedder or FakeEmbedder(),
                                    client=client or FakeOpenAI(),
                                    settings=_settings(**settings), max_usd=max_usd, remap=remap,
-                                   vendor=vendor)
+                                   vendor=vendor, seed=seed)
 
 
 async def test_alias_hits_make_no_llm_call(vkb_dsn, tmp_path):
@@ -454,8 +454,9 @@ async def test_budget_stop_leaves_claims_unmapped(vkb_dsn, tmp_path):
 
         nothing = FakeOpenAI()
         report = await _run(conn, nothing, max_usd=0.0)
-        # the target call and both dimension calls (one over every dimension now)
-        assert nothing.calls == [] and report.skipped_by_budget == 3
+        # the target decision paid in the first run is reused; both dimension calls are skipped
+        assert nothing.calls == [] and report.skipped_by_budget == 2
+        assert report.decisions_reused == 1
         assert (report.claims, report.claims_already_mapped) == (2, 1)
         assert (await _mapping(conn, first))["dimension_method"] == "unmapped"
 
@@ -562,7 +563,8 @@ async def test_remap_maps_every_claim(vkb_dsn, tmp_path):
         client = FakeOpenAI()
         report = await _run(conn, client, remap=True)
         assert (report.claims, report.claims_already_mapped) == (2, 0)
-        assert len(client.calls) == 2
+        # the old claim's adjudication is answered from map_decisions; only the new one is paid
+        assert len(client.calls) == 1 and report.decisions_reused == 1
         assert (await _mapping(conn, old))["dimension_id"] == "retention.maximum_period"
         assert (await _mapping(conn, new))["mapped_version"] is not None
     finally:
@@ -584,6 +586,103 @@ async def test_context_quote_is_collapsed_and_capped(vkb_dsn, tmp_path):
         assert quote.startswith("Copies are kept xxx") and len(quote) == mapper.QUOTE_CHARS
     finally:
         await conn.close()
+
+
+async def test_decisions_are_reused_by_later_runs(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await conn.execute("TRUNCATE map_decisions")
+        first = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        assert (len(client.calls), report.decisions_reused) == (2, 0)  # target + dimension
+        cur = await conn.execute("SELECT kind, phrase, choice, source FROM map_decisions"
+                                 " ORDER BY kind")
+        assert await cur.fetchall() == [
+            ("dimension", "keep copies for ages", "retention.maximum_period", "llm"),
+            ("target", "okta workforce", "okta", "llm")]
+        # the same phrases again, in a new claim and in a full re-map: no call is paid
+        again = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        assert client.calls == [] and report.decisions_reused == 2
+        assert (await _mapping(conn, again))["dimension_id"] == "retention.maximum_period"
+        report = await _run(conn, client, remap=True)
+        assert client.calls == [] and report.claims == 2
+        assert (await _mapping(conn, first))["target_id"] == "okta"
+    finally:
+        await conn.close()
+
+
+async def test_a_decision_is_keyed_on_the_model_family_and_candidates(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await conn.execute("TRUNCATE map_decisions")
+        await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn, FakeOpenAI(), map_model="anthropic/claude-haiku-5.5")
+        client = FakeOpenAI()
+        # the same model under its Anthropic name reuses it; a different model does not
+        await _run(conn, client, remap=True, map_model="claude-haiku-5-5")
+        assert client.calls == []
+        await _run(conn, client, remap=True, map_model="claude-opus-5-5")
+        assert len(client.calls) == 1
+        # other candidates (here: a different number of them) are another question
+        await conn.execute("TRUNCATE map_decisions")
+        await _run(conn, FakeOpenAI(), map_candidates=5)
+        client = FakeOpenAI()
+        await _run(conn, client, remap=True, map_candidates=3)
+        assert len(client.calls) == 1
+    finally:
+        await conn.close()
+
+
+async def test_failed_and_skipped_adjudications_are_not_stored(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await conn.execute("TRUNCATE map_decisions")
+        await _claim(conn, "made up answer", "Okta")  # an invalid reply
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        await _run(conn, max_usd=0.0009, extract_concurrency=1)  # one call fits the budget
+        cur = await conn.execute("SELECT count(*) FROM map_decisions")
+        stored = (await cur.fetchone())[0]
+        assert stored <= 1  # at most the one valid decision the budget allowed
+        cur = await conn.execute("SELECT count(*) FROM map_decisions WHERE phrase ="
+                                 " 'made up answer'")
+        assert (await cur.fetchone())[0] == 0
+    finally:
+        await conn.close()
+
+
+async def test_seed_records_the_decisions_current_mappings_imply(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await conn.execute("TRUNCATE map_decisions")
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        await _claim(conn, "the dashboard thing", "Okta")  # adjudicated to none
+        await _run(conn)
+        await conn.execute("TRUNCATE map_decisions")
+        client = FakeOpenAI()
+        report = await _run(conn, client, seed=True)
+        assert client.calls == [] and report.decisions_seeded == 3
+        cur = await conn.execute("SELECT phrase, choice, source FROM map_decisions ORDER BY 1")
+        assert await cur.fetchall() == [("keep copies for ages", "retention.maximum_period", "seed"),
+                                        ("okta workforce", "okta", "seed"),
+                                        ("the dashboard thing", None, "seed")]
+        before = {c: await _mapping(conn, c) for c in await _ids(conn)}
+        report = await _run(conn, client, remap=True)  # every decision comes from the seed
+        assert client.calls == [] and report.decisions_reused == 3
+        assert {c: await _mapping(conn, c) for c in before} == before
+    finally:
+        await conn.close()
+
+
+async def _ids(conn):
+    cur = await conn.execute("SELECT claim_id FROM raw_claims")
+    return [r[0] for r in await cur.fetchall()]
 
 
 async def test_keys_embedded_once_as_float32(vkb_dsn, tmp_path, monkeypatch):
