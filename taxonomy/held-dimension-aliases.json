@@ -1,0 +1,1169 @@
+{
+ "note": "Round-2 dimension aliases accepted by the blind review (2026-11-08) but held back: each pulls its dimension into the top-5 candidates of many other phrases (reasks, measured without class masks), every such question is asked again, and a broad one can push a phrase's earlier answer out of its candidates. Apply them once candidate search ignores alias-only changes (BACKLOG 31). claims: claims using the phrase.",
+ "aliases": [
+  {
+   "text": "restore vm tags",
+   "dimension": "coverage.attribute_depth",
+   "claims": 23,
+   "reasks": 369
+  },
+  {
+   "text": "azure file share backup",
+   "dimension": "coverage.backup",
+   "claims": 2,
+   "reasks": 327
+  },
+  {
+   "text": "backup of replicated vms",
+   "dimension": "coverage.backup",
+   "claims": 3,
+   "reasks": 1525
+  },
+  {
+   "text": "bitlocker recovery key backup",
+   "dimension": "coverage.backup",
+   "claims": 4,
+   "reasks": 287
+  },
+  {
+   "text": "database backup and recovery",
+   "dimension": "coverage.backup",
+   "claims": 89,
+   "reasks": 770
+  },
+  {
+   "text": "database backup and restore",
+   "dimension": "coverage.backup",
+   "claims": 52,
+   "reasks": 639
+  },
+  {
+   "text": "database instance protection",
+   "dimension": "coverage.backup",
+   "claims": 6,
+   "reasks": 270
+  },
+  {
+   "text": "database protection and recovery",
+   "dimension": "coverage.backup",
+   "claims": 5,
+   "reasks": 202
+  },
+  {
+   "text": "db2 backup and restore",
+   "dimension": "coverage.backup",
+   "claims": 2,
+   "reasks": 142
+  },
+  {
+   "text": "hypervisor backup",
+   "dimension": "coverage.backup",
+   "claims": 28,
+   "reasks": 643
+  },
+  {
+   "text": "key vault protection",
+   "dimension": "coverage.backup",
+   "claims": 2,
+   "reasks": 1914
+  },
+  {
+   "text": "kubernetes cluster backup",
+   "dimension": "coverage.backup",
+   "claims": 10,
+   "reasks": 298
+  },
+  {
+   "text": "linux backup",
+   "dimension": "coverage.backup",
+   "claims": 16,
+   "reasks": 154
+  },
+  {
+   "text": "nas protection",
+   "dimension": "coverage.backup",
+   "claims": 13,
+   "reasks": 280
+  },
+  {
+   "text": "non-csi volume backup",
+   "dimension": "coverage.backup",
+   "claims": 4,
+   "reasks": 468
+  },
+  {
+   "text": "object versioning backup",
+   "dimension": "coverage.backup",
+   "claims": 2,
+   "reasks": 235
+  },
+  {
+   "text": "rdm and independent disk backup",
+   "dimension": "coverage.backup",
+   "claims": 7,
+   "reasks": 353
+  },
+  {
+   "text": "read-only volume backup",
+   "dimension": "coverage.backup",
+   "claims": 3,
+   "reasks": 661
+  },
+  {
+   "text": "sharepoint online backup",
+   "dimension": "coverage.backup",
+   "claims": 3,
+   "reasks": 203
+  },
+  {
+   "text": "storage account protection",
+   "dimension": "coverage.backup",
+   "claims": 8,
+   "reasks": 503
+  },
+  {
+   "text": "template vm backup",
+   "dimension": "coverage.backup",
+   "claims": 7,
+   "reasks": 126
+  },
+  {
+   "text": "vm configuration backup",
+   "dimension": "coverage.backup",
+   "claims": 5,
+   "reasks": 374
+  },
+  {
+   "text": "vm protection",
+   "dimension": "coverage.backup",
+   "claims": 41,
+   "reasks": 126
+  },
+  {
+   "text": "vm template backup",
+   "dimension": "coverage.backup",
+   "claims": 12,
+   "reasks": 535
+  },
+  {
+   "text": "backup of fault tolerant virtual machines",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 3,
+   "reasks": 1038
+  },
+  {
+   "text": "cluster-aware backup",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 14,
+   "reasks": 1621
+  },
+  {
+   "text": "dag node backup",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 15,
+   "reasks": 197
+  },
+  {
+   "text": "failover cluster backup and restore",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 4,
+   "reasks": 863
+  },
+  {
+   "text": "failover cluster protection",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 3,
+   "reasks": 1610
+  },
+  {
+   "text": "fault tolerant virtual machine backup",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 3,
+   "reasks": 1200
+  },
+  {
+   "text": "multi-node rac backup",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 2,
+   "reasks": 378
+  },
+  {
+   "text": "shared disk backup",
+   "dimension": "coverage.clustered_configurations",
+   "claims": 3,
+   "reasks": 2104
+  },
+  {
+   "text": "selective backup",
+   "dimension": "coverage.configurable_exclusions",
+   "claims": 3,
+   "reasks": 1241
+  },
+  {
+   "text": "vm selection by name",
+   "dimension": "coverage.configurable_exclusions",
+   "claims": 2,
+   "reasks": 444
+  },
+  {
+   "text": "bitlocker encrypted volume backup",
+   "dimension": "coverage.encrypted_source_data",
+   "claims": 3,
+   "reasks": 587
+  },
+  {
+   "text": "transparent data encryption support",
+   "dimension": "coverage.encrypted_source_data",
+   "claims": 2,
+   "reasks": 1250
+  },
+  {
+   "text": "flat file restore",
+   "dimension": "coverage.export",
+   "claims": 6,
+   "reasks": 340
+  },
+  {
+   "text": "archive mailbox restore",
+   "dimension": "coverage.restore",
+   "claims": 8,
+   "reasks": 824
+  },
+  {
+   "text": "backup restore",
+   "dimension": "coverage.restore",
+   "claims": 14,
+   "reasks": 3622
+  },
+  {
+   "text": "bitlocker key restore",
+   "dimension": "coverage.restore",
+   "claims": 2,
+   "reasks": 260
+  },
+  {
+   "text": "cluster recovery",
+   "dimension": "coverage.restore",
+   "claims": 9,
+   "reasks": 964
+  },
+  {
+   "text": "file share restore",
+   "dimension": "coverage.restore",
+   "claims": 6,
+   "reasks": 1244
+  },
+  {
+   "text": "hypervisor support",
+   "dimension": "coverage.workload_variants",
+   "claims": 7,
+   "reasks": 1107
+  },
+  {
+   "text": "virtual infrastructure support",
+   "dimension": "coverage.workload_variants",
+   "claims": 3,
+   "reasks": 1132
+  },
+  {
+   "text": "malware scanning of backup data",
+   "dimension": "cyber.detection_signatures",
+   "claims": 3,
+   "reasks": 127
+  },
+  {
+   "text": "malware scanning of backups",
+   "dimension": "cyber.detection_signatures",
+   "claims": 10,
+   "reasks": 205
+  },
+  {
+   "text": "on-demand malware scanning",
+   "dimension": "cyber.detection_signatures",
+   "claims": 5,
+   "reasks": 125
+  },
+  {
+   "text": "scheduled malware scan",
+   "dimension": "cyber.detection_signatures",
+   "claims": 4,
+   "reasks": 266
+  },
+  {
+   "text": "block restore of tagged snapshots",
+   "dimension": "cyber.quarantine",
+   "claims": 3,
+   "reasks": 214
+  },
+  {
+   "text": "service verification",
+   "dimension": "cyber.recoverability_testing",
+   "claims": 17,
+   "reasks": 312
+  },
+  {
+   "text": "boot priority ordering",
+   "dimension": "cyber.recovery_orchestration",
+   "claims": 2,
+   "reasks": 404
+  },
+  {
+   "text": "recovery run books",
+   "dimension": "cyber.recovery_orchestration",
+   "claims": 2,
+   "reasks": 4
+  },
+  {
+   "text": "hard delete archived records",
+   "dimension": "governance.archiving",
+   "claims": 2,
+   "reasks": 223
+  },
+  {
+   "text": "stubbing",
+   "dimension": "governance.archiving",
+   "claims": 11,
+   "reasks": 195
+  },
+  {
+   "text": "mip labeling",
+   "dimension": "governance.classification",
+   "claims": 6,
+   "reasks": 358
+  },
+  {
+   "text": "command-line backup",
+   "dimension": "operations.api_automation",
+   "claims": 5,
+   "reasks": 613
+  },
+  {
+   "text": "command-line backup script",
+   "dimension": "operations.api_automation",
+   "claims": 2,
+   "reasks": 325
+  },
+  {
+   "text": "powershell backup job submission",
+   "dimension": "operations.api_automation",
+   "claims": 11,
+   "reasks": 244
+  },
+  {
+   "text": "ransomware detection dashboard",
+   "dimension": "operations.dashboards",
+   "claims": 6,
+   "reasks": 549
+  },
+  {
+   "text": "vm deployment",
+   "dimension": "operations.deployment_platform",
+   "claims": 9,
+   "reasks": 611
+  },
+  {
+   "text": "group policy deployment",
+   "dimension": "operations.deployment_upgrade",
+   "claims": 3,
+   "reasks": 546
+  },
+  {
+   "text": "hotfix rollback",
+   "dimension": "operations.deployment_upgrade",
+   "claims": 2,
+   "reasks": 187
+  },
+  {
+   "text": "update rollback",
+   "dimension": "operations.deployment_upgrade",
+   "claims": 2,
+   "reasks": 226
+  },
+  {
+   "text": "job resume",
+   "dimension": "operations.job_retry_resume",
+   "claims": 2,
+   "reasks": 284
+  },
+  {
+   "text": "grafana alerting",
+   "dimension": "operations.metrics_export",
+   "claims": 2,
+   "reasks": 595
+  },
+  {
+   "text": "customer account management",
+   "dimension": "operations.multi_tenant_management",
+   "claims": 2,
+   "reasks": 579
+  },
+  {
+   "text": "certificate expiration alert",
+   "dimension": "operations.notifications",
+   "claims": 2,
+   "reasks": 126
+  },
+  {
+   "text": "certificate expiration warning",
+   "dimension": "operations.notifications",
+   "claims": 2,
+   "reasks": 435
+  },
+  {
+   "text": "certificate expiry alert",
+   "dimension": "operations.notifications",
+   "claims": 5,
+   "reasks": 335
+  },
+  {
+   "text": "disk space low alert",
+   "dimension": "operations.notifications",
+   "claims": 8,
+   "reasks": 90
+  },
+  {
+   "text": "license expiration alert",
+   "dimension": "operations.notifications",
+   "claims": 15,
+   "reasks": 538
+  },
+  {
+   "text": "license expiration notification",
+   "dimension": "operations.notifications",
+   "claims": 2,
+   "reasks": 461
+  },
+  {
+   "text": "low disk space alert",
+   "dimension": "operations.notifications",
+   "claims": 7,
+   "reasks": 244
+  },
+  {
+   "text": "malware detection alerts",
+   "dimension": "operations.notifications",
+   "claims": 3,
+   "reasks": 1702
+  },
+  {
+   "text": "quota alert threshold",
+   "dimension": "operations.notifications",
+   "claims": 6,
+   "reasks": 784
+  },
+  {
+   "text": "storage capacity alerts",
+   "dimension": "operations.notifications",
+   "claims": 2,
+   "reasks": 1220
+  },
+  {
+   "text": "storage utilization alerts",
+   "dimension": "operations.notifications",
+   "claims": 4,
+   "reasks": 1855
+  },
+  {
+   "text": "backup performance tuning",
+   "dimension": "operations.performance_controls",
+   "claims": 2,
+   "reasks": 587
+  },
+  {
+   "text": "backup performance tuning parameters",
+   "dimension": "operations.performance_controls",
+   "claims": 2,
+   "reasks": 122
+  },
+  {
+   "text": "configurable block size for backup and restore",
+   "dimension": "operations.performance_controls",
+   "claims": 4,
+   "reasks": 283
+  },
+  {
+   "text": "integrated customer billing",
+   "dimension": "operations.psa_integration",
+   "claims": 17,
+   "reasks": 578
+  },
+  {
+   "text": "data usage reporting",
+   "dimension": "operations.reports",
+   "claims": 3,
+   "reasks": 818
+  },
+  {
+   "text": "disk space reporting",
+   "dimension": "operations.reports",
+   "claims": 3,
+   "reasks": 463
+  },
+  {
+   "text": "failed objects reporting",
+   "dimension": "operations.reports",
+   "claims": 3,
+   "reasks": 98
+  },
+  {
+   "text": "malware scan report",
+   "dimension": "operations.reports",
+   "claims": 3,
+   "reasks": 1009
+  },
+  {
+   "text": "malware scan summary report",
+   "dimension": "operations.reports",
+   "claims": 4,
+   "reasks": 192
+  },
+  {
+   "text": "report data retention",
+   "dimension": "operations.reports",
+   "claims": 15,
+   "reasks": 206
+  },
+  {
+   "text": "index restore",
+   "dimension": "operations.self_protection",
+   "claims": 6,
+   "reasks": 306
+  },
+  {
+   "text": "scheduled catalog backup",
+   "dimension": "operations.self_protection",
+   "claims": 2,
+   "reasks": 707
+  },
+  {
+   "text": "self-backup",
+   "dimension": "operations.self_protection",
+   "claims": 5,
+   "reasks": 449
+  },
+  {
+   "text": "server database backup",
+   "dimension": "operations.self_protection",
+   "claims": 6,
+   "reasks": 1874
+  },
+  {
+   "text": "policy compliance status",
+   "dimension": "operations.sla_compliance_tracking",
+   "claims": 3,
+   "reasks": 884
+  },
+  {
+   "text": "web browser file restore",
+   "dimension": "operations.web_console",
+   "claims": 2,
+   "reasks": 196
+  },
+  {
+   "text": "web browser restore",
+   "dimension": "operations.web_console",
+   "claims": 4,
+   "reasks": 95
+  },
+  {
+   "text": "web ui restore",
+   "dimension": "operations.web_console",
+   "claims": 3,
+   "reasks": 205
+  },
+  {
+   "text": "api-based backup and restore",
+   "dimension": "protection.api_based_collection",
+   "claims": 3,
+   "reasks": 1942
+  },
+  {
+   "text": "exchange web services backup",
+   "dimension": "protection.api_based_collection",
+   "claims": 5,
+   "reasks": 260
+  },
+  {
+   "text": "crash-consistent backup",
+   "dimension": "protection.application_consistent",
+   "claims": 28,
+   "reasks": 31
+  },
+  {
+   "text": "crash-consistent snapshot fallback",
+   "dimension": "protection.application_consistent",
+   "claims": 3,
+   "reasks": 128
+  },
+  {
+   "text": "crash-consistent vm backup",
+   "dimension": "protection.application_consistent",
+   "claims": 3,
+   "reasks": 830
+  },
+  {
+   "text": "file system consistent backup",
+   "dimension": "protection.application_consistent",
+   "claims": 4,
+   "reasks": 1041
+  },
+  {
+   "text": "vmware quiescing",
+   "dimension": "protection.application_consistent",
+   "claims": 6,
+   "reasks": 429
+  },
+  {
+   "text": "vmware tools quiescing",
+   "dimension": "protection.application_consistent",
+   "claims": 5,
+   "reasks": 123
+  },
+  {
+   "text": "volume shadow copy backup",
+   "dimension": "protection.application_consistent",
+   "claims": 2,
+   "reasks": 212
+  },
+  {
+   "text": "backup copy to cloud",
+   "dimension": "protection.backup_copy",
+   "claims": 6,
+   "reasks": 1002
+  },
+  {
+   "text": "recovery point copy",
+   "dimension": "protection.backup_copy",
+   "claims": 6,
+   "reasks": 1835
+  },
+  {
+   "text": "cbt backup",
+   "dimension": "protection.changed_block_tracking",
+   "claims": 2,
+   "reasks": 62
+  },
+  {
+   "text": "resource synchronization interval",
+   "dimension": "protection.discovery_auto_protection",
+   "claims": 9,
+   "reasks": 1015
+  },
+  {
+   "text": "site collection discovery",
+   "dimension": "protection.discovery_auto_protection",
+   "claims": 2,
+   "reasks": 304
+  },
+  {
+   "text": "vm migration detection",
+   "dimension": "protection.discovery_auto_protection",
+   "claims": 6,
+   "reasks": 1345
+  },
+  {
+   "text": "copy-only database backup",
+   "dimension": "protection.incremental_backup",
+   "claims": 2,
+   "reasks": 696
+  },
+  {
+   "text": "full database backup",
+   "dimension": "protection.incremental_backup",
+   "claims": 26,
+   "reasks": 757
+  },
+  {
+   "text": "full snapshot",
+   "dimension": "protection.incremental_backup",
+   "claims": 5,
+   "reasks": 301
+  },
+  {
+   "text": "dedicated backup network",
+   "dimension": "protection.lan_free_transfer",
+   "claims": 12,
+   "reasks": 458
+  },
+  {
+   "text": "san backup",
+   "dimension": "protection.lan_free_transfer",
+   "claims": 2,
+   "reasks": 1133
+  },
+  {
+   "text": "cluster aware backup extension",
+   "dimension": "protection.ndmp_backup",
+   "claims": 3,
+   "reasks": 611
+  },
+  {
+   "text": "ndmp multiplexing",
+   "dimension": "protection.ndmp_backup",
+   "claims": 6,
+   "reasks": 674
+  },
+  {
+   "text": "block-level replication",
+   "dimension": "protection.replication",
+   "claims": 3,
+   "reasks": 464
+  },
+  {
+   "text": "continuous restore",
+   "dimension": "protection.replication",
+   "claims": 30,
+   "reasks": 367
+  },
+  {
+   "text": "database snapshot backup",
+   "dimension": "protection.snapshot",
+   "claims": 4,
+   "reasks": 1883
+  },
+  {
+   "text": "snapshot backups",
+   "dimension": "protection.snapshot",
+   "claims": 8,
+   "reasks": 3131
+  },
+  {
+   "text": "hardware snapshot backup",
+   "dimension": "protection.storage_array_integration",
+   "claims": 4,
+   "reasks": 414
+  },
+  {
+   "text": "storage system integration",
+   "dimension": "protection.storage_array_integration",
+   "claims": 22,
+   "reasks": 662
+  },
+  {
+   "text": "san mode restore",
+   "dimension": "protection.transport_modes",
+   "claims": 2,
+   "reasks": 317
+  },
+  {
+   "text": "cross-client restore",
+   "dimension": "recovery.alternate_location",
+   "claims": 3,
+   "reasks": 439
+  },
+  {
+   "text": "cross-cluster backup and restore",
+   "dimension": "recovery.alternate_location",
+   "claims": 9,
+   "reasks": 1076
+  },
+  {
+   "text": "cross-cluster recovery",
+   "dimension": "recovery.alternate_location",
+   "claims": 5,
+   "reasks": 1747
+  },
+  {
+   "text": "cross-cluster restore",
+   "dimension": "recovery.alternate_location",
+   "claims": 3,
+   "reasks": 748
+  },
+  {
+   "text": "cross-device restore",
+   "dimension": "recovery.alternate_location",
+   "claims": 2,
+   "reasks": 520
+  },
+  {
+   "text": "restore to different mailbox",
+   "dimension": "recovery.alternate_location",
+   "claims": 6,
+   "reasks": 519
+  },
+  {
+   "text": "restore to original or new location",
+   "dimension": "recovery.alternate_location",
+   "claims": 23,
+   "reasks": 17
+  },
+  {
+   "text": "system copy restore",
+   "dimension": "recovery.alternate_location",
+   "claims": 6,
+   "reasks": 1021
+  },
+  {
+   "text": "recovery media creation",
+   "dimension": "recovery.bare_metal",
+   "claims": 16,
+   "reasks": 222
+  },
+  {
+   "text": "restore from comparison results",
+   "dimension": "recovery.comparison_tooling",
+   "claims": 3,
+   "reasks": 58
+  },
+  {
+   "text": "non-destructive restore",
+   "dimension": "recovery.conflict_handling",
+   "claims": 15,
+   "reasks": 527
+  },
+  {
+   "text": "recovery to cloud",
+   "dimension": "recovery.cross_platform",
+   "claims": 15,
+   "reasks": 533
+  },
+  {
+   "text": "virtual machine conversion",
+   "dimension": "recovery.cross_platform",
+   "claims": 4,
+   "reasks": 449
+  },
+  {
+   "text": "restore as vhd",
+   "dimension": "recovery.export_formats",
+   "claims": 4,
+   "reasks": 955
+  },
+  {
+   "text": "vmdk image export",
+   "dimension": "recovery.export_formats",
+   "claims": 4,
+   "reasks": 460
+  },
+  {
+   "text": "disk recovery",
+   "dimension": "recovery.granularity",
+   "claims": 5,
+   "reasks": 319
+  },
+  {
+   "text": "exclude objects from restore",
+   "dimension": "recovery.granularity",
+   "claims": 2,
+   "reasks": 175
+  },
+  {
+   "text": "recovery of on-premises synced objects",
+   "dimension": "recovery.hybrid_identity",
+   "claims": 4,
+   "reasks": 231
+  },
+  {
+   "text": "rollback restore",
+   "dimension": "recovery.in_place",
+   "claims": 15,
+   "reasks": 1250
+  },
+  {
+   "text": "public ip address assignment on restore",
+   "dimension": "recovery.network_settings",
+   "claims": 2,
+   "reasks": 3
+  },
+  {
+   "text": "restore without network connection",
+   "dimension": "recovery.network_settings",
+   "claims": 7,
+   "reasks": 403
+  },
+  {
+   "text": "security group association on recovery",
+   "dimension": "recovery.network_settings",
+   "claims": 3,
+   "reasks": 338
+  },
+  {
+   "text": "restore from specific backup",
+   "dimension": "recovery.point_in_time",
+   "claims": 2,
+   "reasks": 3121
+  },
+  {
+   "text": "snapshot selection for recovery",
+   "dimension": "recovery.point_in_time",
+   "claims": 3,
+   "reasks": 965
+  },
+  {
+   "text": "restore hooks",
+   "dimension": "recovery.pre_post_scripts",
+   "claims": 5,
+   "reasks": 106
+  },
+  {
+   "text": "storage class mapping",
+   "dimension": "recovery.resource_transforms",
+   "claims": 5,
+   "reasks": 753
+  },
+  {
+   "text": "storage class mapping on restore",
+   "dimension": "recovery.resource_transforms",
+   "claims": 3,
+   "reasks": 398
+  },
+  {
+   "text": "automatic backup expiration",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 270
+  },
+  {
+   "text": "automatic backup expiration and deletion",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 172
+  },
+  {
+   "text": "automatic deletion of expired backups",
+   "dimension": "retention.granularity",
+   "claims": 2,
+   "reasks": 105
+  },
+  {
+   "text": "automatic removal of expired recovery points",
+   "dimension": "retention.granularity",
+   "claims": 2,
+   "reasks": 97
+  },
+  {
+   "text": "automatic retention-based deletion",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 541
+  },
+  {
+   "text": "backup policy retention",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 220
+  },
+  {
+   "text": "configurable retention policies",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 168
+  },
+  {
+   "text": "custom retention policies",
+   "dimension": "retention.granularity",
+   "claims": 24,
+   "reasks": 82
+  },
+  {
+   "text": "expiration-based retention",
+   "dimension": "retention.granularity",
+   "claims": 2,
+   "reasks": 173
+  },
+  {
+   "text": "recovery window",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 452
+  },
+  {
+   "text": "retention management",
+   "dimension": "retention.granularity",
+   "claims": 5,
+   "reasks": 207
+  },
+  {
+   "text": "retention policy enforcement",
+   "dimension": "retention.granularity",
+   "claims": 6,
+   "reasks": 124
+  },
+  {
+   "text": "retention-based backup deletion",
+   "dimension": "retention.granularity",
+   "claims": 8,
+   "reasks": 777
+  },
+  {
+   "text": "retention-based pruning",
+   "dimension": "retention.granularity",
+   "claims": 3,
+   "reasks": 148
+  },
+  {
+   "text": "retention-based purge",
+   "dimension": "retention.granularity",
+   "claims": 2,
+   "reasks": 363
+  },
+  {
+   "text": "backup retention period",
+   "dimension": "retention.maximum_period",
+   "claims": 7,
+   "reasks": 2546
+  },
+  {
+   "text": "long-term retention",
+   "dimension": "retention.maximum_period",
+   "claims": 15,
+   "reasks": 14
+  },
+  {
+   "text": "maximum recovery points",
+   "dimension": "retention.maximum_period",
+   "claims": 4,
+   "reasks": 964
+  },
+  {
+   "text": "permanent retention",
+   "dimension": "retention.maximum_period",
+   "claims": 15,
+   "reasks": 40
+  },
+  {
+   "text": "run scheduled job immediately",
+   "dimension": "schedule.on_demand",
+   "claims": 2,
+   "reasks": 403
+  },
+  {
+   "text": "backup window enforcement",
+   "dimension": "schedule.pause_resume",
+   "claims": 8,
+   "reasks": 595
+  },
+  {
+   "text": "job hold",
+   "dimension": "schedule.pause_resume",
+   "claims": 3,
+   "reasks": 590
+  },
+  {
+   "text": "automatic backup",
+   "dimension": "schedule.types",
+   "claims": 22,
+   "reasks": 453
+  },
+  {
+   "text": "scheduled protection policies",
+   "dimension": "schedule.types",
+   "claims": 3,
+   "reasks": 1040
+  },
+  {
+   "text": "vendor-managed encryption",
+   "dimension": "security.customer_managed_keys",
+   "claims": 2,
+   "reasks": 45
+  },
+  {
+   "text": "envelope encryption",
+   "dimension": "security.encryption_at_rest",
+   "claims": 2,
+   "reasks": 275
+  },
+  {
+   "text": "ssl certificate verification",
+   "dimension": "security.encryption_in_transit",
+   "claims": 5,
+   "reasks": 97
+  },
+  {
+   "text": "worm protection",
+   "dimension": "security.immutability",
+   "claims": 2,
+   "reasks": 237
+  },
+  {
+   "text": "worm retention period",
+   "dimension": "security.immutability_period",
+   "claims": 4,
+   "reasks": 135
+  },
+  {
+   "text": "quorum group configuration",
+   "dimension": "security.multi_person_authorization",
+   "claims": 3,
+   "reasks": 406
+  },
+  {
+   "text": "quorum group management",
+   "dimension": "security.multi_person_authorization",
+   "claims": 3,
+   "reasks": 481
+  },
+  {
+   "text": "quorum group operation templates",
+   "dimension": "security.multi_person_authorization",
+   "claims": 12,
+   "reasks": 48
+  },
+  {
+   "text": "ddos protection",
+   "dimension": "security.platform_hardening",
+   "claims": 3,
+   "reasks": 314
+  },
+  {
+   "text": "compliance and review officer role",
+   "dimension": "security.rbac",
+   "claims": 2,
+   "reasks": 41
+  },
+  {
+   "text": "data protection officer role",
+   "dimension": "security.rbac",
+   "claims": 7,
+   "reasks": 41
+  },
+  {
+   "text": "vendor-provided storage",
+   "dimension": "storage.bring_your_own_storage",
+   "claims": 2,
+   "reasks": 261
+  },
+  {
+   "text": "distributed segment processing",
+   "dimension": "storage.data_reduction",
+   "claims": 5,
+   "reasks": 303
+  },
+  {
+   "text": "multi-geo backup",
+   "dimension": "storage.multi_geo",
+   "claims": 23,
+   "reasks": 1320
+  },
+  {
+   "text": "dd boost integration",
+   "dimension": "storage.repository_types",
+   "claims": 8,
+   "reasks": 125
+  },
+  {
+   "text": "barcode reading",
+   "dimension": "storage.tape",
+   "claims": 2,
+   "reasks": 214
+  },
+  {
+   "text": "barcode verification",
+   "dimension": "storage.tape",
+   "claims": 2,
+   "reasks": 281
+  },
+  {
+   "text": "worm media detection",
+   "dimension": "storage.tape",
+   "claims": 2,
+   "reasks": 89
+  },
+  {
+   "text": "lifecycle rules",
+   "dimension": "storage.tiering",
+   "claims": 18,
+   "reasks": 434
+  }
+ ]
+}

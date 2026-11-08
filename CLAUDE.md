@@ -90,7 +90,11 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   and target precision 0.98. `taxonomy map` maps only claims not yet stamped with the
   current taxonomy version (`mapped_version`), so earlier decisions are kept; `--all` re-maps
   every claim. Claims waiting on a skipped or failed adjudication stay unstamped and are
-  retried on the next run.
+  retried on the next run. Decisions persist in `map_decisions` (a new candidate makes a new
+  question): with nothing new offered the earlier answer is carried, and a re-asked target
+  answered none keeps an earlier answer still offered. Every alias is a candidate-search key,
+  so a new alias re-asks many questions (BACKLOG 31): run `taxonomy map --max-usd 0` after a
+  load to count them (`skipped_by_budget`) before a paid re-map.
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
   product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
   facts never appear as target facts.
