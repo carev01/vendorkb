@@ -27,6 +27,30 @@ def approx_tokens(text: str) -> int:
     return len(text) // 4
 
 
+_MONTHS = ("jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+           "|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?")
+_WHEN = (r"(?:\d{4}\\?-\d{1,2}\\?-\d{1,2}(?:[T ]\d{1,2}:\d{2}(?::\d{2})?Z?)?"  # ISO-like
+         rf"|(?:{_MONTHS})\.? \d{{1,2}}, \d{{4}}"
+         r"|today|yesterday|this week|last week"
+         r"|\d+ (?:minutes?|hours?|days?|weeks?|months?|years?) ago"
+         r"|a (?:day|week|month|year) ago)")
+# A line that only says when the page was updated (run on text whose spaces are collapsed).
+# Never a bare "Updated ..." line: that is a changelog entry.
+_DATE_LINE = re.compile(rf"^ ?(?:last )?updated(?: ?:| on)? ?{_WHEN} ?$",
+                        re.IGNORECASE | re.MULTILINE)
+_SPACES = re.compile(r"[^\S\n]+")  # whitespace within a line
+_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+
+
+def reuse_key(text: str) -> str:
+    """The text with what re-syncs change without changing a fact removed: date lines
+    ("Last Updated ..."), markdown link and image targets, backslash escapes and whitespace.
+    Two chunk texts with equal keys say the same thing."""
+    text = _DATE_LINE.sub("", _SPACES.sub(" ", text))
+    text = _LINK.sub(r"\1", text)
+    return " ".join(text.replace("\\", "").split())
+
+
 @dataclass
 class _Block:
     text: str

@@ -29,6 +29,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import aclosing
 from dataclasses import dataclass, field, replace
 from functools import partial
+from typing import cast
 
 import httpx
 import psycopg
@@ -52,6 +53,7 @@ class SyncReport:
     mode: str
     records: int = 0
     written: int = 0
+    chunks_reused: int = 0  # chunks of updated pages that kept their facts (same text)
     unchanged: int = 0
     metadata_updated: int = 0
     removed: int = 0
@@ -347,10 +349,11 @@ class _Run:
         r.metadata_updated += counts["metadata_updated"]
         r.failed += counts["failed"]
         r.written += counts["written"]
-        logger.info("%s page %s..%s committed: written=%d unchanged=%d removed=%d failed=%d "
-                    "tokens=%d", r.mode, page[0].doc_id, page[-1].doc_id, counts["written"],
-                    counts["unchanged"], counts["removed"], counts["failed"],
-                    self.budget_tokens())
+        r.chunks_reused += counts["chunks_reused"]
+        logger.info("%s page %s..%s committed: written=%d chunks_reused=%d unchanged=%d "
+                    "removed=%d failed=%d tokens=%d", r.mode, page[0].doc_id, page[-1].doc_id,
+                    counts["written"], counts["chunks_reused"], counts["unchanged"],
+                    counts["removed"], counts["failed"], self.budget_tokens())
 
     async def _apply_page(self, page: list[Item], deletes: list[uuid.UUID],
                           unchanged: list[DocMeta], writes: list[_Write],
@@ -503,7 +506,7 @@ class _Run:
         failures = list(failures)
         settled: list[uuid.UUID] = []
         counts = dict.fromkeys(
-            ("removed", "unchanged", "metadata_updated", "written"), 0)
+            ("removed", "unchanged", "metadata_updated", "written", "chunks_reused"), 0)
 
         async def one(doc_id: uuid.UUID, op: Callable[[], Awaitable[object]]) -> object:
             if not isolate:
@@ -541,6 +544,7 @@ class _Run:
             res = await one(meta.doc_id, partial(write_document, conn, meta, h, chunks, vecs))
             if res is not _FAILED:
                 counts["written"] += 1
+                counts["chunks_reused"] += cast(int, res)
         if quarantine and quarantine.to_write >= 2 and not counts["written"]:
             # Systemic, not per-record: roll the page back; it is refused until it changes.
             raise _QuarantineFailed(f"quarantine: every record on the page failed "

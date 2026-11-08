@@ -1,4 +1,6 @@
-from vendorkb.chunker import Chunk, approx_tokens, chunk_markdown
+import pytest
+
+from vendorkb.chunker import Chunk, approx_tokens, chunk_markdown, reuse_key
 
 
 def para(n_tokens: int, word: str = "word") -> str:
@@ -142,3 +144,29 @@ def test_title_only_chunk_prefix_does_not_repeat_title():
     chunks = chunk_markdown("T", para(400) + "\n")
     assert chunks[0].text.startswith("T\n\n")
     assert not chunks[0].text.startswith("T\nT\n")
+
+
+@pytest.mark.parametrize("a, b", [
+    ("one two\nthree", "one  two three\n\n"),
+    ("See [List Media](list_media.html).", "See [List Media](./list_media.html)."),
+    ("![AIX](https://x/a.gif)", "![AIX](/media/1/a.gif)"),
+    ("Dated 2026\\-03\\-26", "Dated 2026-03-26"),
+    ("Intro\nLast Updated: 2026\\-03\\-26\nBody", "Intro\nLast Updated: 2026\\-07\\-31\nBody"),
+    ("Intro\nUpdated this week\nBody", "Intro\nUpdated yesterday\nBody"),
+    ("Intro\nLast updated on March 5, 2026\nBody", "Intro\nUpdated 3 days ago\nBody"),
+    ("Intro\nUpdated: 2026-03-26 10:15\nBody", "Intro\nBody"),
+    ("Intro\nupdated a week ago\nBody", "Intro\nBody"),
+])
+def test_reuse_key_ignores_cosmetic_differences(a, b):
+    assert reuse_key(a) == reuse_key(b)
+
+
+@pytest.mark.parametrize("a, b", [
+    ("Updated support for Proxmox VE", "Updated support for Hyper-V"),
+    ("| Supported |", "| Supported for Linux x86_64 only |"),
+    ("See [List Media](a.html).", "See [Media list](a.html)."),
+    ("Updated 2026-03-26 by the team", "Updated 2026-07-31 by the team"),
+    ("Updated settings", "Updated options"),
+])
+def test_reuse_key_keeps_real_differences(a, b):
+    assert reuse_key(a) != reuse_key(b)

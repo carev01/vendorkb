@@ -1,5 +1,6 @@
-"""A re-synced page keeps the chunks that carry facts (superseded) until its new version is
-extracted and mapped (``store.write_document`` / ``store.retire_superseded``).
+"""A re-synced page keeps a chunk whose text is unchanged, with its facts, and keeps the dropped
+chunks that carry mapped facts (superseded) until its new version is extracted and mapped
+(``store.write_document`` / ``store.retire_superseded``).
 
 Every name and text here is invented for the tests."""
 import uuid
@@ -33,6 +34,16 @@ async def _write(conn, meta: DocMeta, n: int, tag: str) -> list[uuid.UUID]:
     return await _current(conn, meta.doc_id)
 
 
+async def _write_texts(conn, meta: DocMeta, texts: list[str], vec: Vector = VEC,
+                       token_count: int = 3) -> tuple[int, list[uuid.UUID]]:
+    """Write a version whose chunks have exactly these texts; the number ``write_document``
+    reused, and the document's current chunk ids by ordinal."""
+    chunks = [Chunk(section_path=("T",), ordinal=i, text=t, token_count=token_count)
+              for i, t in enumerate(texts)]
+    reused = await write_document(conn, meta, f"hash-{texts}", chunks, [vec] * len(texts))
+    return reused, await _current(conn, meta.doc_id)
+
+
 async def _current(conn, doc_id: uuid.UUID) -> list[uuid.UUID]:
     cur = await conn.execute("SELECT chunk_id FROM chunks WHERE doc_id = %s"
                              " AND superseded_at IS NULL ORDER BY ordinal", (doc_id,))
@@ -46,9 +57,11 @@ async def _superseded(conn, doc_id: uuid.UUID) -> list[uuid.UUID]:
 
 
 async def _extract(conn, chunk_id: uuid.UUID, *, claim_mapped: str | None | bool = False,
-                   status: str = "done", prompt_version: str = FAMILY) -> uuid.UUID | None:
-    """An extraction of the chunk; ``claim_mapped`` False adds no claim, else one claim whose
-    ``mapped_version`` is that value (None = not mapped yet). Returns the claim id."""
+                   status: str = "done", prompt_version: str = FAMILY,
+                   quote: str = "quote") -> uuid.UUID | None:
+    """An extraction of the chunk; ``claim_mapped`` False adds no claim, else one claim quoting
+    ``quote`` whose ``mapped_version`` is that value (None = not mapped yet). Returns the
+    claim id."""
     ext_id = uuid.uuid4()
     await conn.execute(
         "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
@@ -59,8 +72,8 @@ async def _extract(conn, chunk_id: uuid.UUID, *, claim_mapped: str | None | bool
     await conn.execute(
         "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor, product,"
         " capability_raw, support, evidence_quote, gate, extractor_model, prompt_version,"
-        " mapped_version) VALUES (%s,%s,%s,'V','P','a capability','supported','quote',"
-        "'exact','m',%s,%s)", (claim_id, ext_id, chunk_id, prompt_version, claim_mapped))
+        " mapped_version) VALUES (%s,%s,%s,'V','P','a capability','supported',%s,"
+        "'exact','m',%s,%s)", (claim_id, ext_id, chunk_id, quote, prompt_version, claim_mapped))
     return claim_id
 
 
@@ -79,16 +92,18 @@ async def test_an_update_keeps_the_extracted_version_until_the_new_one_is_mapped
         claim = await _extract(conn, v1[0], claim_mapped=version)
         await _extract(conn, v1[1])  # done, no claim
 
-        # v2: v1's chunks stay, superseded, with their claim; v2's chunks are current
+        # v2: v1's chunk with a mapped claim stays, superseded, with its claim; the one
+        # without a claim is deleted; v2's chunks are current
         v2 = await _write(conn, meta, 2, "v2")
-        assert await _superseded(conn, doc_id) == v1
+        assert await _superseded(conn, doc_id) == [v1[0]]
+        assert await _count(conn, "SELECT count(*) FROM chunks WHERE chunk_id = %s", v1[1]) == 0
         assert len(v2) == 2 and not set(v1) & set(v2)
         assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
                             claim) == 1
 
         # v3 before v2 was extracted: v2 carried no fact, so it is simply replaced
         v3 = await _write(conn, meta, 1, "v3")
-        assert await _superseded(conn, doc_id) == v1
+        assert await _superseded(conn, doc_id) == [v1[0]]
         assert await _count(conn, "SELECT count(*) FROM chunks WHERE chunk_id = ANY(%s)",
                             v2) == 0
         assert len(v3) == 1
@@ -105,7 +120,7 @@ async def test_an_update_keeps_the_extracted_version_until_the_new_one_is_mapped
         # mapped under the current version: v1 is retired, claim and all
         await conn.execute("UPDATE raw_claims SET mapped_version = %s WHERE claim_id = %s",
                            (version, new_claim))
-        assert await retire_superseded(conn, version) == len(v1)
+        assert await retire_superseded(conn, version) == 1
         assert await _superseded(conn, doc_id) == []
         assert await _current(conn, doc_id) == v3
         assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
@@ -130,7 +145,7 @@ async def test_a_second_update_never_drops_the_facts_in_the_table(vkb_dsn):
         v2 = await _write(conn, meta, 2, "v2")
         await _extract(conn, v2[0], claim_mapped=None)
         v3 = await _write(conn, meta, 1, "v3")
-        assert await _superseded(conn, doc_id) == v1
+        assert await _superseded(conn, doc_id) == [v1[0]]
         assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
                             claim) == 1
         assert await _count(conn, "SELECT count(*) FROM chunks WHERE chunk_id = ANY(%s)",
@@ -139,8 +154,8 @@ async def test_a_second_update_never_drops_the_facts_in_the_table(vkb_dsn):
         # the facts in the table are still v1's, never an unmapped v2's
         assert await _count(conn, "SELECT count(*) FROM raw_claims") == 1
 
-        # the same when v2 was fully extracted and mapped but not retired before v3: the
-        # accepted cost of keeping one superseded set, v2's facts are re-extracted with v3
+        # when v2 was fully extracted and mapped but not retired before v3, v2's chunk stays
+        # superseded too: both versions' facts stay until v3 is mapped
         doc2 = uuid.uuid4()
         meta2 = _meta(doc2)
         w1 = await _write(conn, meta2, 1, "w1")
@@ -148,12 +163,11 @@ async def test_a_second_update_never_drops_the_facts_in_the_table(vkb_dsn):
         w2 = await _write(conn, meta2, 1, "w2")
         w2_claim = await _extract(conn, w2[0], claim_mapped=version)
         w3 = await _write(conn, meta2, 1, "w3")
-        assert await _superseded(conn, doc2) == w1
+        assert set(await _superseded(conn, doc2)) == {*w1, *w2}
         assert await _current(conn, doc2) == w3
-        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
-                            w1_claim) == 1
-        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
-                            w2_claim) == 0
+        for claim_id in (w1_claim, w2_claim):
+            assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                                claim_id) == 1
     finally:
         await conn.close()
 
@@ -161,17 +175,18 @@ async def test_a_second_update_never_drops_the_facts_in_the_table(vkb_dsn):
 async def test_fewer_chunks_after_an_update(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
-        await _fresh(conn)
+        version = await _fresh(conn)
         doc_id = uuid.uuid4()
         v1 = await _write(conn, _meta(doc_id), 3, "v1")
-        await _extract(conn, v1[1], claim_mapped=None)  # one chunk of three carries a claim
+        await _extract(conn, v1[0], claim_mapped=version)  # one chunk of three carries a fact
 
-        # no unique violation: ordinals 0..2 superseded and 0 current coexist
+        # no unique violation: the superseded ordinal 0 and the current ordinal 0 coexist;
+        # the two chunks without a fact are gone
         await _write(conn, _meta(doc_id, title="New title"), 1, "v2")
         cur = await conn.execute(
             "SELECT ordinal, superseded_at IS NOT NULL FROM chunks WHERE doc_id = %s"
             " ORDER BY superseded_at IS NOT NULL, ordinal", (doc_id,))
-        assert await cur.fetchall() == [(0, False), (0, True), (1, True), (2, True)]
+        assert await cur.fetchall() == [(0, False), (0, True)]
         # the document row is the new version
         cur = await conn.execute("SELECT title, content_hash FROM documents WHERE doc_id = %s",
                                  (doc_id,))
@@ -208,8 +223,8 @@ async def test_removal_still_deletes_everything(vkb_dsn):
         await _extract(conn, v1[0], claim_mapped=version)
         v2 = await _write(conn, meta, 1, "v2")
         await _extract(conn, v2[0], claim_mapped=version)
-        v3 = await _write(conn, meta, 1, "v3")  # v1 is already superseded: v2 is replaced
-        assert await _superseded(conn, doc_id) == v1
+        v3 = await _write(conn, meta, 1, "v3")  # v1 and v2 are both superseded
+        assert set(await _superseded(conn, doc_id)) == {v1[0], v2[0]}
         assert await _current(conn, doc_id) == v3
         # a second document is untouched
         other = uuid.uuid4()
@@ -274,7 +289,7 @@ async def test_the_schema_upgrade_lets_superseded_ordinals_coexist(vkb_dsn):
     ``superseded_at``: the upgrade drops the constraint and adds the column, over its rows."""
     conn = await connect(vkb_dsn)
     try:
-        await _fresh(conn)
+        version = await _fresh(conn)
         doc_id = uuid.uuid4()
         await _write(conn, _meta(doc_id), 1, "v1")
         await conn.execute("DROP INDEX chunks_doc_ordinal_current_idx")
@@ -288,8 +303,156 @@ async def test_the_schema_upgrade_lets_superseded_ordinals_coexist(vkb_dsn):
         assert await _count(conn, "SELECT count(*) FROM pg_constraint WHERE contype = 'u'"
                                   " AND conrelid = 'chunks'::regclass") == 0
         first = (await _current(conn, doc_id))[0]
-        await _extract(conn, first, claim_mapped=None)
+        await _extract(conn, first, claim_mapped=version)
         await _write(conn, _meta(doc_id), 1, "v2")  # ordinal 0 twice: superseded + current
         assert await _count(conn, "SELECT count(*) FROM chunks WHERE doc_id = %s", doc_id) == 2
+    finally:
+        await conn.close()
+
+
+# --- unchanged text keeps its chunk, and its facts (a per-chunk rule) ---
+
+def _body(label: str) -> str:
+    """A chunk text; the word "quote" is what ``_extract``'s claims quote."""
+    return f"T\n\n{label} quote of the chunk"
+
+
+async def test_identical_chunks_keep_their_facts(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, v1 = await _write_texts(conn, meta, [_body("a"), _body("b"), _body("c")])
+        claims = [await _extract(conn, c, claim_mapped=version) for c in v1]
+
+        reused, v2 = await _write_texts(conn, meta, [_body("a"), _body("B changed"), _body("c")])
+        assert reused == 2
+        assert v2[0] == v1[0] and v2[2] == v1[2] and v2[1] != v1[1]
+        assert await _superseded(conn, doc_id) == [v1[1]]
+        # the kept chunks keep their extraction and claim; the new chunk has neither
+        for chunk_id, claim_id in ((v1[0], claims[0]), (v1[2], claims[2])):
+            assert await _count(conn, "SELECT count(*) FROM extractions WHERE chunk_id = %s",
+                                chunk_id) == 1
+            assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s"
+                                " AND chunk_id = %s", claim_id, chunk_id) == 1
+        assert await _count(conn, "SELECT count(*) FROM extractions WHERE chunk_id = %s",
+                            v2[1]) == 0
+
+        # once the new chunk is extracted and mapped, only the old chunk 1 is retired
+        await _extract(conn, v2[1], claim_mapped=version)
+        assert await retire_superseded(conn, version) == 1
+        assert await _superseded(conn, doc_id) == []
+        assert await _current(conn, doc_id) == v2
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                            claims[1]) == 0
+        assert await _count(conn, "SELECT count(*) FROM raw_claims") == 3
+    finally:
+        await conn.close()
+
+
+async def test_cosmetic_changes_reuse_the_chunk_with_the_new_text(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        old = ("T\n\nSee [List Media](list_media.html).\nLast Updated: 2026\\-03\\-26\n"
+               "quote one two")
+        new = ("T\n\nSee [List Media](./list_media.html).\n\nLast Updated: 2026\\-07\\-31\n"
+               "quote one\ntwo")
+        _, v1 = await _write_texts(conn, meta, [old])
+        claim = await _extract(conn, v1[0], claim_mapped=version, quote="quote one two")
+
+        new_vec = Vector([0.9] * 8)
+        reused, v2 = await _write_texts(conn, meta, [new], vec=new_vec, token_count=77)
+        assert reused == 1 and v2 == v1
+        assert await _superseded(conn, doc_id) == []
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                            claim) == 1
+        cur = await conn.execute("SELECT text, token_count, embedding = %s FROM chunks"
+                                 " WHERE chunk_id = %s", (new_vec, v1[0]))
+        assert await cur.fetchone() == (new, 77, True)
+    finally:
+        await conn.close()
+
+
+async def test_a_quote_no_longer_in_the_text_blocks_reuse(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, v1 = await _write_texts(conn, meta, ["T\n\nUse [Guide](guide.html) for the quote."])
+        await _extract(conn, v1[0], claim_mapped=version,
+                       quote="Use [Guide](guide.html) FOR THE   quote")
+
+        # equal keys (only the link target differs), but the claim's quote is not in the text
+        reused, v2 = await _write_texts(
+            conn, meta, ["T\n\nUse [Guide](./guide.html) for the quote."])
+        assert reused == 0
+        assert await _superseded(conn, doc_id) == v1
+        assert len(v2) == 1 and v2 != v1
+
+        # the quote check ignores whitespace and case: this version is reused
+        await _extract(conn, v2[0], claim_mapped=version, quote="USE [guide](./guide.html)\nFor")
+        reused, v3 = await _write_texts(
+            conn, meta, ["T\n\nUse [Guide](./guide.html)\n for the quote."])
+        assert reused == 1 and v3 == v2
+    finally:
+        await conn.close()
+
+
+async def test_reordered_chunks_are_reused(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, (a, b) = await _write_texts(conn, meta, [_body("a"), _body("b")])
+        for chunk_id in (a, b):
+            await _extract(conn, chunk_id, claim_mapped=version)
+
+        # swapped ordinals: no clash on the partial unique index while they move
+        reused, v2 = await _write_texts(conn, meta, [_body("b"), _body("a")])
+        assert reused == 2 and v2 == [b, a]
+        assert await _superseded(conn, doc_id) == []
+        assert await _count(conn, "SELECT count(*) FROM raw_claims") == 2
+    finally:
+        await conn.close()
+
+
+async def test_a_dropped_chunk_is_kept_only_with_a_mapped_claim(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, v1 = await _write_texts(conn, meta, [_body(x) for x in "abcde"])
+        await _extract(conn, v1[0], claim_mapped=version)  # mapped: kept
+        await _extract(conn, v1[1], claim_mapped=None)  # unmapped only: deleted
+        await _extract(conn, v1[2])  # no claim: deleted
+        # v1[3] was never extracted: deleted
+        await _extract(conn, v1[4], claim_mapped=None)  # one claim unmapped, one mapped: kept
+        await _extract(conn, v1[4], claim_mapped=version, prompt_version="claims-v3.0")
+
+        reused, v2 = await _write_texts(conn, meta, [_body("z")])
+        assert reused == 0
+        assert set(await _superseded(conn, doc_id)) == {v1[0], v1[4]}
+        assert await _count(conn, "SELECT count(*) FROM chunks WHERE doc_id = %s", doc_id) == 3
+        # the deleted chunks took their extractions and unmapped claims with them
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE chunk_id = ANY(%s)",
+                            v1[1:4]) == 0
+
+        # a superseded chunk is never deleted by a write: v2 is mapped but not retired
+        await _extract(conn, v2[0], claim_mapped=version)
+        _, v3 = await _write_texts(conn, meta, [_body("y")])
+        assert set(await _superseded(conn, doc_id)) == {v1[0], v1[4], v2[0]}
+
+        # until the current version is extracted and mapped
+        await _extract(conn, v3[0], claim_mapped=version)
+        assert await retire_superseded(conn, version) == 3
+        assert await _superseded(conn, doc_id) == []
+        assert await _current(conn, doc_id) == v3
     finally:
         await conn.close()

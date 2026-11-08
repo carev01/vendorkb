@@ -23,11 +23,13 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 -- 2026-11-08 (docs/superpowers/specs/2026-11-08-topic-expansion-design.md, Part A): a re-synced
--- page that has claims keeps its previous chunks, ``superseded_at`` set (NULL = the current
--- version), until the new version is extracted and mapped (``store.retire_superseded``). They
--- are kept for their claims only: search, extraction and the refresh trigger skip them. So
--- (doc_id, ordinal) is unique among the current chunks only: the inline UNIQUE of the earlier
--- schema (named chunks_doc_id_ordinal_key) becomes a partial unique index.
+-- page keeps each chunk whose text is unchanged, with its extraction and claims
+-- (``store.write_document``). A chunk the new version drops is kept when one of its claims is
+-- mapped, with ``superseded_at`` set (NULL = the current version), until the new version is
+-- extracted and mapped (``store.retire_superseded``); it is kept for its claims only: search,
+-- extraction and the refresh trigger skip it. So (doc_id, ordinal) is unique among the current
+-- chunks only: the inline UNIQUE of the earlier schema (named chunks_doc_id_ordinal_key)
+-- becomes a partial unique index.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS superseded_at timestamptz;
 ALTER TABLE chunks DROP CONSTRAINT IF EXISTS chunks_doc_id_ordinal_key;
 CREATE UNIQUE INDEX IF NOT EXISTS chunks_doc_ordinal_current_idx ON chunks (doc_id, ordinal)
@@ -70,10 +72,11 @@ CREATE TABLE IF NOT EXISTS sync_seen (
     doc_id uuid PRIMARY KEY
 );
 
--- M3/M4: claim extraction and the capability table. A chunk is replaced (new chunk_id) when
--- its document is re-synced, so everything keyed on chunk_id cascades with it: the new
--- chunks are extracted afresh, and no claim outlives the evidence it quotes. A chunk that
--- carries claims is kept, superseded, until the new version is mapped (``chunks.superseded_at``).
+-- M3/M4: claim extraction and the capability table. A chunk whose text changed is replaced
+-- (new chunk_id) when its document is re-synced, so everything keyed on chunk_id cascades with
+-- it: the new chunks are extracted afresh, and no claim outlives the evidence it quotes. A
+-- chunk with a mapped claim is kept, superseded, until the new version is mapped
+-- (``chunks.superseded_at``); a chunk whose text is unchanged is kept as it is.
 -- Reserved (BACKLOG 14): never written. DocExtractor's delta records carry no version (only
 -- its products endpoint has one, per product), so documents.version and the claims'
 -- version stay NULL, and answers come from the latest documents.
@@ -409,9 +412,9 @@ $$;
 -- named), else 'product'. Rows sharing the conflict key (vendor, product, offering, edition,
 -- dimension, target, variant, object type) but differing in support or in a stated value
 -- share a ``conflict_group``; ``is_current`` marks the key's rows from its most recently
--- fetched document (a row on a superseded chunk ranks below every current-version row).
--- No foreign keys into the
--- taxonomy tables: a ``taxonomy load`` replaces them, and stale rows wait for map and build.
+-- fetched document (a row on a superseded chunk ranks below every current-version row). No
+-- foreign keys into the taxonomy tables: a ``taxonomy load`` replaces them, and stale rows
+-- wait for map and build.
 -- (No ``feature_id`` column: that is what the v1-drop block above keys on.)
 CREATE TABLE IF NOT EXISTS capabilities (
     claim_id uuid PRIMARY KEY REFERENCES raw_claims ON DELETE CASCADE,
