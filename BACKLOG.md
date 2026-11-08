@@ -221,8 +221,13 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     white-label branding, cross-version restore, interface languages). None of them appears in
     the comparison tables. Four were added later the same day as buyer-relevant
     (`protection.online_database_backup`, `protection.native_database_interface`,
-    `recovery.uefi_secure_boot`, `protection.off_host_backup`; 3,264 capability rows). The rest
-    are listed in the round-2 report section.
+    `recovery.uefi_secure_boot`, `protection.off_host_backup`; 3,264 capability rows). Seven more
+    followed that night (`security.password_policy`, `recovery.database_recovery_state`,
+    `protection.replica_backup_source`, `operations.interface_languages`,
+    `recovery.cross_version`, `operations.white_label_branding`, and `protection.direct_to_cloud`
+    as a lookup-only dimension; 2,582 rows); hot/cold backup became aliases. Product lifecycle, certificate lifecycle,
+    accessibility and the 1-3-vendor tail were judged not worth a dimension (report section
+    "Seven more gap themes").
 31. **Done 2026-11-08:** dimensions and targets take `lookup_aliases`, matched like aliases but
     never candidate-search keys (`aliases.search` false). The 194 held round-2 dimension aliases
     went in as lookup aliases with 0 questions asked again (about 90k as search keys). A blind
