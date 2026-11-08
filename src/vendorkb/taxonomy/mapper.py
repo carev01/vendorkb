@@ -59,6 +59,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Any, Literal, Protocol
 
 import anthropic
@@ -402,6 +403,36 @@ def _top(scores: np.ndarray, entities: list[str], allowed: np.ndarray | None, k:
     best = np.argpartition(-scores, k - 1)[:k]
     return [entities[i] for i in sorted(best.tolist(),
                                         key=lambda i: (-float(scores[i]), entities[i]))]
+
+
+def _pin(cands: list[str], picks: list[str], valid: Callable[[str], bool], k: int
+         ) -> tuple[str, ...]:
+    """``cands`` plus the earlier picks it lacks (valid ones, at most ``k - 1``) in place of its
+    lowest-ranked entries, so an answer chosen before stays on offer when a taxonomy change
+    pushes it out: in a blind grade of such displaced questions the earlier answer was the
+    better one about twice as often as the new one (2026-11-08)."""
+    extra = [p for p in picks if p not in cands and valid(p)][:max(k - 1, 0)]
+    if not cands or not extra:
+        return tuple(cands)
+    return tuple(cands[:max(k - len(extra), 0)] + extra if len(cands) + len(extra) > k
+                 else cands + extra)
+
+
+async def _earlier_picks(conn: psycopg.AsyncConnection, settings: VendorkbSettings,
+                         phrases: list[str]) -> dict[tuple[str, str, str], list[str]]:
+    """(kind, phrase, class or '') -> the entities chosen for that question before (same model
+    family and prompt rules), latest first."""
+    if not phrases:
+        return {}
+    cur = await conn.execute(
+        "SELECT kind, phrase, coalesce(class_id, ''), choice FROM map_decisions"
+        " WHERE model = %s AND rules = %s AND choice IS NOT NULL AND phrase = ANY(%s)"
+        " GROUP BY 1, 2, 3, 4 ORDER BY max(decided_at) DESC",
+        (model_family(settings.map_model), PROMPT_RULES, phrases))
+    out: dict[tuple[str, str, str], list[str]] = {}
+    for kind, phrase, class_id, choice in await cur.fetchall():
+        out.setdefault((kind, phrase, class_id), []).append(choice)
+    return out
 
 
 # ---- adjudication ---------------------------------------------------------------------------
@@ -872,10 +903,15 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
                     out[(text, i)] = _top(text_scores, keys.entities, allow, k)
         return out
 
+    picks = await _earlier_picks(conn, settings,
+                                 list(dict.fromkeys([*target_queries, *dimension_queries])))
+
     # 1. Targets.
     mapped = {c.claim_id: _Mapped() for c in claims}
     target_cands = candidates(target_keys, target_queries, {t: [None] for t in target_queries})
-    target_adj = {t: _Adjudication("target", t, tuple(target_cands[(t, 0)]))
+    target_adj = {t: _Adjudication("target", t, _pin(target_cands[(t, 0)],
+                                                     picks.get(("target", t, ""), []),
+                                                     tax.target_class.__contains__, k))
                   for t in target_queries if target_cands[(t, 0)]}
     for c in claims:
         if c.target in target_adj:
@@ -915,10 +951,11 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             if mapped[c.claim_id].class_id not in seen:
                 seen.append(mapped[c.claim_id].class_id)
     applicable: dict[str | None, np.ndarray] = {}  # class -> mask over dimension entities
+    allowed_ids: dict[str | None, set[str]] = {}
     for class_ids in classes_of.values():
         for cid in class_ids:
             if cid not in applicable:
-                allowed = tax.applicable(cid)
+                allowed_ids[cid] = allowed = tax.applicable(cid)
                 applicable[cid] = np.asarray([e in allowed for e in dimension_keys.entities],
                                              dtype=bool)
     dim_cands = candidates(dimension_keys, dimension_queries,
@@ -928,7 +965,8 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     adj_of: dict[tuple[str, str | None], _Adjudication | None] = {}
     for text in dimension_queries:
         for i, cid in enumerate(classes_of[text]):
-            cands = tuple(dim_cands[(text, i)])
+            cands = _pin(dim_cands[(text, i)], picks.get(("dimension", text, cid or ""), []),
+                         allowed_ids[cid].__contains__, k)
             if not cands:
                 adj_of[(text, cid)] = None
                 continue

@@ -668,9 +668,11 @@ async def test_an_answer_no_longer_among_the_candidates_is_asked_again(vkb_dsn, 
         await _fresh(conn, tmp_path)
         await _claim(conn, "keep copies for ages", "Okta")
         await _run(conn, FakeOpenAI())
-        # the stored answer points at a candidate the new question does not offer
-        await conn.execute("UPDATE map_decisions SET choice = 'coverage.backup',"
-                           " candidates = array_append(candidates, 'coverage.backup')")
+        # the stored answer points at a dimension the new question cannot offer (it does not
+        # apply to the claim's class, so it is not kept on offer either)
+        await conn.execute("UPDATE map_decisions SET choice = 'recovery.automation_bypass',"
+                           " candidates = array_append(candidates, 'recovery.automation_bypass')"
+                           " WHERE kind = 'dimension'")
         client = FakeOpenAI()
         report = await _run(conn, client, remap=True, map_candidates=3)
         assert len(client.calls) == 1 and report.decisions_carried == 0
@@ -747,6 +749,43 @@ async def test_lookup_aliases_map_exactly_and_leave_candidates_alone(vkb_dsn, tm
         await _run(conn, client, FakeEmbedder(table), map_candidates=2)
         assert [_phrase(c["messages"][-1]["content"]) for c in client.calls] == [
             "keep copies for ages"]
+    finally:
+        await conn.close()
+
+
+async def test_an_earlier_pick_stays_among_the_candidates(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        cid = await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn, FakeOpenAI(), map_candidates=2)
+        assert (await _mapping(conn, cid))["dimension_id"] == "retention.maximum_period"
+        # two new keys closer to the phrase than any retention key push retention.maximum_period
+        # out of the top two; the earlier pick is offered again in place of the second
+        doc = yaml.safe_load(_extended(tmp_path).read_text())
+        for d in doc["dimensions"]:
+            if d["id"] == "coverage.backup":
+                d["aliases"].append("ages of copies")
+            if d["id"] == "coverage.restore":
+                d["aliases"].append("copies for ages")
+        out = tmp_path / "pushed.yaml"
+        out.write_text(yaml.safe_dump(doc, sort_keys=False))
+        await load.load_taxonomy(conn, out)
+        near = VECTORS["keep copies for ages"]
+        table = {**VECTORS, "ages of copies": near, "copies for ages": near}
+        client = FakeOpenAI()
+        await _run(conn, client, FakeEmbedder(table), map_candidates=2)
+        dimension_calls = [c["messages"][-1]["content"] for c in client.calls
+                           if _kind(c["messages"][-1]["content"]) == "dimension"]
+        assert len(dimension_calls) == 1
+        offered = _candidates(dimension_calls[0])
+        assert len(offered) == 2 and offered[1] == "retention.maximum_period"
+        assert offered[0] in ("coverage.backup", "coverage.restore")
+        assert (await _mapping(conn, cid))["dimension_id"] == "retention.maximum_period"
+        # the pinned question is a stored question like any other: the next run asks nothing
+        client = FakeOpenAI({})
+        await _run(conn, client, FakeEmbedder(table), map_candidates=2, remap=True)
+        assert client.calls == []
     finally:
         await conn.close()
 
