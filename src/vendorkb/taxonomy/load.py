@@ -3,8 +3,8 @@
 The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``targets`` and
 ``offerings`` (which may be omitted), and no others:
 
-- **dimension** ``{id, name, definition, aliases, applies_to, [value_unit], [platform]}``: one
-  vendor-neutral comparable aspect. ``id`` is ``<family>.<snake>`` with the family one of
+- **dimension** ``{id, name, definition, aliases, [lookup_aliases], applies_to, [value_unit],
+  [platform]}``: one vendor-neutral comparable aspect. ``id`` is ``<family>.<snake>`` with the family one of
   ``FAMILIES``; ``applies_to`` is ``all`` or a list of class ids (an entry matches its class and
   every class beneath it); ``platform: true`` marks an aspect of the backup product itself.
   The ``REQUIRED_DIMENSIONS`` must be present.
@@ -12,14 +12,16 @@ The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``t
   every dotted prefix must be a class (its ancestors); ``object_types`` is a list of
   ``{id, name, aliases}``, inherited by every class beneath, and a class may not redefine an
   object type of an ancestor.
-- **target** ``{id, name, class, aliases, [object_aliases], [variants]}``: a concrete workload,
-  an instance of ``class``. ``id`` is dotted and every dotted prefix must be a target (its
+- **target** ``{id, name, class, aliases, [lookup_aliases], [object_aliases], [variants]}``: a
+  concrete workload, an instance of ``class``. ``id`` is dotted and every dotted prefix must be a target (its
   parent chain); ``object_aliases`` maps object types of the class's lineage to the target's
   own words for them; ``variants`` is a list of ``{id, name, aliases}``.
 - **offering** ``{vendor, id, name, aliases, editions}``: ``id`` is ``<snake>.<snake>`` and
   ``editions`` a list of ``{id, name, aliases}``.
 
-``aliases`` may be omitted (none). Dimensions, targets, offerings, object types, variants and
+``aliases`` may be omitted (none). ``lookup_aliases`` (dimensions and targets) are matched like
+aliases but are never candidate-search keys of the mapper (``aliases.search`` false): adding one
+leaves every other phrase's candidates, and so its stored decision, as it was. Dimensions, targets, offerings, object types, variants and
 editions may carry ``proposed: true``, the review marker ``taxonomy propose`` puts on the
 entries it adds; it changes nothing else. Unknown keys are refused, so a misspelt key is not silently
 ignored. ``validate`` collects every problem before raising ``TaxonomyError``, and nothing is
@@ -88,6 +90,7 @@ class Dimension:
     applies_to: tuple[str, ...] | None  # None: all classes
     value_unit: str | None
     platform: bool
+    lookup_aliases: tuple[str, ...] = ()  # exact lookup only: never a candidate-search key
 
 
 @dataclass(frozen=True)
@@ -108,6 +111,7 @@ class Target:
     aliases: tuple[str, ...]
     object_aliases: dict[str, tuple[str, ...]] = field(default_factory=dict)
     variants: tuple[Named, ...] = ()
+    lookup_aliases: tuple[str, ...] = ()  # exact lookup only: never a candidate-search key
 
 
 @dataclass(frozen=True)
@@ -147,12 +151,12 @@ class Taxonomy:
             rows.extend((a, entity_type, scope, entity_id) for a in texts if a)
 
         for d in self.dimensions:
-            add("dimension", "", d.id, d.name, d.aliases)
+            add("dimension", "", d.id, d.name, (*d.aliases, *d.lookup_aliases))
         for c in self.classes:
             for o in c.object_types:
                 add("object_type", c.id, o.id, o.name, o.aliases)
         for t in self.targets:
-            add("target", "", t.id, t.name, t.aliases)
+            add("target", "", t.id, t.name, (*t.aliases, *t.lookup_aliases))
             for ot, aliases in t.object_aliases.items():
                 add("target_object_type", t.id, ot, None, aliases)
             for v in t.variants:
@@ -162,6 +166,13 @@ class Taxonomy:
             for e in f.editions:
                 add("edition", f.id, e.id, e.name, e.aliases)
         return list(dict.fromkeys(rows))
+
+    def lookup_only(self) -> set[tuple[str, str, str]]:
+        """The (alias, entity_type, scope) of every ``lookup_aliases`` entry: matched exactly
+        like any alias, but never a candidate-search key, so adding one does not change the
+        candidates (and the stored decisions) of any other phrase."""
+        return ({(a, "dimension", "") for d in self.dimensions for a in d.lookup_aliases}
+                | {(a, "target", "") for t in self.targets for a in t.lookup_aliases})
 
 
 def _parent(dotted_id: str) -> str | None:
@@ -257,6 +268,16 @@ class _Checker:
             return False
         return value
 
+    def lookup_aliases(self, where: str, item: dict, name: str | None,
+                       aliases: tuple[str, ...]) -> tuple[str, ...]:
+        """An entry's ``lookup_aliases``; one also among its name and aliases is a problem."""
+        lookup = self.aliases(where, item.get("lookup_aliases"))
+        searched = {*aliases, *([normalize(name)] if name else [])}
+        for a in lookup:
+            if a in searched:
+                self.add(f"{where}: {a!r} is in both aliases and lookup_aliases")
+        return tuple(a for a in lookup if a not in searched)
+
     def aliases(self, where: str, value: Any) -> tuple[str, ...]:
         if value is None:
             return ()
@@ -318,7 +339,7 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
     seen: set[str] = set()
     for where, item in ck.entries("dimensions", raw):
         ck.keys(where, item, ("id", "name", "definition", "applies_to"),
-                ("aliases", "value_unit", "platform", "proposed"))
+                ("aliases", "lookup_aliases", "value_unit", "platform", "proposed"))
         did = ck.ident(where, item, PAIR_RE, "dimension", seen)
         label = f"{where} ({did})" if did else where
         family = did.partition(".")[0] if did else None
@@ -327,6 +348,7 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
         name = ck.text(label, item, "name")
         definition = ck.text(label, item, "definition")
         aliases = ck.aliases(label, item.get("aliases"))
+        lookup = ck.lookup_aliases(label, item, name, aliases)
         applies = item.get("applies_to")
         if not (applies == "all" or (isinstance(applies, list) and applies
                                      and all(isinstance(a, str) for a in applies))):
@@ -340,7 +362,7 @@ def _dimensions(ck: _Checker, raw: Any) -> list[tuple[Dimension, Any]]:
         if did is not None and family in FAMILIES and name and definition:
             applies_to = None if applies in (None, "all") else tuple(dict.fromkeys(applies))
             out.append((Dimension(did, family, name, definition, aliases, applies_to,
-                                  value_unit, platform), label))
+                                  value_unit, platform, lookup), label))
     return out
 
 
@@ -365,13 +387,14 @@ def _targets(ck: _Checker, raw: Any) -> list[tuple[Target, str]]:
     seen: set[str] = set()
     for where, item in ck.entries("targets", raw):
         ck.keys(where, item, ("id", "name", "class"),
-                ("aliases", "object_aliases", "variants", "proposed"))
+                ("aliases", "lookup_aliases", "object_aliases", "variants", "proposed"))
         tid = ck.ident(where, item, DOTTED_RE, "target", seen)
         label = f"{where} ({tid})" if tid else where
         ck.flag(label, item, "proposed")
         name = ck.text(label, item, "name")
         class_id = ck.text(label, item, "class")
         aliases = ck.aliases(label, item.get("aliases"))
+        lookup = ck.lookup_aliases(label, item, name, aliases)
         raw_oa = item.get("object_aliases") or {}
         object_aliases: dict[str, tuple[str, ...]] = {}
         if not isinstance(raw_oa, dict):
@@ -382,7 +405,7 @@ def _targets(ck: _Checker, raw: Any) -> list[tuple[Target, str]]:
         variants = ck.named_list(f"{label} variants", item.get("variants"), "variant")
         if tid is not None and name and class_id:
             out.append((Target(tid, _parent(tid), name, class_id, aliases, object_aliases,
-                               variants), label))
+                               variants, lookup), label))
     return out
 
 
@@ -517,6 +540,7 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
     version = version_string(tax.version, data)
     classes = sorted(tax.classes, key=lambda c: c.id.count("."))  # parents first
     targets = sorted(tax.targets, key=lambda t: t.id.count("."))
+    lookup_only = tax.lookup_only()
     rows: dict[str, list[tuple]] = {
         "dimensions": [(d.id, d.family, d.name, d.definition,
                         None if d.applies_to is None else list(d.applies_to), d.value_unit,
@@ -528,7 +552,7 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
         "variants": [(t.id, v.id, v.name) for t in tax.targets for v in t.variants],
         "offerings": [(f.id, f.vendor, f.name) for f in tax.offerings],
         "editions": [(f.id, e.id, e.name) for f in tax.offerings for e in f.editions],
-        "aliases": tax.alias_rows(),
+        "aliases": [(*r, r[:3] not in lookup_only) for r in tax.alias_rows()],
     }
     columns = {
         "dimensions": "dimension_id, family, name, definition, applies_to, value_unit, platform",
@@ -538,7 +562,7 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
         "variants": "target_id, variant_id, name",
         "offerings": "offering_id, vendor, name",
         "editions": "offering_id, edition_id, name",
-        "aliases": "alias, entity_type, scope, entity_id",
+        "aliases": "alias, entity_type, scope, entity_id, search",
     }
     async with conn.transaction():
         for table in _TABLES:

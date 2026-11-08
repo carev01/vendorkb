@@ -298,3 +298,70 @@ added:
 | Anthropic | $0 |
 | Voyage | 91 new strings (the embedding cache served the rest) |
 | Curation, review and grading | Claude subagents (9 curators, 4 reviewers, 2 graders) |
+
+## Lookup aliases and four new dimensions (2026-11-08, night; BACKLOG 31)
+
+Taxonomy `2-63293ef0`.
+
+| | end of round 2 | now |
+|---|---|---|
+| claims with no dimension | 127,276 | **124,206** |
+| claims mapped by a dimension alias | 71,791 | 74,738 |
+| claims with an unmapped target | 48,006 | 47,697 |
+| capability rows | 463,258 | 466,328 |
+| comparison-table rows with a fact | 423 / 423 (406 specific) | 423 / 423 (406 specific) |
+
+### Lookup aliases
+
+- Dimensions and targets take `lookup_aliases`. They are matched like aliases (exact or
+  inflection-folded) but are never candidate-search keys (`aliases.search` false, a new
+  column).
+- **Applying the 194 held round-2 dimension aliases** asked **0** questions again (`taxonomy map
+  --max-usd 0`); about 90k as search keys.
+- **Blind check:** 44 of 50 claims mapped through them were correct. The six wrong ones follow
+  patterns, so their siblings went too, 21 lookup aliases in all:
+  - retention expiry and deletion behaviour is not retention granularity;
+  - crash- or file-system-consistent backup is not application-consistent (two older search
+    aliases with the same error went as well);
+  - general hypervisor support is not a workload variant;
+  - a retention period setting is not the maximum period;
+  - vendor-managed encryption and vendor-provided storage are the opposite of customer-managed
+    keys and customer-owned storage.
+- **Left:** 188 lookup aliases (173 from round 2, 15 on the new dimensions), mapping 2,228
+  claims.
+
+### Four new dimensions
+
+The four buyer-relevant gap themes from round 2. Each has a few search keys; the other
+phrasings are lookup aliases.
+
+| dimension | applies to | capability rows | vendors |
+|---|---|---|---|
+| `protection.native_database_interface` (RMAN, Backint, BR*Tools) | app, cloud.database | 1,211 | 20 |
+| `protection.off_host_backup` | all | 921 | 25 |
+| `protection.online_database_backup` (hot or cold) | app, cloud.database | 753 | 17 |
+| `recovery.uefi_secure_boot` | endpoint, virtualization, cloud.compute | 379 | 23 |
+
+- **Re-asks:** a new entity re-asks the phrases it enters the top-5 of: 9,397 questions, $0.99.
+  1,453 now choose a new dimension, 656 of them from none.
+- **Blind check:** 55 of 60 claims mapped to the new dimensions by the LLM were correct.
+
+### An earlier pick stays among the candidates
+
+- **The problem:** the new dimensions pushed the earlier answer of 438 re-asked questions out of
+  their top-5 (213 then went to none). A blind grade of 40 of them preferred the earlier answer
+  18 times and the new one 10. Where a new dimension won, the new answer was better 7 to 2.
+- **The fix (mapper):** entities chosen before for the same question (same model family and
+  prompt rules), when still valid for it, take the place of the lowest-ranked candidates (at
+  most k - 1).
+- **History:** 2,528 of 296k stored questions had an earlier pick outside their latest
+  candidates. Re-mapping with the fix asked 1,982 questions ($0.21), and 1,089 went back to an
+  earlier pick.
+
+### Spend (this part)
+
+| | |
+|---|---|
+| OpenRouter (Haiku 5.5) | $1.22 (new dimensions $0.99, earlier picks $0.21, alias drops $0.03) |
+| Voyage | 2 new strings |
+| Grading | Claude subagents (4 graders) |

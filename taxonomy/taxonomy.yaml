@@ -21,6 +21,13 @@ dimensions:
       of object records, fields and metadata', Record-level object backup, namespace-level backup 
       and restore, Namespace-level scope, protected node types, vpc and subnet configuration backup 
       and restore, Network configuration coverage, file-based backup, nfs backup]
+  lookup_aliases: [azure file share backup, backup of replicated vms, bitlocker recovery key backup, 
+      database backup and recovery, database backup and restore, database instance protection, 
+      database protection and recovery, db2 backup and restore, hypervisor backup, key vault 
+      protection, kubernetes cluster backup, linux backup, nas protection, non-csi volume backup, 
+      object versioning backup, rdm and independent disk backup, read-only volume backup, sharepoint
+      online backup, storage account protection, template vm backup, vm configuration backup, vm 
+      protection, vm template backup]
   applies_to: all
 - id: coverage.restore
   name: Object-type restore coverage
@@ -40,6 +47,8 @@ dimensions:
       certificate restore, restore of privileged objects, Privileged object restore, restore to rdm 
       disk, Restore to raw device mapping disk, secondary index restore, database recovery, vm 
       restore, virtual machine restore, vm restore from backups, vm recovery]
+  lookup_aliases: [archive mailbox restore, backup restore, bitlocker key restore, cluster recovery, 
+      file share restore]
   applies_to: all
 - id: coverage.export
   name: Object-type export coverage
@@ -55,6 +64,7 @@ dimensions:
       attachments, Restore as email attachment, object export with download link, Download link 
       export, send backup data by email, send backed-up items by email, Email delivery of backup 
       data, restore to storage, restore as files]
+  lookup_aliases: [flat file restore]
   applies_to: all
 - id: coverage.compare
   name: Object-type comparison coverage
@@ -79,6 +89,7 @@ dimensions:
       authentication credential capture in snapshots, Credentials captured in snapshots, acl backup, 
       file and folder acl backup, folder-level acl backup, extended attributes backup, Extended 
       attributes]
+  lookup_aliases: [restore vm tags]
   applies_to: all
   value_unit: attributes
 - id: coverage.environment_types
@@ -112,6 +123,7 @@ dimensions:
     array's own format.
   aliases: [snapshot, snapshots, cloud-native snapshot, native snapshot, snapshot orchestration, 
       snapshot policy, snapshot management, cloud-native snapshots]
+  lookup_aliases: [database snapshot backup, snapshot backups]
   applies_to: all
 - id: protection.snapshot_replication
   name: Snapshot copy and replication
@@ -148,23 +160,43 @@ dimensions:
   name: Application-consistent backup
   definition: Backups that quiesce applications so their data is consistent on restore.
   aliases: [application-consistent, app-consistent, application-aware processing, vss, quiesce, 
-      crash-consistent, freeze and thaw, pre and post scripts, application-consistent backups, 
-      application consistent backup, application-aware backup, application-aware backups, 
-      application-aware points in time, Application-consistent restore points, offloaded vss backups,
-    vss-integrated database backup, vss snapshot backup to local shadow volumes, vss snapshot 
-      backups, Windows VSS snapshot backup, crash consistent backup]
+      freeze and thaw, pre and post scripts, application-consistent backups, application consistent 
+      backup, application-aware backup, application-aware backups, application-aware points in time, 
+      Application-consistent restore points, offloaded vss backups, vss-integrated database backup, 
+      vss snapshot backup to local shadow volumes, vss snapshot backups, Windows VSS snapshot backup]
+  lookup_aliases: [vmware quiescing, vmware tools quiescing, volume shadow copy backup]
   applies_to: all
 - id: protection.changed_block_tracking
   name: Changed block tracking
   definition: Reading only changed blocks for incremental backups or restores.
   aliases: [changed block tracking, cbt, incremental forever, change tracking, resilient change 
       tracking, block-level incremental, changed block tracking incremental backup]
+  lookup_aliases: [cbt backup]
   applies_to: all
 - id: protection.log_backup
   name: Transaction log backup
   definition: Backing up and optionally truncating database or application logs.
   aliases: [log backup, transaction log backup, log shipping, archive log backup, wal backup, log 
       truncation, transaction log backup and restore, transaction log truncation]
+  applies_to: [app, cloud.database]
+- id: protection.online_database_backup
+  name: Online and offline database backup
+  definition: Whether a database or application store can be backed up and restored while it stays 
+    open and running (online or hot backup), or only when shut down or taken offline (offline or 
+    cold backup).
+  aliases: [online database backup, offline database backup, online and offline backup]
+  lookup_aliases: [offline database restore, online and offline backup and restore, online and 
+      offline backups, online backup and restore, online backup without stopping database, online 
+      database restore]
+  applies_to: [app, cloud.database]
+- id: protection.native_database_interface
+  name: Database-native backup interfaces
+  definition: Whether backups and restores of a database or enterprise application run through its 
+    own backup interface, such as Oracle RMAN, SAP HANA Backint or SAP BR*Tools, so they can be 
+    driven from and recorded in the native tools and catalog.
+  aliases: [rman integration, backint integration, rman-based database backup]
+  lookup_aliases: [backint backup, backup and restore via backint, backup via backint, backup via 
+      br*tools, rman catalog support, rman script execution, rman-based backup, rman-based restore]
   applies_to: [app, cloud.database]
 - id: protection.backup_copy
   name: Secondary backup copy
@@ -173,6 +205,7 @@ dimensions:
       expired snapshot recovery from replicated copy, Expired snapshot recovery from replica, 
       archival to object storage, export to object storage, Object storage archival, data center 
       archival location, Archive location type, replication from backup, Backup replication]
+  lookup_aliases: [backup copy to cloud, recovery point copy]
   applies_to: all
 - id: protection.replication
   name: Replication
@@ -180,6 +213,7 @@ dimensions:
   aliases: [replication, replica, vm replication, standby copy, live sync, cloud replication, 
       replica vm location, Replica target location, automatic application of subsequent backups to 
       replica, Automatic replica sync, preseeded volume initial sync, Preseeded initial sync]
+  lookup_aliases: [block-level replication, continuous restore]
   applies_to: all
 - id: protection.continuous_data_protection
   name: Continuous data protection
@@ -194,6 +228,7 @@ dimensions:
       intellisnap, storage integration, csi snapshot, csi driver, hardware snapshots, snapshots 
       using remote mirroring target volumes, consistent backup of remote mirror source volumes, 
       Consistent backup of mirror sources, intellisnap backups, intellisnap full backup]
+  lookup_aliases: [hardware snapshot backup, storage system integration]
   applies_to: [virtualization, app, file, kubernetes]
 - id: protection.discovery_auto_protection
   name: Automatic discovery and protection of new objects
@@ -221,6 +256,8 @@ dimensions:
       Automatic hierarchy inclusion, automatic subsite discovery, Automatic nested site discovery, 
       tag-based database selection, tag-based inclusion and exclusion of resource groups from 
       protection, Tag-based selection]
+  lookup_aliases: [resource synchronization interval, site collection discovery, vm migration 
+      detection]
   applies_to: all
 - id: protection.cross_account_backup
   name: Backups in a separate account or region
@@ -254,6 +291,7 @@ dimensions:
       automatic backups, built-in backup schedules, automated backup, automated backups, combining 
       one-time and recurring schedules, One-time and recurring combined, multiple weekly schedules, 
       Multiple schedules]
+  lookup_aliases: [automatic backup, scheduled protection policies]
   applies_to: all
 - id: schedule.on_demand
   name: On-demand backup
@@ -262,6 +300,7 @@ dimensions:
       manual backups, manual on-demand backup, manual backups, on-demand manual backup, on-demand 
       snapshots, on-demand snapshot, manual backup policy start, manual start of backup copy policy, 
       unscheduled data collection]
+  lookup_aliases: [run scheduled job immediately]
   applies_to: all
 - id: schedule.per_object_policy
   name: Per-object or per-group policies
@@ -282,6 +321,7 @@ dimensions:
   definition: The longest retention period the product supports.
   aliases: [maximum retention, retention up to, unlimited retention, retain forever, keep forever, 
       retention period, maximum snapshots per file share, forever retention]
+  lookup_aliases: [long-term retention, maximum recovery points, permanent retention]
   applies_to: all
   value_unit: years
 - id: retention.granularity
@@ -290,6 +330,7 @@ dimensions:
   aliases: [retention options, retention settings, restore points to keep, retention policy, gfs, 
       grandfather-father-son, gfs retention, gfs retention policy, automatic removal of expired 
       restore points, Automatic expired point removal, backup retention policy]
+  lookup_aliases: [configurable retention policies, custom retention policies, recovery window]
   applies_to: all
 - id: retention.per_object
   name: Per-object retention
@@ -354,6 +395,7 @@ dimensions:
   aliases: [multi-geo, region mapping, multi-geo tenants, multi-geo tenant support, multi-geo tenant
       protection, multi-geo region mapping, multi-geo settings management, multi-geo data location 
       display, Data location visibility]
+  lookup_aliases: [multi-geo backup]
   applies_to: [saas]
 - id: storage.redundancy
   name: Storage redundancy
@@ -379,12 +421,14 @@ dimensions:
   aliases: [tiering, automatic tiering, move to archive, capacity tier, data movement between tiers, 
       lifecycle policy, cold storage tiering, storage tiering, archive tiering, backup data tiering, 
       cloud tiering, storage rule tiering between storage pools, tiering of inactive data only]
+  lookup_aliases: [lifecycle rules]
   applies_to: all
 - id: storage.data_reduction
   name: Data reduction
   definition: Compression and deduplication, including where and at what scope deduplication runs.
   aliases: [deduplication, compression, global deduplication, source-side deduplication, data 
       reduction, dedup, compressed restore, backup compression]
+  lookup_aliases: [distributed segment processing]
   applies_to: all
 - id: storage.repository_types
   name: Backup repository types
@@ -399,6 +443,7 @@ dimensions:
       repository integration, Object storage repository support, certified external object storage, 
       Certified third-party object storage, archiving storage account type, Archive storage account 
       type, external storage directly attached to backup vm, Directly attached backup storage]
+  lookup_aliases: [dd boost integration]
   applies_to: all
 - id: storage.scale_out
   name: Scale-out repositories
@@ -412,6 +457,7 @@ dimensions:
   definition: Writing backups to physical or virtual tape, including WORM media.
   aliases: [tape, lto, tape library, virtual tape library, worm tape, tape out, tape archival, tape 
       backup destination, offsite media tracking, media refresh]
+  lookup_aliases: [barcode reading, barcode verification, worm media detection]
   applies_to: all
 - id: storage.portable_format
   name: Self-contained backup format
@@ -479,6 +525,7 @@ dimensions:
       item restore, individual vm or pvc selection for restore, Individual item selection for 
       restore, site and account content restore, Site or account level restore, recover files to 
       source, granular backup and recovery]
+  lookup_aliases: [disk recovery, exclude objects from restore]
   applies_to: all
 - id: recovery.in_place
   name: Restore to original location
@@ -487,6 +534,7 @@ dimensions:
       recovery, restore to original list, 1-click restore to original mailbox, restore to original 
       mailbox, file and folder restore to production site, restore posts to original location, vss 
       restore to original location, restore to original organization, Restore to original tenant]
+  lookup_aliases: [rollback restore]
   applies_to: all
 - id: recovery.alternate_location
   name: Restore to another location
@@ -503,6 +551,9 @@ dimensions:
       on-premises target, rename restored databases, rename restored disks, rename restored vm and 
       virtual disks, Rename on restore, export recovery, restore to recovery or alternate database, 
       Restore to alternate database]
+  lookup_aliases: [cross-client restore, cross-cluster backup and restore, cross-cluster recovery, 
+      cross-cluster restore, cross-device restore, restore to different mailbox, restore to original
+      or new location, system copy restore]
   applies_to: all
 - id: recovery.cross_account_region
   name: Cross-account and cross-region recovery
@@ -537,6 +588,7 @@ dimensions:
       restore to cloud instance, restore to google compute engine from backup, restore to amazon ec2,
     Restore to native cloud instance, target provisioning for destination hypervisors, Destination 
       target provisioning]
+  lookup_aliases: [recovery to cloud, virtual machine conversion]
   applies_to: [virtualization, cloud.compute, endpoint, kubernetes]
 - id: recovery.instant
   name: Instant recovery
@@ -570,6 +622,7 @@ dimensions:
       selection, point-in-time restore point selection, event-based restore point selection, restore
       to any restore point, restore to earlier restore point, Choice of restore point, recoverable 
       range display]
+  lookup_aliases: [restore from specific backup, snapshot selection for recovery]
   applies_to: all
 - id: recovery.changes_only
   name: Restore only changed or deleted items
@@ -615,6 +668,7 @@ dimensions:
       Overwrite existing on restore, replace field values with null on restore, Field value nulling 
       on restore, overwrite live authentication settings on recovery, Overwrite live authentication 
       settings]
+  lookup_aliases: [non-destructive restore]
   applies_to: all
 - id: recovery.automation_bypass
   name: Bypassing target-side automation on restore
@@ -644,6 +698,7 @@ dimensions:
   definition: Protecting and recovering on-premises directory and cloud identity together.
   aliases: [hybrid active directory, hybrid identity, ad and entra id, on-premises and cloud 
       identity]
+  lookup_aliases: [recovery of on-premises synced objects]
   applies_to: [saas.identity, app.directory]
 - id: recovery.export_formats
   name: Export formats
@@ -652,6 +707,7 @@ dimensions:
       export to json, export objects to json files, export objects to json, export to json files, 
       export to pst, restore to pst file, download mailbox as pst, export archived records to csv, 
       download as json, password-protected download]
+  lookup_aliases: [restore as vhd, vmdk image export]
   applies_to: all
 - id: recovery.preview
   name: Preview before restore
@@ -669,6 +725,7 @@ dimensions:
   aliases: [comparison wizard, compare tool, show changes only, side-by-side comparison, change 
       highlighting, added and deleted item count comparison, Added and deleted item counts, custom 
       metadata comparison filters, Comparison filters]
+  lookup_aliases: [restore from comparison results]
   applies_to: all
 - id: recovery.search_scope
   name: Search scope
@@ -734,7 +791,16 @@ dimensions:
   aliases: [bare metal recovery, bmr, dissimilar hardware restore, recovery media, bare metal 
       restore, bare-metal restore, recovery to dissimilar hardware, simplified disaster recovery, 
       1-touch recovery]
+  lookup_aliases: [recovery media creation]
   applies_to: [endpoint]
+- id: recovery.uefi_secure_boot
+  name: UEFI and Secure Boot support
+  definition: Whether machines that use UEFI firmware or Secure Boot can be backed up, recovered 
+    (bare-metal, instant or as a virtual machine) and booted afterwards, and whether the product's 
+    agents and kernel modules work with Secure Boot enabled.
+  aliases: [uefi secure boot support, secure boot support, uefi boot]
+  lookup_aliases: [uefi secure boot]
+  applies_to: [endpoint, virtualization, cloud.compute]
 - id: recovery.failover
   name: Failover and failback
   definition: Switching to replicas and back, including planned and test failovers.
@@ -747,11 +813,14 @@ dimensions:
   aliases: [preserve mac address, ip remapping, network mapping, re-ip, restore to new location with
       custom network settings, re-ip of recovered vms, re-ip with original ip address on failback, 
       public ip assignment on restore]
+  lookup_aliases: [public ip address assignment on restore, restore without network connection, 
+      security group association on recovery]
   applies_to: [virtualization, kubernetes.vm, cloud.compute]
 - id: recovery.resource_transforms
   name: Resource transformation on restore
   definition: Modifying resource definitions or manifests during restore.
   aliases: [transforms, resource modifiers, manifest transformation, restore transforms]
+  lookup_aliases: [storage class mapping, storage class mapping on restore]
   applies_to: [kubernetes]
 - id: security.immutability
   name: Backup immutability
@@ -760,6 +829,7 @@ dimensions:
       hardened repository, backup data immutability, immutability for operational backups, immutable
       backup copies, worm immutable backups, object lock immutability, immutable vault, immutable 
       cloud backup destination, Immutable backup destination, worm storage, WORM storage support]
+  lookup_aliases: [worm protection]
   applies_to: all
 - id: security.immutability_level
   name: Immutability level
@@ -786,6 +856,7 @@ dimensions:
   aliases: [encryption at rest, aes-256, encrypted backups, backup encryption, backup data 
       encryption, aes-256 backup encryption, aes-256 encryption at rest, encrypted snapshot metadata,
     Snapshot metadata encryption]
+  lookup_aliases: [envelope encryption]
   applies_to: all
 - id: security.encryption_in_transit
   name: Encryption in transit
@@ -797,6 +868,7 @@ dimensions:
       https-only web ui access, ssl encrypted web ui communication, Console transport encryption, 
       server certificate validation using root or intermediate ca certificates, Server certificate 
       validation]
+  lookup_aliases: [ssl certificate verification]
   applies_to: all
 - id: security.customer_managed_keys
   name: Customer-managed keys
@@ -839,6 +911,7 @@ dimensions:
       group-based role assignment via sso, group-based access control via sso, group-based access 
       management, group-based role assignment, revoke backup share access, Revoking shared backup 
       access]
+  lookup_aliases: [compliance and review officer role, data protection officer role]
   applies_to: all
 - id: security.mfa
   name: Multi-factor authentication
@@ -878,6 +951,8 @@ dimensions:
   aliases: [four-eyes, multi-user authorization, dual authorization, quorum approval, approval 
       workflow, action approval workflow, four-eye approval for disabling backups, Dual approval for
       disabling backups]
+  lookup_aliases: [quorum group configuration, quorum group management, quorum group operation 
+      templates]
   applies_to: all
   platform: true
 - id: security.audit_logging
@@ -900,6 +975,7 @@ dimensions:
     firewalls and secure defaults.
   aliases: [hardening, hardened os, root access, secure configuration, hardened appliance, security 
       baseline, automatic firewall rule creation during installation, Automatic firewall rules]
+  lookup_aliases: [ddos protection]
   applies_to: all
   platform: true
 - id: security.air_gap
@@ -918,6 +994,8 @@ dimensions:
   name: Signature-based malware detection
   definition: Scanning backups with a signature-based engine.
   aliases: [malware scan, antivirus scan, signature-based detection, virus scan, malware scanning]
+  lookup_aliases: [malware scanning of backup data, malware scanning of backups, on-demand malware 
+      scanning, scheduled malware scan]
   applies_to: all
 - id: cyber.detection_rules
   name: Rule-based scanning
@@ -965,6 +1043,7 @@ dimensions:
   definition: Isolating or blocking use of suspicious restore points.
   aliases: [quarantine, contain, block infected restore point, quarantine backups, central 
       quarantine destination, snapshot quarantine]
+  lookup_aliases: [block restore of tagged snapshots]
   applies_to: all
 - id: cyber.clean_room
   name: Clean room recovery
@@ -990,11 +1069,13 @@ dimensions:
       sandbox test restore, scheduled test boots of dr vms, restore validation, restore dry run, 
       disaster recovery dry run, DR dry run, dr rehearsal, Recovery rehearsal, restore point 
       availability verification, restore point health check, Restore point verification]
+  lookup_aliases: [service verification]
   applies_to: all
 - id: cyber.recovery_orchestration
   name: Recovery orchestration
   definition: Orchestrated recovery plans with steps, testing and reports.
   aliases: [recovery orchestration, recovery plan, runbook, orchestrated failover, dr orchestration]
+  lookup_aliases: [boot priority ordering, recovery run books]
   applies_to: all
 - id: cyber.security_posture
   name: Backup security posture
@@ -1027,6 +1108,7 @@ dimensions:
       job status notifications, backup and restore session history, backup and restore session log, 
       Session history log, job log download, job log viewing, Job log access, enterprise application
       monitoring, job monitoring, restore session log review, Restore session logs]
+  lookup_aliases: [ransomware detection dashboard]
   applies_to: all
 - id: operations.reports
   name: Reports
@@ -1046,6 +1128,8 @@ dimensions:
       consumption reporting, storage usage history graph, tenant storage consumption reporting, 
       deduplication ratio reporting, deduplication summary report, historical report data retention, 
       historical reporting data retention, compliance violation reporting]
+  lookup_aliases: [data usage reporting, disk space reporting, failed objects reporting, malware 
+      scan report, malware scan summary report, report data retention]
   applies_to: all
 - id: operations.notifications
   name: Notifications
@@ -1066,6 +1150,10 @@ dimensions:
       account, oauth 2.0 modern authentication for email sending, OAuth 2.0 email sending, generic 
       webhook integration with oauth 2.0 client credentials authentication, oauth 2.0 client 
       credentials webhook authentication, Webhook authentication]
+  lookup_aliases: [certificate expiration alert, certificate expiration warning, certificate expiry 
+      alert, disk space low alert, license expiration alert, license expiration notification, low 
+      disk space alert, malware detection alerts, quota alert threshold, storage capacity alerts, 
+      storage utilization alerts]
   applies_to: all
 - id: operations.multi_tenant_management
   name: Central and multi-tenant management
@@ -1078,6 +1166,7 @@ dimensions:
       configuration, centralized agent management, Central agent management, centralized management 
       console, Central management console, centralized monitoring of multiple management servers, 
       Central monitoring of management servers]
+  lookup_aliases: [customer account management]
   applies_to: all
 - id: operations.api_automation
   name: APIs and automation
@@ -1086,6 +1175,7 @@ dimensions:
       public api, command-line interface, powershell cmdlets, 'restore using powershell direct, vix api
       or vsphere automation api', Programmatic restore interface, command line restore, api key 
       revocation, api token revocation, API credential revocation]
+  lookup_aliases: [command-line backup, command-line backup script, powershell backup job submission]
   applies_to: all
   platform: true
 - id: operations.ai_assistance
@@ -1119,6 +1209,7 @@ dimensions:
       log and user information during upgrade', 'migration of jobs, logs and user information during upgrade',
     Upgrade configuration migration, automatic client registration via configuration url, Automatic 
       client registration, in-place agent upgrade without removal, In-place agent upgrade]
+  lookup_aliases: [group policy deployment, hotfix rollback, update rollback]
   applies_to: all
   platform: true
 - id: operations.high_availability
@@ -1132,6 +1223,7 @@ dimensions:
   definition: Recovering the backup product's own configuration and catalog after loss.
   aliases: [configuration backup, catalog recovery, disaster recovery of backup server, 
       self-protection]
+  lookup_aliases: [index restore, scheduled catalog backup, self-backup, server database backup]
   applies_to: all
   platform: true
 - id: operations.diagnostics
@@ -1169,6 +1261,8 @@ dimensions:
       size, configurable number of backup streams, Parallel backup streams, configurable resource 
       limits for backup delete jobs, Deletion job resource limits, cpu priority control, maximum 
       number of backup stripes, Maximum backup stripes]
+  lookup_aliases: [backup performance tuning, backup performance tuning parameters, configurable 
+      block size for backup and restore]
   applies_to: all
 # ---------------- governance ----------------
 - id: governance.archiving
@@ -1183,6 +1277,7 @@ dimensions:
       start of archival policy, Manual archival start, archive hard deletion, hard delete after 
       archive, Permanent deletion after archive, disable automations during archiving, Bypassing 
       automation during archiving, unix archiving, network share archiving]
+  lookup_aliases: [hard delete archived records, stubbing]
   applies_to: all
 - id: governance.legal_hold
   name: Legal hold
@@ -1200,6 +1295,7 @@ dimensions:
   aliases: [data classification, sensitive data discovery, pii detection, dlp, data discovery, 
       sensitive data intelligence, sensitive data discovery and classification, sensitive data 
       discovery scan, classification scans, data asset inventory]
+  lookup_aliases: [mip labeling]
   applies_to: all
 - id: governance.rot_cleanup
   name: ROT data clean-up
@@ -1424,6 +1520,7 @@ dimensions:
       backup fallback for objects without incremental support, Full backup fallback, full backup 
       every session, Always full backup, forever forward incremental backup, forever incremental 
       backup, infinite incremental backups]
+  lookup_aliases: [copy-only database backup, full database backup, full snapshot]
   applies_to: all
 - id: coverage.configurable_exclusions
   name: Backup inclusion and exclusion filters
@@ -1440,6 +1537,7 @@ dimensions:
       of ingestion, Ingestion filtering, backup content filters with wildcard patterns, Wildcard 
       content filters, disk exclusion by tag, Tag-based exclusion, user-defined subclients for 
       specific shares, User-defined data subsets, wildcard file selection]
+  lookup_aliases: [selective backup, vm selection by name]
   applies_to: all
 - id: recovery.record_level
   name: Record-level restore
@@ -1517,6 +1615,7 @@ dimensions:
       backups, pause backup, cancel runs at quiet time start, Cancels running jobs at blackout start,
     pause future protection runs, Pausing scheduled protection, disable archival policy, manual stop
       of archival policy]
+  lookup_aliases: [backup window enforcement, job hold]
   applies_to: all
 - id: security.immutability_period
   name: Immutability period
@@ -1524,6 +1623,7 @@ dimensions:
   aliases: [custom immutability period, default minimum immutability period, change immutability 
       period, default immutability period, default minimum immutability duration, immutability for 
       specific duration]
+  lookup_aliases: [worm retention period]
   applies_to: all
   value_unit: days
 - id: governance.resource_tagging
@@ -1552,6 +1652,7 @@ dimensions:
     kept encrypted or decrypted.
   aliases: [backup of encrypted fields, encrypted field restore, restore encrypted fields, restore 
       of encrypted field values, restore of encrypted fields]
+  lookup_aliases: [bitlocker encrypted volume backup, transparent data encryption support]
   applies_to: all
 - id: recovery.version_selection
   name: Item version restore
@@ -1611,12 +1712,14 @@ dimensions:
   aliases: [sla compliance ratio estimation, sla compliance monitoring, protection status report, 
       protection status reporting, protection status overview, protection status monitoring, rpo 
       compliance reporting]
+  lookup_aliases: [policy compliance status]
   applies_to: all
 - id: protection.api_based_collection
   name: Provider APIs used for backup
   definition: Which SaaS or cloud provider APIs the product uses to read and restore data, such as 
     Microsoft Graph, EWS or a provider's backup storage API.
   aliases: [backup via graph api, backup via onedrive api]
+  lookup_aliases: [api-based backup and restore, exchange web services backup]
   applies_to:
   - saas
 - id: security.encryption_password_recovery
@@ -1628,6 +1731,7 @@ dimensions:
   name: NDMP backup
   definition: Backing up network-attached storage using the Network Data Management Protocol.
   aliases: [ndmp backup, token-based backups]
+  lookup_aliases: [cluster aware backup extension, ndmp multiplexing]
   applies_to: [file.nas]
 - id: protection.pre_post_scripts
   name: Pre- and post-backup scripts
@@ -1651,6 +1755,7 @@ dimensions:
     direct SAN access or network (NBD), and when each applies.
   aliases: [hotadd transport mode, hotadd transport mode backup, hotadd transport mode restore, 
       direct san access, SAN transport mode]
+  lookup_aliases: [san mode restore]
   applies_to:
   - virtualization
 - id: vendor.license_usage_reporting
@@ -1664,6 +1769,7 @@ dimensions:
     monitoring platforms such as Prometheus, Datadog or Grafana, and which ones.
   aliases: [metrics export to external monitoring platforms, prometheus metrics export, prometheus 
       remote write metrics export, metrics provider integration]
+  lookup_aliases: [grafana alerting]
   applies_to: all
 - id: recovery.audit_field_preservation
   name: Audit field preservation on restore
@@ -1678,6 +1784,7 @@ dimensions:
     or service desk tools, such as ConnectWise, Autotask, N-central or Jira, for ticket creation 
     from alerts, billing or deployment.
   aliases: [psa integration, psa ticket creation from alerts, Ticket creation from alerts]
+  lookup_aliases: [integrated customer billing]
   applies_to: all
 - id: security.ssh_public_key_authentication
   name: SSH public key authentication
@@ -1707,6 +1814,9 @@ dimensions:
     backed up and restored, such as SQL Server availability groups and failover cluster instances, 
     Oracle RAC, Exchange DAGs, Windows failover clusters and cluster shared volumes.
   aliases: [availability group support, backup of only clustered disks, Clustered disk coverage]
+  lookup_aliases: [backup of fault tolerant virtual machines, cluster-aware backup, dag node backup, 
+      failover cluster backup and restore, failover cluster protection, fault tolerant virtual 
+      machine backup, multi-node rac backup, shared disk backup]
   applies_to:
   - app
   - endpoint.server
@@ -1717,6 +1827,7 @@ dimensions:
     instead of starting over.'
   aliases: [checkpoint restart, checkpoint restart backups, rerun failed jobs, continue on error, 
       automatic backup retry]
+  lookup_aliases: [job resume]
   applies_to: all
 - id: protection.consistency_groups
   name: Consistency groups
@@ -1729,6 +1840,14 @@ dimensions:
   definition: Moving backup data directly between the workload and backup storage over a storage 
     network (SAN, Fibre Channel or a dedicated data network) instead of the production LAN.
   aliases: [lan-free data transfer, lan-free backup and restore]
+  lookup_aliases: [dedicated backup network, san backup]
+  applies_to: all
+- id: protection.off_host_backup
+  name: Off-host backup
+  definition: Running a backup's data movement or processing on a separate proxy, mount or media 
+    host, often from a storage or VSS snapshot, instead of on the production server, to take the 
+    backup load off it.
+  aliases: [off-host backup, offloaded backup]
   applies_to: all
 - id: protection.open_file
   name: Open file backup
@@ -1760,6 +1879,7 @@ dimensions:
     installed desktop console, what the web interface supports, and which browsers it requires.
   aliases: [web-based administration interface, web-based user interface, web ui browser support, 
       browser support, web browser support, supported browser, Supported browsers]
+  lookup_aliases: [web browser file restore, web browser restore, web ui restore]
   applies_to: all
 - id: vendor.license_revocation
   name: Automatic license assignment and release
@@ -1879,6 +1999,7 @@ dimensions:
       backup proxy servers, backup proxy server on linux, Linux proxy host support, nas installation,
     installation on nas, cloud deployment, deployment on cloud virtual machine, Cloud VM deployment, 
       virtual appliance deployment, Virtual appliance delivery]
+  lookup_aliases: [vm deployment]
   applies_to: all
 - id: operations.multi_vendor_reporting
   name: Multi-vendor backup reporting
@@ -1930,6 +2051,7 @@ dimensions:
   name: Pre- and post-restore scripts
   definition: Running custom scripts before and after a restore job.
   aliases: [pre- and post-restore scripts, pre-restore scripts, post-restore scripts]
+  lookup_aliases: [restore hooks]
   applies_to: all
 - id: recovery.draas
   name: Disaster recovery as a service

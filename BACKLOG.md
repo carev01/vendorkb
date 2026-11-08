@@ -219,17 +219,17 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     backup interfaces such as RMAN or Backint (~60), NORECOVERY or STANDBY restores (~50), UEFI
     and Secure Boot (~45), off-host backup (~40), and smaller ones (direct-to-cloud backup,
     white-label branding, cross-version restore, interface languages). None of them appears in
-    the comparison tables, so none was added; the list is in the round-2 report section.
-31. **Alias-only taxonomy changes ask questions again.** Candidate search embeds every alias, so
-    a new alias pulls its entity into the top-5 candidates of many other phrases, and each such
-    question is asked again. The 194 round-2 dimension aliases (1,364 claims) would have caused
-    about 90k re-asks (~$9). In a one-vendor pilot the re-asked answers were no better (a blind
-    grade of 60 changes: 27 new better, 27 old better), and broad aliases pushed earlier answers
-    out of the candidates (246 questions, and one comparison-table row lost its fact). All 194
-    are held in `taxonomy/held-dimension-aliases.json`. Build candidate keys so an alias
-    addition is lookup-only (or carry an answer when only alias keys changed). Done when
-    applying the held file asks fewer than 1k questions in `taxonomy map --max-usd 0`
-    (`skipped_by_budget`).
+    the comparison tables. Four were added later the same day as buyer-relevant
+    (`protection.online_database_backup`, `protection.native_database_interface`,
+    `recovery.uefi_secure_boot`, `protection.off_host_backup`; 3,264 capability rows). The rest
+    are listed in the round-2 report section.
+31. **Done 2026-11-08:** dimensions and targets take `lookup_aliases`, matched like aliases but
+    never candidate-search keys (`aliases.search` false). The 194 held round-2 dimension aliases
+    went in as lookup aliases with 0 questions asked again (about 90k as search keys). A blind
+    check of 50 found 44 correct; the wrong patterns went, leaving 173 (188 lookup aliases with
+    the new dimensions', mapping 2,228 claims). A new entity still re-asks the phrases near it, but an entity chosen before for
+    the same question now stays among its candidates. Adding four dimensions had displaced the
+    earlier answer of 438 questions; with the fix, 1,089 questions went back to an earlier pick.
 28. **Agent-level eval as a regression gate.** The 2026-11-08 run (4 enumeration questions,
     search-only versus all tools, Sonnet agents) is in the report; turn it into a repeatable
     script with more questions.

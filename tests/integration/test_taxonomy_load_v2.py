@@ -158,6 +158,11 @@ def test_child_class_cannot_redefine_parent_object_type():
     (lambda d: d["classes"][1]["object_types"][1].update(aliases=["tenant settings"]),
      "tenant settings"),
     (lambda d: d["targets"][1].update(object_aliases={"user": [["nested"]]}), "nested"),
+    (lambda d: d["dimensions"][0].update(lookup_aliases=["longest retention"]),
+     "longest retention"),
+    (lambda d: d["targets"][0].update(lookup_aliases=[d["targets"][0]["name"]]),
+     "both aliases and lookup"),
+    (lambda d: d["targets"][2]["variants"][0].update(lookup_aliases=["x"]), "lookup_aliases"),
 ])
 def test_validation_rejects(mutate, needle):
     doc = copy.deepcopy(_doc())
@@ -341,3 +346,23 @@ def test_proposed_flag_must_be_boolean(mutate):
         load.validate(doc)
     assert any("proposed must be true or false" in p for p in err.value.problems), \
         err.value.problems
+
+
+async def test_lookup_aliases_load_as_lookup_only(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = _doc()
+        retention = next(d for d in doc["dimensions"] if d["id"] == "retention.maximum_period")
+        retention["lookup_aliases"] = ["Keep copies  FOREVER"]
+        next(t for t in doc["targets"] if t["id"] == "okta")["lookup_aliases"] = ["okta classic"]
+        loaded = await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc))
+        assert loaded["aliases"] == 69 + 2
+        rows = await _rows(conn, "SELECT alias, entity_type, entity_id, search FROM aliases"
+                                 " WHERE alias IN ('keep copies forever', 'okta classic',"
+                                 " 'longest retention') ORDER BY 1")
+        assert rows == [("keep copies forever", "dimension", "retention.maximum_period", False),
+                        ("longest retention", "dimension", "retention.maximum_period", True),
+                        ("okta classic", "target", "okta", False)]
+    finally:
+        await conn.close()
