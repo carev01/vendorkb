@@ -164,8 +164,7 @@ dimensions:
   name: Transaction log backup
   definition: Backing up and optionally truncating database or application logs.
   aliases: [log backup, transaction log backup, log shipping, archive log backup, wal backup, log 
-      truncation, transaction log backup and restore, transaction log truncation, transaction log 
-      restore]
+      truncation, transaction log backup and restore, transaction log truncation]
   applies_to: [app, cloud.database]
 - id: protection.backup_copy
   name: Secondary backup copy
@@ -2573,7 +2572,7 @@ targets:
   - {id: table, name: Cosmos DB for Table, aliases: [cosmos db table api]}
   - {id: gremlin, name: Cosmos DB for Gremlin, aliases: [cosmos db gremlin]}
 - {id: azure.blob, name: Azure Blob Storage, class: cloud.object, aliases: [azure blob, blob storage,
-    azure blob storage, azure storage account, azure storage, microsoft azure storage]}
+    azure blob storage, azure storage account]}
 - {id: azure.data_lake, name: Azure Data Lake Storage, class: cloud.object, aliases: [adls, data 
       lake storage gen2]}
 - {id: azure.files, name: Azure Files, class: cloud.file, aliases: [azure files, azure file shares, 
