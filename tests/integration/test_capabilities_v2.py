@@ -118,6 +118,21 @@ async def test_scope_assignment_and_selection(vkb_dsn):
         await conn.close()
 
 
+async def test_vendor_and_product_follow_a_retagged_document(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        cid = await _claim(conn, "retention.maximum_period", vendor="examplevendor",
+                           product="Old Product", mapped_version=v)
+        # the sync re-tags the document (store.update_metadata) without touching its chunks
+        await conn.execute("UPDATE documents SET vendor='othervendor', product='New Product'")
+        await capabilities.build(conn)
+        row = (await _caps(conn))[cid]
+        assert (row["vendor"], row["product"]) == ("othervendor", "New Product")
+    finally:
+        await conn.close()
+
+
 async def test_product_wide_and_product_level_groups(vkb_dsn):
     """Review Focus 4: product-wide facts never land in ``facts``; facts with no offering
     land only in ``product_level``, and only when an offering is filtered."""
