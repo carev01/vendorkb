@@ -92,9 +92,11 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   every claim. Claims waiting on a skipped or failed adjudication stay unstamped and are
   retried on the next run. Decisions persist in `map_decisions` (a new candidate makes a new
   question): with nothing new offered the earlier answer is carried, and a re-asked target
-  answered none keeps an earlier answer still offered. Every alias is a candidate-search key,
-  so a new alias re-asks many questions (BACKLOG 31): run `taxonomy map --max-usd 0` after a
-  load to count them (`skipped_by_budget`) before a paid re-map.
+  answered none keeps an earlier answer still offered. Aliases are candidate-search keys, so add
+  curated phrasings as `lookup_aliases` (exact lookup only): those ask nothing again. A new
+  entity re-asks the phrases near it, and an entity chosen before for a question stays among its
+  candidates. Run `taxonomy map --max-usd 0` after a load to count the re-asks
+  (`skipped_by_budget`) before a paid re-map.
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
   product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
   facts never appear as target facts.
