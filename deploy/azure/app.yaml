@@ -1,0 +1,82 @@
+# Container App for the distilled extractor (deploy.sh fills the __PLACEHOLDERS__).
+# vLLM serves Qwen/Qwen3.5-9B with the LoRA adapter under the name vendorkb sends as
+# EXTRACT_MODEL, decoding greedily with thinking off, exactly as the corpus run did
+# (training/serve_merged.sh): requests that send no temperature must not sample.
+location: __LOCATION__
+properties:
+  managedEnvironmentId: __ENV_ID__
+  workloadProfileName: gpu
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8000
+      transport: auto
+      allowInsecure: false
+    secrets:
+      - name: serve-key
+        value: __API_KEY__   # filled by deploy.sh in a private temp file, never committed
+  template:
+    containers:
+      - name: vllm
+        image: __IMAGE__
+        command: ["vllm", "serve"]
+        args:
+          - Qwen/Qwen3.5-9B
+          - --enable-lora
+          - --max-lora-rank
+          - "16"
+          - --lora-modules
+          - __SERVED__=/models/adapter
+          - --chat-template
+          - /models/adapter/chat_template.jinja
+          - --language-model-only
+          - --max-model-len
+          - "12288"
+          - --enable-prefix-caching
+          - --gpu-memory-utilization
+          - "0.92"
+          - --max-num-seqs
+          - "128"
+          - --default-chat-template-kwargs
+          - '{"enable_thinking": false}'
+          - --override-generation-config
+          - '{"temperature": 0}'
+          - --host
+          - 0.0.0.0
+          - --port
+          - "8000"
+        env:
+          - name: VLLM_API_KEY   # vLLM requires it as a Bearer token on every request
+            secretRef: serve-key
+          - name: HF_HOME        # the base model is downloaded once into the share
+            value: /models/hf
+        resources:
+          cpu: 24
+          memory: 220Gi
+        volumeMounts:
+          - volumeName: models
+            mountPath: /models
+        probes:
+          - type: Startup        # the first start downloads ~18 GB: allow ~21 minutes
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 60
+            periodSeconds: 120
+            failureThreshold: 10
+          - type: Liveness
+            httpGet: {path: /health, port: 8000}
+            periodSeconds: 30
+            failureThreshold: 5
+    scale:
+      minReplicas: 0             # nothing runs (or bills) between refreshes
+      maxReplicas: 1
+      cooldownPeriod: 600
+      rules:
+        - name: http
+          http:
+            metadata:
+              concurrentRequests: "64"
+    volumes:
+      - name: models
+        storageType: AzureFile
+        storageName: models

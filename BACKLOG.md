@@ -124,6 +124,9 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       data, which is the expensive part and is shared, and pick by held-out agreement. 27B in
       bf16 needs about 56 GB, so it fits one 80 GB A100 (Azure Container Apps, validated
       2026-11-06) but not the P6000.
+    - *2026-11-08: the corpus is extracted (217,037 chunks by the 9B, 54 errored), and
+      `deploy/azure` serves the adapter on a serverless A100 for `vendorkb refresh` (deploy
+      with the user's Azure login; LoRA serving validated against the merged model).*
     - **Serving:** vLLM's OpenAI-compatible API on Azure Container Apps (A100, scale to zero) for
       incremental extraction, through the existing `openai` extract backend. Batch the deltas
       to amortise cold starts.
