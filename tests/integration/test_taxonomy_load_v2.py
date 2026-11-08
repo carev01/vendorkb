@@ -163,6 +163,8 @@ def test_child_class_cannot_redefine_parent_object_type():
     (lambda d: d["targets"][0].update(lookup_aliases=[d["targets"][0]["name"]]),
      "both aliases and lookup"),
     (lambda d: d["targets"][2]["variants"][0].update(lookup_aliases=["x"]), "lookup_aliases"),
+    (lambda d: d["dimensions"][0].update(lookup_only="yes"), "lookup_only"),
+    (lambda d: d["targets"][0].update(lookup_only=True), "lookup_only"),
 ])
 def test_validation_rejects(mutate, needle):
     doc = copy.deepcopy(_doc())
@@ -364,5 +366,22 @@ async def test_lookup_aliases_load_as_lookup_only(vkb_dsn, tmp_path):
         assert rows == [("keep copies forever", "dimension", "retention.maximum_period", False),
                         ("longest retention", "dimension", "retention.maximum_period", True),
                         ("okta classic", "target", "okta", False)]
+    finally:
+        await conn.close()
+
+
+async def test_a_lookup_only_dimension_is_never_a_search_key(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = _doc()
+        retention = next(d for d in doc["dimensions"] if d["id"] == "retention.maximum_period")
+        retention.update(lookup_only=True, lookup_aliases=["keep copies forever"])
+        await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc))
+        rows = await _rows(conn, "SELECT alias, search FROM aliases"
+                                 " WHERE entity_id = 'retention.maximum_period'"
+                                 " ORDER BY alias COLLATE \"C\"")
+        assert rows == [("keep copies forever", False), ("longest retention", False),
+                        ("max retention", False), ("maximum retention period", False)]
     finally:
         await conn.close()

@@ -7,6 +7,7 @@ clients, so one slow or failed call never affects another.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Literal, Protocol
 
 from openai import AsyncOpenAI
@@ -36,39 +37,59 @@ class Backend(Protocol):
     async def answer(self, question: str) -> dict[str, Any]: ...
 
 
-# A taxonomy entry matches a query when the query is its id, an exact (normalized) alias, or a
-# substring of its id, name or an alias; exact matches sort first.
-_DIMENSIONS = """
-SELECT d.dimension_id, d.family, d.name, d.definition, d.applies_to, d.value_unit,
-       coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{}')
+# A taxonomy entry matches a query when the query is its id or an exact (normalized) alias
+# (rank 0), a whole word or phrase in its id, name or an alias (1), or the start of a word there
+# (2). A match inside a word (3: "rman" in "performance") counts only when nothing ranks higher.
+def _rank(id_col: str, name_col: str) -> str:
+    def hit(op: str, param: str) -> str:
+        return (f"{id_col} {op} %({param})s OR {name_col} {op} %({param})s"
+                f" OR bool_or(a.alias {op} %({param})s)")
+    return (f"CASE WHEN %(q)s::text IS NULL THEN 0"
+            f" WHEN {id_col} = %(q)s OR bool_or(a.alias = %(norm)s) THEN 0"
+            f" WHEN {hit('~*', 'word')} THEN 1 WHEN {hit('~*', 'start')} THEN 2"
+            f" WHEN {hit('ILIKE', 'like')} THEN 3 END")
+
+
+_BEST = """
+WHERE rank < 3 OR (rank = 3 AND NOT EXISTS (SELECT 1 FROM m WHERE rank < 3))
+ORDER BY rank, id
+LIMIT %(limit)s
+"""
+_DIMENSIONS = f"""
+WITH m AS (
+SELECT d.dimension_id AS id, d.family, d.name, d.definition, d.applies_to, d.value_unit,
+       coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{{}}')
+           AS aliases,
+       {_rank("d.dimension_id", "d.name")} AS rank
 FROM dimensions d
 LEFT JOIN aliases a ON a.entity_type = 'dimension' AND a.entity_id = d.dimension_id
 WHERE (%(family)s::text IS NULL OR d.family = %(family)s)
 GROUP BY d.dimension_id
-HAVING %(q)s::text IS NULL OR d.dimension_id = %(q)s OR bool_or(a.alias = %(norm)s)
-    OR d.dimension_id ILIKE %(like)s OR d.name ILIKE %(like)s OR bool_or(a.alias ILIKE %(like)s)
-ORDER BY (d.dimension_id = %(q)s OR coalesce(bool_or(a.alias = %(norm)s), false)) DESC,
-         d.dimension_id
-LIMIT %(limit)s
-"""
-_TARGETS = """
-SELECT t.target_id, t.name, t.class_id, t.parent_id,
-       coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{}')
+)
+SELECT id, family, name, definition, applies_to, value_unit, aliases FROM m
+{_BEST}"""
+_TARGETS = f"""
+WITH m AS (
+SELECT t.target_id AS id, t.name, t.class_id, t.parent_id,
+       coalesce(array_agg(a.alias ORDER BY a.alias) FILTER (WHERE a.alias IS NOT NULL), '{{}}')
+           AS aliases,
+       {_rank("t.target_id", "t.name")} AS rank
 FROM targets t
 LEFT JOIN aliases a ON a.entity_type = 'target' AND a.entity_id = t.target_id
 GROUP BY t.target_id
-HAVING %(q)s::text IS NULL OR t.target_id = %(q)s OR bool_or(a.alias = %(norm)s)
-    OR t.target_id ILIKE %(like)s OR t.name ILIKE %(like)s OR bool_or(a.alias ILIKE %(like)s)
-ORDER BY (t.target_id = %(q)s OR coalesce(bool_or(a.alias = %(norm)s), false)) DESC,
-         t.target_id
-LIMIT %(limit)s
-"""
+)
+SELECT id, name, class_id, parent_id, aliases FROM m
+{_BEST}"""
+_REGEX_SPECIAL = re.compile(r"([\\.^$*+?()\[\]{}|])")
 
 
 def _query_params(query: str | None, limit: int) -> dict[str, Any]:
     q = query.strip() if query and query.strip() else None
-    return {"q": q, "norm": normalize(q) if q else None,
-            "like": f"%{q}%" if q else None, "limit": limit}
+    norm = normalize(q) if q else None
+    literal = _REGEX_SPECIAL.sub(r"\\\1", norm) if norm else None
+    return {"q": q, "norm": norm, "like": f"%{q}%" if q else None,
+            "word": rf"\m{literal}\M" if literal else None,
+            "start": rf"\m{literal}" if literal else None, "limit": limit}
 
 
 class DbBackend:

@@ -66,6 +66,25 @@ async def test_browse_query_search_and_read(vkb_dsn, backend):
     assert targets[0]["id"] == "okta" and targets[0]["class"] == "saas.identity"
     assert await backend.targets("no such workload", 10) == []
 
+    conn = await connect(vkb_dsn)
+    try:
+        await conn.execute(
+            "INSERT INTO aliases (alias, entity_type, scope, entity_id) VALUES"
+            " ('permanent retention', 'dimension', '', 'retention.maximum_period'),"
+            " ('rman-based backup', 'dimension', '', 'coverage.backup'),"
+            " ('rmanager export', 'dimension', '', 'coverage.export')")
+        await conn.commit()
+    finally:
+        await conn.close()
+    # A whole word beats the start of a word, and a match inside a word ("perMANEnt") counts
+    # only when nothing matches at a word start.
+    assert [d["id"] for d in await backend.dimensions("RMAN", None, 10)] == [
+        "coverage.backup", "coverage.export"]
+    assert [d["id"] for d in await backend.dimensions("manent", None, 10)] == [
+        "retention.maximum_period"]
+    assert [d["id"] for d in await backend.dimensions("rman-based", None, 10)] == [
+        "coverage.backup"]
+
     res = await backend.capabilities(CapFilter(dimension="backed up objects", target="Okta"), 25)
     [fact] = res.facts
     assert (fact.vendor, fact.url, fact.evidence_quote) == (

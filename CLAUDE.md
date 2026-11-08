@@ -96,7 +96,12 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   curated phrasings as `lookup_aliases` (exact lookup only): those ask nothing again. A new
   entity re-asks the phrases near it, and an entity chosen before for a question stays among its
   candidates. Run `taxonomy map --max-usd 0` after a load to count the re-asks
-  (`skipped_by_budget`) before a paid re-map.
+  (`skipped_by_budget`) before a paid re-map. A decision is keyed on candidate ids, not their
+  definitions: after sharpening a definition, pass `--reask ID` (on the dry run and the paid
+  run) to ask again, and replace, the decisions that answered it. A new dimension draws
+  phrases that had no home into it, so blind-check its LLM picks before trusting it; a
+  dimension the model cannot file reliably can be `lookup_only: true` (never a candidate, not
+  even pinned: only its curated phrasings map).
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
   product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
   facts never appear as target facts.

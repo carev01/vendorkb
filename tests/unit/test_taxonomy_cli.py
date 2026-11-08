@@ -77,7 +77,8 @@ def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     async def fake_load(conn, path):
         return {"version": "2-ab12cd34", "path": path}
 
-    async def fake_map(conn, *, embedder, client, settings, max_usd, remap, vendor, seed):
+    async def fake_map(conn, *, embedder, client, settings, max_usd, remap, vendor, seed,
+                       reask):
         stubbed.update(map_backend=settings.map_backend,
                        extract_backend=settings.extract_backend, remap=remap, vendor=vendor,
                        seed=seed)

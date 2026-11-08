@@ -187,7 +187,7 @@ dimensions:
   aliases: [online database backup, offline database backup, online and offline backup]
   lookup_aliases: [offline database restore, online and offline backup and restore, online and 
       offline backups, online backup and restore, online backup without stopping database, online 
-      database restore]
+      database restore, hot backup, cold backup, hot database backup, cold database backup]
   applies_to: [app, cloud.database]
 - id: protection.native_database_interface
   name: Database-native backup interfaces
@@ -555,6 +555,19 @@ dimensions:
       cross-cluster restore, cross-device restore, restore to different mailbox, restore to original
       or new location, system copy restore]
   applies_to: all
+- id: recovery.cross_version
+  name: Cross-version restore
+  definition: Restoring a protected workload's backup into a different release of that workload 
+    than the one backed up, such as a SQL Server database to a newer SQL Server or a VM to another 
+    hypervisor release, and which version combinations are allowed. Not compatibility between 
+    versions of the backup product itself (older agents, plug-ins, recovery media or catalogs), 
+    or data format versions.
+  aliases: [cross-version restore, cross-version recovery, restore to a different version]
+  lookup_aliases: [restore to different exchange version, recovery to a different exchange version,
+    recover sql database to different sql server version, recover sql db to different sql server 
+      version, redirected restore to different database version, cross-version sql db recovery to 
+      different sql server]
+  applies_to: [app, cloud.database, cloud.compute, virtualization, endpoint, kubernetes]
 - id: recovery.cross_account_region
   name: Cross-account and cross-region recovery
   definition: Restoring to another cloud account, subscription or region.
@@ -624,6 +637,19 @@ dimensions:
       range display]
   lookup_aliases: [restore from specific backup, snapshot selection for recovery]
   applies_to: all
+- id: recovery.database_recovery_state
+  name: Database recovery state on restore
+  definition: The state a database restore leaves the database in, recovered and online 
+    (RECOVERY), restoring so that more transaction log backups can be applied (NORECOVERY), or 
+    read-only between log restores (STANDBY), as in log shipping or a staged restore. Not other 
+    restore options, such as overwriting the existing database (WITH REPLACE) or changing the 
+    database's mode before the restore.
+  aliases: [restore with norecovery, restore with standby, database recovery state]
+  lookup_aliases: [restore with recovery, restore with no recovery, restore without recovery, 
+      standby mode restore, norecovery mode restore, no recovery mode restore, restore with recovery 
+      or norecovery, recovery state selection on restore, rollback uncommitted transactions on 
+      restore]
+  applies_to: [app, cloud.database]
 - id: recovery.changes_only
   name: Restore only changed or deleted items
   definition: Restoring just the items changed or deleted since a restore point, leaving the rest 
@@ -1849,6 +1875,34 @@ dimensions:
     backup load off it.
   aliases: [off-host backup, offloaded backup]
   applies_to: all
+- id: protection.direct_to_cloud
+  name: Direct-to-cloud backup
+  definition: Backing up a machine or application straight from the protected host or its agent 
+    to cloud or object storage, and restoring directly from there, without a local backup server, 
+    appliance, gateway or repository in between, and whether a local cache is kept alongside for 
+    faster backups and restores.
+  # Lookup only: vendors use "direct" for different data paths, and blind checks of the model's
+  # picks found 6 of 10, then 7 of 15, right; the curated phrasings were 10 of 10.
+  lookup_only: true
+  aliases: [direct-to-cloud backup, direct to cloud backup, direct backup to cloud]
+  lookup_aliases: [local cache for direct-to-cloud, local cache for direct-to-cloud backups, 
+      direct-to-cloud backup without local cache, direct-to-cloud backup without local appliance,
+    direct cloud backup, direct cloud restore, direct-to-cloud recovery, client direct backup to 
+      cloud, direct backup to cloud storage library]
+  applies_to: [endpoint, virtualization, app, file, kubernetes]
+- id: protection.replica_backup_source
+  name: Backup from database replicas
+  definition: Whether backups of a replicated database or application, such as a SQL Server 
+    availability group, an Exchange DAG, an Oracle Data Guard standby or a MongoDB replica set, can 
+    run from a secondary replica, passive copy or standby instead of the primary or active copy, 
+    and whether the database's own backup preferences are honoured. Not protecting a cluster or 
+    replica group as one unit, or choosing which node of a shared-storage cluster such as Oracle 
+    RAC runs the backup.
+  aliases: [backup from secondary replica, backup from passive copy, availability group backup 
+      preference]
+  lookup_aliases: [active copy backup, backup from secondary node, copy-only backups on secondary 
+      replicas, backup on secondary replica, passive copy backup, backup of passive database copy]
+  applies_to: [app, cloud.database]
 - id: protection.open_file
   name: Open file backup
   definition: Capturing files that are in use or locked by applications at the time of backup.
@@ -1881,6 +1935,29 @@ dimensions:
       browser support, web browser support, supported browser, Supported browsers]
   lookup_aliases: [web browser file restore, web browser restore, web ui restore]
   applies_to: all
+- id: operations.white_label_branding
+  name: White-label branding
+  definition: Replacing the vendor's brand with a service provider's or customer's own in the 
+    product's consoles, portals, login pages, emails, reports and agents (own logo, company or 
+    product name and colours, or hiding the vendor's name), typically so a service provider can 
+    resell it. Not general interface customisation such as backgrounds, themes, menus or layouts, 
+    or styling of content the product publishes for others, such as consent banners.
+  aliases: [white-label branding, custom branding, portal branding customization]
+  lookup_aliases: [custom login page logo, custom portal logo, email branding, company logo upload, 
+      interface rebranding, hide powered by branding, brand your console, custom branding logos, 
+      web ui rebranding]
+  applies_to: all
+- id: operations.interface_languages
+  name: Interface languages
+  definition: The languages the product's own consoles, portals, agent interfaces and generated 
+    reports are offered in, and whether users can choose one. Not translation of content the 
+    product handles or publishes for others (such as consent banners or privacy notices), the 
+    languages an AI assistant converses in or a search index understands, character-set support, 
+    or the languages of technical support.
+  aliases: [interface languages, multi-language interface, user interface language selection]
+  lookup_aliases: [multi-language support, supported languages, interface language selection, 
+      multilingual client interface, localization support, agent interface languages]
+  applies_to: all
 - id: vendor.license_revocation
   name: Automatic license assignment and release
   definition: How license units are assigned to protected workloads and released for reuse when a 
@@ -1911,6 +1988,20 @@ dimensions:
   definition: Locking accounts or source addresses after repeated failed sign-ins to the product's 
     console or API, and for how long.
   aliases: [account lockout after failed logins]
+  applies_to: all
+- id: security.password_policy
+  name: Console password policy
+  definition: Rules the product enforces on the passwords of its own user accounts (console, 
+    portal and API users), such as minimum or maximum length, complexity, expiry, reuse history and 
+    a change at first sign-in. Not user-name rules, an administrator resetting a password, or the 
+    passwords that protect encryption keys, credential stores or restored accounts.
+  aliases: [password policy, password complexity requirements, minimum password length]
+  lookup_aliases: [administrator password complexity requirements, default password expiration, 
+      minimum administrator password length, minimum password complexity requirements, minimum 
+      password length setting, password change on first login, password complexity requirement, 
+      password complexity rules, password expiration, password expiration policy, password history,
+    password policy enforcement, password policy configuration, strong password enforcement, 
+      password reuse control, administrator password complexity]
   applies_to: all
 - id: security.source_authentication_methods
   name: Authentication to sources and storage

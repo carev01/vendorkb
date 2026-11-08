@@ -86,7 +86,7 @@ On the 150 labelled non-alias claims (picks not covered by the labels were grade
 | tool | what it does |
 |---|---|
 | `list_vendors` | vendors and products with documents, plus fact counts |
-| `list_dimensions` / `list_targets` | browse the taxonomy by id, alias or substring |
+| `list_dimensions` / `list_targets` | browse the taxonomy by id, alias or word (a match inside a word only when nothing else matches) |
 | `query_capabilities` | the fact table: at most N per group, round-robin across vendors, each fact with quote and URL |
 | `search_docs` / `read_section` | hybrid reranked search; a chunk in context |
 | `answer_question` | vendorkb's cited answer in one call |
@@ -364,4 +364,105 @@ phrasings are lookup aliases.
 |---|---|
 | OpenRouter (Haiku 5.5) | $1.22 (new dimensions $0.99, earlier picks $0.21, alias drops $0.03) |
 | Voyage | 2 new strings |
+| Grading | Claude subagents (4 graders) |
+
+## Seven more gap themes (2026-11-08, late)
+
+Taxonomy `2-535fdb7b` (241 dimensions).
+
+| | before | now |
+|---|---|---|
+| claims with no dimension | 124,206 | **123,284** |
+| claims mapped by a dimension alias | 74,738 | 75,270 |
+| capability rows | 466,328 | 467,250 |
+| comparison-table rows with a fact | 423 / 423 (406 specific) | 423 / 423 (406 specific) |
+
+### Which themes, and why
+
+A theme became a dimension when a buyer would compare vendors on it, it is a capability of the
+product rather than a commercial term, no dimension covers it, and several vendors document it.
+
+| dimension | applies to | capability rows | vendors |
+|---|---|---|---|
+| `security.password_policy` (console accounts) | all | 595 | 28 |
+| `recovery.database_recovery_state` (RECOVERY, NORECOVERY, STANDBY) | app, cloud.database | 565 | 14 |
+| `protection.replica_backup_source` (AG secondary, DAG passive copy) | app, cloud.database | 537 | 16 |
+| `operations.interface_languages` | all | 318 | 21 |
+| `recovery.cross_version` | app, cloud, virtualization, endpoint, kubernetes | 257 | 22 |
+| `operations.white_label_branding` | all | 208 | 18 |
+| `protection.direct_to_cloud` (lookup only, see below) | endpoint, virtualization, app, file, kubernetes | 102 | 8 |
+
+- **Aliases:** "hot backup" and "cold backup" move from application-consistent backup (cold was
+  unmapped) to `protection.online_database_backup`; all their claims are database or
+  application claims (alias lookups ignore `applies_to`).
+- **Not added:** product lifecycle dates (most matches are platform end-of-life support or
+  storage lifecycle policies, which have homes; the rest is one vendor), certificate lifecycle
+  (12 claims, next to `security.custom_ssl_certificate`), accessibility (3 vendors) and the
+  1-3-vendor tail (billing, quotas, discounts, device tracking and similar).
+
+### First pass: new dimensions pull in phrases with no home
+
+- **Re-asks:** 11,583 questions, $1.22. 1,902 chose one of the six new dimensions, 1,126 of
+  them from none.
+- **Blind check:** the curated aliases were right (35 of 35: 30 on the new dimensions, 5 hot or
+  cold backup), but only **33 of 60** LLM picks were. Phrases that had no home went to the
+  nearest new dimension: consent-banner translation and AI chat languages as interface
+  languages, UI themes and backgrounds as branding, user-name rules and password resets as
+  password policy, backup-product version compatibility as cross-version restore, a database
+  mode switch before restore as recovery state.
+- **Direct-to-cloud** first went in as lookup aliases on `storage.repository_types` (where
+  "direct to cloud backup" already mapped). The blind check found 1 of 5 right: it is a backup
+  architecture, not a kind of storage. It became a dimension.
+
+### The fix: exclusions in the definitions, and `--reask`
+
+- Each new definition now names what it excludes (for example, interface languages: "not
+  translation of content the product handles or publishes for others, the languages an AI
+  assistant converses in or a search index understands, character-set support").
+- A decision is keyed on the candidate ids, not their definitions, so a sharper definition
+  changed nothing on its own. **`taxonomy map --reask ID`** sets aside stored and earlier answers
+  naming the entity and asks those questions again; a model decision now replaces the stored row
+  for its key.
+- **Re-ask:** 4,283 questions (1,902 set aside, the rest for direct-to-cloud), $0.46.
+- **Regrade (fresh sample):** **49 of 60** LLM picks to the six were right (82%; the mapper's
+  measured LLM precision is 0.84): branding 10/10, replicas 9/10, cross-version and password
+  policy 8/10, interface languages and recovery state 7/10. The rest mostly break a stated
+  exclusion.
+- **Direct-to-cloud** scored 6 of 10 (aliases 5 of 5): "cloud-to-cloud backup" of SaaS data,
+  "backup to cloud" in general and cloud gateways came in. Narrowed to endpoint, virtualization,
+  app, file and Kubernetes workloads, with exclusions (677 questions, $0.08), it still scored 7
+  of 15: vendors use "direct" for different data paths (no gateway, no local copy, no
+  appliance), and the claim text rarely says whether a server sits in the path.
+- **Lookup-only dimensions:** a dimension may now carry `lookup_only: true`. Its name and
+  aliases are lookup keys too, so the model never offers it. Direct-to-cloud is one, with 12
+  curated phrasings ("direct-to-cloud backup", "client direct backup to cloud", "local cache for
+  direct-to-cloud", ...): 102 rows from 8 vendors. Every graded claim using one of these
+  phrasings was right (10 of 10, across both checks). The other direct-to-cloud claims are left
+  to `search_docs`.
+- **Pinning fix:** pinning offered an earlier pick again whenever it applied to the class, so the
+  lookup-only dimension came back on every question that had chosen it, matched the stored key
+  and kept 159 claims. Pinning now offers only dimensions with a search key; the re-map went back
+  to the decisions stored before direct-to-cloud existed (1 call).
+
+### Churn among the other answers
+
+Re-asking changed 1,523 answers that were not to a new dimension (661 to none, 495 from none).
+A blind pairwise grade of 40 preferred the earlier answer 17 times and the new one 18 (3 both
+acceptable, 2 both wrong): the variance is neutral, as in round 2, so no rule was added for
+it.
+
+### MCP dimension and target search
+
+`list_dimensions` and `list_targets` matched any substring and sorted by id after exact matches,
+so "rman" listed archiving ("permanent") and performance dimensions before the database-native
+interfaces. Matches now rank exact, whole word, start of a word; a match inside a word counts
+only when nothing ranks higher. "rman" now returns only `protection.native_database_interface`.
+
+### Spend (this part)
+
+| | |
+|---|---|
+| OpenRouter (Haiku 5.5) | $1.76 (first pass $1.22, re-ask $0.46, direct-to-cloud $0.08) |
+| Backup before | `~/backups/vendorkb-prod-2026-11-08f.dump` |
+| Voyage | the new search keys only (the embedding cache served the rest) |
 | Grading | Claude subagents (4 graders) |

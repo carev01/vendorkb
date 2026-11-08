@@ -133,6 +133,7 @@ class MapReport:
     decisions_carried: int = 0  # same phrase, fewer or reordered candidates: earlier answer kept
     decisions_kept: int = 0  # target asked again, answered none: the earlier answer, still offered
     decisions_seeded: int = 0  # seed=True: decisions newly recorded from the stored mappings
+    decisions_reasked: int = 0  # stored or earlier answer named a reask entity: asked again
     skipped_by_budget: int = 0  # adjudications not sent
     claims_skipped_by_budget: int = 0  # claims left unmapped by them
     stopped_by_budget: bool = False
@@ -450,6 +451,7 @@ class _Adjudication:
     failed: bool = False  # the call failed or its reply was unusable: no decision made
     decided: bool = False  # the model answered (a candidate or none)
     cached: bool = False  # answered from map_decisions
+    reasked: bool = False  # its stored or earlier answer named a reask entity
     claim_ids: list[Any] = field(default_factory=list)
 
     def add_context(self, c: _Claim) -> None:
@@ -562,9 +564,10 @@ class _Adjudicator:
     """Sends adjudications under one budget for the whole run."""
 
     def __init__(self, tax: _Tax, client: Any, settings: VendorkbSettings, max_usd: float,
-                 report: MapReport, conn: psycopg.AsyncConnection) -> None:
+                 report: MapReport, conn: psycopg.AsyncConnection,
+                 reask: frozenset[str] = frozenset()) -> None:
         self.tax, self.client, self.settings, self.conn = tax, client, settings, conn
-        self.max_usd, self.report = max_usd, report
+        self.max_usd, self.report, self.reask = max_usd, report, reask
         self.price = map_price(settings)
         self.spent = self.in_flight = 0.0
         self.stop = False
@@ -579,16 +582,20 @@ class _Adjudicator:
                                       (list(keyed),))
         for key, choice in await cur.fetchall():
             a = keyed[key]
-            if choice is None or choice in a.candidates:
+            if choice in self.reask:
+                a.reasked = True
+            elif choice is None or choice in a.candidates:
                 a.choice, a.cached = choice, True
                 self.report.decisions_reused += 1
         await self._carry([a for a in items if not a.cached])
+        self.report.decisions_reasked += sum(a.reasked for a in items)
         try:
             await asyncio.gather(*(self._one(a) for a in items if not a.cached))
             await self._keep([a for a in items if a.kind == "target" and a.choice is None
                               and (a.cached or a.decided)])
         finally:  # paid decisions are kept even when the run stops
-            await self._store([(k, a) for k, a in keyed.items() if a.decided], "llm")
+            await self._store([(k, a) for k, a in keyed.items() if a.decided], "llm",
+                              replace=True)
         self.report.spent_usd = self.spent
         if self.fatal is not None:
             raise self.fatal
@@ -640,7 +647,9 @@ class _Adjudicator:
             if prev is None:
                 continue
             cands, choice = prev
-            if set(a.candidates) <= set(cands) and (choice is None or choice in a.candidates):
+            if choice in self.reask:
+                a.reasked = True
+            elif set(a.candidates) <= set(cands) and (choice is None or choice in a.candidates):
                 a.choice, a.cached = choice, True
                 self.report.decisions_carried += 1
 
@@ -666,20 +675,26 @@ class _Adjudicator:
         earlier: dict[str, str | None] = dict(await cur.fetchall())
         for key, a in zip(keys, items):
             choice = earlier.get(key)
-            if choice is not None and choice in a.candidates:
+            if choice is not None and choice in a.candidates and choice not in self.reask:
                 a.choice = choice
                 self.report.decisions_kept += 1
 
-    async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> int:
-        """Insert decisions not stored yet; returns how many were inserted."""
+    async def _store(self, rows: list[tuple[str, _Adjudication]], source: str, *,
+                     replace: bool = False) -> int:
+        """Insert decisions; returns how many rows were written. A stored decision for the same
+        key is left alone, or with ``replace`` (a question asked again, see ``reask``)
+        replaced."""
         if not rows:
             return 0
         family = model_family(self.settings.map_model)
+        conflict = ("DO UPDATE SET candidates = EXCLUDED.candidates, choice = EXCLUDED.choice,"
+                    " model = EXCLUDED.model, source = EXCLUDED.source, rules = EXCLUDED.rules,"
+                    " decided_at = now()" if replace else "DO NOTHING")
         async with self.conn.cursor() as cur:
             await cur.executemany(
                 "INSERT INTO map_decisions (key, kind, phrase, class_id, candidates, choice,"
                 " model, source, rules) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-                " ON CONFLICT (key) DO NOTHING",
+                f" ON CONFLICT (key) {conflict}",
                 [(k, a.kind, a.text, a.class_id, list(a.candidates), a.choice, family, source,
                   PROMPT_RULES) for k, a in rows])
             return max(cur.rowcount, 0)  # executemany: the sum over the statements
@@ -832,14 +847,15 @@ def _count(report: MapReport, prefix: str, method: str | None) -> None:
 
 async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
                      settings: VendorkbSettings, max_usd: float, remap: bool = False,
-                     vendor: str | None = None, seed: bool = False) -> MapReport:
+                     vendor: str | None = None, seed: bool = False,
+                     reask: frozenset[str] = frozenset()) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
     report = MapReport(taxonomy_version=version)
     tax = await _snapshot(conn)
     # Built before any paid work: it refuses a model with no known price.
-    adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn)
+    adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn, reask)
     k = max(1, settings.map_candidates)
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
@@ -951,11 +967,13 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             if mapped[c.claim_id].class_id not in seen:
                 seen.append(mapped[c.claim_id].class_id)
     applicable: dict[str | None, np.ndarray] = {}  # class -> mask over dimension entities
+    # What may be pinned: a lookup_only dimension (no search key) is never offered.
     allowed_ids: dict[str | None, set[str]] = {}
+    searchable = set(dimension_keys.entities)
     for class_ids in classes_of.values():
         for cid in class_ids:
             if cid not in applicable:
-                allowed_ids[cid] = allowed = tax.applicable(cid)
+                allowed_ids[cid] = allowed = tax.applicable(cid) & searchable
                 applicable[cid] = np.asarray([e in allowed for e in dimension_keys.entities],
                                              dtype=bool)
     dim_cands = candidates(dimension_keys, dimension_queries,
