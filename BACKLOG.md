@@ -7,6 +7,21 @@ why it matters and what "done" looks like. Sources:
 
 Items marked **$** spend money (OpenRouter, Anthropic or Voyage) and need a go-ahead first.
 
+## Status after the full-corpus run (2026-11-08)
+
+Results: `docs/superpowers/full-corpus-2026-11-08.md`.
+- **Done:**
+  - Item 3: `extract --unextracted`.
+  - Item 4: the whole corpus is extracted by the distilled 9B (217,037 chunks; 54 errored).
+  - Item 12: the MCP server is deployed on the LAN.
+  - Item 13: on the capabilities side.
+  - Item 18: the extractor; the Azure deploy is pending.
+  - Item 22: production rollout of v2.
+  - Every claim is mapped (Haiku, $28.50), and capabilities hold 458,785 rows.
+  - All 423 in-scope comparison-table rows have a fact.
+- **Partly done:** item 20 (dimension precision 0.84 -> 0.886 with the evidence quote).
+- **New:** items 24-28 below.
+
 ## Status after the taxonomy v2 / claims v3 branch (2026-11-06)
 
 Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
@@ -34,10 +49,10 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
    - Done when precision is ≥95%. About $10 on OpenRouter.
 2. **$ Re-extract the 335 chunks that hit the output limit.** Use max_tokens 4000. About $0.40.
    Fold into item 1.
-3. **`vendorkb extract --unextracted [--vendor]`.** Claims cascade-delete with their chunks, and
+3. **Done 2026-11-08: `vendorkb extract --unextracted [--vendor]`** (and `vendorkb refresh`). Claims cascade-delete with their chunks, and
    the pilot id files name chunk ids that a re-sync replaces. Nothing finds "chunks with no `done`
    extraction for the current model and prompt", so coverage decays with every sync (review M4).
-4. **Extraction beyond the pilot.** About 227k chunks remain. The plan is the Opus-distilled
+4. **Done 2026-11-08: extraction beyond the pilot.** About 227k chunks remain. The plan is the Opus-distilled
    local model on Vast (item 18), not an API model. Do it after item 1, so the corpus is
    extracted with the good prompt.
 5. **A valid Anthropic API key.** The `sk-ant-usr` token in `.env` returns 401, so the pilot
@@ -89,7 +104,9 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     under the old vendor is not re-mapped. **M2: stale vendor/product on re-tag.** `store.update_metadata` re-tags a document without
     touching chunks, so `raw_claims` and `capabilities` keep the old vendor and product. Fix:
     take both from `documents` through `chunks` in `capabilities.build`.
-14. **M3: `documents.version` is never written.** Every claim's `version` is NULL. Either
+14. **Reserved (2026-11-08):** DocExtractor's delta records carry no version (only its
+    products endpoint has one, per product), and v1 answers from the latest docs.
+    **M3: `documents.version` is never written.** Every claim's `version` is NULL. Either
     populate it from the feed, or document it as reserved.
 15. **Spend-safety gaps in `extract` and `taxonomy propose`:**
     - **M5:** a crash between `batches.create` and the ledger insert leaves a paid batch
@@ -147,7 +164,7 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     (`mapgrade2/`).
 21. **Offering recall is 0.59.** Offering-name variants such as "Veeam Data Cloud for Azure" are
     not aliased. Add aliases, or adjudicate offerings like dimensions.
-22. **Production rollout of v2.** The order matters, because the branch's `init_schema` drops
+22. **Done 2026-11-07: production rollout of v2.** The order matters, because the branch's `init_schema` drops
     the v1 tables:
     1. Take a database backup first. The upgrade is one-way: the old image's schema fails on a
        v2 database, so an image rollback breaks every sync run (see `docs/deploy/k3s.md`,
@@ -161,3 +178,22 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 23. **Persist mapper adjudications** so re-runs and a lower `--max-usd` do not redo paid calls.
     Also keep a persistent list of members propose rejected.
 
+## After the full-corpus run (2026-11-08)
+
+24. **Conflict groups are too coarse.** 65% of capability rows sit in a conflict group. They
+    concentrate in a few large keys, such as a product-wide dimension with thousands of claims.
+    A positive-versus-not-supported-only rule still flags 59%. Add the conditions (or the
+    target scope) to the key, or report conflicts only within one document set. Done when
+    conflict groups are rare enough to read.
+25. **Deploy the Azure extractor and enable `claimsRefresh`** (`deploy/azure`, docs/deploy/k3s.md
+    §7a). This needs the user's Azure login and serverless A100 quota.
+26. **Copilot exposure of the MCP server:** a public HTTPS route with OAuth in front of `/mcp`,
+    then Copilot Studio onboarding. DocExtractor's public route (traefik with a Cloudflare
+    origin certificate) is a ready pattern. Add a LAN DNS record for `vendorkb-mcp.k3s.home.lan`.
+27. **Cache embeddings across mapper runs.** Every `taxonomy map` run re-embeds the ~3.4k
+    taxonomy keys and every query string. This is small per run, but a persistent
+    (model, text) -> vector table would also make re-runs free. It is a schema change: take a
+    backup first.
+28. **Agent-level eval as a regression gate.** The 2026-11-08 run (4 enumeration questions,
+    search-only versus all tools, Sonnet agents) is in the report; turn it into a repeatable
+    script with more questions.

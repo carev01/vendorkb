@@ -27,7 +27,7 @@ from vendorkb.taxonomy.capabilities import CapFilter, CapResult, Fact
 
 log = logging.getLogger(__name__)
 
-MAX_K = 25
+MAX_K = 12  # agents ask for k=30 to "see everything"; 12 x 1,200 characters fits a tool result
 MAX_LIMIT = 200
 WIDE_SHOWN = 10  # product-wide facts shown at most: the workload-specific facts come first
 QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content has it whole)
