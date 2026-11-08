@@ -300,14 +300,20 @@ async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
     if anchor is None:
         return []
     doc_id, ordinal, path, superseded_at = anchor
-    base = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) WHERE c.doc_id = %s"
-            " AND c.superseded_at IS NOT DISTINCT FROM %s")
-    if expand == "0":
-        sql, params = base + " AND c.chunk_id = %s", [doc_id, superseded_at, chunk_id]
-    elif expand == "1":
-        sql, params = (base + " AND c.ordinal BETWEEN %s AND %s",
-                       [doc_id, superseded_at, ordinal - 1, ordinal + 1])
+    # Two spellings, not one IS NOT DISTINCT FROM: the planner can prove neither partial index
+    # (superseded_at IS NULL / IS NOT NULL) from that, and would scan the whole table.
+    base = f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) WHERE c.doc_id = %s"
+    args: list = [doc_id]
+    if superseded_at is None:
+        base += " AND c.superseded_at IS NULL"
     else:
-        sql, params = base + " AND c.section_path = %s", [doc_id, superseded_at, list(path)]
+        base += " AND c.superseded_at = %s"
+        args.append(superseded_at)
+    if expand == "0":
+        sql, params = base + " AND c.chunk_id = %s", [*args, chunk_id]
+    elif expand == "1":
+        sql, params = base + " AND c.ordinal BETWEEN %s AND %s", [*args, ordinal - 1, ordinal + 1]
+    else:
+        sql, params = base + " AND c.section_path = %s", [*args, list(path)]
     cur = await conn.execute(sql + " ORDER BY c.ordinal", params)
     return [_hit(r) for r in await cur.fetchall()]

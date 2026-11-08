@@ -610,3 +610,41 @@ async def test_a_resync_waits_for_an_extraction_in_flight_and_sees_its_claims(vk
     finally:
         await writer.close()
         await recorder.close()
+
+
+class _Recorder:
+    """A connection that remembers the statements it was asked to run."""
+
+    def __init__(self, conn):
+        self.conn, self.statements = conn, []
+
+    async def execute(self, sql, params=None):
+        self.statements.append((sql, params))
+        return await self.conn.execute(sql, params)
+
+
+async def test_read_section_context_stays_on_the_partial_indexes(vkb_dsn):
+    """``chunks`` holds every chunk of the corpus: the context query of either kind of anchor
+    must be able to use the partial index that matches it, never scan the table."""
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        meta = _meta(uuid.uuid4())
+        v1 = await _write(conn, meta, 2, "v1")
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        v2 = await _write(conn, meta, 2, "v2")  # v1 is superseded, v2 current
+        await conn.execute("SET enable_seqscan = off")  # a tiny table would not need an index
+        recorder = _Recorder(conn)
+        for anchor, index in ((v2[0], "chunks_doc_ordinal_current_idx"),
+                              (v1[0], "chunks_superseded_idx")):
+            for expand in ("1", "full"):
+                await read_section(recorder, str(anchor), expand)
+                sql, params = recorder.statements[-1]
+                cur = await conn.execute("EXPLAIN " + sql, params)
+                plan = "\n".join(row[0] for row in await cur.fetchall())
+                assert f"Index Scan using {index}" in plan or (
+                    f"Bitmap Index Scan on {index}" in plan), (anchor, expand, plan)
+                assert "Seq Scan on chunks" not in plan, (anchor, expand, plan)
+    finally:
+        await conn.close()
