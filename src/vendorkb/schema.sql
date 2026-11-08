@@ -322,6 +322,10 @@ CREATE TABLE IF NOT EXISTS aliases (
     entity_id text NOT NULL,
     PRIMARY KEY (alias, entity_type, scope)
 );
+-- 2026-11-08 (BACKLOG 31): false for a ``lookup_aliases`` entry, matched exactly like any alias
+-- but never a candidate-search key of the taxonomy mapper, so adding one does not change the
+-- candidates (and stored decisions) of other phrases.
+ALTER TABLE aliases ADD COLUMN IF NOT EXISTS search boolean NOT NULL DEFAULT true;
 
 -- M4 mapping (taxonomy map, v1): each raw claim's feature and target under the taxonomy
 -- version it was mapped with. ``*_method`` is 'alias' (exact normalized alias or name),

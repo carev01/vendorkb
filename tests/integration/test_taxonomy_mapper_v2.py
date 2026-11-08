@@ -713,6 +713,44 @@ async def test_a_reasked_target_keeps_its_earlier_answer_over_none(vkb_dsn, tmp_
         await conn.close()
 
 
+async def test_lookup_aliases_map_exactly_and_leave_candidates_alone(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        near = await _claim(conn, "keep copies for ages", "Okta")
+        exact = await _claim(conn, "keep copies forever", "Okta")
+        table = {**VECTORS, "keep copies forever": _axis(2, 0.02, 14)}
+        replies = {**REPLIES, "keep copies forever": lambda c: "none"}
+        await _run(conn, FakeOpenAI(replies), FakeEmbedder(table), map_candidates=2)
+
+        def with_alias(key: str) -> Path:
+            doc = yaml.safe_load(_extended(tmp_path).read_text())
+            backup = next(d for d in doc["dimensions"] if d["id"] == "coverage.backup")
+            backup[key] = ["keep copies forever"]
+            out = tmp_path / f"{key}.yaml"
+            out.write_text(yaml.safe_dump(doc, sort_keys=False))
+            return out
+
+        # a lookup alias maps its phrase exactly and is no candidate-search key: the near
+        # phrase keeps its candidates, so nothing is asked again
+        await load.load_taxonomy(conn, with_alias("lookup_aliases"))
+        client = FakeOpenAI(replies)
+        report = await _run(conn, client, FakeEmbedder(table), map_candidates=2)
+        assert client.calls == [] and report.claims == 2
+        assert (await _mapping(conn, exact))["dimension_id"] == "coverage.backup"
+        assert (await _mapping(conn, exact))["dimension_method"] == "alias"
+        assert (await _mapping(conn, near))["dimension_id"] == "retention.maximum_period"
+        # the same alias as a search key pulls coverage.backup into the near phrase's
+        # candidates, and that question is asked again
+        await load.load_taxonomy(conn, with_alias("aliases"))
+        client = FakeOpenAI(replies)
+        await _run(conn, client, FakeEmbedder(table), map_candidates=2)
+        assert [_phrase(c["messages"][-1]["content"]) for c in client.calls] == [
+            "keep copies for ages"]
+    finally:
+        await conn.close()
+
+
 async def test_failed_and_skipped_adjudications_are_not_stored(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
     try:

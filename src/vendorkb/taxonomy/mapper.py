@@ -10,7 +10,7 @@ Strings are compared normalized (``cluster.normalize``), each distinct one resol
 
 1. **Target** (``target_raw``): an exact target alias (scope ``''``) is ``alias``. Otherwise the
    ``map_candidates`` targets nearest by cosine over their names and aliases (a target scores
-   its best key) go to an adjudication call, which picks one (``llm``) or answers ``none``
+   its best key; ``lookup_aliases`` are no keys) go to an adjudication call, which picks one (``llm``) or answers ``none``
    (``unmapped``). A claim with no target text has a NULL ``target_method`` unless its
    scope names a target (below).
 2. **target_scope**, given the resolved target T, tried in this order: a target alias whose
@@ -189,6 +189,7 @@ class _Tax:
     """The loaded taxonomy v2, read once."""
 
     aliases: dict[tuple[str, str], dict[str, str]]  # (entity_type, scope) -> alias -> id
+    search: dict[tuple[str, str], dict[str, str]]  # the same, candidate-search keys only
     target_parent: dict[str, str | None]
     target_class: dict[str, str]
     target_name: dict[str, str]
@@ -257,15 +258,20 @@ async def _rows(conn: psycopg.AsyncConnection, sql: str) -> list[tuple]:
 
 async def _snapshot(conn: psycopg.AsyncConnection) -> _Tax:
     aliases: dict[tuple[str, str], dict[str, str]] = {}
-    for alias, etype, scope, eid in await _rows(
-            conn, "SELECT alias, entity_type, scope, entity_id FROM aliases ORDER BY 1, 2, 3"):
+    search: dict[tuple[str, str], dict[str, str]] = {}
+    for alias, etype, scope, eid, is_key in await _rows(
+            conn, "SELECT alias, entity_type, scope, entity_id, search FROM aliases"
+                  " ORDER BY 1, 2, 3"):
         aliases.setdefault((etype, scope), {})[alias] = eid
+        if is_key:
+            search.setdefault((etype, scope), {})[alias] = eid
     targets = await _rows(conn, "SELECT target_id, parent_id, class_id, name FROM targets")
     vendor_offerings: dict[str, list[str]] = {}
     for oid, vendor in await _rows(conn, "SELECT offering_id, vendor FROM offerings ORDER BY 1"):
         vendor_offerings.setdefault(vendor, []).append(oid)
     return _Tax(
         aliases=aliases,
+        search=search,
         target_parent={t[0]: t[1] for t in targets},
         target_class={t[0]: t[2] for t in targets},
         target_name={t[0]: t[3] for t in targets},
@@ -830,8 +836,8 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             (PROMPT_FAMILY, version, vendor, vendor))
         report.claims_already_mapped = (await cur.fetchone())[0]  # type: ignore[index]
 
-    target_keys = _Keys(tax.aliases.get(("target", ""), {}))
-    dimension_keys = _Keys(tax.aliases.get(("dimension", ""), {}))
+    target_keys = _Keys(tax.search.get(("target", ""), {}))  # lookup aliases are no keys
+    dimension_keys = _Keys(tax.search.get(("dimension", ""), {}))
     target_queries = sorted({c.target for c in claims if c.target is not None
                              and tax.variant_target(c.target) is None
                              and tax.lookup("target", "", c.target) is None})
