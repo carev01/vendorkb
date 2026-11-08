@@ -203,10 +203,10 @@ async def _mapping(conn, claim_id) -> dict:
     return dict(zip(COLUMNS, await cur.fetchone()))
 
 
-async def _run(conn, client=None, embedder=None, max_usd=1.0, **settings):
+async def _run(conn, client=None, embedder=None, max_usd=1.0, remap=False, **settings):
     return await mapper.map_claims(conn, embedder=embedder or FakeEmbedder(),
                                    client=client or FakeOpenAI(),
-                                   settings=_settings(**settings), max_usd=max_usd)
+                                   settings=_settings(**settings), max_usd=max_usd, remap=remap)
 
 
 async def test_alias_hits_make_no_llm_call(vkb_dsn, tmp_path):
@@ -442,15 +442,24 @@ async def test_budget_stop_leaves_claims_unmapped(vkb_dsn, tmp_path):
         maps = [await _mapping(conn, c) for c in (first, second)]
         assert sum(m["dimension_method"] == "unmapped" or m["target_method"] == "unmapped"
                    for m in maps) == 2
+        assert all(m["mapped_version"] is None for m in maps)  # left for the next run
+        assert report.claims_to_retry == 2
         version = await load.current_version(conn)
-        assert all(m["mapped_version"] == version for m in maps)  # stamped all the same
+        assert (await _mapping(conn, aliased))["mapped_version"] == version
         assert (await _mapping(conn, aliased))["dimension_id"] == "retention.maximum_period"
 
         nothing = FakeOpenAI()
         report = await _run(conn, nothing, max_usd=0.0)
         # the target call and both dimension calls (one over every dimension now)
         assert nothing.calls == [] and report.skipped_by_budget == 3
+        assert (report.claims, report.claims_already_mapped) == (2, 1)
         assert (await _mapping(conn, first))["dimension_method"] == "unmapped"
+
+        report = await _run(conn)  # budget enough now: the two left over get mapped
+        assert (report.claims, report.claims_to_retry, report.stopped_by_budget) == (2, 0, False)
+        maps = [await _mapping(conn, c) for c in (first, second)]
+        assert all(m["mapped_version"] == version for m in maps)
+        assert (await _mapping(conn, first))["dimension_id"] == "retention.maximum_period"
     finally:
         await conn.close()
 
@@ -465,6 +474,10 @@ async def test_invalid_reply_is_unmapped_and_counted(vkb_dsn, tmp_path):
         assert (await _mapping(conn, cid))["dimension_method"] == "unmapped"
         assert (await _mapping(conn, negative))["dimension_method"] == "unmapped"
         assert report.llm_invalid == 2 and report.llm_calls == 2
+        # no decision was made: both are retried by the next run
+        assert (await _mapping(conn, cid))["mapped_version"] is None
+        assert (await _mapping(conn, negative))["mapped_version"] is None
+        assert report.claims_to_retry == 2
         assert any("made up answer" in e and "99" in e for e in report.errors)
     finally:
         await conn.close()
@@ -486,6 +499,51 @@ async def test_bad_request_writes_nothing(vkb_dsn, tmp_path):
         with pytest.raises(openai.BadRequestError):
             await _run(conn, client)
         assert (await _mapping(conn, cid))["mapped_version"] is None
+    finally:
+        await conn.close()
+
+
+async def test_claims_mapped_at_this_version_are_left_alone(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        old = await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn)
+        version = await load.current_version(conn)
+        # stands in for an earlier adjudicator's decision, which a later run must keep
+        await conn.execute("UPDATE raw_claims SET dimension_id='recovery.automation_bypass'"
+                           " WHERE claim_id=%s", (old,))
+        stale = await _claim(conn, "longest retention", "Okta")
+        await conn.execute("UPDATE raw_claims SET mapped_version='2-stale000'"
+                           " WHERE claim_id=%s", (stale,))
+        new = await _claim(conn, "the dashboard thing", "Okta")
+        client = FakeOpenAI()
+        report = await _run(conn, client)
+        assert (report.claims, report.claims_already_mapped) == (2, 1)
+        assert [_phrase(c["messages"][-1]["content"]) for c in client.calls] == [
+            "the dashboard thing"]
+        assert (await _mapping(conn, old))["dimension_id"] == "recovery.automation_bypass"
+        assert (await _mapping(conn, stale))["mapped_version"] == version
+        assert (await _mapping(conn, new))["mapped_version"] == version
+    finally:
+        await conn.close()
+
+
+async def test_remap_maps_every_claim(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        old = await _claim(conn, "keep copies for ages", "Okta")
+        await _run(conn)
+        await conn.execute("UPDATE raw_claims SET dimension_id='recovery.automation_bypass'"
+                           " WHERE claim_id=%s", (old,))
+        new = await _claim(conn, "the dashboard thing", "Okta")
+        client = FakeOpenAI()
+        report = await _run(conn, client, remap=True)
+        assert (report.claims, report.claims_already_mapped) == (2, 0)
+        assert len(client.calls) == 2
+        assert (await _mapping(conn, old))["dimension_id"] == "retention.maximum_period"
+        assert (await _mapping(conn, new))["mapped_version"] is not None
     finally:
         await conn.close()
 
@@ -697,7 +755,9 @@ async def test_persistent_rate_limit_fails_only_that_adjudication(vkb_dsn, tmp_p
         assert len(attempts) == llm.RATE_LIMIT_RETRIES + 1
         assert report.llm_invalid == 1 and report.llm_calls == 1
         assert (await _mapping(conn, limited))["dimension_method"] == "unmapped"
+        assert (await _mapping(conn, limited))["mapped_version"] is None  # retried next run
         assert (await _mapping(conn, fine))["mapped_version"] is not None  # run completed
+        assert report.claims_to_retry == 1
     finally:
         await conn.close()
 

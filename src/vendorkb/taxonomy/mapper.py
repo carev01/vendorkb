@@ -1,8 +1,10 @@
 """Map the v3 claims to taxonomy v2 (spec §6.1), with LLM adjudication.
 
 Only claims of the claims-v3 prompt family (``prompt_version LIKE 'claims-v3%'``) are read and
-written; every other row keeps its values. Strings are compared normalized
-(``cluster.normalize``), each distinct one resolved once:
+written; every other row keeps its values. By default only the claims not yet mapped under the
+current taxonomy version are read (``mapped_version`` NULL or another version): a claim mapped
+once keeps that mapping until the taxonomy changes, and ``remap`` maps every claim again.
+Strings are compared normalized (``cluster.normalize``), each distinct one resolved once:
 
 1. **Target** (``target_raw``): an exact target alias (scope ``''``) is ``alias``. Otherwise the
    ``map_candidates`` targets nearest by cosine over their names and aliases (a target scores
@@ -40,7 +42,9 @@ candidate keys and the strings to adjudicate are embedded in one pass per run (i
 kept as float32. A capability blank after normalization is unmapped without a call.
 
 Every v3 claim read is then (re)written in one transaction and stamped with the taxonomy
-version, so downstream builds use only mappings made under the current version.
+version, so downstream builds use only mappings made under the current version. A claim whose
+mapping waits on an adjudication that was skipped by the budget or failed (``llm_invalid``) is
+written unmapped with no stamp, so the next run maps it again (``claims_to_retry``).
 """
 from __future__ import annotations
 
@@ -84,6 +88,8 @@ class _Embedder(Protocol):
 class MapReport:
     taxonomy_version: str = ""
     claims: int = 0
+    claims_already_mapped: int = 0  # not read: mapped under this taxonomy version already
+    claims_to_retry: int = 0  # written with no stamp (budget stop or failed adjudication)
     target_alias: int = 0
     target_llm: int = 0
     target_unmapped: int = 0
@@ -205,10 +211,13 @@ def _norm(text: str | None) -> str | None:
     return (normalize(text) or None) if text is not None else None
 
 
-async def _claims(conn: psycopg.AsyncConnection) -> list[_Claim]:
+async def _claims(conn: psycopg.AsyncConnection, unmapped_at: str | None) -> list[_Claim]:
+    """The v3 claims; with ``unmapped_at``, only those not stamped with that version."""
+    pending = " AND mapped_version IS DISTINCT FROM %s" if unmapped_at is not None else ""
     cur = await conn.execute(
         "SELECT claim_id, vendor, capability_raw, target_raw, target_scope, offering, edition"
-        " FROM raw_claims WHERE prompt_version LIKE %s ORDER BY claim_id", (PROMPT_FAMILY,))
+        f" FROM raw_claims WHERE prompt_version LIKE %s{pending} ORDER BY claim_id",
+        (PROMPT_FAMILY, *(() if unmapped_at is None else (unmapped_at,))))
     return [_Claim(cid, vendor, cap, tgt, scope, _norm(cap), _norm(tgt), _norm(scope),
                    _norm(off), _norm(ed))
             for cid, vendor, cap, tgt, scope, off, ed in await cur.fetchall()]
@@ -283,6 +292,7 @@ class _Adjudication:
     claims: int = 0
     choice: str | None = None
     skipped: bool = False
+    failed: bool = False  # the call failed or its reply was unusable: no decision made
 
     def add_context(self, c: _Claim) -> None:
         self.claims += 1
@@ -417,6 +427,7 @@ class _Adjudicator:
                                                backend=settings.map_backend, price=self.price)
             except (anthropic.BadRequestError, openai.BadRequestError) as e:
                 if rate_limited(e):  # still rate-limited after call()'s retries: this string
+                    a.failed = True
                     report.llm_invalid += 1
                     report.errors.append(f"{a.kind} {a.text!r}: {e}")
                     log.warning("taxonomy map: rate-limited for %s %r: %s", a.kind, a.text, e)
@@ -425,6 +436,7 @@ class _Adjudicator:
                 return
             except Exception as e:  # API errors and odd provider shapes: this string only
                 self.spent += estimate  # it may have been billed: count it against the cap
+                a.failed = True
                 report.llm_invalid += 1
                 report.errors.append(f"{a.kind} {a.text!r}: {type(e).__name__}: {e}")
                 log.warning("taxonomy map: call failed for %s %r: %s", a.kind, a.text, e)
@@ -438,6 +450,7 @@ class _Adjudicator:
                     raise ValueError(error)
                 a.choice = _parse(text, a.candidates)
             except ValueError as e:
+                a.failed = True
                 report.llm_invalid += 1
                 report.errors.append(f"{a.kind} {a.text!r}: {e}")
                 log.warning("taxonomy map: unusable reply for %s %r: %s", a.kind, a.text, e)
@@ -460,6 +473,7 @@ class _Mapped:
     offering_id: str | None = None
     edition_id: str | None = None
     skipped: bool = False
+    failed: bool = False
 
 
 def _resolve_scope(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
@@ -529,7 +543,8 @@ def _count(report: MapReport, prefix: str, method: str | None) -> None:
 
 
 async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
-                     settings: VendorkbSettings, max_usd: float) -> MapReport:
+                     settings: VendorkbSettings, max_usd: float,
+                     remap: bool = False) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
@@ -538,8 +553,13 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     # Built before any paid work: it refuses a model with no known price.
     adjudicator = _Adjudicator(tax, client, settings, max_usd, report)
     k = max(1, settings.map_candidates)
-    claims = await _claims(conn)
+    claims = await _claims(conn, None if remap else version)
     report.claims = len(claims)
+    if not remap:
+        cur = await conn.execute(
+            "SELECT count(*) FROM raw_claims WHERE prompt_version LIKE %s"
+            " AND mapped_version = %s", (PROMPT_FAMILY, version))
+        report.claims_already_mapped = (await cur.fetchone())[0]  # type: ignore[index]
 
     target_keys = _Keys(tax.aliases.get(("target", ""), {}))
     dimension_keys = _Keys(tax.aliases.get(("dimension", ""), {}))
@@ -595,6 +615,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
                 m.target_id = a.choice if a is not None else None
                 m.target_method = "llm" if m.target_id is not None else "unmapped"
                 m.skipped = a is not None and a.skipped
+                m.failed = a is not None and a.failed
         _resolve_scope(tax, c, m, report)
         if m.target_id is not None:
             m.class_id = tax.target_class[m.target_id]
@@ -646,20 +667,23 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             if a is not None and a.choice is not None:
                 m.dimension_id, m.dimension_method = a.choice, "llm"
             m.skipped = m.skipped or (a is not None and a.skipped)
+            m.failed = m.failed or (a is not None and a.failed)
         _count(report, "dimension", m.dimension_method)
         if (m.dimension_id or "").startswith("coverage.") and m.object_type_id is None:
             report.coverage_without_object_type += 1
         report.claims_skipped_by_budget += int(m.skipped)
+        done = not (m.skipped or m.failed)
+        report.claims_to_retry += int(not done)
         rows.append((c.claim_id, m.dimension_id, m.dimension_method, m.class_id, m.target_id,
                      m.target_method, m.variant_id, m.object_type_id, m.offering_id,
-                     m.edition_id))
+                     m.edition_id, done))
 
     async with conn.transaction():
         await conn.execute(
             "CREATE TEMP TABLE _claim_map (claim_id uuid PRIMARY KEY, dimension_id text,"
             " dimension_method text, class_id text, target_id text, target_method text,"
-            " variant_id text, object_type_id text, offering_id text, edition_id text)"
-            " ON COMMIT DROP")
+            " variant_id text, object_type_id text, offering_id text, edition_id text,"
+            " done boolean) ON COMMIT DROP")
         async with conn.cursor() as cur:
             async with cur.copy("COPY _claim_map FROM STDIN") as copy:
                 for r in rows:
@@ -669,7 +693,8 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             " dimension_method=m.dimension_method, class_id=m.class_id,"
             " target_id=m.target_id, target_method=m.target_method, target_conf=NULL,"
             " variant_id=m.variant_id, object_type_id=m.object_type_id,"
-            " offering_id=m.offering_id, edition_id=m.edition_id, mapped_version=%s"
+            " offering_id=m.offering_id, edition_id=m.edition_id,"
+            " mapped_version=CASE WHEN m.done THEN %s END"
             " FROM _claim_map m WHERE r.claim_id = m.claim_id AND r.prompt_version LIKE %s",
             (version, PROMPT_FAMILY))
     log.info("taxonomy map: %s", report)
