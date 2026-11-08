@@ -15,7 +15,7 @@
 - Precision first: every answer claim cited; never state that a product lacks an aspect because nothing was retrieved ("the retrieved sources do not cover this").
 - Questions that do not trigger a topic behave exactly as today.
 - Rerank budget per expanded question: `TOPIC_RERANK_DOCS = 240` documents; catch-up search: at most 20 candidates per aspect.
-- Two PRs: PR A = Tasks 1-2 (deploy needs a pg_dump first), PR B = Tasks 3-9. Each: `uv run ruff check src tests`, `uv run mypy src`, `uv run --extra dev pytest` green; `gitleaks detect --source . --log-opts "origin/main..HEAD" --no-banner && git push`.
+- Two PRs: PR A = Tasks 1, 2, 2b (deploy needs a pg_dump first), PR B = Tasks 3-9. Each: `uv run ruff check src tests`, `uv run mypy src`, `uv run --extra dev pytest` green; `gitleaks detect --source . --log-opts "origin/main..HEAD" --no-banner && git push`.
 - Schema changes go in `src/vendorkb/schema.sql` (idempotent `IF NOT EXISTS` DDL); production applies them through the sync job's `init_schema`.
 - New topic eval questions go in `eval/topic_questions.yaml`, never in `eval/questions.yaml` (other evals iterate that file).
 - Never read `/home/openclaw/Documents/Shared/projects/vendorkb-temp`.
@@ -102,7 +102,56 @@ Expected: PASS (fix any existing test that relied on `DELETE FROM documents` rep
 - [ ] **Step 2: Run them to verify they fail** (`uv run --extra dev pytest -q -k "superseded"`).
 - [ ] **Step 3: Implement:** every chunk query in search adds `c.superseded_at IS NULL` (put it in `_filters` and `_vec_sql`; `read_section` matches the anchor's own superseded state); the two extraction selectors add it; DDL `ALTER TABLE capabilities ADD COLUMN IF NOT EXISTS evidence_superseded boolean NOT NULL DEFAULT false;`; `build` selects `ch.superseded_at IS NOT NULL` into it and starts with `retire_superseded`; `Fact`/`_FACT_COLUMNS` carry it; `format_fact` appends ` (from an earlier version of the page)` when set.
 - [ ] **Step 4: Run the whole suite** (`uv run --extra dev pytest -q`, ruff, mypy). Expected: PASS.
-- [ ] **Step 5: Commit** `search, extract, capabilities: superseded chunks leave search; their facts stay, marked` — then PR A, review, merge; pg_dump production before deploying.
+- [ ] **Step 5: Commit** `search, extract, capabilities: superseded chunks leave search; their facts stay, marked`.
+
+### Task 2b: Unchanged text keeps its facts
+
+(Added 2026-11-08 by user decision; see spec Part A, Decisions. This replaces Task 1's page-level rule (ledger Ruling 4) with a per-chunk rule. PR A = Tasks 1, 2, 2b; pg_dump production before deploying.)
+
+**Files:**
+- Modify: `src/vendorkb/chunker.py` (add `reuse_key`)
+- Modify: `src/vendorkb/store.py` (`write_document`), `src/vendorkb/sync.py` (`SyncReport.chunks_reused`, summed from `write_document`)
+- Modify: `src/vendorkb/schema.sql` comments only: the `chunks` comment, where the sentence "So (doc_id, ordinal) is unique among the current chunks only" now follows an unrelated sentence, and the orphan line near the `capabilities` comment ("No foreign keys into the")
+- Test: `tests/unit/test_chunker.py` (or the existing chunker test file), `tests/integration/test_supersede.py`
+
+**Interfaces:**
+- Produces: `chunker.reuse_key(text: str) -> str`; `store.write_document(...) -> int` (the number of current chunks reused); `SyncReport.chunks_reused: int = 0`.
+- Consumes: Tasks 1-2 (`superseded_at`, `retire_superseded`, the search filters).
+
+- [ ] **Step 1: Write the failing tests.**
+  - `reuse_key` unit tests:
+    - Equal keys when the texts differ only in whitespace or line breaks, a markdown link or image target (`[List Media](list_media.html)` vs `[List Media](./list_media.html)`; `![AIX](https://x/a.gif)` vs `![AIX](/media/1/a.gif)`), backslash escapes (`2026\-03\-26` vs `2026-03-26`), or a date line (`Last Updated: 2026\-03\-26` vs `Last Updated: 2026\-07\-31`; `Updated this week` vs `Updated yesterday`).
+    - Different keys when a changelog-style line changes (`Updated support for Proxmox VE` vs `Updated support for Hyper-V`), when a table cell changes (`| Supported |` vs `| Supported for Linux x86_64 only |`), or when the link text changes.
+  - `test_identical_chunks_keep_their_facts` (integration):
+    - v1 has 3 chunks, each extracted with a claim mapped at the current version.
+    - v2 changes only chunk 1.
+    - Chunks 0 and 2 keep their `chunk_id`, extraction and claim, and stay current (`superseded_at IS NULL`).
+    - Old chunk 1 is superseded, and a new chunk 1 is current and unextracted.
+    - `write_document` returns 2.
+    - Once the new chunk is extracted and mapped, `retire_superseded` deletes only old chunk 1.
+  - `test_cosmetic_changes_reuse_the_chunk_with_the_new_text`: a link target, a date line and line breaks change. The chunk is reused (same `chunk_id`, claim kept), and its `text`, `token_count` and embedding are the new version's.
+  - `test_a_quote_no_longer_in_the_text_blocks_reuse`: the keys are equal, but the claim's `evidence_quote` spans a changed link target, so it is not in the new text (whitespace-collapsed, case-insensitive). The chunk is not reused: the old one is superseded and the new one is inserted.
+  - `test_reordered_chunks_are_reused`: v1 [A, B], v2 [B, A]. Both are reused with swapped ordinals, with no unique violation on `chunks_doc_ordinal_current_idx`.
+  - `test_a_dropped_chunk_is_kept_only_with_a_mapped_claim`:
+    - A dropped chunk whose claim is mapped is superseded.
+    - A dropped chunk whose claims are all unmapped (`mapped_version IS NULL`), or that has no claim, is deleted.
+    - Superseded chunks are never deleted by `write_document`: v1 mapped, then v2 mapped but not retired, then v3, so both v1's and v2's dropped chunks stay superseded until `retire_superseded`.
+  - Update the Task 1 tests that encode the page-level rule (Ruling 4) to the per-chunk rule, and list each changed assertion in the report.
+- [ ] **Step 2: Run them to verify they fail** (`uv run --extra dev pytest -q -k "reuse or supersede"`).
+- [ ] **Step 3: `reuse_key`.** Drop date lines, then reduce markdown links and images to their text, then drop backslashes, then collapse whitespace.
+  - Date line: a whole line `^\s*(last\s+)?updated\s*(:|on)?\s*<when>\s*$`, case-insensitive, where `<when>` is an ISO-like date (escaped hyphens allowed), a `Month D, YYYY` date, `today`, `yesterday`, `this week`, `last week`, `N (minutes|hours|days|weeks|months|years) ago` or `a (day|week|month|year) ago`. Never a bare `^updated`.
+  - Links: `!?\[([^\]]*)\]\([^)]*\)` → `\1`.
+- [ ] **Step 4: `write_document`** (keep the document upsert):
+  - Load the page's current chunks (`chunk_id`, `ordinal`, `text`) and the evidence quotes of their claims.
+  - Match each new chunk, in ordinal order, to the first unused current chunk with an equal `reuse_key` whose every quote appears in the new text. Normalise both sides for that check: collapse whitespace and lowercase.
+  - Reused chunks: update `section_path`, `ordinal`, `text`, `token_count` and `embedding` to the new version's.
+  - Every other current chunk: supersede it (`superseded_at = now()`) if it has a claim with `mapped_version IS NOT NULL`, else delete it. Never delete superseded chunks here.
+  - Insert the unmatched new chunks.
+  - Avoid transient ordinal collisions under the partial unique index. For example, first supersede or delete the unmatched chunks, then move the reused chunks to temporary negative ordinals (`-1 - new_ordinal`), then set the final ordinals, then insert.
+  - Return the number reused, and update the docstring to the per-chunk rule.
+  - Sync adds the return value to `SyncReport.chunks_reused`.
+- [ ] **Step 5: Run the whole suite** (`uv run --extra dev pytest -q`, ruff, mypy). Expected: PASS.
+- [ ] **Step 6: Commit** `store: unchanged text keeps its chunk and facts on re-sync; dropped chunks kept only with mapped claims` — then PR A (Tasks 1, 2, 2b), review, merge; pg_dump production before deploying.
 
 ---
 

@@ -32,10 +32,28 @@ table.
 
 - *(My call)* A page **removed** upstream loses its facts at removal, as today: its citations
   would point to a page that no longer exists, and no extraction will ever replace them.
-- *(My call)* A page updated several times before it is extracted keeps the facts of the last
-  version that was extracted; nothing older accumulates.
+- **Unchanged text keeps its facts (the user agreed, 2026-11-08).** On an update, a chunk of
+  the new version whose text matches a current chunk of the page keeps that chunk with its
+  extraction, claims and facts. Nothing is re-extracted, and nothing is marked as from an
+  earlier version, because the text is still on the page. *(My call)* "Matches" means equal
+  after ignoring whitespace, markdown link and image targets, backslash escapes and
+  "Last Updated <date>" lines, provided every claim's evidence quote still appears in the new
+  text. Measured on 667 updated pages from DocExtractor's version history (2026-11-08): 46%
+  of their chunk tokens, and 44% of the pages, need no re-extraction. Exact text alone covers
+  20% of the tokens.
+- *(My call; revised 2026-11-08 for chunk reuse)* A chunk the new version drops is kept
+  (superseded) when it carries a mapped claim, because its facts are in the capability table
+  or will be at the next build; otherwise it is deleted. Superseded chunks are deleted only
+  when the page's current version is fully extracted and mapped, or when the page is removed.
+  A page updated faster than it is extracted can therefore hold superseded chunks from more
+  than one earlier version. All of them are marked.
 - Replacement happens per page, once every chunk of the updated page has a final extraction
   (done or failed), so a partially extracted page never loses its old facts early.
+- **No model check of changed chunks (measured 2026-11-08).** Changed chunks are re-extracted.
+  In a sample of 80 chunks that changed beyond the ignored differences, 46% changed no fact,
+  30% added facts, 8% changed facts and 16% were unclear; 45% needed careful reading to tell.
+  A check that looks only at existing facts would miss the additions. A check that also
+  catches additions costs about as much as extraction and gets the subtle cases wrong.
 - Left to the builder: how chunks, extractions and claims of the previous version are kept
   (for example, claims keep their document and quote while their chunk is replaced), and the
   migration. It is a schema change: a pg_dump before deploy, applied by the sync job's
