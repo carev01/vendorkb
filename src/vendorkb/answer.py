@@ -13,7 +13,8 @@ from vendorkb.shape import WORKLOAD_VENDORS, detect_shape
 log = logging.getLogger(__name__)
 
 # up to ~40 vendor lines over 60 chunks, with reasoning on
-ENUMERATION_MAX_TOKENS = 8000
+# The model's reasoning uses most of it (5.8k-8k tokens for a 20-30 line answer, 2026-11-08).
+ENUMERATION_MAX_TOKENS = 16000
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -65,6 +66,13 @@ def closing_line(names: list[str]) -> str:
     if not names:
         return ""
     return "No supporting passage found for: " + ", ".join(sorted(names)) + "."
+
+
+def unconfirmed_line(names: list[str]) -> str:
+    """Vendors with retrieved passages that no checked answer line used."""
+    if not names:
+        return ""
+    return "Passages found but not judged to show it: " + ", ".join(sorted(names)) + "."
 
 
 _BULLET = re.compile(r"^(?:[-*\u2022]|\d+[.)])\s+")
@@ -206,6 +214,49 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
     return text, citations, unknown
 
 
+def _renumber(text: str, sub: list[Hit], hits: list[Hit]) -> str:
+    """[n] markers into ``sub`` rewritten as markers into ``hits`` (``sub`` is a subset of
+    ``hits``); a marker out of ``sub``'s range is dropped."""
+    position = {id(h): i for i, h in enumerate(hits, 1)}
+
+    def repl(m: re.Match[str]) -> str:
+        nums = [int(x) for x in re.split(r"\s*,\s*", m.group(2))]
+        mapped = [str(position[id(sub[n - 1])]) for n in nums if 1 <= n <= len(sub)]
+        return f"{m.group(1)}[{', '.join(mapped)}]" if mapped else ""
+    return _GROUP.sub(repl, text)
+
+
+async def _second_pass(client: AsyncOpenAI, settings, question: str, hits: list[Hit],
+                       kept: list[str], checked: list[str], listed: list[str]
+                       ) -> tuple[str, list[str], int, int, dict | None]:
+    """One more call over the kept vendors the first answer left out, with only their
+    passages: in a prompt of up to 60 passages for 30-odd vendors the model skips vendors whose
+    passages state the capability (32 of 419 expected vendors on the labelled questions,
+    2026-11-08). Lines are checked against those passages, then their markers renumbered
+    into ``hits``. Returns (lines, vendors listed, lines dropped, lines naming other vendors,
+    usage); a failed call adds nothing."""
+    omitted = [v for v in kept if v not in listed and any(h.vendor == v for h in hits)]
+    if not omitted:
+        return "", [], 0, 0, None
+    sub = [h for h in hits if h.vendor in omitted]
+    content, usage, error, _ = await _call_model(
+        client, settings, build_enumeration_prompt(question, sub, omitted),
+        SYSTEM_RULES + ENUMERATION_RULES, max_tokens=ENUMERATION_MAX_TOKENS)
+    if content is None:
+        log.warning("vendorkb enumeration second pass failed: %s", error)
+        return "", [], 0, 0, usage
+    text, added, dropped, other = _check_lines(content, sub, omitted, checked)
+    return _renumber(text, sub, hits), added, dropped, other, usage
+
+
+def _add_usage(a: dict | None, b: dict | None) -> dict | None:
+    if a is None or b is None:
+        return a or b
+    cost = None if a["cost"] is None and b["cost"] is None else (a["cost"] or 0) + (b["cost"] or 0)
+    return {"prompt_tokens": a["prompt_tokens"] + b["prompt_tokens"],
+            "completion_tokens": a["completion_tokens"] + b["completion_tokens"], "cost": cost}
+
+
 def _is_refusal(text: str) -> bool:
     return text.strip().startswith(REFUSAL)
 
@@ -295,11 +346,16 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     if shape.kind == "comparison":
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":
-        out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0, lines_naming_other_vendors=0)
+        out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0, lines_naming_other_vendors=0,
+                   second_pass_listed=0)
 
     def closing() -> str:
         if shape.kind == "enumeration":
-            return closing_line([v for v in checked if v not in out["vendors_listed"]])
+            unlisted = [v for v in checked if v not in out["vendors_listed"]]
+            seen = {h.vendor for h in result.hits} & set(kept)
+            lines = (unconfirmed_line([v for v in unlisted if v in seen]),
+                     closing_line([v for v in unlisted if v not in seen]))
+            return "\n".join(line for line in lines if line)
         return closing_line(facets_empty)
 
     def finish(body: str) -> dict:
@@ -329,8 +385,13 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     if shape.kind == "enumeration":
         # never short-circuit on the refusal sentence: it is just a non-vendor line here
         content, listed, dropped, other = _check_lines(content, result.hits, kept, checked)
-        out.update(vendors_listed=listed, lines_dropped=dropped,
-                   lines_naming_other_vendors=other)
+        extra, added, dropped2, other2, usage2 = await _second_pass(
+            client, settings, question, result.hits, kept, checked, listed)
+        if extra:
+            content = f"{content}\n{extra}" if content else extra
+        out.update(vendors_listed=listed + [v for v in added if v not in listed],
+                   lines_dropped=dropped + dropped2, lines_naming_other_vendors=other + other2,
+                   second_pass_listed=len(added), usage=_add_usage(usage, usage2))
         if content == "":
             return finish(REFUSAL)
     text, citations, unknown = resolve_markers(content, result.hits)
