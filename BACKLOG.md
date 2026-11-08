@@ -201,10 +201,18 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 26. **Copilot exposure of the MCP server:** a public HTTPS route with OAuth in front of `/mcp`,
     then Copilot Studio onboarding. DocExtractor's public route (traefik with a Cloudflare
     origin certificate) is a ready pattern. Add a LAN DNS record for `vendorkb-mcp.k3s.home.lan`.
-27. **Cache embeddings across mapper runs.** Every `taxonomy map` run re-embeds the ~3.4k
+27. **Cache embeddings across mapper runs** (still open: each re-map embeds every phrase,
+    about 1.5M Voyage tokens; decisions are cached since 2026-11-08). Every `taxonomy map` run re-embeds the ~3.4k
     taxonomy keys and every query string. This is small per run, but a persistent
     (model, text) -> vector table would also make re-runs free. It is a schema change: take a
     backup first.
+29. **The rest of the unmapped long tail.** 61k claims still name a target the taxonomy lacks,
+    across about 9k distinct strings; the top 300 were curated on 2026-11-08. 128k claims have
+    no dimension, mostly product-specific features, and 73k distinct phrases are left after the
+    top 300. Repeat the curated round on the next slices; `map_decisions` keeps each round's
+    re-map at cents.
+30. **Ten more dimension gaps** are in the 2026-11-08 curation notes; six were added. Review the
+    rest with the comparison tables in mind.
 28. **Agent-level eval as a regression gate.** The 2026-11-08 run (4 enumeration questions,
     search-only versus all tools, Sonnet agents) is in the report; turn it into a repeatable
     script with more questions.

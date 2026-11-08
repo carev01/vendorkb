@@ -147,3 +147,60 @@ under 8 concurrent agents.
   - persisting adjudications and caching key embeddings;
   - comparison facet recall (0.833);
   - enumeration closing-line vendors.
+
+## Known-issues round (2026-11-08, later)
+
+Fixed on production in the same day, and measured:
+
+| | before | after |
+|---|---|---|
+| capability rows in a conflict group | 64.9% | **0.8%** (703 groups) |
+| "product-wide" facts | 176,271 (65k of them an unmapped workload) | 113,852 (+ 41,941 `target_unmapped`) |
+| claims with an unmapped target | 94,556 | **61,118** |
+| offering mentions mapped | 21% | **39%** |
+| dimension: alias / unmapped | 65,926 / 131,749 | 71,791 / 127,667 |
+| comparison-table rows with a fact | 423 / 423 | 423 / 423 (405 specific) |
+| a full re-map after a taxonomy change | ~$28 | **$0.22** |
+
+### Changes
+
+- **`init_schema`** stores a schema marker and runs no DDL when current; otherwise each lock
+  waits at most 10 s. A long ad-hoc read had held the sync job's DDL for 24 minutes.
+- **Capabilities:**
+  - a claim naming a workload the taxonomy lacks gets scope `target_unmapped` instead of
+    product-wide;
+  - a conflict is now one statement (normalized phrase, target scope text, conditions) that is
+    both supported/partial and not_supported, or that states different values.
+- **Mapper:**
+  - decisions persist in `map_decisions`, seeded from the corpus (268k decisions);
+  - when a question's candidates change but offer nothing new, the earlier answer is carried;
+  - alias lookups fold inflections;
+  - a variant named as the target maps to its target;
+  - the product itself named as the target means no target;
+  - product names given as offerings are counted apart.
+- **Taxonomy growth.** Opus curators proposed changes from the most frequent unmapped phrases,
+  and a blind Fable review accepted 254 of 269:
+  - targets: 79 new, 139 aliases, 26 variant aliases;
+  - offerings: 27 new, 63 aliases;
+  - dimensions: 29 aliases, plus 6 new for clear gaps.
+
+  A blind check of 100 claims mapped through the new entries found 96 correct. The three
+  wrong aliases it found were dropped.
+
+### Measured and not adopted
+
+- **A second pass over "none" answers** (a softer rule, 8 candidates, then a yes/no check) was
+  tried on the labelled set. The verifier kept 4 right and 3 wrong picks, and rejected 4 right
+  and 5 wrong. Adopting it would trade precision for coverage, so the "none" answers stay.
+- **Re-asked questions flip.** Of 30,815 questions re-asked under changed candidates, 3,331
+  flipped although the earlier answer was still offered: Haiku's run-to-run variance. That
+  motivated the carry rule.
+
+### Spend (this round)
+
+| | |
+|---|---|
+| Anthropic | $4.48 |
+| OpenRouter | about $4.2 |
+| Voyage | about 4.5M tokens (seed and two re-maps) |
+| Curation and review | Claude subagents |
