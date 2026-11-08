@@ -178,7 +178,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     5. Re-measure findability.
 
     The teacher and precision claims are already in production under claims-v3 and claims-v3.1.
-23. **Persist mapper adjudications** so re-runs and a lower `--max-usd` do not redo paid calls.
+23. **Done 2026-11-08: adjudication decisions persist** in `map_decisions` (keyed on prompt
+    rules, model family, kind, phrase, class and candidates), so a re-run or a re-map after a
+    taxonomy change pays only for new questions; `taxonomy map --seed-decisions` records the
+    decisions the stored mappings imply. **Persist mapper adjudications** so re-runs and a
+    lower `--max-usd` do not redo paid calls.
     Also keep a persistent list of members propose rejected.
 
 ## After the full-corpus run (2026-11-08)

@@ -168,7 +168,7 @@ def _settings(**kw) -> VendorkbSettings:
 
 
 async def _fresh(conn) -> None:
-    await conn.execute("DROP TABLE IF EXISTS raw_claims, rejected_claims, extractions, "
+    await conn.execute("DROP TABLE IF EXISTS map_decisions, raw_claims, rejected_claims, extractions, "
                        "extract_batches, chunks, documents CASCADE")
     await init_schema(conn, embed_dim=8)
 

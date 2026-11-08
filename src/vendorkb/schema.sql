@@ -415,3 +415,20 @@ CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor));
 CREATE INDEX IF NOT EXISTS capabilities_conflict_idx ON capabilities (conflict_group)
     WHERE conflict_group IS NOT NULL;
+
+-- Taxonomy-map adjudication decisions (BACKLOG 23), reused whenever the same question comes up
+-- again: the same prompt rules, model family, kind, phrase, workload class and candidates
+-- (``key`` hashes them). A later run, a re-map after a taxonomy change, or a run on another
+-- backend serving the same model pays only for questions it has not seen. ``source``: 'llm'
+-- (decided by the model) or 'seed' (recorded from the mappings already stored).
+CREATE TABLE IF NOT EXISTS map_decisions (
+    key text PRIMARY KEY,
+    kind text NOT NULL,
+    phrase text NOT NULL,
+    class_id text,
+    candidates text[] NOT NULL,
+    choice text,
+    model text NOT NULL,
+    source text NOT NULL CHECK (source IN ('llm', 'seed')),
+    decided_at timestamptz NOT NULL DEFAULT now()
+);

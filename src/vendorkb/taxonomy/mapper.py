@@ -54,6 +54,7 @@ written unmapped with no stamp, so the next run maps it again (``claims_to_retry
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -121,6 +122,8 @@ class MapReport:
     llm_calls: int = 0
     llm_none: int = 0
     llm_invalid: int = 0  # failed calls and replies outside the schema
+    decisions_reused: int = 0  # adjudications answered from map_decisions (no call)
+    decisions_seeded: int = 0  # seed=True: decisions recorded from the stored mappings
     skipped_by_budget: int = 0  # adjudications not sent
     claims_skipped_by_budget: int = 0  # claims left unmapped by them
     stopped_by_budget: bool = False
@@ -303,9 +306,13 @@ class _Adjudication:
     choice: str | None = None
     skipped: bool = False
     failed: bool = False  # the call failed or its reply was unusable: no decision made
+    decided: bool = False  # the model answered (a candidate or none)
+    cached: bool = False  # answered from map_decisions
+    claim_ids: list[Any] = field(default_factory=list)
 
     def add_context(self, c: _Claim) -> None:
         self.claims += 1
+        self.claim_ids.append(c.claim_id)
         ctx = (c.capability_raw, c.target_raw or "-", c.target_scope_raw or "-", c.vendor,
                c.evidence_quote or "-")
         if ctx not in self.contexts:
@@ -349,6 +356,22 @@ def _details(tax: _Tax, kind: Kind, eid: str) -> tuple[str, str]:
     parent = tax.target_parent.get(eid)
     details = f"class {tax.target_class[eid]}" + (f", part of {parent}" if parent else "")
     return tax.target_name[eid], details
+
+
+# A stored decision answers the same question: these prompt rules, the model family, the kind,
+# the phrase, the workload class and the numbered candidates. The example claims are left out of
+# the key, so a phrase's decision survives new claims using it.
+PROMPT_RULES = hashlib.sha256(json.dumps(_SYSTEM, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def model_family(model: str) -> str:
+    """One name per model across backends: anthropic/claude-haiku-5.5 = claude-haiku-5-5."""
+    return model.lower().split(":", 1)[0].removeprefix("anthropic/").replace(".", "-")
+
+
+def decision_key(a: _Adjudication, model: str) -> str:
+    return hashlib.sha256(json.dumps([PROMPT_RULES, model_family(model), a.kind, a.text,
+                                      a.class_id, list(a.candidates)]).encode()).hexdigest()
 
 
 def _user_message(tax: _Tax, a: _Adjudication) -> str:
@@ -397,8 +420,8 @@ class _Adjudicator:
     """Sends adjudications under one budget for the whole run."""
 
     def __init__(self, tax: _Tax, client: Any, settings: VendorkbSettings, max_usd: float,
-                 report: MapReport) -> None:
-        self.tax, self.client, self.settings = tax, client, settings
+                 report: MapReport, conn: psycopg.AsyncConnection) -> None:
+        self.tax, self.client, self.settings, self.conn = tax, client, settings, conn
         self.max_usd, self.report = max_usd, report
         self.price = map_price(settings)
         self.spent = self.in_flight = 0.0
@@ -408,10 +431,59 @@ class _Adjudicator:
 
     async def run(self, items: list[_Adjudication]) -> None:
         self.report.adjudications += len(items)
-        await asyncio.gather(*(self._one(a) for a in items))
+        model = self.settings.map_model
+        keyed = {decision_key(a, model): a for a in items}
+        cur = await self.conn.execute("SELECT key, choice FROM map_decisions WHERE key = ANY(%s)",
+                                      (list(keyed),))
+        for key, choice in await cur.fetchall():
+            a = keyed[key]
+            if choice is None or choice in a.candidates:
+                a.choice, a.cached = choice, True
+                self.report.decisions_reused += 1
+        try:
+            await asyncio.gather(*(self._one(a) for a in items if not a.cached))
+        finally:  # paid decisions are kept even when the run stops
+            await self._store([(k, a) for k, a in keyed.items() if a.decided], "llm")
         self.report.spent_usd = self.spent
         if self.fatal is not None:
             raise self.fatal
+
+    async def seed(self, items: list[_Adjudication], current: dict[Any, tuple]) -> None:
+        """Record, without a call, the decision the stored mappings of each adjudication's claims
+        imply: the candidate (method llm) or none (method unmapped) that most of them carry,
+        when more than half agree. ``current``: claim_id -> (target_id, target_method,
+        dimension_id, dimension_method) for the claims mapped under the current version."""
+        model = self.settings.map_model
+        rows = []
+        for a in items:
+            votes: dict[str | None, int] = {}
+            for cid in a.claim_ids:
+                cur = current.get(cid)
+                if cur is None:
+                    continue
+                chosen, method = (cur[0], cur[1]) if a.kind == "target" else (cur[2], cur[3])
+                if method == "llm" and chosen in a.candidates:
+                    votes[chosen] = votes.get(chosen, 0) + 1
+                elif method == "unmapped":
+                    votes[None] = votes.get(None, 0) + 1
+            if votes:
+                choice, n = max(votes.items(), key=lambda kv: kv[1])
+                if n * 2 > sum(votes.values()):
+                    a.choice, a.decided = choice, True
+                    rows.append((decision_key(a, model), a))
+        await self._store(rows, "seed")
+        self.report.decisions_seeded += len(rows)
+
+    async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> None:
+        if not rows:
+            return
+        family = model_family(self.settings.map_model)
+        async with self.conn.cursor() as cur:
+            await cur.executemany(
+                "INSERT INTO map_decisions (key, kind, phrase, class_id, candidates, choice,"
+                " model, source) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (key) DO NOTHING",
+                [(k, a.kind, a.text, a.class_id, list(a.candidates), a.choice, family, source)
+                 for k, a in rows])
 
     async def _one(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings
@@ -462,6 +534,7 @@ class _Adjudicator:
                 if error is not None:
                     raise ValueError(error)
                 a.choice = _parse(text, a.candidates)
+                a.decided = True
             except ValueError as e:
                 a.failed = True
                 report.llm_invalid += 1
@@ -557,17 +630,25 @@ def _count(report: MapReport, prefix: str, method: str | None) -> None:
 
 async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
                      settings: VendorkbSettings, max_usd: float, remap: bool = False,
-                     vendor: str | None = None) -> MapReport:
+                     vendor: str | None = None, seed: bool = False) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
     report = MapReport(taxonomy_version=version)
     tax = await _snapshot(conn)
     # Built before any paid work: it refuses a model with no known price.
-    adjudicator = _Adjudicator(tax, client, settings, max_usd, report)
+    adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn)
     k = max(1, settings.map_candidates)
-    claims = await _claims(conn, None if remap else version, vendor)
+    # seed reads every claim mapped under this version and records their decisions
+    claims = await _claims(conn, None if remap or seed else version, vendor)
     report.claims = len(claims)
+    current: dict[Any, tuple] = {}
+    if seed:
+        cur = await conn.execute(
+            "SELECT claim_id, target_id, target_method, dimension_id, dimension_method"
+            " FROM raw_claims WHERE prompt_version LIKE %s AND mapped_version = %s",
+            (PROMPT_FAMILY, version))
+        current = {r[0]: tuple(r[1:]) for r in await cur.fetchall()}
     if not remap:
         cur = await conn.execute(
             "SELECT count(*) FROM raw_claims WHERE prompt_version LIKE %s"
@@ -616,7 +697,10 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     for c in claims:
         if c.target in target_adj:
             target_adj[c.target].add_context(c)
-    await adjudicator.run(list(target_adj.values()))
+    if seed:
+        await adjudicator.seed(list(target_adj.values()), current)
+    else:
+        await adjudicator.run(list(target_adj.values()))
 
     for c in claims:
         m = mapped[c.claim_id]
@@ -668,6 +752,10 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
              if c.capability is not None else None)
         if a is not None:
             a.add_context(c)
+    if seed:  # decisions recorded; the claims themselves are left as they are
+        await adjudicator.seed(list(dim_adj.values()), current)
+        log.info("taxonomy map (seed): %s", report)
+        return report
     await adjudicator.run(list(dim_adj.values()))
 
     rows = []
