@@ -86,14 +86,17 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 
 ## Retrieval and answers
 
-10. **Measured 2026-11-08, nothing adopted:** comparison facet recall is 0.833 (15 of 18 sides)
-    against a 0.9 target. All 3 misses are the Azure Backup side, and in each the gold article is
-    among the side's 20 candidates (positions 7-20) but the reranker puts it 6th-15th, behind
-    generic pages (Overview, best practices). Searching and reranking each side with the other
-    sides' names removed, and preferring distinct documents, changed nothing (0.833, same misses);
-    5 -> 8 passages per side would recover 1 of the 3 for 60% longer comparison prompts. At the
-    answer level 9 of 10 comparisons address every side, so the single-article metric is the
-    stricter of the two.
+10. **Done 2026-11-08 (late).** The 0.833 was mostly the metric: a blind side-support grade
+    (Opus and Fable: does each side's passages answer that side?) found all 3 "missed" Azure
+    sides supported by other pages, now added to `gold_sources` (marked `graded`). It also found
+    two real faults the article metric could not see: cv-12 compared Storware's "Backup and
+    Recovery" instead of Microsoft's Entra product (a generic product name matched as a facet;
+    such names now need their vendor's name, and "Entra Backup and Recovery" is an alias), and
+    duplicated pages (one page in two guides) took two of a side's five slots (now skipped).
+    Result on the 9 questions: facet recall 1.0, and 16 of 18 sides supported by both graders,
+    1 split (cv-12 Entra: on-demand backup not stated) and 1 partial (ex-rt-08 Veeam: the
+    immutability pages never reach the candidates, since the question does not name immutability;
+    query expansion would be the lever).
 11. **Done 2026-11-08.** Diagnosed on the 23 labelled questions (419 expected vendors): 362
     listed; 32 had passages the model wrote no line for (a 60-passage prompt makes it skip
     vendors, e.g. Acronis pre/post scripts at rerank 0.885); 24 fell below the relevance floor; 1

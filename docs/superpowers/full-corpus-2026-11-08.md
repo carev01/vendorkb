@@ -557,10 +557,28 @@ model skips some. One answer was cut off: the model's reasoning used most of the
 
 ### Comparison facet recall (10)
 
-0.833 (15 of 18 sides), unchanged on today's corpus. All 3 misses are the Azure Backup side; the
-gold article is among the side's candidates (positions 7-20) and the reranker ranks it 6th-15th,
-behind generic pages. Per-side queries (the other side's names removed) and one chunk per
-document first changed nothing; 8 passages per side would recover one of the three. Not adopted.
+The 0.833 (15 of 18 sides with a gold article) was mostly the metric. A blind side-support grade
+(Opus and Fable judged whether each side's five passages answer that side of the question) gave:
+
+| | gold-article metric | side support (both graders) |
+|---|---|---|
+| cv-14, cv-15, ex-rt-09 Azure sides | miss | supported (other pages; now in `gold_sources`, marked `graded`) |
+| cv-12 "Backup and Recovery" side | not scored (no gold for it) | **not supported**: Storware's product, not Microsoft's |
+| ex-rt-08 Veeam side | hit | partial: malware detection only |
+
+- **cv-12:** "Microsoft's built-in Entra Backup and Recovery" matched Storware's product named
+  "Backup and Recovery". A product name made only of generic words (five: Storware, Hornetsecurity,
+  AvePoint, two Cohesity) is now a facet only after its vendor's name, and "(Microsoft) Entra
+  Backup and Recovery" is an alias of "Entra ID Backup". Over the 131 questions, only cv-12 and
+  un-13 change scope, both correctly.
+- **Duplicated pages:** one page published in two guides came back twice with one score and took
+  two of a side's five slots (cv-12's retention page sat just behind such pairs). Each side now
+  skips a passage whose text it already holds.
+- **Result** (9 questions): facet recall 1.0 with the corrected labels; 16 of 18 sides supported
+  by both graders, 1 split (cv-12 Entra: on-demand backup not stated), 1 partial (ex-rt-08 Veeam:
+  the immutability pages are not among its candidates because the question never names
+  immutability; query expansion would be the lever, not built).
+- Spend: about 0.5M rerank tokens; grading by Claude subagents.
 
 ### Capability-table vendors in answers (8)
 
