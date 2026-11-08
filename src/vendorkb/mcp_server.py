@@ -73,7 +73,8 @@ def _value(f: Fact) -> str:
 
 def format_fact(n: int, f: Fact) -> str:
     where = " / ".join(x for x in (f.offering_id, f.edition_id) if x)
-    target = f.target_id or "product-wide"
+    target = f.target_id or (f'"{f.target_raw}" (not in the taxonomy)'
+                             if f.scope == "target_unmapped" and f.target_raw else "product-wide")
     if f.variant_id:
         target += f" [{f.variant_id}]"
     if f.object_type_id:
@@ -104,12 +105,15 @@ def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]
     groups = [("facts", "Facts", res.facts),
               ("product_level", "Product-level facts (less specific than the offering/edition"
                " filter)", res.product_level),
-              ("product_wide", "Product-wide facts (no specific workload)", res.product_wide)]
+              ("product_wide", "Product-wide facts (no specific workload)", res.product_wide),
+              ("unresolved_target", "Facts about a workload the taxonomy does not list (its name"
+               " as the documentation wrote it)", res.unresolved_target)]
     parts: list[str] = []
     structured: dict[str, Any] = {}
     n = 0
     for key, title, facts in groups:
-        shown = facts[:min(limit, WIDE_SHOWN) if key == "product_wide" else limit]
+        shown = facts[:min(limit, WIDE_SHOWN) if key in ("product_wide", "unresolved_target")
+                      else limit]
         total = max(res.totals.get(key, 0), len(facts))
         structured[key] = [dataclasses.asdict(f) for f in shown]
         structured[f"{key}_total"] = total

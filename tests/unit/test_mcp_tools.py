@@ -117,6 +117,17 @@ async def test_long_quotes_are_trimmed_in_the_text_only():
     assert r.structured_content["facts"][0]["evidence_quote"] == long
 
 
+async def test_unresolved_targets_show_the_documentation_wording():
+    caps = CapResult(unresolved_target=[_fact(target_id=None, scope="target_unmapped",
+                                              target_raw="Lotus Notes", support="not_supported")])
+    async with Client(ms.build_server(FakeBackend(caps=caps))) as c:
+        r = await c.call_tool("query_capabilities", {"vendor": "Examplevendor"})
+    text = r.content[0].text
+    assert "Facts about a workload the taxonomy does not list" in text
+    assert '| "Lotus Notes" (not in the taxonomy) | NOT_SUPPORTED' in text
+    assert r.structured_content["unresolved_target_total"] == 1
+
+
 async def test_query_capabilities_limit_and_hint():
     # the backend already returns at most `limit` rows per group; totals keep the full counts
     capped = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(2)],

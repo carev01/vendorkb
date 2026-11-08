@@ -401,10 +401,15 @@ CREATE TABLE IF NOT EXISTS capabilities (
     conditions text,
     doc_version timestamptz NOT NULL,
     taxonomy_version text NOT NULL,
-    scope text NOT NULL CHECK (scope IN ('offering', 'product', 'product_wide')),
+    scope text NOT NULL CHECK (scope IN ('offering', 'product', 'product_wide', 'target_unmapped')),
     conflict_group uuid,
     is_current boolean NOT NULL
 );
+-- 2026-11-08: a claim whose target text named no taxonomy target has its own scope (it used to
+-- count as product-wide). The table is derived: `vendorkb capabilities build` refills it.
+ALTER TABLE capabilities DROP CONSTRAINT IF EXISTS capabilities_scope_check;
+ALTER TABLE capabilities ADD CONSTRAINT capabilities_scope_check
+    CHECK (scope IN ('offering', 'product', 'product_wide', 'target_unmapped'));
 CREATE INDEX IF NOT EXISTS capabilities_dimension_idx ON capabilities (dimension_id);
 CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor));

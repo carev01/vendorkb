@@ -33,7 +33,9 @@ async def _claim(conn, dimension: str | None, target: str | None = None, *,
                  object_type=None, offering=None, edition=None, support="supported",
                  value=None, unit=None, availability="unstated", kind="capability",
                  fetched_at=T0, prompt_version="claims-v3.1", mapped_version: str | None,
-                 quote="synthetic quote", url="http://docs/x", title="Doc") -> uuid.UUID:
+                 quote="synthetic quote", url="http://docs/x", title="Doc",
+                 capability="some capability", target_text=None, target_scope=None,
+                 conditions=None) -> uuid.UUID:
     doc_id, chunk_id, ext_id, claim_id = (uuid.uuid4() for _ in range(4))
     await conn.execute(
         "INSERT INTO documents (doc_id, vendor, product, source, title, url, content_hash,"
@@ -48,14 +50,16 @@ async def _claim(conn, dimension: str | None, target: str | None = None, *,
         " status) VALUES (%s,%s,'m',%s,'done')", (ext_id, chunk_id, prompt_version))
     await conn.execute(
         "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor, product, kind,"
-        " capability_raw, target_raw, support, availability, value, unit, evidence_quote,"
-        " gate, extractor_model, prompt_version, dimension_id, dimension_method, class_id,"
-        " target_id, variant_id, object_type_id, offering_id, edition_id, mapped_version)"
-        " VALUES (%s,%s,%s,%s,%s,%s,'some capability',%s,%s,%s,%s,%s,%s,'exact','m',%s,%s,"
+        " capability_raw, target_raw, target_scope, conditions, support, availability, value,"
+        " unit, evidence_quote, gate, extractor_model, prompt_version, dimension_id,"
+        " dimension_method, class_id, target_id, variant_id, object_type_id, offering_id,"
+        " edition_id, mapped_version)"
+        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'exact','m',%s,%s,"
         " 'alias',%s,%s,%s,%s,%s,%s,%s)",
-        (claim_id, ext_id, chunk_id, vendor, product, kind, target, support, availability,
-         value, unit, quote, prompt_version, dimension, class_id, target, variant,
-         object_type, offering, edition, mapped_version))
+        (claim_id, ext_id, chunk_id, vendor, product, kind, capability,
+         target_text if target_text is not None else target, target_scope, conditions,
+         support, availability, value, unit, quote, prompt_version, dimension, class_id,
+         target, variant, object_type, offering, edition, mapped_version))
     return claim_id
 
 
@@ -271,7 +275,8 @@ async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
         monkeypatch.setattr(capabilities, "CONFLICT_MEMBERS", 2)
         res = await capabilities.query(conn, CapFilter(target="okta"), limit=1)
         assert (len(res.facts), len(res.product_wide)) == (1, 1)
-        assert res.totals == {"facts": 4, "product_level": 0, "product_wide": 2}
+        assert res.totals == {"facts": 4, "product_level": 0, "product_wide": 2,
+                              "unresolved_target": 0}
         [conflict] = res.conflicts
         assert (len(conflict.facts), conflict.size) == (2, 4)  # members capped, size kept
         # a limited group is filled round-robin across vendors
@@ -283,6 +288,55 @@ async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
         unbounded = await capabilities.query(conn, CapFilter(target="okta", vendor="examplevendor"))
         assert len(unbounded.facts) == 4 and unbounded.totals["facts"] == 4
         assert len(unbounded.conflicts[0].facts) == 2  # members are always capped
+    finally:
+        await conn.close()
+
+
+async def test_a_target_text_that_did_not_map_is_not_product_wide(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        # "backup of Lotus Notes is not supported": the workload is named but not in the taxonomy
+        lotus = await _claim(conn, "coverage.backup", target_text="Lotus Notes",
+                             support="not_supported", mapped_version=v)
+        wide = await _claim(conn, "retention.maximum_period", mapped_version=v)  # no target text
+        await capabilities.build(conn)
+        caps = await _caps(conn)
+        assert caps[lotus]["scope"] == "target_unmapped" and caps[wide]["scope"] == "product_wide"
+        res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
+        assert _ids(res.unresolved_target) == {str(lotus)}
+        assert _ids(res.product_wide) == {str(wide)} and res.totals["unresolved_target"] == 1
+        assert res.unresolved_target[0].target_raw == "Lotus Notes"
+        res = await capabilities.query(conn, CapFilter(target="okta"))  # can't be a match
+        assert str(lotus) not in _ids(res.facts + res.product_wide + res.unresolved_target)
+    finally:
+        await conn.close()
+
+
+async def test_a_conflict_is_the_same_statement_both_supported_and_not(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        key = {"dimension": "coverage.backup", "target": "okta", "class_id": "saas.identity",
+               "mapped_version": v}
+        yes = await _claim(conn, **key, capability="group backup")
+        no = await _claim(conn, **key, capability="Group  backup!", support="not_supported")
+        partial = await _claim(conn, **key, capability="user backup", support="partial")
+        full = await _claim(conn, **key, capability="user backup")
+        other = await _claim(conn, **key, capability="role backup", support="not_supported")
+        cond_yes = await _claim(conn, **key, capability="app backup", conditions="Enterprise")
+        cond_no = await _claim(conn, **key, capability="app backup", support="not_supported",
+                               conditions="Starter edition")
+        scope_yes = await _claim(conn, **key, capability="object backup", target_scope="Users")
+        scope_no = await _claim(conn, **key, capability="object backup", target_scope="Roles",
+                                support="not_supported")
+        await capabilities.build(conn)
+        caps = await _caps(conn)
+        # same phrase (normalized), same conditions, supported and not supported: a conflict
+        assert caps[yes]["conflict_group"] == caps[no]["conflict_group"] is not None
+        # partial and supported agree; different phrases, conditions or objects do not conflict
+        for cid in (partial, full, other, cond_yes, cond_no, scope_yes, scope_no):
+            assert caps[cid]["conflict_group"] is None, cid
     finally:
         await conn.close()
 
