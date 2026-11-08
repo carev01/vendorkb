@@ -3,12 +3,15 @@ chunks that carry mapped facts (superseded) until its new version is extracted a
 (``store.write_document`` / ``store.retire_superseded``).
 
 Every name and text here is invented for the tests."""
+import asyncio
 import uuid
 
 from pgvector import Vector
 
 from tests.integration.test_capabilities_v2 import _fresh
+from tests.integration.test_claims_extract import GOOD, _settings
 from vendorkb.chunker import Chunk
+from vendorkb.claims import extract
 from vendorkb.db import connect, init_schema
 from vendorkb.search import read_section
 from vendorkb.store import (DocMeta, delete_document, retire_superseded, update_metadata,
@@ -530,3 +533,80 @@ async def test_read_section_of_a_superseded_chunk_stays_in_its_own_write(vkb_dsn
         assert await ids(v3[0], "full") == [str(c) for c in v3]
     finally:
         await conn.close()
+
+
+# --- an extraction and a re-sync of the same page wait for each other ---
+
+URL = "https://docs.example.com/long/path/to/the/guide/page-with-the-details-about-it.html"
+OLD_TEXT = f"T\n\nSee [the guide]({URL}) for every repository."
+NEW_TEXT = "T\n\nSee [the guide](/g/it.html) for every repository."  # same reuse_key
+SPANNING_QUOTE = f"[the guide]({URL}) for every repository"  # in OLD_TEXT, not in NEW_TEXT
+
+
+async def _wait_for_lock(watcher, waiting) -> None:
+    """Until ``waiting``'s backend is blocked on a lock (seen through ``watcher``)."""
+    for _ in range(200):
+        cur = await watcher.execute("SELECT wait_event_type FROM pg_stat_activity"
+                                    " WHERE pid = %s", (waiting.info.backend_pid,))
+        if (await cur.fetchone())[0] == "Lock":
+            return
+        await asyncio.sleep(0.05)
+    raise AssertionError("the connection never waited for a lock")
+
+
+async def test_a_recorded_extraction_waits_for_a_resync_and_gates_on_its_text(vkb_dsn):
+    writer, recorder = await connect(vkb_dsn), await connect(vkb_dsn)
+    try:
+        await _fresh(writer)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, [chunk_id] = await _write_texts(writer, meta, [OLD_TEXT])
+        # the extraction loaded the chunk before the re-sync below
+        loaded = (await extract._load_chunks(recorder, [str(chunk_id)]))[str(chunk_id)]
+        outcome = extract._Outcome("done", claims=[{**GOOD, "evidence_quote": SPANNING_QUOTE}])
+
+        async with writer.transaction():  # the re-sync holds the page's chunks until it commits
+            reused, _ = await _write_texts(writer, meta, [NEW_TEXT])
+            assert reused == 1
+            record = asyncio.create_task(extract._record(
+                recorder, str(chunk_id), loaded, outcome, settings=_settings(),
+                ledger_id="b", batch=True, report=extract.ExtractReport()))
+            await _wait_for_lock(writer, recorder)
+        await record
+
+        # recorded after the commit, against the new text: the quote is not in it
+        assert await _count(recorder, "SELECT count(*) FROM raw_claims") == 0
+        assert await _count(recorder, "SELECT count(*) FROM rejected_claims") == 1
+    finally:
+        await writer.close()
+        await recorder.close()
+
+
+async def test_a_resync_waits_for_an_extraction_in_flight_and_sees_its_claims(vkb_dsn):
+    writer, recorder = await connect(vkb_dsn), await connect(vkb_dsn)
+    try:
+        version = await _fresh(writer)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, [chunk_id] = await _write_texts(writer, meta, [OLD_TEXT])
+
+        async with recorder.transaction():  # an extraction result being recorded
+            await recorder.execute("SELECT text FROM chunks WHERE chunk_id = %s FOR KEY SHARE",
+                                   (chunk_id,))
+            async def resync():
+                async with writer.transaction():
+                    return await _write_texts(writer, meta, [NEW_TEXT])
+
+            resync_task = asyncio.create_task(resync())
+            await _wait_for_lock(recorder, writer)
+            await _extract(recorder, chunk_id, claim_mapped=version, quote=SPANNING_QUOTE)
+        reused, [current] = await resync_task
+
+        # the claim committed first: its quote is not in the new text, so no reuse
+        assert reused == 0 and current != chunk_id
+        assert await _superseded(writer, doc_id) == [chunk_id]
+        assert await _count(writer, "SELECT count(*) FROM raw_claims WHERE chunk_id = %s",
+                            chunk_id) == 1
+    finally:
+        await writer.close()
+        await recorder.close()

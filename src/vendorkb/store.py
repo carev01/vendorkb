@@ -50,6 +50,11 @@ async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_h
     the capability table or soon will be) and deleted otherwise. Superseded chunks are never
     deleted here: only ``retire_superseded`` does, once the new chunks are extracted and
     mapped. The new chunks that reused nothing are inserted."""
+    # Locked until the caller's transaction ends: an extraction recording its claims on one of
+    # these chunks (FOR KEY SHARE, claims/extract.py) waits, then gates them against the new
+    # text, and one that committed first is seen by the quote check below.
+    await conn.execute("SELECT chunk_id FROM chunks WHERE doc_id = %s AND superseded_at IS NULL"
+                       " ORDER BY chunk_id FOR UPDATE", (meta.doc_id,))
     await conn.execute(
         "INSERT INTO documents(doc_id, vendor, product, source, source_id, title, url,"
         " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
