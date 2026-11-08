@@ -1,0 +1,399 @@
+{
+ "arm": "full",
+ "max_searches": 6,
+ "label": "baseline: taxonomy 2-535fdb7b, image sha-0b58ab4",
+ "summary": {
+  "questions": 23,
+  "recall": 0.9599800123839654,
+  "precision": 0.9493886038121353
+ },
+ "questions": {
+  "ex-rt-10": {
+   "recall": 0.9714285714285714,
+   "precision": 0.9444444444444444,
+   "listed": 37,
+   "false": [
+    "spanning",
+    "velero"
+   ],
+   "missed": [
+    "red hat"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "list_targets": 1,
+    "query_capabilities": 40,
+    "search_docs": 4
+   }
+  },
+  "ex-rt-12": {
+   "recall": 0.96875,
+   "precision": 0.96875,
+   "listed": 35,
+   "false": [
+    "keepit"
+   ],
+   "missed": [
+    "afi.ai"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 6,
+    "list_targets": 2,
+    "query_capabilities": 135,
+    "search_docs": 6,
+    "read_section": 1
+   }
+  },
+  "cv-01": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 12,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 3,
+    "query_capabilities": 34,
+    "search_docs": 6,
+    "read_section": 15
+   }
+  },
+  "cv-02": {
+   "recall": 0.9411764705882353,
+   "precision": 1.0,
+   "listed": 16,
+   "false": [],
+   "missed": [
+    "ibm"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "list_targets": 2,
+    "query_capabilities": 17,
+    "search_docs": 6
+   }
+  },
+  "cv-03": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 23,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 55,
+    "search_docs": 5,
+    "read_section": 5
+   }
+  },
+  "cv-04": {
+   "recall": 0.8461538461538461,
+   "precision": 0.9166666666666666,
+   "listed": 13,
+   "false": [
+    "dell"
+   ],
+   "missed": [
+    "arctera",
+    "druva"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 9,
+    "list_targets": 1,
+    "search_docs": 6,
+    "query_capabilities": 1
+   }
+  },
+  "cv-05": {
+   "recall": 0.9166666666666666,
+   "precision": 1.0,
+   "listed": 25,
+   "false": [],
+   "missed": [
+    "cloudcasa",
+    "hornetsecurity (altaro)"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 6,
+    "query_capabilities": 1,
+    "search_docs": 6,
+    "read_section": 2
+   }
+  },
+  "cv-06": {
+   "recall": 0.9629629629629629,
+   "precision": 1.0,
+   "listed": 26,
+   "false": [],
+   "missed": [
+    "arcserve"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 3,
+    "query_capabilities": 28,
+    "search_docs": 6
+   }
+  },
+  "cv-07": {
+   "recall": 0.9333333333333333,
+   "precision": 1.0,
+   "listed": 28,
+   "false": [],
+   "missed": [
+    "avepoint",
+    "google"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "list_targets": 1,
+    "query_capabilities": 16,
+    "search_docs": 6,
+    "read_section": 3
+   }
+  },
+  "cv-08": {
+   "recall": 0.9090909090909091,
+   "precision": 1.0,
+   "listed": 10,
+   "false": [],
+   "missed": [
+    "arctera"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 82,
+    "search_docs": 6
+   }
+  },
+  "cv-09": {
+   "recall": 1.0,
+   "precision": 0.9655172413793104,
+   "listed": 30,
+   "false": [
+    "axcient"
+   ],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 4,
+    "query_capabilities": 22,
+    "search_docs": 6,
+    "read_section": 3
+   }
+  },
+  "cv43-01": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 16,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 3,
+    "list_targets": 1,
+    "query_capabilities": 20,
+    "search_docs": 6,
+    "read_section": 9
+   }
+  },
+  "cv43-02": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 8,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 3,
+    "query_capabilities": 7,
+    "search_docs": 6
+   }
+  },
+  "cv43-03": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 11,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 2,
+    "query_capabilities": 50,
+    "search_docs": 4
+   }
+  },
+  "cv43-04": {
+   "recall": 0.9333333333333333,
+   "precision": 0.9333333333333333,
+   "listed": 16,
+   "false": [
+    "hycu"
+   ],
+   "missed": [
+    "barracuda"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 37,
+    "search_docs": 4
+   }
+  },
+  "cv43-05": {
+   "recall": 0.9090909090909091,
+   "precision": 0.9090909090909091,
+   "listed": 15,
+   "false": [
+    "commvault"
+   ],
+   "missed": [
+    "synology"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 3,
+    "list_targets": 1,
+    "query_capabilities": 22,
+    "search_docs": 6
+   }
+  },
+  "cv43-06": {
+   "recall": 1.0,
+   "precision": 0.7142857142857143,
+   "listed": 20,
+   "false": [
+    "ibm",
+    "microsoft",
+    "slide",
+    "synology"
+   ],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 3,
+    "query_capabilities": 40,
+    "list_targets": 1,
+    "search_docs": 2
+   }
+  },
+  "cv43-07": {
+   "recall": 0.9411764705882353,
+   "precision": 0.9411764705882353,
+   "listed": 18,
+   "false": [
+    "n-able"
+   ],
+   "missed": [
+    "cloudally"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 2,
+    "query_capabilities": 40,
+    "search_docs": 6
+   }
+  },
+  "cv43-08": {
+   "recall": 1.0,
+   "precision": 1.0,
+   "listed": 11,
+   "false": [],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 3,
+    "list_targets": 1,
+    "query_capabilities": 2,
+    "search_docs": 6,
+    "read_section": 3
+   }
+  },
+  "cv43-09": {
+   "recall": 0.9333333333333333,
+   "precision": 1.0,
+   "listed": 14,
+   "false": [],
+   "missed": [
+    "ibm"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "list_dimensions": 4,
+    "query_capabilities": 36,
+    "search_docs": 6,
+    "read_section": 7
+   }
+  },
+  "cv43-10": {
+   "recall": 1.0,
+   "precision": 0.6666666666666666,
+   "listed": 20,
+   "false": [
+    "arctera",
+    "dell",
+    "eon",
+    "flosum",
+    "ibm"
+   ],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 37,
+    "search_docs": 6
+   }
+  },
+  "cv43-11": {
+   "recall": 1.0,
+   "precision": 0.9629629629629629,
+   "listed": 28,
+   "false": [
+    "avepoint"
+   ],
+   "missed": [],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 46,
+    "search_docs": 6
+   }
+  },
+  "cv43-12": {
+   "recall": 0.9130434782608695,
+   "precision": 0.9130434782608695,
+   "listed": 24,
+   "false": [
+    "spanning",
+    "trilio"
+   ],
+   "missed": [
+    "atempo",
+    "nakivo"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_dimensions": 1,
+    "query_capabilities": 31,
+    "search_docs": 6,
+    "read_section": 6
+   }
+  }
+ }
+}

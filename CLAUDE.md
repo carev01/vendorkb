@@ -112,11 +112,12 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   local, never-committed map of the internal comparison tables (418/423 rows findable on
   the reviewed taxonomy).
   `eval/teacher_sample.py` draws the stratified teacher set.
+  `eval/agent_eval.py prepare|call|score` is the agent-level regression gate: one fresh Claude
+  Code subagent (Sonnet) per brief answers a labelled cross-vendor question through the
+  deployed MCP server, then `score RUN --baseline eval/agent_baseline.json` exits 1 on a
+  regression. Run it after a taxonomy, mapper or MCP tool change.
 
 **Not built yet:**
-- the MCP server (an unfiltered `capabilities` query returns the whole table, so the server must
-  require a filter or page);
-- extraction beyond the teacher and precision sets, and the Qwen3.5-9B student;
 - capabilities in `answer()`;
 
 ## Commands
