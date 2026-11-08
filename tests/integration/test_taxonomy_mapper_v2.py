@@ -203,10 +203,12 @@ async def _mapping(conn, claim_id) -> dict:
     return dict(zip(COLUMNS, await cur.fetchone()))
 
 
-async def _run(conn, client=None, embedder=None, max_usd=1.0, remap=False, **settings):
+async def _run(conn, client=None, embedder=None, max_usd=1.0, remap=False, vendor=None,
+               **settings):
     return await mapper.map_claims(conn, embedder=embedder or FakeEmbedder(),
                                    client=client or FakeOpenAI(),
-                                   settings=_settings(**settings), max_usd=max_usd, remap=remap)
+                                   settings=_settings(**settings), max_usd=max_usd, remap=remap,
+                                   vendor=vendor)
 
 
 async def test_alias_hits_make_no_llm_call(vkb_dsn, tmp_path):
@@ -527,6 +529,23 @@ async def test_claims_mapped_at_this_version_are_left_alone(vkb_dsn, tmp_path):
         assert (await _mapping(conn, old))["dimension_id"] == "recovery.automation_bypass"
         assert (await _mapping(conn, stale))["mapped_version"] == version
         assert (await _mapping(conn, new))["mapped_version"] == version
+    finally:
+        await conn.close()
+
+
+async def test_vendor_maps_only_that_vendors_claims(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        mine = await _claim(conn, "longest retention", "Okta")
+        theirs = await _claim(conn, "longest retention", "Okta", vendor="othervendor")
+        report = await _run(conn, vendor="examplevendor")
+        assert (report.claims, report.claims_already_mapped) == (1, 0)
+        assert (await _mapping(conn, mine))["mapped_version"] is not None
+        assert (await _mapping(conn, theirs))["mapped_version"] is None
+        report = await _run(conn, vendor="othervendor")
+        assert (report.claims, report.claims_already_mapped) == (1, 0)
+        assert (await _mapping(conn, theirs))["mapped_version"] is not None
     finally:
         await conn.close()
 

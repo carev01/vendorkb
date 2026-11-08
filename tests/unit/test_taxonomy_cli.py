@@ -77,9 +77,9 @@ def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     async def fake_load(conn, path):
         return {"version": "2-ab12cd34", "path": path}
 
-    async def fake_map(conn, *, embedder, client, settings, max_usd, remap):
+    async def fake_map(conn, *, embedder, client, settings, max_usd, remap, vendor):
         stubbed.update(map_backend=settings.map_backend,
-                       extract_backend=settings.extract_backend, remap=remap)
+                       extract_backend=settings.extract_backend, remap=remap, vendor=vendor)
         return mapper.MapReport(taxonomy_version="1", claims=int(max_usd * 100))
 
     monkeypatch.setattr(load, "load_taxonomy", fake_load)
@@ -94,7 +94,9 @@ def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):
     assert stubbed["remap"] is False  # only claims not yet mapped under this version
     assert stubbed["init_schema"]
     assert cli.main(["taxonomy", "map", "--all"]) == 0
-    assert stubbed["remap"] is True
+    assert stubbed["remap"] is True and stubbed["vendor"] is None
+    assert cli.main(["taxonomy", "map", "--vendor", "Veeam"]) == 0
+    assert stubbed["vendor"] == "Veeam"
 
 
 def test_taxonomy_map_exit_code_on_invalid_replies(stubbed, monkeypatch, capsys):
