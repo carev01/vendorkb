@@ -112,12 +112,29 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
                              best_scores=best)
 
 
+def _distinct(hits: list[Hit], n: int) -> list[Hit]:
+    """The first ``n`` hits whose text (whitespace-collapsed) has not come before: a page
+    published in two guides comes back twice with one score and took two of a side's five
+    slots (cv-12, 2026-11-08)."""
+    seen: set[str] = set()
+    out: list[Hit] = []
+    for h in hits:
+        key = " ".join(h.text.split())
+        if key not in seen:
+            seen.add(key)
+            out.append(h)
+            if len(out) == n:
+                break
+    return out
+
+
 async def compare_facets(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                          reranker: Reranker | None, facets: list[Facet], per_facet: int = 5,
                          use_rerank: bool = True) -> ComparisonResult:
     """Search each facet with an equal share of the candidate pool (one batched candidate
     step, ``search.facet_candidates``) and rerank each facet separately, the reranks running
-    concurrently, so every facet's quota survives the rerank. Hits interleave facet by facet;
+    concurrently, so every facet's quota survives the rerank. A passage whose text repeats one
+    already kept for the facet is skipped (``_distinct``). Hits interleave facet by facet;
     a facet with no candidates is reported in ``facets_empty``, never relaxed."""
     if not facets:
         return ComparisonResult(hits=[], facets_empty=[], rerank_ok=False)
@@ -132,14 +149,14 @@ async def compare_facets(conn: psycopg.AsyncConnection, query: str, *, embedder:
     async def rerank(c: list[Hit]) -> list[tuple[int, float]] | None:
         if not use_rerank or reranker is None:
             return None
-        return await reranker.rerank(query, [h.text for h in c], per_facet)
+        return await reranker.rerank(query, [h.text for h in c], len(c))
 
     per: list[list[Hit]] = []
     for c, ranked in zip(found, await asyncio.gather(*(rerank(c) for c in found))):
         if ranked:
-            per.append([replace(c[i], rerank_score=s) for i, s in ranked[:per_facet]])
+            per.append(_distinct([replace(c[i], rerank_score=s) for i, s in ranked], per_facet))
         else:  # None (outage) and [] for non-empty candidates are both failures
             rerank_ok = False
-            per.append(c[:per_facet])
+            per.append(_distinct(c, per_facet))
     hits = [g[n] for n in range(max(map(len, per), default=0)) for g in per if n < len(g)]
     return ComparisonResult(hits=hits, facets_empty=facets_empty, rerank_ok=rerank_ok)
