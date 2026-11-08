@@ -183,7 +183,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
 ## After the full-corpus run (2026-11-08)
 
-24. **Conflict groups are too coarse.** 65% of capability rows sit in a conflict group. They
+24. **Done 2026-11-08:** a claim whose target text matched no taxonomy target gets scope
+    `target_unmapped` (65k of them had counted as product-wide), and a conflict is now the same
+    statement (normalized capability phrase, target scope text, conditions) both supported or
+    partial and not_supported, or with differing values: measured 0.5% of rows, down from 65%.
+    **Conflict groups are too coarse.** 65% of capability rows sit in a conflict group. They
     concentrate in a few large keys, such as a product-wide dimension with thousands of claims.
     A positive-versus-not-supported-only rule still flags 59%. Add the conditions (or the
     target scope) to the key, or report conflicts only within one document set. Done when

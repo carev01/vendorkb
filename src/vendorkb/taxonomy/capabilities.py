@@ -4,19 +4,26 @@
 of the claims-v3 family (``propose.PROMPT_FAMILY``) mapped under the current taxonomy version
 with a dimension. Each row is keyed on its claim and gets:
 
-- ``scope``: ``product_wide`` when there is no target and the dimension is a workload one
-  (not ``platform``), whether or not an offering is named; else ``offering`` when an offering
-  is named; else ``product``. It agrees with the ``query`` group of the same name.
-- ``conflict_group``: rows sharing the conflict key (vendor, product, offering, edition,
-  dimension, target, variant, object type; NULLs equal) that differ in support, or in their
-  stated values (a row with no value contradicts none), share a group id derived from the key,
-  so a rebuild reproduces it.
+- ``scope`` (workload dimensions, i.e. not ``platform``):
+  - ``target_unmapped``: the claim names a target that matched no taxonomy target. It is not a
+    product-wide statement: "backup of Lotus Notes is not supported" says nothing about backup
+    in general.
+  - ``product_wide``: no target text at all.
+  - Otherwise ``offering`` when an offering is named, else ``product``.
+  Each agrees with the ``query`` group of the same name.
+- ``conflict_group``: rows that make the same statement (the conflict key: vendor, product,
+  offering, edition, dimension, target, variant and object type, plus the normalized capability
+  phrase, target scope text when no object type resolved, and conditions; NULLs equal) share a
+  group id derived from the key when one says supported or partial and another not_supported,
+  or when their stated values differ (a row with no value contradicts none). Supported against
+  partial, and statements about different things under one dimension, are not conflicts. A
+  rebuild reproduces the id.
 - ``is_current``: the key's rows from its most recently fetched document
   (``documents.fetched_at``, also kept as ``doc_version``); the latest document wins and the
   older rows stay, so the conflict stays visible.
 
 ``query`` serves only rows built under the current taxonomy version and sorts every matching
-row into one of three groups, so nothing is presented as more specific than its evidence:
+row into one of four groups, so nothing is presented as more specific than its evidence:
 
 - ``product_wide``: rows with no target whose dimension is a workload one. With a ``target``
   filter only the dimensions that apply to the target's class are kept (and the target filter
@@ -25,6 +32,8 @@ row into one of three groups, so nothing is presented as more specific than its 
 - ``product_level``: with an ``offering`` or ``edition`` filter, the rows less specific than it:
   those with no offering, of the filtered offerings' vendors, and (with an edition filter) the
   filtered offerings' rows with no edition. Without either filter it is empty.
+- ``unresolved_target``: ``target_unmapped`` rows (``Fact.target_raw`` names the workload).
+  Never returned with a ``target`` filter, which they cannot be shown to match.
 - ``facts``: the rest.
 
 ``conflicts`` lists each conflict group met in the result with all its members, the ones the
@@ -49,7 +58,12 @@ from vendorkb.taxonomy.propose import PROMPT_FAMILY
 __all__ = ["CapFilter", "CapResult", "Conflict", "Fact", "build", "query"]
 
 _KEY = ("vendor", "product", "offering_id", "edition_id", "dimension_id", "target_id",
-        "variant_id", "object_type_id")
+        "variant_id", "object_type_id", "cap_norm", "scope_norm", "cond_norm")
+
+
+def _norm(expr: str) -> str:
+    """SQL: ``expr`` lowercased with every run of non-word characters as one space."""
+    return f"trim(lower(regexp_replace(coalesce({expr}, ''), '\\W+', ' ', 'g')))"
 
 
 @dataclass(frozen=True)
@@ -113,6 +127,7 @@ class CapResult:
     facts: list[Fact] = field(default_factory=list)
     product_level: list[Fact] = field(default_factory=list)
     product_wide: list[Fact] = field(default_factory=list)
+    unresolved_target: list[Fact] = field(default_factory=list)
     conflicts: list[Conflict] = field(default_factory=list)
     hint: str | None = None
     totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
@@ -134,9 +149,11 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             " SELECT claim_id, vendor, product, offering_id, edition_id, dimension_id,"
             " class_id, target_id, variant_id, object_type_id, kind, support, availability,"
             " default_state, value, unit, bound, conditions, fetched_at, %(ver)s,"
-            " CASE WHEN target_id IS NULL AND NOT platform THEN 'product_wide'"
+            " CASE WHEN target_id IS NULL AND NOT platform AND target_raw IS NOT NULL"
+            "  THEN 'target_unmapped' WHEN target_id IS NULL AND NOT platform THEN 'product_wide'"
             "  WHEN offering_id IS NOT NULL THEN 'offering' ELSE 'product' END,"
-            " CASE WHEN min(support) OVER k <> max(support) OVER k"
+            " CASE WHEN (bool_or(support = 'not_supported') OVER k"
+            "   AND bool_or(support IN ('supported', 'partial')) OVER k)"
             "  OR min(value) OVER k <> max(value) OVER k"
             f" THEN md5(jsonb_build_array({key})::text)::uuid END,"
             " fetched_at = max(fetched_at) OVER k"
@@ -145,7 +162,10 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             " FROM (SELECT r.claim_id, d.vendor, d.product, r.offering_id, r.edition_id,"
             "  r.dimension_id, r.class_id, r.target_id, r.variant_id, r.object_type_id, r.kind,"
             "  r.support, r.availability, r.default_state, r.value, r.unit, r.bound,"
-            "  r.conditions, d.fetched_at, dim.platform FROM raw_claims r"
+            "  r.conditions, d.fetched_at, dim.platform, r.target_raw,"
+            f"  {_norm('r.capability_raw')} AS cap_norm,"
+            f"  CASE WHEN r.object_type_id IS NULL THEN {_norm('r.target_scope')} END AS scope_norm,"
+            f"  {_norm('r.conditions')} AS cond_norm FROM raw_claims r"
             "  JOIN chunks ch ON ch.chunk_id = r.chunk_id"
             "  JOIN documents d ON d.doc_id = ch.doc_id"
             "  JOIN dimensions dim ON dim.dimension_id = r.dimension_id"
@@ -310,7 +330,8 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
                                  " WHERE offering_id = ANY(%s)", (related,))
         params["general_vendors"] = [str(r[0]) for r in await cur.fetchall()]
 
-    wide = "(c.target_id IS NULL AND NOT coalesce(dim.platform, false))"
+    wide = "(c.scope = 'product_wide')"
+    off_taxonomy = "(c.scope = 'target_unmapped')"
     exact = ("((%(offerings)s::text[] IS NULL OR c.offering_id = ANY(%(offerings)s::text[]))"
              " AND (%(editions)s::text[] IS NULL"
              "  OR c.offering_id || '/' || c.edition_id = ANY(%(editions)s::text[])))")
@@ -318,7 +339,8 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
                "  AND lower(c.vendor) = ANY(%(general_vendors)s::text[]))"
                " OR (c.edition_id IS NULL"
                "  AND c.offering_id = ANY(%(edition_offerings)s::text[]))))")
-    grp = f"CASE WHEN {wide} THEN 'product_wide' WHEN {exact} THEN 'facts' ELSE 'product_level' END"
+    grp = (f"CASE WHEN {off_taxonomy} THEN 'unresolved_target' WHEN {wide} THEN 'product_wide'"
+           f" WHEN {exact} THEN 'facts' ELSE 'product_level' END")
     params["limit"] = limit
     sql = (
         f"SELECT {grp} AS grp, count(*) OVER (PARTITION BY {grp}) AS total,"
@@ -346,10 +368,12 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
                f" s.vendor_pos, s.pos) AS rr FROM ({sql}) s) t WHERE t.rr <= %(limit)s"
                " ORDER BY t.rr")
     cur = await conn.execute(sql, params)
-    result = CapResult(totals={"facts": 0, "product_level": 0, "product_wide": 0})
+    result = CapResult(totals={"facts": 0, "product_level": 0, "product_wide": 0,
+                               "unresolved_target": 0})
     groups: dict[str, list[Fact]] = {"facts": result.facts,
                                      "product_level": result.product_level,
-                                     "product_wide": result.product_wide}
+                                     "product_wide": result.product_wide,
+                                     "unresolved_target": result.unresolved_target}
     for row in await cur.fetchall():
         groups[row[0]].append(_fact(row[4:4 + _N_FACT]))  # after grp, total, pos, vendor_pos
         result.totals[row[0]] = int(row[1])
@@ -370,6 +394,7 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
             members[str(fact.conflict_group)].append(fact)
             sizes[str(fact.conflict_group)] = int(row[0])
         result.conflicts = [Conflict(g, members[g], sizes.get(g, 0)) for g in met]
-    if not (result.facts or result.product_level or result.product_wide):
+    if not (result.facts or result.product_level or result.product_wide
+            or result.unresolved_target):
         result.hint = await _hint(conn, f, targets, dimensions)
     return result

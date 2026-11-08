@@ -161,7 +161,8 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
         target="aws", object_type="database", support="partial", availability="preview",
         value_min=1.0, value_max=9.5)
     out = json.loads(capsys.readouterr().out)
-    assert set(out) == {"facts", "product_level", "product_wide", "conflicts", "hint", "totals"}
+    assert set(out) == {"facts", "product_level", "product_wide", "unresolved_target",
+                        "conflicts", "hint", "totals"}
     fact = out["facts"][0]
     assert (fact["vendor"], fact["url"], fact["evidence_quote"]) == ("veeam", "http://u", "q")
 
