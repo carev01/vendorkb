@@ -436,3 +436,15 @@ CREATE TABLE IF NOT EXISTS map_decisions (
 -- whose candidates changed can carry an earlier answer made under the same rules only.
 ALTER TABLE map_decisions ADD COLUMN IF NOT EXISTS rules text;
 CREATE INDEX IF NOT EXISTS map_decisions_phrase_idx ON map_decisions (kind, phrase);
+
+-- Embeddings of short strings (taxonomy keys, claim phrases) reused across taxonomy-map runs
+-- (BACKLOG 27): a re-map embeds only strings it has never seen. ``vec`` is the provider's vector
+-- as little-endian float32 bytes (bit-identical on reuse, so candidate lists, and the decisions
+-- keyed on them, do not drift). Strings over 1,000 characters are never cached.
+CREATE TABLE IF NOT EXISTS embedding_cache (
+    model text NOT NULL,
+    input_type text NOT NULL,
+    text text NOT NULL,
+    vec bytea NOT NULL,
+    PRIMARY KEY (model, input_type, text)
+);

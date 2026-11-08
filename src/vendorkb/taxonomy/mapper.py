@@ -126,6 +126,8 @@ class MapReport:
     llm_calls: int = 0
     llm_none: int = 0
     llm_invalid: int = 0  # failed calls and replies outside the schema
+    embeddings_cached: int = 0  # strings whose vector came from embedding_cache
+    embeddings_new: int = 0  # strings embedded by the provider (and cached)
     decisions_reused: int = 0  # adjudications answered from map_decisions (no call)
     decisions_carried: int = 0  # same phrase, fewer or reordered candidates: earlier answer kept
     decisions_seeded: int = 0  # seed=True: decisions recorded from the stored mappings
@@ -312,17 +314,52 @@ def _unit(vectors: Any) -> np.ndarray:
     return m / np.where(norms == 0, 1.0, norms)
 
 
-async def _embed_all(embedder: _Embedder, texts: list[str]) -> np.ndarray:
-    """Unit float32 vectors of ``texts``, embedded in ``_EMBED_SLICE`` slices into one
-    preallocated array (peak memory: the array plus one slice of Python floats)."""
+_CACHE_FETCH = 20_000  # cached vectors read per query (about 80 MB at 1,024 dimensions)
+_CACHE_MAX_CHARS = 1_000  # longer strings are embedded every time, never cached
+
+
+async def _embed_all(embedder: _Embedder, texts: list[str], *, conn: psycopg.AsyncConnection,
+                     model: str, report: MapReport) -> np.ndarray:
+    """Unit float32 vectors of ``texts``, written into one preallocated array. Vectors in
+    embedding_cache (same ``model``, input type "document") are read back bit for bit; the rest
+    are embedded in ``_EMBED_SLICE`` slices, each cached as soon as it arrives (peak memory: the
+    array plus one slice)."""
+    row = {t: i for i, t in enumerate(texts)}
     out: np.ndarray | None = None
-    for start in range(0, len(texts), _EMBED_SLICE):
-        part = _unit(await embedder.embed(texts[start:start + _EMBED_SLICE],
-                                          input_type="document"))
+    have = np.zeros(len(texts), dtype=bool)
+    keys = [t for t in texts if len(t) <= _CACHE_MAX_CHARS]
+    async with conn.cursor(binary=True) as cur:
+        for start in range(0, len(keys), _CACHE_FETCH):
+            await cur.execute(
+                "SELECT text, vec FROM embedding_cache WHERE model = %s"
+                " AND input_type = 'document' AND text = ANY(%s)",
+                (model, keys[start:start + _CACHE_FETCH]))
+            for text, vec in await cur.fetchall():
+                v = np.frombuffer(vec, dtype="<f4")
+                if out is None:
+                    out = np.empty((len(texts), len(v)), dtype=np.float32)
+                out[row[text]] = v
+                have[row[text]] = True
+    missing = [t for t in texts if not have[row[t]]]
+    report.embeddings_cached += len(texts) - len(missing)
+    report.embeddings_new += len(missing)
+    for start in range(0, len(missing), _EMBED_SLICE):
+        part = missing[start:start + _EMBED_SLICE]
+        raw = np.asarray(await embedder.embed(part, input_type="document"), dtype=np.float32)
         if out is None:
-            out = np.empty((len(texts), part.shape[1]), dtype=np.float32)
-        out[start:start + len(part)] = part
-    return out if out is not None else np.zeros((0, 0), dtype=np.float32)
+            out = np.empty((len(texts), raw.shape[1]), dtype=np.float32)
+        out[[row[t] for t in part]] = raw
+        async with conn.transaction(), conn.cursor() as cur:  # one commit per slice
+            await cur.executemany(
+                "INSERT INTO embedding_cache (model, input_type, text, vec)"
+                " VALUES (%s, 'document', %s, %s) ON CONFLICT DO NOTHING",
+                [(model, t, v.astype("<f4").tobytes()) for t, v in zip(part, raw)
+                 if len(t) <= _CACHE_MAX_CHARS])
+    if out is None:
+        return np.zeros((0, 0), dtype=np.float32)
+    norms = np.linalg.norm(out, axis=1, keepdims=True)
+    out /= np.where(norms == 0, 1.0, norms)
+    return out
 
 
 class _Keys:
@@ -775,7 +812,9 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     if target_queries or dimension_queries:
         texts = list(dict.fromkeys(
             [*target_keys.texts, *dimension_keys.texts, *target_queries, *dimension_queries]))
-        vectors = await _embed_all(embedder, texts)
+        vectors = await _embed_all(  # the cache keys on the dimension too
+            embedder, texts, conn=conn, model=f"{settings.embed_model}@{settings.embed_dim}",
+            report=report)
         report.embedded_strings = len(texts)
         row = {t: i for i, t in enumerate(texts)}
         target_keys.vectors = vectors[[row[t] for t in target_keys.texts]]
