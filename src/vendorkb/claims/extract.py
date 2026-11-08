@@ -648,10 +648,12 @@ async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None =
                           limit: int | None = None) -> list[str]:
     """Chunks with no final ('done' or 'failed') extraction of the v3 prompt family by any
     model: new and re-synced chunks, and those still 'errored' (``run`` retries them). A chunk
-    another model already extracted (the Opus teacher set, say) is not extracted again."""
+    another model already extracted (the Opus teacher set, say) is not extracted again. A
+    superseded chunk (an earlier version of a page, kept for its claims) is never extracted."""
     cur = await conn.execute(
         "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
-        " WHERE NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        " WHERE c.superseded_at IS NULL AND NOT EXISTS (SELECT 1 FROM extractions e"
+        " WHERE e.chunk_id = c.chunk_id"
         " AND e.prompt_version LIKE %(family)s AND e.status IN ('done', 'failed'))"
         " AND (%(vendor)s::text IS NULL OR d.vendor = %(vendor)s)"
         " ORDER BY c.chunk_id LIMIT %(limit)s",

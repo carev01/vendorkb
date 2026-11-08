@@ -163,7 +163,8 @@ async def _fts_hits_by_vendor(conn, term: str, vendors: list[str], limit: int) -
            "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
            "FROM chunks c JOIN documents d USING (doc_id), "
            "(SELECT phraseto_tsquery('english', %s) AS tsq) q "
-           "WHERE c.tsv @@ q.tsq AND d.vendor = ANY(%s)) t WHERE rn <= %s")
+           "WHERE c.tsv @@ q.tsq AND c.superseded_at IS NULL AND d.vendor = ANY(%s)) t "
+           "WHERE rn <= %s")
     cur = await conn.execute(sql, [term, list(vendors), limit])
     out: dict[str, list] = {}
     for r in await cur.fetchall():

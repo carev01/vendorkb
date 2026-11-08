@@ -441,6 +441,9 @@ CREATE TABLE IF NOT EXISTS capabilities (
 ALTER TABLE capabilities DROP CONSTRAINT IF EXISTS capabilities_scope_check;
 ALTER TABLE capabilities ADD CONSTRAINT capabilities_scope_check
     CHECK (scope IN ('offering', 'product', 'product_wide', 'target_unmapped'));
+-- 2026-11-08: the claim's chunk is an earlier version of its page (``chunks.superseded_at``),
+-- kept until the new version is extracted and mapped: the fact is shown as from that version.
+ALTER TABLE capabilities ADD COLUMN IF NOT EXISTS evidence_superseded boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS capabilities_dimension_idx ON capabilities (dimension_id);
 CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor));

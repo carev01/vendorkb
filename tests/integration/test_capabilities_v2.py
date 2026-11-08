@@ -35,16 +35,21 @@ async def _claim(conn, dimension: str | None, target: str | None = None, *,
                  fetched_at=T0, prompt_version="claims-v3.1", mapped_version: str | None,
                  quote="synthetic quote", url="http://docs/x", title="Doc",
                  capability="some capability", target_text=None, target_scope=None,
-                 conditions=None) -> uuid.UUID:
-    doc_id, chunk_id, ext_id, claim_id = (uuid.uuid4() for _ in range(4))
-    await conn.execute(
-        "INSERT INTO documents (doc_id, vendor, product, source, title, url, content_hash,"
-        " fetched_at) VALUES (%s,%s,%s,'S',%s,%s,%s,%s)",
-        (doc_id, vendor, product, title, url, str(doc_id), fetched_at))
+                 conditions=None, doc_id: uuid.UUID | None = None,
+                 superseded: bool = False) -> uuid.UUID:
+    """A claim on a chunk of its own: of a new document, or of ``doc_id``'s (a page's other
+    version; ``superseded`` makes the chunk an earlier version's)."""
+    chunk_id, ext_id, claim_id = (uuid.uuid4() for _ in range(3))
+    if doc_id is None:
+        doc_id = uuid.uuid4()
+        await conn.execute(
+            "INSERT INTO documents (doc_id, vendor, product, source, title, url, content_hash,"
+            " fetched_at) VALUES (%s,%s,%s,'S',%s,%s,%s,%s)",
+            (doc_id, vendor, product, title, url, str(doc_id), fetched_at))
     await conn.execute(
         "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
-        " embedding) VALUES (%s,%s,%s,0,'synthetic text',10,%s)",
-        (chunk_id, doc_id, ["A"], Vector([0.1] * 8)))
+        " embedding, superseded_at) VALUES (%s,%s,%s,0,'synthetic text',10,%s,%s)",
+        (chunk_id, doc_id, ["A"], Vector([0.1] * 8), T0 if superseded else None))
     await conn.execute(
         "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
         " status) VALUES (%s,%s,'m',%s,'done')", (ext_id, chunk_id, prompt_version))
@@ -61,6 +66,22 @@ async def _claim(conn, dimension: str | None, target: str | None = None, *,
          support, availability, value, unit, quote, prompt_version, dimension, class_id,
          target, variant, object_type, offering, edition, mapped_version))
     return claim_id
+
+
+async def _doc_of(conn, claim_id: uuid.UUID) -> uuid.UUID:
+    cur = await conn.execute("SELECT ch.doc_id FROM chunks ch JOIN raw_claims r USING (chunk_id)"
+                             " WHERE r.claim_id = %s", (claim_id,))
+    return (await cur.fetchone())[0]
+
+
+async def _tail_chunk(conn, doc_id: uuid.UUID) -> uuid.UUID:
+    """A second current chunk of the page (ordinal 1), not extracted yet."""
+    chunk_id = uuid.uuid4()
+    await conn.execute(
+        "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+        " embedding) VALUES (%s,%s,%s,1,'more text',10,%s)",
+        (chunk_id, doc_id, ["A"], Vector([0.1] * 8)))
+    return chunk_id
 
 
 async def _caps(conn) -> dict[uuid.UUID, dict]:
@@ -487,5 +508,77 @@ async def test_rebuild_is_idempotent(vkb_dsn):
                            " WHERE key = 'taxonomy_version'")
         assert (await capabilities.query(conn, CapFilter(target="okta"))).facts == []
         assert await capabilities.build(conn) == 0 and await _caps(conn) == {}
+    finally:
+        await conn.close()
+
+
+async def test_build_marks_superseded_facts_and_retires_replaced_ones(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        # a page was re-synced: its earlier version's chunk is kept, with its claim
+        old = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           superseded=True, mapped_version=v)
+        plain = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                             vendor="othervendor", mapped_version=v)
+        page = await _doc_of(conn, old)
+        tail = await _tail_chunk(conn, page)  # the new version, not extracted yet
+        assert await capabilities.build(conn) == 2
+        caps = await _caps(conn)
+        assert (caps[old]["evidence_superseded"], caps[plain]["evidence_superseded"]) == (
+            True, False)
+        res = await capabilities.query(
+            conn, CapFilter(vendor=("examplevendor", "othervendor")))
+        assert {f.claim_id: f.evidence_superseded for f in res.facts} == {
+            str(old): True, str(plain): False}
+
+        # part of the new version is extracted, its claim not mapped yet: the old fact stays
+        new = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           doc_id=page, mapped_version=None)
+        assert await capabilities.build(conn) == 2
+        assert old in await _caps(conn)
+        # mapped, but a chunk of the new version is still unextracted: both versions are facts
+        await conn.execute("UPDATE raw_claims SET mapped_version = %s WHERE claim_id = %s",
+                           (v, new))
+        assert await capabilities.build(conn) == 3
+        caps = await _caps(conn)
+        assert (caps[old]["evidence_superseded"], caps[new]["evidence_superseded"]) == (
+            True, False)
+
+        # the whole new version is extracted and mapped: building retires the earlier one and
+        # its fact
+        await conn.execute(
+            "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+            " status) VALUES (%s,%s,'m','claims-v3.1','done')", (uuid.uuid4(), tail))
+        assert await capabilities.build(conn) == 2
+        assert set(await _caps(conn)) == {new, plain}
+        cur = await conn.execute("SELECT count(*) FROM chunks WHERE superseded_at IS NOT NULL"
+                                 " UNION ALL SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                                 (old,))
+        assert [r[0] for r in await cur.fetchall()] == [0, 0]
+    finally:
+        await conn.close()
+
+
+async def test_a_superseded_row_is_not_current_against_its_pages_new_version(vkb_dsn):
+    """Both versions of one page share ``documents.fetched_at`` while the new version is only
+    partly extracted: the earlier version's row must not be current beside the new one's."""
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        old = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           superseded=True, support="supported", mapped_version=v)
+        page = await _doc_of(conn, old)
+        new = await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                           doc_id=page, support="not_supported", mapped_version=v)
+        await _tail_chunk(conn, page)  # not extracted: the earlier version is not retired
+        assert await capabilities.build(conn) == 2
+        caps = await _caps(conn)
+        assert (caps[old]["is_current"], caps[new]["is_current"]) == (False, True)
+        assert caps[old]["doc_version"] == caps[new]["doc_version"]
+        assert caps[old]["conflict_group"] == caps[new]["conflict_group"] is not None
+        res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
+        assert [(f.claim_id, f.is_current) for f in res.facts] == [
+            (str(new), True), (str(old), False)]
     finally:
         await conn.close()

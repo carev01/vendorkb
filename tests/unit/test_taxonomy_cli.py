@@ -147,7 +147,7 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
             "c1", "veeam", "VBR", None, None, "coverage.backup", "coverage", "cloud.database",
             "aws.rds", None, "database", "capability", "supported", "unstated", None, None,
             None, None, None, "product", None, True, "backs up", "Amazon RDS", "q", "k1",
-            "http://u", "T", "2026-01-01T00:00:00+00:00", "2-abc")
+            "http://u", "T", "2026-01-01T00:00:00+00:00", "2-abc", False)
         return capabilities.CapResult(facts=[fact], hint=None)
 
     monkeypatch.setattr(capabilities, "build", fake_build)

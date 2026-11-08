@@ -890,3 +890,46 @@ async def test_comparison_reranks_run_concurrently(vkb_dsn):
         assert [h.vendor for h in res.hits] == ["BIG", "MID"] * 5 and res.rerank_ok is True
     finally:
         await conn.close()
+
+
+async def test_superseded_chunks_are_never_retrieved(vkb_dsn):
+    """An earlier version of a page, kept only for its claims, is the best full-text and
+    vector match here and still comes back from no retrieval."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = await _doc(conn, "V1", "P1")
+        old = [await _chunk(conn, doc, 0, "retention keyword old", 0),
+               await _chunk(conn, doc, 1, "retention keyword old tail", 1)]
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE doc_id = %s", (doc,))
+        new = [await _chunk(conn, doc, 0, "retention new", 2),
+               await _chunk(conn, doc, 1, "retention new tail", 3)]
+        other = await _doc(conn, "V2", "P2")
+        await _chunk(conn, other, 0, "retention elsewhere", 4)
+        query = "retention keyword"
+
+        def ids(hits):
+            return {h.chunk_id for h in hits}
+
+        assert ids(await hybrid_candidates(conn, query, _vec(0))) >= set(new)
+        for kwargs in ({}, {"vendor": ["V1"]}, {"product": ["P1"]}):
+            got = await hybrid_candidates(conn, query, _vec(0), **kwargs)
+            assert ids(got) and not ids(got) & set(old), kwargs
+        for kind, name in (("vendor", "V1"), ("product", "P1")):
+            [got] = await search.facet_candidates(conn, query, _vec(0), [(kind, name)], limit=10)
+            assert ids(got) == set(new), name
+        by_vendor = await vendor_candidates(conn, query, _vec(0), ["V1"], limit=10)
+        assert ids(by_vendor["V1"]) == set(new)
+        res = await search_docs(conn, query, embedder=FakeEmbedder(_vec(0)), reranker=None,
+                                use_rerank=False, vendor=["V1"])
+        assert ids(res.hits) == set(new)
+
+        # a current anchor's neighbours and section are all current; a superseded anchor's
+        # are all superseded
+        assert [h.chunk_id for h in await read_section(conn, new[0], "1")] == new
+        assert [h.chunk_id for h in await read_section(conn, new[1], "full")] == new
+        assert [h.chunk_id for h in await read_section(conn, old[0], "1")] == old
+        assert [h.chunk_id for h in await read_section(conn, old[1], "full")] == old
+        assert [h.chunk_id for h in await read_section(conn, old[1])] == [old[1]]
+    finally:
+        await conn.close()

@@ -109,8 +109,11 @@ def format_fact(n: int, f: Fact) -> str:
     if len(quote) > QUOTE_SHOWN:
         quote = quote[:QUOTE_SHOWN] + " […]"
     lines.append(f'    quote: "{quote}"')
-    lines.append(f"    source: {f.title or 'untitled'} — {f.url or 'no url'}"
-                 f" (chunk {f.chunk_id}; {when})")
+    source = (f"    source: {f.title or 'untitled'} — {f.url or 'no url'}"
+              f" (chunk {f.chunk_id}; {when})")
+    if f.evidence_superseded:
+        source += " (from an earlier version of the page)"
+    lines.append(source)
     return "\n".join(lines)
 
 

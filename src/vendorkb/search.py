@@ -68,17 +68,23 @@ def _hit(row: tuple, rrf_rank: int = 0, rerank_score: float | None = None) -> Hi
                url=row[7], rrf_rank=rrf_rank, rerank_score=rerank_score)
 
 
+# A superseded chunk (an earlier version of a page, kept for its claims: store.write_document)
+# is never retrieved. Every chunk query that ranks for relevance carries this condition.
+_CURRENT = " AND c.superseded_at IS NULL"
+
+
 def _filters(vendor: list[str] | None, product: list[str] | None) -> tuple[str, list]:
-    """Scope filter. Vendor and product are ORed, as answer-api scopes (a document matches
-    when its vendor is named OR its product is named); a single filter applies alone."""
+    """Chunk filter: current chunks only, within the scope. Vendor and product are ORed, as
+    answer-api scopes (a document matches when its vendor is named OR its product is named); a
+    single filter applies alone."""
     if vendor and product:
-        return (" AND (d.vendor = ANY(%s) OR d.product = ANY(%s))",
+        return (_CURRENT + " AND (d.vendor = ANY(%s) OR d.product = ANY(%s))",
                 [list(vendor), list(product)])
     if vendor:
-        return " AND d.vendor = ANY(%s)", [list(vendor)]
+        return _CURRENT + " AND d.vendor = ANY(%s)", [list(vendor)]
     if product:
-        return " AND d.product = ANY(%s)", [list(product)]
-    return "", []
+        return _CURRENT + " AND d.product = ANY(%s)", [list(product)]
+    return _CURRENT, []
 
 
 # websearch_to_tsquery ANDs every term, so a natural-language question matches almost
@@ -177,7 +183,7 @@ async def facet_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list
                "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
                f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q, "
                "unnest(%s::text[], %s::text[]) WITH ORDINALITY AS f(kind, name, idx) "
-               "WHERE c.tsv @@ q.tsq AND ((f.kind = 'vendor' AND d.vendor = f.name) "
+               f"WHERE c.tsv @@ q.tsq{_CURRENT} AND ((f.kind = 'vendor' AND d.vendor = f.name) "
                "OR (f.kind = 'product' AND d.product = f.name))) t "
                "WHERE rn <= %s ORDER BY idx, rn")
     cur = await conn.execute(fts_sql, [query, kinds, names, FTS_LIMIT])
@@ -224,7 +230,7 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
                "row_number() OVER (PARTITION BY d.vendor "
                "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
                f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q "
-               "WHERE c.tsv @@ q.tsq AND d.vendor = ANY(%s)) t "
+               f"WHERE c.tsv @@ q.tsq{_CURRENT} AND d.vendor = ANY(%s)) t "
                "WHERE rn <= %s ORDER BY vendor, rn")
     cur = await conn.execute(fts_sql, [query, vendors, FTS_LIMIT])
     fts: dict[str, list[str]] = {}
@@ -234,7 +240,7 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     # Same shape as _vec_sql (text chunk_id as the distance tiebreak), ids only.
     vec_sql = ("SELECT chunk_id, vendor FROM (SELECT c.chunk_id::text AS chunk_id, d.vendor, "
                "c.embedding <=> %s AS dist FROM chunks c JOIN documents d USING (doc_id) "
-               "WHERE d.vendor = ANY(%s) ORDER BY c.embedding <=> %s LIMIT %s) t "
+               f"WHERE d.vendor = ANY(%s){_CURRENT} ORDER BY c.embedding <=> %s LIMIT %s) t "
                "ORDER BY dist, chunk_id")
     vec: dict[str, list[str]] = {v: [] for v in vendors}
     for cid, v in await _vector_rows(conn, vec_sql,
@@ -282,19 +288,23 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
 
 async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
                        expand: Literal["0", "1", "full"] = "0") -> list[Hit]:
+    """The chunk, its neighbours or its section, all of the anchor's own version of the page:
+    the superseded chunks around a superseded anchor, the current ones around a current one."""
     cur = await conn.execute(
-        "SELECT doc_id, ordinal, section_path FROM chunks WHERE chunk_id = %s", (chunk_id,))
+        "SELECT doc_id, ordinal, section_path, superseded_at IS NOT NULL FROM chunks"
+        " WHERE chunk_id = %s", (chunk_id,))
     anchor = await cur.fetchone()
     if anchor is None:
         return []
-    doc_id, ordinal, path = anchor
-    base = f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) WHERE c.doc_id = %s"
+    doc_id, ordinal, path, superseded = anchor
+    base = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) WHERE c.doc_id = %s"
+            " AND (c.superseded_at IS NOT NULL) = %s")
     if expand == "0":
-        sql, params = base + " AND c.chunk_id = %s", [doc_id, chunk_id]
+        sql, params = base + " AND c.chunk_id = %s", [doc_id, superseded, chunk_id]
     elif expand == "1":
         sql, params = (base + " AND c.ordinal BETWEEN %s AND %s",
-                       [doc_id, ordinal - 1, ordinal + 1])
+                       [doc_id, superseded, ordinal - 1, ordinal + 1])
     else:
-        sql, params = base + " AND c.section_path = %s", [doc_id, list(path)]
+        sql, params = base + " AND c.section_path = %s", [doc_id, superseded, list(path)]
     cur = await conn.execute(sql + " ORDER BY c.ordinal", params)
     return [_hit(r) for r in await cur.fetchall()]

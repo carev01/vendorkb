@@ -118,6 +118,26 @@ async def test_nothing_new_contacts_nothing(vkb_dsn):
         await conn.close()
 
 
+async def test_new_chunks_skip_superseded_chunks(vkb_dsn):
+    """An earlier version of a page, kept for its claims, never triggers a run."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        superseded = await _chunk(conn, fetched_at=NOW - timedelta(minutes=5))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s",
+                           (superseded,))
+        assert await refresh.new_chunks(conn) == (0, None)
+        client, ready = FakeExtract(), Ready()
+        report = await _run(conn, client, ready)
+        assert (report.new_chunks, report.due) == (0, False)
+        assert client.calls == [] and ready.calls == 0
+
+        await _chunk(conn, fetched_at=NOW - timedelta(hours=3))
+        assert await refresh.new_chunks(conn) == (1, NOW - timedelta(hours=3))
+    finally:
+        await conn.close()
+
+
 async def test_a_recent_burst_waits_for_the_feed_to_settle(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

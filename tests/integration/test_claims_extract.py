@@ -603,6 +603,19 @@ async def test_unextracted_ids_are_chunks_with_no_final_v3_extraction(vkb_dsn):
         await conn.close()
 
 
+async def test_unextracted_ids_skip_superseded_chunks(vkb_dsn):
+    """An earlier version of a page is kept for its claims; it is never extracted again."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        superseded, current = await _doc(conn, texts=("earlier version", "current version"))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s",
+                           (superseded,))
+        assert await extract.unextracted_ids(conn) == [current]
+    finally:
+        await conn.close()
+
+
 async def test_cli_extract_unextracted(vkb_dsn, monkeypatch, capsys):
     import asyncio
 
