@@ -20,8 +20,7 @@ dimensions:
       Cluster-scoped resource coverage, backup of ephemeral os disks, Ephemeral OS disk backup, 'backup
       of object records, fields and metadata', Record-level object backup, namespace-level backup 
       and restore, Namespace-level scope, protected node types, vpc and subnet configuration backup 
-      and restore, Network configuration coverage, file-based backup, nfs backup, database backup 
-      and recovery, database backup and restore, linux backup, vm protection]
+      and restore, Network configuration coverage, file-based backup, nfs backup]
   applies_to: all
 - id: coverage.restore
   name: Object-type restore coverage
@@ -153,7 +152,7 @@ dimensions:
       application consistent backup, application-aware backup, application-aware backups, 
       application-aware points in time, Application-consistent restore points, offloaded vss backups,
     vss-integrated database backup, vss snapshot backup to local shadow volumes, vss snapshot 
-      backups, Windows VSS snapshot backup, crash consistent backup, crash-consistent backup]
+      backups, Windows VSS snapshot backup, crash consistent backup]
   applies_to: all
 - id: protection.changed_block_tracking
   name: Changed block tracking
@@ -180,8 +179,7 @@ dimensions:
   definition: Keeping a ready-to-start copy of a workload on another host, site or cloud.
   aliases: [replication, replica, vm replication, standby copy, live sync, cloud replication, 
       replica vm location, Replica target location, automatic application of subsequent backups to 
-      replica, Automatic replica sync, preseeded volume initial sync, Preseeded initial sync, 
-      continuous restore]
+      replica, Automatic replica sync, preseeded volume initial sync, Preseeded initial sync]
   applies_to: all
 - id: protection.continuous_data_protection
   name: Continuous data protection
@@ -283,8 +281,7 @@ dimensions:
   name: Maximum retention period
   definition: The longest retention period the product supports.
   aliases: [maximum retention, retention up to, unlimited retention, retain forever, keep forever, 
-      retention period, maximum snapshots per file share, forever retention, long-term retention, 
-      permanent retention]
+      retention period, maximum snapshots per file share, forever retention]
   applies_to: all
   value_unit: years
 - id: retention.granularity
@@ -292,8 +289,7 @@ dimensions:
   definition: The units and options for setting retention, such as days, restore points, or GFS.
   aliases: [retention options, retention settings, restore points to keep, retention policy, gfs, 
       grandfather-father-son, gfs retention, gfs retention policy, automatic removal of expired 
-      restore points, Automatic expired point removal, backup retention policy, custom retention 
-      policies]
+      restore points, Automatic expired point removal, backup retention policy]
   applies_to: all
 - id: retention.per_object
   name: Per-object retention
@@ -506,7 +502,7 @@ dimensions:
       restore to on-premises sharepoint, restore to on-premises sharepoint server, Restore to 
       on-premises target, rename restored databases, rename restored disks, rename restored vm and 
       virtual disks, Rename on restore, export recovery, restore to recovery or alternate database, 
-      Restore to alternate database, restore to original or new location]
+      Restore to alternate database]
   applies_to: all
 - id: recovery.cross_account_region
   name: Cross-account and cross-region recovery
@@ -737,7 +733,7 @@ dimensions:
   definition: Restoring a physical machine onto new or dissimilar hardware.
   aliases: [bare metal recovery, bmr, dissimilar hardware restore, recovery media, bare metal 
       restore, bare-metal restore, recovery to dissimilar hardware, simplified disaster recovery, 
-      1-touch recovery, recovery media creation]
+      1-touch recovery]
   applies_to: [endpoint]
 - id: recovery.failover
   name: Failover and failback
@@ -750,7 +746,7 @@ dimensions:
   definition: Preserving or remapping network identity such as MAC or IP addresses on restore.
   aliases: [preserve mac address, ip remapping, network mapping, re-ip, restore to new location with
       custom network settings, re-ip of recovered vms, re-ip with original ip address on failback, 
-      public ip assignment on restore, public ip address assignment on restore]
+      public ip assignment on restore]
   applies_to: [virtualization, kubernetes.vm, cloud.compute]
 - id: recovery.resource_transforms
   name: Resource transformation on restore
@@ -842,7 +838,7 @@ dimensions:
       restore operator roles, restore operator role assignment, Role-based restore access, 
       group-based role assignment via sso, group-based access control via sso, group-based access 
       management, group-based role assignment, revoke backup share access, Revoking shared backup 
-      access, data protection officer role]
+      access]
   applies_to: all
 - id: security.mfa
   name: Multi-factor authentication
@@ -881,7 +877,7 @@ dimensions:
     covered.
   aliases: [four-eyes, multi-user authorization, dual authorization, quorum approval, approval 
       workflow, action approval workflow, four-eye approval for disabling backups, Dual approval for
-      disabling backups, quorum group operation templates]
+      disabling backups]
   applies_to: all
   platform: true
 - id: security.audit_logging
@@ -998,8 +994,7 @@ dimensions:
 - id: cyber.recovery_orchestration
   name: Recovery orchestration
   definition: Orchestrated recovery plans with steps, testing and reports.
-  aliases: [recovery orchestration, recovery plan, runbook, orchestrated failover, dr orchestration, 
-      recovery run books]
+  aliases: [recovery orchestration, recovery plan, runbook, orchestrated failover, dr orchestration]
   applies_to: all
 - id: cyber.security_posture
   name: Backup security posture
@@ -1050,7 +1045,7 @@ dimensions:
       storage consumption monitoring, storage consumption reports, storage usage history, storage 
       consumption reporting, storage usage history graph, tenant storage consumption reporting, 
       deduplication ratio reporting, deduplication summary report, historical report data retention, 
-      historical reporting data retention, compliance violation reporting, report data retention]
+      historical reporting data retention, compliance violation reporting]
   applies_to: all
 - id: operations.notifications
   name: Notifications
@@ -1070,7 +1065,7 @@ dimensions:
       notifications until last retry, Retry notification suppression, send email via oauth 2.0 
       account, oauth 2.0 modern authentication for email sending, OAuth 2.0 email sending, generic 
       webhook integration with oauth 2.0 client credentials authentication, oauth 2.0 client 
-      credentials webhook authentication, Webhook authentication, disk space low alert]
+      credentials webhook authentication, Webhook authentication]
   applies_to: all
 - id: operations.multi_tenant_management
   name: Central and multi-tenant management
@@ -1711,8 +1706,7 @@ dimensions:
   definition: Whether workloads deployed in clustered or high-availability configurations can be 
     backed up and restored, such as SQL Server availability groups and failover cluster instances, 
     Oracle RAC, Exchange DAGs, Windows failover clusters and cluster shared volumes.
-  aliases: [availability group support, backup of only clustered disks, Clustered disk coverage, dag
-      node backup]
+  aliases: [availability group support, backup of only clustered disks, Clustered disk coverage]
   applies_to:
   - app
   - endpoint.server
@@ -2853,8 +2847,8 @@ targets:
       direct-attached storage, block storage repository, nas repository, san lun, file devices, file
       system devices], variants: [{id: removable_media, name: Removable storage, aliases: [external 
           hard drives, removable disks, removable drives, usb drives, usb external drives, usb flash
-          drives, cd/dvd, disk cartridges, external drive, external usb drives, rdx, removable 
-          devices, removable storage devices, usb, usb devices, usb storage]}]}
+          drives, cd/dvd, disk cartridges, external drive, rdx, removable devices, removable storage
+          devices, usb, usb devices, usb storage]}]}
 - {id: microsoft_intune, name: Microsoft Intune, class: saas.identity, aliases: [microsoft intune]}
 - {id: kubevirt, name: KubeVirt, class: kubernetes.vm, aliases: [kubevirt, kubernetes virtual 
       machines, kubevirt virtual machines]}
