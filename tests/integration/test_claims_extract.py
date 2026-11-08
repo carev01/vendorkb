@@ -575,6 +575,66 @@ async def test_cli_extract_prints_report(vkb_dsn, monkeypatch, capsys, tmp_path)
     assert out["done"] == 1 and out["claims_accepted"] == 1
 
 
+async def _extracted(conn, chunk_id, *, model="m", prompt=extract.PROMPT_VERSION,
+                     status="done"):
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status) VALUES (%s,%s,%s,%s,%s)", (str(uuid.uuid4()), chunk_id, model, prompt, status))
+
+
+async def test_unextracted_ids_are_chunks_with_no_final_v3_extraction(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        new, by_teacher, earlier_v3, errored, failed, old_family = await _doc(
+            conn, texts=("a", "b", "c", "d", "e", "f"))
+        [other_vendor] = await _doc(conn, vendor="cohesity", product="DataProtect")
+        await _extracted(conn, by_teacher, model="claude-opus-5-5")  # another model: done
+        await _extracted(conn, earlier_v3, prompt="claims-v3")  # an earlier v3 revision
+        await _extracted(conn, errored, status="errored")  # the next run retries it
+        await _extracted(conn, failed, status="failed")  # given up after MAX_ATTEMPTS
+        await _extracted(conn, old_family, prompt="claims-v1")  # not the current family
+        assert set(await extract.unextracted_ids(conn)) == {
+            new, errored, old_family, other_vendor}
+        assert set(await extract.unextracted_ids(conn, vendor="rubrik")) == {
+            new, errored, old_family}
+        assert len(await extract.unextracted_ids(conn, limit=2)) == 2
+    finally:
+        await conn.close()
+
+
+async def test_cli_extract_unextracted(vkb_dsn, monkeypatch, capsys):
+    import asyncio
+
+    from vendorkb import cli
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [new] = await _doc(conn)
+        [done] = await _doc(conn, vendor="cohesity", product="DataProtect")
+        await _extracted(conn, done, model="claude-opus-5-5")
+    finally:
+        await conn.close()
+    client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
+    monkeypatch.setattr(cli, "_extract_client", lambda settings: client)
+    monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
+    code = await asyncio.to_thread(cli.main, ["extract", "--unextracted", "--mode", "sync"])
+    assert code == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["chunks"], out["done"]) == (1, 1) and len(client.messages.calls) == 1
+
+
+def test_cli_extract_needs_exactly_one_source(capsys):
+    from vendorkb import cli
+
+    for argv in (["extract"], ["extract", "--ids-file", "x", "--unextracted"]):
+        with pytest.raises(SystemExit):
+            cli.main(argv)
+    with pytest.raises(SystemExit):  # --vendor narrows --unextracted only
+        cli.main(["extract", "--ids-file", "x", "--vendor", "rubrik"])
+
+
 def _conn_error():
     return anthropic.APIConnectionError(
         request=httpx.Request("GET", "https://api.anthropic.com/v1/messages/batches/x"))

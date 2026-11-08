@@ -79,3 +79,33 @@ bootstrap:
   resources:
     requests: {cpu: 100m, memory: 512Mi}
     limits: {cpu: "1", memory: 1Gi}
+
+# Reactive claims refresh (`vendorkb refresh`, src/vendorkb/claims/refresh.py). Each run is a
+# couple of queries until the sync brings chunks no extraction has touched; then, once the feed
+# has been quiet for settleMinutes, it wakes the distilled extractor (deploy/azure, scaled to
+# zero), extracts, maps the new claims and rebuilds capabilities.
+# Secret keys it needs: EXTRACT_API_KEY (the endpoint's key) and MAP_API_KEY (map.backend
+# openai: OpenRouter) or ANTHROPIC_API_KEY (map.backend anthropic).
+claimsRefresh:
+  enabled: false
+  schedule: "45 * * * *"   # hourly, between sync runs
+  suspend: false
+  settleMinutes: 60
+  startingDeadlineSeconds: 1800
+  activeDeadlineSeconds: 21600
+  backoffLimit: 0
+  extract:
+    baseUrl: ""            # required when enabled: https://<app>.<region>.azurecontainerapps.io/v1
+    model: vendorkb-qwen3.5-9b-r2
+    maxTokens: 8000        # the corpus run's limit; a cut-off chunk is retried, then failed
+    concurrency: 32
+    limit: 20000           # chunks per run; a backlog this large runs without settling
+    warmupSeconds: 1500    # how long to wait for the scaled-to-zero endpoint
+  map:
+    backend: openai        # openai: OpenRouter (MAP_API_KEY); anthropic: ANTHROPIC_API_KEY
+    baseUrl: https://openrouter.ai/api/v1
+    model: anthropic/claude-haiku-5.5
+    maxUsd: 1.0            # per due run; claims left over wait for the next one
+  resources:
+    requests: {cpu: 250m, memory: 1Gi}
+    limits: {cpu: "2", memory: 4Gi}

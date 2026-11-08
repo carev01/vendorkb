@@ -183,6 +183,15 @@ def _extract_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | As
                                     max_retries=EXTRACT_MAX_RETRIES)
 
 
+def _map_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncOpenAI:
+    """The adjudication client for MAP_BACKEND (openai: MAP_BASE_URL / MAP_API_KEY, else the
+    EXTRACT_ ones)."""
+    return _extract_client(settings.model_copy(update={
+        "extract_backend": settings.map_backend,
+        "extract_base_url": settings.map_base_url or settings.extract_base_url,
+        "extract_api_key": settings.map_api_key or settings.extract_api_key}))
+
+
 def _read_ids(path: str, limit: int | None) -> list[str]:
     with open(path, encoding="utf-8") as f:
         ids = [line.strip() for line in f if line.strip() and not line.startswith("#")]
@@ -196,11 +205,12 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
         settings = settings.model_copy(update={"extract_backend": args.backend})
     mode: Literal["sync", "batch"] = args.mode or (
         "batch" if settings.extract_backend == "anthropic" else "sync")
-    ids = _read_ids(args.ids_file, args.limit)
     conn = await connect(settings.vendorkb_dsn)
     client = _extract_client(settings)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
+        ids = (_read_ids(args.ids_file, args.limit) if args.ids_file else
+               await extract.unextracted_ids(conn, vendor=args.vendor, limit=args.limit))
         report = await extract.run(conn, ids, client=client, settings=settings, mode=mode,
                                    retry_truncated=args.retry_errored)
     finally:
@@ -215,6 +225,36 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
         return 0
     # Errored chunks are retried by the next run; a budget stop is a clean exit.
     return 0 if report.errored == 0 else 1
+
+
+async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.claims import refresh
+
+    async def ready() -> None:
+        if settings.extract_backend == "openai" and settings.extract_base_url:
+            await refresh.wait_until_ready(settings.extract_base_url, settings.extract_api_key,
+                                           timeout_s=args.warmup_seconds)
+
+    conn = await connect(settings.vendorkb_dsn)
+    extract_client, map_client = _extract_client(settings), _map_client(settings)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)
+        async with Embedder(settings) as embedder:
+            report = await refresh.refresh(
+                conn, settings=settings, extract_client=extract_client, map_client=map_client,
+                embedder=embedder, ready=ready, settle_minutes=args.settle_minutes,
+                extract_limit=args.extract_limit, map_max_usd=args.map_max_usd)
+    finally:
+        for client in (extract_client, map_client):
+            close = getattr(client, "close", None)
+            if close is not None:
+                await close()
+        await conn.close()
+    print(json.dumps(dataclasses.asdict(report)))
+    # Errored chunks and failed adjudications are retried by the next due run, but they are
+    # worth a failed Job; nothing to do is a clean exit.
+    failed = (report.extract or {}).get("errored", 0) or (report.map or {}).get("llm_invalid", 0)
+    return 1 if failed else 0
 
 
 async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -259,9 +299,7 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
             return 0
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
-            # The map client is the extraction client built for MAP_BACKEND.
-            client = _extract_client(
-                settings.model_copy(update={"extract_backend": settings.map_backend}))
+            client = _map_client(settings)
             try:
                 async with Embedder(settings) as embedder:
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
@@ -343,7 +381,12 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--yes", action="store_true")
     s = sub.add_parser("extract", help="extract capability claims from chunks with "
                                        "EXTRACT_MODEL (resumable; budget-capped)")
-    s.add_argument("--ids-file", required=True, help="chunk ids, one per line")
+    src = s.add_mutually_exclusive_group(required=True)
+    src.add_argument("--ids-file", help="chunk ids, one per line")
+    src.add_argument("--unextracted", action="store_true",
+                     help="every chunk with no done or failed extraction of the claims-v3 family"
+                          " by any model: new and re-synced chunks, and errored ones")
+    s.add_argument("--vendor", default=None, help="with --unextracted: only this vendor")
     s.add_argument("--backend", choices=("anthropic", "openai"), default=None,
                    help="override EXTRACT_BACKEND (openai: EXTRACT_BASE_URL/EXTRACT_API_KEY)")
     s.add_argument("--mode", choices=("sync", "batch"), default=None,
@@ -354,6 +397,17 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--retry-errored", action="store_true",
                    help="first reset the chunks (of these ids) whose last error was a "
                         "max_tokens truncation, so they run again (raise EXTRACT_MAX_TOKENS)")
+    s = sub.add_parser("refresh", help="when the sync brought new chunks: wake the extraction"
+                                       " endpoint, extract them, map their claims and rebuild"
+                                       " capabilities (otherwise contact nothing)")
+    s.add_argument("--settle-minutes", type=float, default=60.0,
+                   help="wait until no new document arrived for this long (default 60)")
+    s.add_argument("--extract-limit", type=int, default=20000,
+                   help="chunks per run; a backlog this large runs without settling")
+    s.add_argument("--map-max-usd", type=float, default=1.0,
+                   help="adjudication budget per run (default 1.0)")
+    s.add_argument("--warmup-seconds", type=float, default=1500.0,
+                   help="how long to wait for a scaled-to-zero endpoint (default 1500)")
     s = sub.add_parser("claims", help="maintain stored claims")
     cl = s.add_subparsers(dest="claims_cmd", required=True)
     c = cl.add_parser("regate", help="re-run the current evidence gate over every raw claim; "
@@ -419,11 +473,15 @@ def _parser() -> argparse.ArgumentParser:
 
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
              "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
-             "claims": _claims, "taxonomy": _taxonomy, "capabilities": _capabilities}
+             "refresh": _refresh, "claims": _claims, "taxonomy": _taxonomy,
+             "capabilities": _capabilities}
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if args.cmd == "extract" and args.vendor and not args.unextracted:
+        parser.error("extract: --vendor narrows --unextracted only")
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     for name in ("httpx", "httpcore"):  # they log every request at INFO

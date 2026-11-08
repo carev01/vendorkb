@@ -56,6 +56,7 @@ log = logging.getLogger(__name__)
 
 # Each prompt revision bumps the minor version (v3 = first precision round, v3.1 = after round 1).
 PROMPT_VERSION = "claims-v3.1"
+PROMPT_FAMILY = "claims-v3%"  # claims-v3, claims-v3.1, ...: every revision of the v3 schema
 MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 # Errors that mean the reply was cut off at max_tokens ("length": OpenAI-compatible
 # finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets
@@ -77,6 +78,7 @@ SYNC_LEDGER_PREFIX = "sync-"
 # EXTRACT_PRICE_IN_PER_MTOK / EXTRACT_PRICE_OUT_PER_MTOK are set.
 PRICES_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-haiku-5-5": (0.10, 0.50),
+    "anthropic/claude-haiku-5.5": (0.10, 0.50),  # the same model through OpenRouter
     "claude-opus-5-5": (4.00, 20.00),
 }
 BATCH_DISCOUNT = 0.5
@@ -634,6 +636,21 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
         if status == "failed":
             report.failed += 1
         log.warning("extract: chunk %s %s: %s", chunk_id, status, outcome.error)
+
+
+async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None = None,
+                          limit: int | None = None) -> list[str]:
+    """Chunks with no final ('done' or 'failed') extraction of the v3 prompt family by any
+    model: new and re-synced chunks, and those still 'errored' (``run`` retries them). A chunk
+    another model already extracted (the Opus teacher set, say) is not extracted again."""
+    cur = await conn.execute(
+        "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
+        " WHERE NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        " AND e.prompt_version LIKE %(family)s AND e.status IN ('done', 'failed'))"
+        " AND (%(vendor)s::text IS NULL OR d.vendor = %(vendor)s)"
+        " ORDER BY c.chunk_id LIMIT %(limit)s",
+        {"family": PROMPT_FAMILY, "vendor": vendor, "limit": limit})
+    return [r[0] for r in await cur.fetchall()]
 
 
 async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[str, ChunkRow]:
