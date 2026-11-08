@@ -160,14 +160,16 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
 19. **Done: taxonomy v2 reviewed by Claude** at the user's request. The decision log is
     `taxonomy/review-2026-11-06.tsv`, and the user may spot-check any row.
-20. **$ Dimension adjudication precision is 0.84** on the reviewed taxonomy (the alias path is
-    0.96). *2026-11-08: the evidence quote in each example claim raised it to 88.6% on the 150
-    labelled non-alias claims (wrong 21 -> 14); still open: a stronger map_model, candidate
-    pre-filtering, and the missed dimensions (20 of 27 "none" answers had a fitting dimension).*
-    Try a stronger
-    `map_model` on the 300 labelled claims (*the user prefers not to, 2026-11-08*), add the
-    evidence quote to the prompt, or pre-filter candidates by family. The adjudicated labels from two graders are in the session scratchpad
-    (`mapgrade2/`).
+20. **Measured 2026-11-08 (late), nothing adopted:** on a fresh labelled sample (200 model-decided
+    claims, two blind graders, `eval/labels/dimension-sample-2026-11-08.json`) dimension
+    precision is 0.904 and recall 0.851. 25 of 31 errors are retrieval: the right dimension
+    ranks about 25th by phrase embedding, so the model never sees it. Replayed on the sample
+    (`eval/map_replay.py`, about $0.03 a variant): 8 or 10 candidates add distractors (the right
+    dimension enters the candidates for 2-3 more items); a keyword second pass for none answers
+    gains as many wrong picks as right ones; keyword or fused retrieval finds the right
+    dimension less often (110 and 140 of 174 in the top 5, against 149). Left: retrieval that
+    reads the evidence quote, which changes every question's candidates (a full re-ask, about
+    $28, plus Voyage tokens). The user prefers no stronger map model.
 21. **Done 2026-11-08:** curated the 936 unmapped offering texts with 5+ claims (125 new
     offerings, 270 aliases; blind review 425/431, precision 80/80). Claims naming an offering that
     resolve: 39% -> 70%; offering-scoped capability rows 12,154 -> 21,909. Left: 15,173 claims,
