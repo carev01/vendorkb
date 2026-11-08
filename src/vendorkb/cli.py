@@ -355,7 +355,8 @@ async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) ->
                               "taxonomy_version": await load.current_version(conn)}))
             return 0
         found = await capabilities.query(conn, capabilities.CapFilter(
-            vendor=args.vendor, offering=args.offering, edition=args.edition,
+            vendor=tuple(args.vendor) if args.vendor else None, offering=args.offering,
+            edition=args.edition,
             dimension=args.dimension, family=args.family, target=args.target,
             object_type=args.object_type, support=args.support,
             availability=args.availability, value_min=args.value_min,
@@ -483,7 +484,8 @@ def _parser() -> argparse.ArgumentParser:
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
     c = cap.add_parser("query", help="facts matching the filters, grouped (one JSON object:"
                                      " facts, product_level, product_wide, conflicts, hint)")
-    c.add_argument("--vendor", default=None, help="vendor (case-insensitive)")
+    c.add_argument("--vendor", action="append", default=None,
+                   help="vendor (case-insensitive); repeat for several")
     c.add_argument("--offering", default=None, help="offering id or alias")
     c.add_argument("--edition", default=None, help="edition id or alias")
     c.add_argument("--dimension", default=None, help="dimension id or alias")

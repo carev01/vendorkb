@@ -106,6 +106,10 @@ async def test_scope_assignment_and_selection(vkb_dsn):
         res = await capabilities.query(conn, CapFilter(vendor="examplevendor"))
         assert {f.claim_id for f in res.product_wide} == {
             str(k) for k, r in caps.items() if r["scope"] == "product_wide"}
+        # several vendors at once, case-insensitive; an unknown one adds nothing
+        several = await capabilities.query(conn, CapFilter(vendor=("ExampleVendor", "nobody")))
+        assert {f.claim_id for f in several.product_wide} == {f.claim_id for f in res.product_wide}
+        assert (await capabilities.query(conn, CapFilter(vendor=("nobody",)))).product_wide == []
         assert all(f.scope == "product_wide" for f in res.product_wide)
         assert all(f.scope != "product_wide" for f in res.facts + res.product_level)
         row = caps[targeted]
