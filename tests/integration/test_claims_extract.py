@@ -1190,6 +1190,7 @@ async def test_init_schema_keeps_the_status_check_and_indexes_the_cascades(vkb_d
         await conn.execute("ALTER TABLE extractions DROP CONSTRAINT extractions_status_check")
         await conn.execute("ALTER TABLE extractions ADD CONSTRAINT extractions_status_check"
                            " CHECK (status IN ('done', 'errored'))")
+        await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")  # an older database
         await init_schema(conn, embed_dim=768)
         [(_, definition)] = await _status_check(conn)
         assert "failed" in definition
@@ -1222,6 +1223,7 @@ async def test_init_schema_upgrades_pre_v3_claims(vkb_dsn):
                                " DROP COLUMN availability, DROP COLUMN default_state,"
                                " DROP COLUMN value, DROP COLUMN unit, DROP COLUMN bound")
         _, ids = await _seed_regate(conn)  # claims-v1 rows, stored before v3
+        await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")  # an older database
         await init_schema(conn, embed_dim=768)
         assert await _rows(conn, "SELECT DISTINCT kind, availability, value FROM raw_claims") \
             == [("capability", None, None)]

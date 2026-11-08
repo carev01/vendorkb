@@ -118,7 +118,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 16. **M9: `taxonomy map` memory and cost.** It re-embeds about 24k keys on every run and holds
     them as Python float lists, more than 2 GB. Fix: convert to float32 per batch, and cache key
     vectors by (text, model).
-17. **M12: no test of `init_schema` on a populated database.** One more test gap remains. Also
+17. **Done 2026-11-08 (the lock half):** `init_schema` skips its DDL when the stored schema
+    marker matches and every table exists, and otherwise waits at most 10 s per lock (an ad-hoc
+    read held the sync job's DDL for 24 minutes, queueing readers behind it).
+    **M12: no test of `init_schema` on a populated database.** One more test gap remains. Also
     review whether every `init_schema` call needs the exclusive locks that
     `ADD COLUMN IF NOT EXISTS` takes.
 
