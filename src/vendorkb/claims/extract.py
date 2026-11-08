@@ -558,9 +558,11 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
 
     The result's tokens and cost always count (they were paid for); in sync mode they are
     added to the run's ledger row in the same transaction. The chunk row is locked against
-    deletion (FOR KEY SHARE) for the write; a chunk that is gone is skipped. Only a new or
-    'errored' extraction row is (re)written, and never twice by the same batch, so a resumed
-    batch is idempotent and 'done' / 'failed' rows are final.
+    deletion (FOR KEY SHARE) for the write; a chunk that is gone is skipped. The claims are
+    gated against the text the chunk holds under that lock, not ``chunk.text``: a re-sync may
+    have reused the chunk with new text since ``chunk`` was loaded, and a quote no longer in
+    it is rejected. Only a new or 'errored' extraction row is (re)written, and never twice by
+    the same batch, so a resumed batch is idempotent and 'done' / 'failed' rows are final.
     """
     model = settings.extract_model
     cost = _cost(outcome, batch=batch, settings=settings)
@@ -574,12 +576,13 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
                 " chunk_ids = array_append(chunk_ids, %s) WHERE batch_id=%s",
                 (cost, chunk_id, ledger_id))
         cur = await conn.execute(
-            "SELECT 1 FROM chunks WHERE chunk_id=%s FOR KEY SHARE", (chunk_id,))
-        if chunk is None or await cur.fetchone() is None:
+            "SELECT text FROM chunks WHERE chunk_id=%s FOR KEY SHARE", (chunk_id,))
+        locked = await cur.fetchone()
+        if chunk is None or locked is None:
             report.skipped_deleted += 1
             log.warning("extract: chunk %s no longer exists; result skipped", chunk_id)
             return
-        judged = [(c, _judge(c, chunk.text)) for c in map(_clean, outcome.claims)]
+        judged = [(c, _judge(c, locked[0])) for c in map(_clean, outcome.claims)]
         accepted = [(c, r) for c, r in judged if r.ok]
         rejected = [(c, r) for c, r in judged if not r.ok]
         cur = await conn.execute(

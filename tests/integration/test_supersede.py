@@ -10,6 +10,7 @@ from pgvector import Vector
 from tests.integration.test_capabilities_v2 import _fresh
 from vendorkb.chunker import Chunk
 from vendorkb.db import connect, init_schema
+from vendorkb.search import read_section
 from vendorkb.store import (DocMeta, delete_document, retire_superseded, update_metadata,
                             write_document)
 
@@ -35,10 +36,11 @@ async def _write(conn, meta: DocMeta, n: int, tag: str) -> list[uuid.UUID]:
 
 
 async def _write_texts(conn, meta: DocMeta, texts: list[str], vec: Vector = VEC,
-                       token_count: int = 3) -> tuple[int, list[uuid.UUID]]:
+                       token_count: int = 3, path: tuple[str, ...] = ("T",)
+                       ) -> tuple[int, list[uuid.UUID]]:
     """Write a version whose chunks have exactly these texts; the number ``write_document``
     reused, and the document's current chunk ids by ordinal."""
-    chunks = [Chunk(section_path=("T",), ordinal=i, text=t, token_count=token_count)
+    chunks = [Chunk(section_path=path, ordinal=i, text=t, token_count=token_count)
               for i, t in enumerate(texts)]
     reused = await write_document(conn, meta, f"hash-{texts}", chunks, [vec] * len(texts))
     return reused, await _current(conn, meta.doc_id)
@@ -454,5 +456,77 @@ async def test_a_dropped_chunk_is_kept_only_with_a_mapped_claim(vkb_dsn):
         assert await retire_superseded(conn, version) == 3
         assert await _superseded(conn, doc_id) == []
         assert await _current(conn, doc_id) == v3
+    finally:
+        await conn.close()
+
+
+async def test_a_reused_chunk_takes_the_new_section_path(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        # a heading whose only change is an escaped hyphen: equal keys, another section_path
+        _, v1 = await _write_texts(conn, meta, ["T\nPlan 2026\\-03\n\nthe quote text"],
+                                   path=("T", "Plan 2026\\-03"))
+        await _extract(conn, v1[0], claim_mapped=version)
+        reused, v2 = await _write_texts(conn, meta, ["T\nPlan 2026-03\n\nthe quote text"],
+                                        path=("T", "Plan 2026-03"))
+        assert reused == 1 and v2 == v1
+        cur = await conn.execute("SELECT section_path FROM chunks WHERE chunk_id = %s", (v1[0],))
+        assert await cur.fetchone() == (["T", "Plan 2026-03"],)
+    finally:
+        await conn.close()
+
+
+async def test_a_reused_chunk_moves_onto_a_dropped_ordinal_and_a_fresh_one_takes_its_old(
+        vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        # the dropped chunk B is superseded (mapped claim) in one document, deleted
+        # (unmapped claim) in the other: either way A takes its ordinal 1 and N takes ordinal 0
+        for b_claim in (version, None):
+            doc_id = uuid.uuid4()
+            meta = _meta(doc_id)
+            _, (a, b) = await _write_texts(conn, meta, [_body("a"), _body("b")])
+            await _extract(conn, a, claim_mapped=version)
+            await _extract(conn, b, claim_mapped=b_claim)
+
+            reused, v2 = await _write_texts(conn, meta, [_body("n"), _body("a")])
+            assert reused == 1 and v2[1] == a and v2[0] not in (a, b)
+            cur = await conn.execute("SELECT chunk_id, ordinal FROM chunks WHERE doc_id = %s"
+                                     " AND superseded_at IS NULL ORDER BY ordinal", (doc_id,))
+            assert await cur.fetchall() == [(v2[0], 0), (a, 1)]
+            assert await _superseded(conn, doc_id) == ([b] if b_claim else [])
+    finally:
+        await conn.close()
+
+
+async def test_read_section_of_a_superseded_chunk_stays_in_its_own_write(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        # v1 and v2 are both mapped and neither is retired when v3 arrives
+        v1 = await _write(conn, meta, 2, "v1")
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        v2 = await _write(conn, meta, 2, "v2")
+        for chunk_id in v2:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        v3 = await _write(conn, meta, 2, "v3")
+        assert set(await _superseded(conn, doc_id)) == {*v1, *v2}
+
+        async def ids(chunk_id: uuid.UUID, expand) -> list[str]:
+            return [h.chunk_id for h in await read_section(conn, str(chunk_id), expand)]
+
+        for version_ids, other in ((v1, v2), (v2, v1)):
+            assert await ids(version_ids[0], "0") == [str(version_ids[0])]
+            assert await ids(version_ids[0], "1") == [str(c) for c in version_ids]
+            assert await ids(version_ids[1], "full") == [str(c) for c in version_ids]
+            assert not {str(c) for c in other} & set(await ids(version_ids[0], "full"))
+        assert await ids(v3[0], "full") == [str(c) for c in v3]
     finally:
         await conn.close()

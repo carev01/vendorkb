@@ -290,22 +290,24 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
 async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
                        expand: Literal["0", "1", "full"] = "0") -> list[Hit]:
     """The chunk, its neighbours or its section, all of the anchor's own version of the page:
-    the superseded chunks around a superseded anchor, the current ones around a current one."""
+    the current chunks around a current anchor; around a superseded one, the chunks superseded
+    in the same write (one ``write_document`` call sets one ``superseded_at``), never those of
+    another earlier version."""
     cur = await conn.execute(
-        "SELECT doc_id, ordinal, section_path, superseded_at IS NOT NULL FROM chunks"
-        " WHERE chunk_id = %s", (chunk_id,))
+        "SELECT doc_id, ordinal, section_path, superseded_at FROM chunks WHERE chunk_id = %s",
+        (chunk_id,))
     anchor = await cur.fetchone()
     if anchor is None:
         return []
-    doc_id, ordinal, path, superseded = anchor
+    doc_id, ordinal, path, superseded_at = anchor
     base = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id) WHERE c.doc_id = %s"
-            " AND (c.superseded_at IS NOT NULL) = %s")
+            " AND c.superseded_at IS NOT DISTINCT FROM %s")
     if expand == "0":
-        sql, params = base + " AND c.chunk_id = %s", [doc_id, superseded, chunk_id]
+        sql, params = base + " AND c.chunk_id = %s", [doc_id, superseded_at, chunk_id]
     elif expand == "1":
         sql, params = (base + " AND c.ordinal BETWEEN %s AND %s",
-                       [doc_id, superseded, ordinal - 1, ordinal + 1])
+                       [doc_id, superseded_at, ordinal - 1, ordinal + 1])
     else:
-        sql, params = base + " AND c.section_path = %s", [doc_id, superseded, list(path)]
+        sql, params = base + " AND c.section_path = %s", [doc_id, superseded_at, list(path)]
     cur = await conn.execute(sql + " ORDER BY c.ordinal", params)
     return [_hit(r) for r in await cur.fetchall()]

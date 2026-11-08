@@ -406,6 +406,36 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
         await conn.close()
 
 
+async def test_claims_are_gated_against_the_text_the_chunk_holds_when_recorded(vkb_dsn):
+    """A re-sync can reuse a chunk with new text while the model call is in flight: a quote
+    that is no longer in the text must not be stored as evidence."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+
+        class Resyncing(FakeMessages):
+            async def create(self, **params):
+                await conn.execute(
+                    "UPDATE chunks SET text = replace(text, 'Backups of Amazon RDS for"
+                    " PostgreSQL instances are supported with immutable snapshots.',"
+                    " 'Snapshots of Aurora clusters are listed.') WHERE chunk_id = %s", (cid,))
+                return await super().create(**params)
+
+        client = FakeClient()
+        client.messages = Resyncing(replies={"Amazon RDS": _message(
+            {"claims": [GOOD, PARTIAL]})})
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.done, report.claims_accepted, report.claims_rejected) == (1, 1, 1)
+        assert [r[0] for r in await _rows(conn, "SELECT capability_raw FROM raw_claims")] == [
+            "cross-region copy"]
+        [(reason,)] = await _rows(conn, "SELECT reason FROM rejected_claims")
+        assert reason.startswith("no-match:")
+    finally:
+        await conn.close()
+
+
 async def test_null_product_is_kept(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

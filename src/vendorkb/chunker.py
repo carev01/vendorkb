@@ -47,7 +47,8 @@ def reuse_key(text: str) -> str:
     ("Last Updated ..."), markdown link and image targets, backslash escapes and whitespace.
     Two chunk texts with equal keys say the same thing."""
     text = _DATE_LINE.sub("", _SPACES.sub(" ", text))
-    text = _LINK.sub(r"\1", text)
+    while (reduced := _LINK.sub(r"\1", text)) != text:  # a linked image takes two passes
+        text = reduced
     return " ".join(text.replace("\\", "").split())
 
 

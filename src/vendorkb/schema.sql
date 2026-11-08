@@ -76,7 +76,9 @@ CREATE TABLE IF NOT EXISTS sync_seen (
 -- (new chunk_id) when its document is re-synced, so everything keyed on chunk_id cascades with
 -- it: the new chunks are extracted afresh, and no claim outlives the evidence it quotes. A
 -- chunk with a mapped claim is kept, superseded, until the new version is mapped
--- (``chunks.superseded_at``); a chunk whose text is unchanged is kept as it is.
+-- (``chunks.superseded_at``). A chunk whose text matches (exactly or by ``chunker.reuse_key``)
+-- keeps its row, extraction and claims, and takes the new version's text, embedding, ordinal
+-- and section_path.
 -- Reserved (BACKLOG 14): never written. DocExtractor's delta records carry no version (only
 -- its products endpoint has one, per product), so documents.version and the claims'
 -- version stay NULL, and answers come from the latest documents.

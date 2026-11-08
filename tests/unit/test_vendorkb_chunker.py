@@ -156,6 +156,7 @@ def test_title_only_chunk_prefix_does_not_repeat_title():
     ("Intro\nLast updated on March 5, 2026\nBody", "Intro\nUpdated 3 days ago\nBody"),
     ("Intro\nUpdated: 2026-03-26 10:15\nBody", "Intro\nBody"),
     ("Intro\nupdated a week ago\nBody", "Intro\nBody"),
+    ("[![alt](img.png)](page.html)", "[![alt](/m/2/img.png)](./page2.html)"),
 ])
 def test_reuse_key_ignores_cosmetic_differences(a, b):
     assert reuse_key(a) == reuse_key(b)
@@ -167,6 +168,7 @@ def test_reuse_key_ignores_cosmetic_differences(a, b):
     ("See [List Media](a.html).", "See [Media list](a.html)."),
     ("Updated 2026-03-26 by the team", "Updated 2026-07-31 by the team"),
     ("Updated settings", "Updated options"),
+    ("[![alt](img.png)](page.html)", "[![other](img.png)](page.html)"),
 ])
 def test_reuse_key_keeps_real_differences(a, b):
     assert reuse_key(a) != reuse_key(b)
