@@ -59,6 +59,19 @@ def _result(text: str, structured: dict[str, Any]) -> CallToolResult:
                           structured_content=structured)
 
 
+# Section names of a query_capabilities result that agents pass back as a target
+# ("product-wide"), normalized: they name no taxonomy target, so the filter is dropped with a note.
+SECTIONS = frozenset({"product-wide", "product-level", "unresolved-target", "target-unmapped"})
+
+
+def _section(target: str | None) -> str | None:
+    """The result section ``target`` names, or None."""
+    if target is None:
+        return None
+    key = "-".join(target.strip().lower().replace("_", " ").replace("-", " ").split())
+    return key if key in SECTIONS else None
+
+
 def _fail(tool: str, e: Exception) -> ToolError:
     log.exception("mcp: %s failed", tool)
     return ToolError(f"{tool} failed: {type(e).__name__}: {e}")
@@ -206,26 +219,38 @@ def build_server(backend: Backend) -> MCPServer:
         "workload, with support (supported / partial / not_supported / unclear), conditions, "
         "values and an evidence quote and source for every fact. Filters take a taxonomy id or "
         "alias (dimension, target, offering, edition) or exact values (vendor, support, "
-        "availability, value range). Give at least one filter. A vendor missing here is not "
-        "evidence of absence: check it with search_docs."))
+        "availability, value range); `vendor` takes one name or a list. Give at least one "
+        "filter. A vendor missing here is not evidence of absence: check it with search_docs."))
     async def query_capabilities(
-            dimension: str | None = None, target: str | None = None, vendor: str | None = None,
+            dimension: str | None = None, target: str | None = None,
+            vendor: str | list[str] | None = None,
             family: str | None = None, offering: str | None = None, edition: str | None = None,
             object_type: str | None = None,
             support: Literal["supported", "partial", "not_supported", "unclear"] | None = None,
             availability: str | None = None, value_min: float | None = None,
             value_max: float | None = None, limit: int = 20) -> CallToolResult:
-        f = CapFilter(vendor=vendor, offering=offering, edition=edition, dimension=dimension,
+        note = None
+        if (section := _section(target)) is not None:
+            note = (f"Note: {target!r} is a section of the results, not a taxonomy target, so "
+                    f"the target filter was ignored; {section} facts are listed in their own "
+                    "section.")
+            target = None
+        names = [vendor] if isinstance(vendor, str) else vendor or []
+        vendors = tuple(v.strip() for v in names if v.strip()) or None
+        f = CapFilter(vendor=vendors, offering=offering, edition=edition, dimension=dimension,
                       family=family, target=target, object_type=object_type, support=support,
                       availability=availability, value_min=value_min, value_max=value_max)
         if all(v is None for v in dataclasses.asdict(f).values()):
-            raise ToolError("query_capabilities needs at least one filter (e.g. dimension and "
-                            "target; see list_dimensions and list_targets)")
+            raise ToolError((f"{note} " if note else "")
+                            + "query_capabilities needs at least one filter (e.g. dimension "
+                            "and target; see list_dimensions and list_targets)")
         try:
             res = await backend.capabilities(f, max(1, min(limit, MAX_LIMIT)))
         except Exception as e:
             raise _fail("query_capabilities", e) from e
         text, structured = format_capabilities(res, max(1, min(limit, MAX_LIMIT)))
+        if note:
+            text, structured = f"{note}\n{text}", {**structured, "note": note}
         return _result(text, structured)
 
     @server.tool(name="search_docs", annotations=_RO, description=(

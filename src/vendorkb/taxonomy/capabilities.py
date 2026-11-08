@@ -69,7 +69,7 @@ def _norm(expr: str) -> str:
 
 @dataclass(frozen=True)
 class CapFilter:
-    vendor: str | None = None
+    vendor: str | tuple[str, ...] | None = None  # one vendor name or several (case-insensitive)
     offering: str | None = None
     edition: str | None = None
     dimension: str | None = None
@@ -176,6 +176,12 @@ async def build(conn: psycopg.AsyncConnection) -> int:
         return cur.rowcount
 
 
+def _vendors(vendor: str | tuple[str, ...] | None) -> list[str] | None:
+    """The filter's vendor names, lowercased; None when it names none."""
+    names = [vendor] if isinstance(vendor, str) else list(vendor or ())
+    return [v.strip().lower() for v in names if v.strip()] or None
+
+
 async def _resolve(conn: psycopg.AsyncConnection, table: str, col: str, entity_type: str,
                    term: str) -> list[str]:
     """The ids whose id is ``term``, plus those with ``term`` as a normalized alias (any
@@ -231,7 +237,7 @@ async def _hint(conn: psycopg.AsyncConnection, f: CapFilter, targets: list[str] 
                 + await _hint(conn, f, targets, dimensions))
     parts = []
     if f.vendor:
-        parts.append(f"vendor {f.vendor!r}")
+        parts.append("vendor " + " / ".join(repr(v) for v in _vendors(f.vendor) or []))
     if f.offering:
         parts.append(f"offering {f.offering!r}")
     if f.target:
@@ -303,7 +309,8 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         return CapResult(hint=await _hint(conn, f, targets, dimensions))
 
     params: dict[str, Any] = {
-        "ver": version, "vendor": f.vendor, "family": f.family, "support": f.support,
+        "ver": version, "vendors": _vendors(f.vendor), "family": f.family,
+        "support": f.support,
         "availability": f.availability, "vmin": f.value_min, "vmax": f.value_max,
         "ot": f.object_type, "dims": dimensions, "has_target": targets is not None,
         "targets": targets or [], "target_dims": [], "offerings": offerings,
@@ -349,7 +356,7 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         f" row_number() OVER (PARTITION BY {grp}, c.vendor{_ORDER}) AS vendor_pos,"
         f" {_FACT_COLUMNS}{_FROM}"
         " WHERE c.taxonomy_version = %(ver)s"
-        " AND (%(vendor)s::text IS NULL OR lower(c.vendor) = lower(%(vendor)s::text))"
+        " AND (%(vendors)s::text[] IS NULL OR lower(c.vendor) = ANY(%(vendors)s::text[]))"
         " AND (%(dims)s::text[] IS NULL OR c.dimension_id = ANY(%(dims)s::text[]))"
         " AND (%(family)s::text IS NULL OR dim.family = %(family)s::text)"
         " AND (%(support)s::text IS NULL OR c.support = %(support)s::text)"

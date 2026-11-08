@@ -156,12 +156,12 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     assert cli.main(["capabilities", "build"]) == 0
     assert json.loads(capsys.readouterr().out) == {"rows": 7, "taxonomy_version": "3"}
     assert cli.main(["capabilities", "query", "--target", "aws", "--vendor", "veeam",
-                     "--support", "partial", "--offering", "o", "--edition", "e",
+                     "--vendor", "acme", "--support", "partial", "--offering", "o", "--edition", "e",
                      "--dimension", "d", "--family", "coverage", "--object-type", "database",
                      "--availability", "preview", "--value-min", "1",
                      "--value-max", "9.5"]) == 0
     assert stubbed["filter"] == capabilities.CapFilter(
-        vendor="veeam", offering="o", edition="e", dimension="d", family="coverage",
+        vendor=("veeam", "acme"), offering="o", edition="e", dimension="d", family="coverage",
         target="aws", object_type="database", support="partial", availability="preview",
         value_min=1.0, value_max=9.5)
     out = json.loads(capsys.readouterr().out)

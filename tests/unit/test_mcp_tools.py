@@ -154,6 +154,34 @@ async def test_query_capabilities_needs_a_filter_and_reports_failures():
         assert r.is_error and "RuntimeError: db down" in r.content[0].text
 
 
+async def test_query_capabilities_takes_one_vendor_or_several():
+    backend = FakeBackend(caps=CapResult(facts=[_fact()]))
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"vendor": ["Examplevendor", " Other "],
+                                                     "dimension": "immutability"})
+        assert not r.is_error
+        await c.call_tool("query_capabilities", {"vendor": "Examplevendor"})
+        await c.call_tool("query_capabilities", {"vendor": [], "dimension": "immutability"})
+    assert [call[1].vendor for call in backend.calls] == [
+        ("Examplevendor", "Other"), ("Examplevendor",), None]
+
+
+async def test_a_result_section_named_as_the_target_is_ignored_with_a_note():
+    backend = FakeBackend(caps=CapResult(facts=[_fact()]))
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"target": "product-wide",
+                                                     "dimension": "immutability"})
+        assert not r.is_error
+        assert r.content[0].text.startswith("Note: 'product-wide' is a section of the results")
+        assert backend.calls[-1][1].target is None
+        assert "section of the results" in r.structured_content["note"]
+        # with nothing else to filter on, it is the usual missing-filter error, explained
+        r = await c.call_tool("query_capabilities", {"target": "Product wide"})
+        assert r.is_error and "section of the results" in r.content[0].text
+        assert "at least one filter" in r.content[0].text
+    assert len(backend.calls) == 1
+
+
 async def test_search_docs_and_read_section():
     backend = FakeBackend(hits=[_hit(1), _hit(2, "x" * (ms.PASSAGE_CHARS + 50))])
     async with Client(ms.build_server(backend)) as c:
