@@ -117,6 +117,47 @@ async def test_an_update_keeps_the_extracted_version_until_the_new_one_is_mapped
         await conn.close()
 
 
+async def test_a_second_update_never_drops_the_facts_in_the_table(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        v1 = await _write(conn, meta, 2, "v1")
+        claim = await _extract(conn, v1[0], claim_mapped=version)
+
+        # v2 is only partly extracted, its claim not mapped; v3 arrives
+        v2 = await _write(conn, meta, 2, "v2")
+        await _extract(conn, v2[0], claim_mapped=None)
+        v3 = await _write(conn, meta, 1, "v3")
+        assert await _superseded(conn, doc_id) == v1
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                            claim) == 1
+        assert await _count(conn, "SELECT count(*) FROM chunks WHERE chunk_id = ANY(%s)",
+                            v2) == 0
+        assert await _current(conn, doc_id) == v3
+        # the facts in the table are still v1's, never an unmapped v2's
+        assert await _count(conn, "SELECT count(*) FROM raw_claims") == 1
+
+        # the same when v2 was fully extracted and mapped but not retired before v3: the
+        # accepted cost of keeping one superseded set, v2's facts are re-extracted with v3
+        doc2 = uuid.uuid4()
+        meta2 = _meta(doc2)
+        w1 = await _write(conn, meta2, 1, "w1")
+        w1_claim = await _extract(conn, w1[0], claim_mapped=version)
+        w2 = await _write(conn, meta2, 1, "w2")
+        w2_claim = await _extract(conn, w2[0], claim_mapped=version)
+        w3 = await _write(conn, meta2, 1, "w3")
+        assert await _superseded(conn, doc2) == w1
+        assert await _current(conn, doc2) == w3
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                            w1_claim) == 1
+        assert await _count(conn, "SELECT count(*) FROM raw_claims WHERE claim_id = %s",
+                            w2_claim) == 0
+    finally:
+        await conn.close()
+
+
 async def test_fewer_chunks_after_an_update(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -149,7 +190,8 @@ async def test_a_retag_supersedes_nothing(vkb_dsn):
         await _extract(conn, v1[0], claim_mapped=version)
         assert await update_metadata(conn, _meta(doc_id, vendor="W", title="Other",
                                                  source_id=meta.source_id)) is True
-        assert await _count(conn, "SELECT count(*) FROM chunks WHERE superseded_at IS NOT NULL") == 0
+        assert await _count(
+            conn, "SELECT count(*) FROM chunks WHERE superseded_at IS NOT NULL") == 0
         assert await _current(conn, doc_id) == v1
         assert await _count(conn, "SELECT count(*) FROM raw_claims") == 1
     finally:
@@ -166,8 +208,8 @@ async def test_removal_still_deletes_everything(vkb_dsn):
         await _extract(conn, v1[0], claim_mapped=version)
         v2 = await _write(conn, meta, 1, "v2")
         await _extract(conn, v2[0], claim_mapped=version)
-        v3 = await _write(conn, meta, 1, "v3")  # v2 carried a claim: v1 gone, v2 superseded
-        assert len(await _superseded(conn, doc_id)) == 1
+        v3 = await _write(conn, meta, 1, "v3")  # v1 is already superseded: v2 is replaced
+        assert await _superseded(conn, doc_id) == v1
         assert await _current(conn, doc_id) == v3
         # a second document is untouched
         other = uuid.uuid4()
@@ -238,11 +280,13 @@ async def test_the_schema_upgrade_lets_superseded_ordinals_coexist(vkb_dsn):
         await conn.execute("DROP INDEX chunks_doc_ordinal_current_idx")
         await conn.execute("DROP INDEX chunks_superseded_idx")
         await conn.execute("ALTER TABLE chunks DROP COLUMN superseded_at")
-        await conn.execute("ALTER TABLE chunks ADD CONSTRAINT chunks_doc_id_ordinal_key"
-                           " UNIQUE (doc_id, ordinal)")
+        await conn.execute("ALTER TABLE chunks ADD UNIQUE (doc_id, ordinal)")
         await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")
         await init_schema(conn, embed_dim=8)
         assert await _count(conn, "SELECT count(*) FROM chunks WHERE superseded_at IS NULL") == 1
+        # the upgrade removed the unique constraint PostgreSQL named for the old inline one
+        assert await _count(conn, "SELECT count(*) FROM pg_constraint WHERE contype = 'u'"
+                                  " AND conrelid = 'chunks'::regclass") == 0
         first = (await _current(conn, doc_id))[0]
         await _extract(conn, first, claim_mapped=None)
         await _write(conn, _meta(doc_id), 1, "v2")  # ordinal 0 twice: superseded + current

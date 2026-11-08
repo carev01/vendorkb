@@ -36,12 +36,14 @@ async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_h
                          chunks: list[Chunk], vectors: list[list[float]]) -> None:
     """Store a new version of a page (a first write, or an update).
 
-    The rule: the facts of the last extracted version stay until the next one is mapped. When
-    any current chunk of the page carries a claim, the page's older superseded chunks are
-    deleted and its current chunks are kept with ``superseded_at`` set (their claims, and the
-    capabilities built from them, stay in every query); ``retire_superseded`` deletes them once
-    the new chunks are extracted and mapped. A page with no claims is replaced outright: a
-    version that was never extracted carries no fact worth keeping."""
+    The rule: the facts of the last extracted version stay until the next one is mapped. At
+    most one superseded set is kept per page: the newest version whose facts may be in the
+    capability table. When the page already has one, its current chunks are deleted outright
+    (that version never replaced the old facts) and only ``retire_superseded``, once the new
+    chunks are extracted and mapped, moves the page on. Otherwise, when any current chunk
+    carries a claim, the current chunks are kept with ``superseded_at`` set (their claims, and
+    the capabilities built from them, stay in every query). A page with neither is replaced
+    outright: a version that was never extracted carries no fact worth keeping."""
     await conn.execute(
         "INSERT INTO documents(doc_id, vendor, product, source, source_id, title, url,"
         " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
@@ -52,11 +54,11 @@ async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_h
         (meta.doc_id, meta.vendor, meta.product, meta.source, meta.source_id, meta.title,
          meta.url, content_hash, datetime.now(UTC)))
     cur = await conn.execute(
-        "SELECT EXISTS (SELECT 1 FROM chunks c JOIN raw_claims r USING (chunk_id)"
-        " WHERE c.doc_id = %s AND c.superseded_at IS NULL)", (meta.doc_id,))
-    if (await cur.fetchone())[0]:  # type: ignore[index]
-        await conn.execute("DELETE FROM chunks WHERE doc_id = %s AND superseded_at IS NOT NULL",
-                           (meta.doc_id,))
+        "SELECT EXISTS (SELECT 1 FROM chunks WHERE doc_id = %(d)s AND superseded_at IS NOT NULL),"
+        " EXISTS (SELECT 1 FROM chunks c JOIN raw_claims r USING (chunk_id)"
+        " WHERE c.doc_id = %(d)s AND c.superseded_at IS NULL)", {"d": meta.doc_id})
+    has_superseded, has_claims = await cur.fetchone()  # type: ignore[misc]
+    if has_claims and not has_superseded:
         await conn.execute("UPDATE chunks SET superseded_at = now() WHERE doc_id = %s"
                            " AND superseded_at IS NULL", (meta.doc_id,))
     else:
@@ -76,8 +78,9 @@ async def retire_superseded(conn: psycopg.AsyncConnection, taxonomy_version: str
     number of chunks deleted.
 
     A page is ready when each of its current chunks has a final extraction (done or failed) of
-    the claims-v3 family and none of their claims of that family is mapped under any other
-    taxonomy version than ``taxonomy_version`` (None: the extraction condition only)."""
+    the claims-v3 family and every claim of that family on them is mapped under
+    ``taxonomy_version`` (an unmapped claim blocks it too; None: the extraction condition
+    only)."""
     # Imported here, not at the top: ``sync`` imports this module and must stay free of the
     # claims stack (anthropic) in its 1 Gi pod (tests/unit/test_vendorkb_cli_imports.py).
     from vendorkb.claims.extract import PROMPT_FAMILY
