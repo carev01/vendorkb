@@ -1,0 +1,6 @@
+# Reviewed false positives (generic-api-key on taxonomy ids next to documentation quotes
+# about authentication and credentials), eval/labels/dimension-sample-2026-11-08.json, 2026-11-08.
+14eec3e1c84698e54a4bbb032bcc850245c5064b:eval/labels/dimension-sample-2026-11-08.json:generic-api-key:38
+14eec3e1c84698e54a4bbb032bcc850245c5064b:eval/labels/dimension-sample-2026-11-08.json:generic-api-key:2079
+14eec3e1c84698e54a4bbb032bcc850245c5064b:eval/labels/dimension-sample-2026-11-08.json:generic-api-key:2236
+14eec3e1c84698e54a4bbb032bcc850245c5064b:eval/labels/dimension-sample-2026-11-08.json:generic-api-key:2432
