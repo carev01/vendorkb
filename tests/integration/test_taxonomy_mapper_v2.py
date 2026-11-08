@@ -712,6 +712,8 @@ async def test_seed_records_the_decisions_current_mappings_imply(vkb_dsn, tmp_pa
         assert await cur.fetchall() == [("keep copies for ages", "retention.maximum_period", "seed"),
                                         ("okta workforce", "okta", "seed"),
                                         ("the dashboard thing", None, "seed")]
+        report = await _run(conn, client, seed=True)  # counts only rows actually inserted
+        assert report.decisions_seeded == 0
         before = {c: await _mapping(conn, c) for c in await _ids(conn)}
         report = await _run(conn, client, remap=True)  # every decision comes from the seed
         assert client.calls == [] and report.decisions_reused == 3

@@ -130,7 +130,7 @@ class MapReport:
     embeddings_new: int = 0  # strings embedded by the provider (and cached)
     decisions_reused: int = 0  # adjudications answered from map_decisions (no call)
     decisions_carried: int = 0  # same phrase, fewer or reordered candidates: earlier answer kept
-    decisions_seeded: int = 0  # seed=True: decisions recorded from the stored mappings
+    decisions_seeded: int = 0  # seed=True: decisions newly recorded from the stored mappings
     skipped_by_budget: int = 0  # adjudications not sent
     claims_skipped_by_budget: int = 0  # claims left unmapped by them
     stopped_by_budget: bool = False
@@ -576,8 +576,7 @@ class _Adjudicator:
                 if n * 2 > sum(votes.values()):
                     a.choice, a.decided = choice, True
                     rows.append((decision_key(a, model), a))
-        await self._store(rows, "seed")
-        self.report.decisions_seeded += len(rows)
+        self.report.decisions_seeded += await self._store(rows, "seed")
 
     async def _carry(self, items: list[_Adjudication]) -> None:
         """Stability: a question whose candidates changed keeps the latest earlier answer for the
@@ -605,9 +604,10 @@ class _Adjudicator:
                 a.choice, a.cached = choice, True
                 self.report.decisions_carried += 1
 
-    async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> None:
+    async def _store(self, rows: list[tuple[str, _Adjudication]], source: str) -> int:
+        """Insert decisions not stored yet; returns how many were inserted."""
         if not rows:
-            return
+            return 0
         family = model_family(self.settings.map_model)
         async with self.conn.cursor() as cur:
             await cur.executemany(
@@ -616,6 +616,7 @@ class _Adjudicator:
                 " ON CONFLICT (key) DO NOTHING",
                 [(k, a.kind, a.text, a.class_id, list(a.candidates), a.choice, family, source,
                   PROMPT_RULES) for k, a in rows])
+            return max(cur.rowcount, 0)  # executemany: the sum over the statements
 
     async def _one(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings
