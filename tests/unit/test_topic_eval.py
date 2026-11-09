@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -5,6 +6,8 @@ import pytest
 import yaml
 
 from eval import topic_eval as te
+from vendorkb.answer import REFUSAL, closing_line, unconfirmed_line
+from vendorkb.topics import BLANK_NOTE, LEGEND
 
 REPO = Path(__file__).resolve().parent.parent.parent
 SCRATCH = Path("/tmp/claude-1000/-home-openclaw-Documents-Shared-projects-graph-rag/"
@@ -53,11 +56,14 @@ def _sides_grade(item, per_side, claims, unsupported=0):
             "claims_total": claims, "unsupported_claims": [f"claim {n}" for n in range(unsupported)]}
 
 
-def _enum_grade(item, pairs_total, supported, unsupported=0, claims=0):
-    pairs = [{"vendor": "Acme", "aspect_id": "a1", "supported": n < supported}
-             for n in range(4)]
-    return {"item": item, "pairs_total": pairs_total, "pairs": pairs, "claims_total": claims,
-            "unsupported_claims": [f"claim {n}" for n in range(unsupported)]}
+def _enum_grade(item, pairs_total, supported):
+    """The even-stride sample of ``pairs_total`` pairs (ceil(total / 30) apart), of which the
+    first ``supported`` are supported."""
+    stride = max(1, -(-pairs_total // 30))
+    listed = -(-pairs_total // stride)
+    pairs = [{"vendor": f"V{n}", "aspect_id": IDS[n % 4], "supported": n < supported}
+             for n in range(listed)]
+    return {"item": item, "pairs_total": pairs_total, "pairs": pairs}
 
 
 KEY = {"i1": {"run": "before", "question_id": "q1"},
@@ -74,14 +80,14 @@ def _before_grades():
     return [_sides_grade("i1", {"Acme": "snnn"}, 5, 1),
             _sides_grade("i2", {"Acme": "ssnn", "Globex": "sndd"}, 10, 2),
             _sides_grade("i3", {"*": "unnn"}, 4, 1),
-            _enum_grade("i4", 40, 3, unsupported=2, claims=20)]
+            _enum_grade("i4", 40, 16)]
 
 
-def _after_grades(unsupported=(1, 2, 1)):
+def _after_grades(unsupported=(1, 2, 1), enum_supported=30):
     return [_sides_grade("j1", {"Acme": "ssss"}, 5, unsupported[0]),
             _sides_grade("j2", {"Acme": "sssn", "Globex": "sssu"}, 10, unsupported[1]),
             _sides_grade("j3", {"*": "ssnn"}, 4, unsupported[2]),
-            _enum_grade("j4", 60, 4, claims=30)]
+            _enum_grade("j4", 60, enum_supported)]
 
 
 def _score(grades, corpus=None):
@@ -170,6 +176,36 @@ def test_build_shuffles_with_the_seed_and_ids_depend_on_it():
     assert sorted(shuffled) == sorted(unshuffled)
 
 
+def test_the_shuffle_mixes_two_runs_of_ten_questions():
+    questions = [_q(f"q{n}", f"Question {n}?", ["Acme"], "sides") for n in range(10)]
+    runs = {run: [_row(q["id"], question=q["question"]) for q in questions]
+            for run in ("zebra-before", "quokka-after")}
+    items, key = te.build_items(runs, questions, ASPECTS, seed=1)
+    order = [(key[i["item"]]["run"], key[i["item"]]["question_id"]) for i in items]
+    unshuffled = [(run, q["id"]) for run in runs for q in questions]
+    assert len(order) == 20 and sorted(order) == sorted(unshuffled)
+    assert order != unshuffled
+    # the runs interleave: both fill the first half, and the run changes often down the list
+    assert {run for run, _ in order[:10]} == set(runs)
+    assert sum(x[0] != y[0] for x, y in zip(order, order[1:])) >= 8
+    # and one question's two answers are not next to each other by construction
+    assert [q for _, q in order] != [q for _, q in unshuffled]
+
+
+def test_item_ids_are_opaque_not_a_hash_of_run_and_question():
+    seeds = (7, 8)
+    for seed in seeds:
+        items, key = te.build_items(_runs(), QS, ASPECTS, seed=seed)
+        ids = {i["item"] for i in items}
+        assert len(ids) == 8 and all(len(i) == 8 and int(i, 16) >= 0 for i in ids)
+        for run in ("zebra-before", "quokka-after"):
+            for q in QS:
+                for salt in (f"{s}|{run}|{q['id']}" for s in (*seeds, "", 0)):
+                    assert hashlib.sha256(salt.encode()).hexdigest()[:8] not in ids
+                for text in (run, q["id"], f"{run}|{q['id']}"):
+                    assert hashlib.sha256(text.encode()).hexdigest()[:8] not in ids
+
+
 def test_build_refuses_an_answer_it_cannot_grade():
     runs = _runs()
     runs["quokka-after"][1] = _row("q2", answer=None, error="boom")
@@ -210,8 +246,10 @@ def test_coverage_and_unsupported_rate_per_run():
     # 4 + 8 + 4 slots; 1 + (2 + 1) + 0 of them covered with support
     assert before["coverage"] == {"slots": 16, "excluded": 0, "denominator": 16,
                                   "covered_supported": 4, "coverage": 0.25}
-    assert before["unsupported"] == {"claims_total": 19, "unsupported_claims": 4,
-                                     "rate": 4 / 19}
+    # pooled over every item: 4 of 19 claims, and 40 pairs of which 24 of 30 sampled hold
+    assert before["unsupported"] == {
+        "claims_total": 19, "unsupported_claims": 4, "pairs_total": 40,
+        "unsupported_pairs_estimate": pytest.approx(8.0), "rate": pytest.approx(12 / 59)}
     assert before["labels"] == {"covered_supported": 4, "covered_unsupported": 1,
                                 "not_covered": 9, "stated_not_covered": 2}
     assert before["by_question"]["q2"]["covered_supported"] == 3
@@ -219,6 +257,7 @@ def test_coverage_and_unsupported_rate_per_run():
     after = _score(_after_grades())["after"]
     assert after["coverage"]["covered_supported"] == 4 + 3 + 3 + 2
     assert after["coverage"]["coverage"] == 12 / 16
+    assert after["unsupported"]["rate"] == 4 / 79
 
 
 def test_stated_not_covered_leaves_the_denominator_only_where_the_corpus_lacks_it():
@@ -255,23 +294,48 @@ def test_only_a_stated_not_covered_slot_is_excluded():
 def test_enumeration_estimate_is_pairs_total_times_the_supported_share():
     enum = _score(_before_grades())["before"]["enumeration"]
     assert (enum["items"], enum["pairs_total"], enum["sampled"], enum["supported"]) == (
-        1, 40, 4, 3)
-    assert enum["share"] == 0.75
-    assert enum["estimate"] == 30.0
-    assert (enum["claims_total"], enum["unsupported_claims"]) == (20, 2)
+        1, 40, 20, 16)
+    assert enum["share"] == 0.8
+    assert enum["estimate"] == pytest.approx(32.0)
+    assert enum["unsupported_estimate"] == pytest.approx(8.0)
+    assert "claims_total" not in enum
     after = _score(_after_grades())["after"]["enumeration"]
     assert (after["share"], after["estimate"]) == (1.0, 60.0)
-    # the enumeration's claims stay out of the unsupported rate
-    assert _score(_before_grades())["before"]["unsupported"]["claims_total"] == 19
+    assert after["unsupported_estimate"] == 0.0
+
+
+def test_a_pair_total_under_the_cap_lists_every_pair():
+    grade = _enum_grade("i4", 7, 5)
+    assert len(grade["pairs"]) == 7
+    enum = _score([grade])["before"]["enumeration"]
+    assert (enum["sampled"], enum["share"], enum["estimate"]) == (7, 5 / 7, pytest.approx(5.0))
 
 
 def test_enumeration_with_no_sampled_pair_has_no_estimate():
-    grade = {"item": "i4", "pairs_total": 12, "pairs": [], "claims_total": 0,
-             "unsupported_claims": []}
-    enum = _score([grade])["before"]["enumeration"]
-    assert (enum["share"], enum["estimate"]) == (None, None)
-    grade["pairs_total"] = 0
-    assert _score([grade])["before"]["enumeration"]["estimate"] == 0.0
+    records = te.parse_grades([_enum_grade("i4", 12, 5)], {"i4": KEY["i4"]}, QS, ASPECTS)
+    records[0]["pairs"] = []  # not reachable through the validator, which wants a full sample
+    run = te.score_records(records, {})["before"]
+    assert run["enumeration"]["share"] is None
+    assert run["enumeration"]["estimate"] is None
+    assert run["unsupported"]["rate"] is None
+    empty = _score([_enum_grade("i4", 0, 0)])["before"]
+    assert empty["enumeration"]["estimate"] == 0.0
+    assert empty["unsupported"]["rate"] is None  # no claims and no pairs at all
+
+
+def test_a_run_without_enumeration_items_has_a_null_estimate():
+    run = _score(_before_grades()[:3])["before"]
+    assert run["enumeration"]["estimate"] is None
+    assert run["enumeration"]["items"] == 0
+    # the pooled rate is then just claims over claims
+    assert run["unsupported"]["rate"] == 4 / 19
+
+
+def test_the_pooled_rate_weights_pairs_like_claims():
+    grades = [_sides_grade("i1", {"Acme": "snnn"}, 10, 1), _enum_grade("i4", 30, 15)]
+    rate = _score(grades)["before"]["unsupported"]
+    # 1 unsupported of 10 claims, and half of 30 pairs: (1 + 15) / (10 + 30)
+    assert rate["rate"] == pytest.approx(16 / 40)
 
 
 def test_agreement_is_the_share_of_identical_labels_between_the_first_two_files():
@@ -324,13 +388,100 @@ def test_report_has_a_pass_check_only_for_exactly_two_runs_with_labels():
 
 
 def test_unsupported_rise_too_large_fails_the_check():
-    records = te.parse_grades(_before_grades() + _after_grades(unsupported=(3, 5, 3)),
-                              KEY, QS, ASPECTS)
+    after = _after_grades(unsupported=(3, 5, 3), enum_supported=15)
+    records = te.parse_grades(_before_grades() + after, KEY, QS, ASPECTS)
     check = te.report_for(records, {}, before="before", after="after")["pass_check"]
+    # after: (11 + 60 * 0.5) / (19 + 60); before: (4 + 8) / (19 + 40)
     assert check["unsupported_rise_points"] == pytest.approx(
-        (11 / 19 - 4 / 19) * 100, abs=0.05)
+        (41 / 79 - 12 / 59) * 100, abs=0.01)
+    assert check["unsupported_rate"]["before"] == pytest.approx(12 / 59)
     assert check["unsupported_ok"] is False
     assert check["pass"] is False
+
+
+def test_a_question_missing_from_one_run_is_left_out_of_the_pass_check():
+    before = [g for g in _before_grades()]
+    after = [g for g in _after_grades() if g["item"] != "j2"]
+    key = {k: v for k, v in KEY.items() if k != "j2"}
+    records = te.parse_grades(before + after, key, QS, ASPECTS)
+    report = te.report_for(records, {}, before="before", after="after")
+    check = report["pass_check"]
+    assert check["questions_compared"] == ["q1", "q3", "q4"]
+    assert check["questions_dropped"] == ["q2"]
+    assert report["warnings"] == [
+        "pass check: q2 has no graded answer in run after; left out of the comparison"]
+    # compared over q1 and q3 only (8 slots each run): before 1 + 0 covered, after 4 + 2
+    assert check["coverage"]["before"] == 1 / 8
+    assert check["coverage"]["after"] == (4 + 2) / 8
+    # the per-run figures still cover everything each run has
+    assert report["runs"]["before"]["coverage"]["slots"] == 16
+    assert report["runs"]["after"]["coverage"]["slots"] == 8
+    # the other way round names the run that lacks it
+    key = {k: v for k, v in KEY.items() if k != "i1"}
+    records = te.parse_grades([g for g in _before_grades() if g["item"] != "i1"]
+                              + _after_grades(), key, QS, ASPECTS)
+    report = te.report_for(records, {}, before="before", after="after")
+    assert report["warnings"] == [
+        "pass check: q1 has no graded answer in run before; left out of the comparison"]
+    assert report["pass_check"]["questions_dropped"] == ["q1"]
+
+
+def test_runs_with_no_question_in_common_skip_the_pass_check():
+    key = {"i1": KEY["i1"], "j2": KEY["j2"]}
+    grades = [_before_grades()[0], _after_grades()[1]]
+    report = te.report_for(te.parse_grades(grades, key, QS, ASPECTS), {}, "before", "after")
+    assert "no question in common" in report["pass_check"]["skipped"]
+    assert len(report["warnings"]) == 2
+
+
+def test_no_warning_when_both_runs_have_every_question():
+    records = te.parse_grades(_before_grades() + _after_grades(), KEY, QS, ASPECTS)
+    assert te.report_for(records, {}, "before", "after")["warnings"] == []
+
+
+def test_stated_not_covered_without_a_corpus_file_warns():
+    records = te.parse_grades(_before_grades(), {k: v for k, v in KEY.items()
+                                                 if v["run"] == "before"}, QS, ASPECTS)
+    report = te.report_for(records, None, None, None)
+    assert len(report["warnings"]) == 1
+    assert "2 stated_not_covered slots" in report["warnings"][0]
+    assert "--corpus" in report["warnings"][0]
+    # a corpus file (even an empty one) silences it, and so does having no such slot
+    assert te.report_for(records, {}, None, None)["warnings"] == []
+    clean = te.parse_grades([_sides_grade("i1", {"Acme": "snnn"}, 5, 1)],
+                            {"i1": KEY["i1"]}, QS, ASPECTS)
+    assert te.report_for(clean, None, None, None)["warnings"] == []
+
+
+def test_the_corpus_must_name_known_sides_and_aspects():
+    te.check_corpus({"Acme": {"a1": True, "a4": False}, " globex": {"a2": False},
+                     "*": {"a3": True}}, QS, ASPECTS)
+    with pytest.raises(te.GradeError) as err:
+        te.check_corpus({"Initech": {"a1": True}, "Acme": {"zz": False}, "*": {"a9": True}},
+                        QS, ASPECTS)
+    assert err.value.problems == ["corpus: unknown side 'Initech'",
+                                  "corpus: Acme: unknown aspect 'zz'",
+                                  "corpus: *: unknown aspect 'a9'"]
+    # a side only an enumeration question has is not a side to excuse
+    only_enum = [q for q in QS if q["grading"] == "enumeration"]
+    with pytest.raises(te.GradeError, match="unknown side 'Acme'"):
+        te.check_corpus({"Acme": {"a1": True}}, only_enum, ASPECTS)
+
+
+def test_the_real_corpus_sides_and_aspects_are_checked_by_the_command(tmp_path, capsys):
+    questions = te.load_questions(REPO / "eval" / "topic_questions.yaml")
+    aspects = te.load_aspects(["ransomware_protection"])
+    ids = [a["id"] for a in aspects["ransomware_protection"]]
+    te.check_corpus({"Veeam": dict.fromkeys(ids, True), "Azure Backup": {ids[0]: False}},
+                    questions, aspects)
+    with pytest.raises(te.GradeError, match="unknown side 'Veem'"):
+        te.check_corpus({"Veem": {ids[0]: True}}, questions, aspects)
+    key = tmp_path / "key.json"
+    key.write_text("{}")
+    bad = tmp_path / "corpus.json"
+    bad.write_text(json.dumps({"Veeam": {"not_an_aspect": False}}))
+    assert te.main(["score", str(key), str(tmp_path / "g.json"), "--corpus", str(bad)]) == 2
+    assert "corpus: Veeam: unknown aspect 'not_an_aspect'" in capsys.readouterr().err
 
 
 # ---- grade validation -----------------------------------------------------------------------
@@ -356,21 +507,75 @@ def test_bad_labels_sides_items_and_counts_are_all_reported():
     grades = _before_grades()
     grades[0]["aspects"]["Acme"]["a1"] = "corpus_lacks"
     grades[1]["aspects"]["Initech"] = _slots("ssss")
+    grades[1]["aspects"]["acme"] = _slots("ssss")
     grades[2]["aspects"]["*"]["zz"] = "not_covered"
     grades[2]["unsupported_claims"] = ["x"] * 9
-    grades[3]["pairs_total"] = 2
     grades.append({"item": "nope", "aspects": {}, "claims_total": 0, "unsupported_claims": []})
     grades.append(dict(grades[0]))
-    grades[1]["aspects"]["acme"] = _slots("ssss")
-    del grades[3]["claims_total"]
     text = _problems(grades, key)
     for expected in ("i1: Acme: a1: unknown label 'corpus_lacks'",
-                     "i2: unknown side 'Initech'", "i2: side Acme graded twice", "i3: *: unknown aspect 'zz'",
+                     "i2: unknown side 'Initech'", "i2: side Acme graded twice",
+                     "i3: *: unknown aspect 'zz'",
                      "i3: more unsupported claims than claims_total",
-                     "i4: pairs_total 2 is below the 4 pairs listed",
-                     "i4: claims_total must be a non-negative integer",
                      "nope: not in the key", "i1: graded twice"):
         assert expected in text
+    grades = _before_grades()
+    del grades[0]["claims_total"]
+    assert "i1: claims_total must be a non-negative integer" in _problems(grades, key)
+
+
+def test_an_enumeration_sample_is_min_of_pairs_total_and_thirty_distinct_pairs():
+    key = {"i4": KEY["i4"]}
+    # 40 pairs: every 2nd, so 20 (listing 30, the cap, is too many)
+    many = _enum_grade("i4", 40, 16)
+    many["pairs"] += [{"vendor": f"W{n}", "aspect_id": "a1", "supported": True}
+                      for n in range(10)]
+    assert ("i4: 30 pairs listed, expected 20 (stride 2 over pairs_total 40, "
+            "starting with the first pair)") in _problems([many], key)
+    short = _enum_grade("i4", 7, 5)
+    del short["pairs"][-1]
+    assert "i4: 6 pairs listed, expected 7 (all of pairs_total 7)" in _problems([short], key)
+    under = _enum_grade("i4", 7, 5)
+    under["pairs_total"] = 5
+    assert "i4: 7 pairs listed, expected 5 (all of pairs_total 5)" in _problems([under], key)
+    for total, listed in ((0, 0), (1, 1), (30, 30), (31, 16), (40, 20), (60, 30), (61, 21),
+                          (100, 25), (300, 30)):
+        grade = _enum_grade("i4", total, 0)
+        assert len(grade["pairs"]) == listed
+        assert te.parse_grades([grade], key, QS, ASPECTS)
+        assert te.sample_size(total) == listed
+    assert [te.pair_stride(n) for n in (1, 30, 31, 60, 61, 100)] == [1, 1, 2, 2, 3, 4]
+
+
+def test_a_repeated_vendor_aspect_pair_is_an_error():
+    key = {"i4": KEY["i4"]}
+    grade = _enum_grade("i4", 3, 3)
+    grade["pairs"][1] = {"vendor": " v0", "aspect_id": "a1", "supported": False}
+    assert "i4: pair 1 repeats  v0 / a1" in _problems([grade], key)
+    # the same vendor under another aspect, and another vendor under the same one, are fine
+    grade["pairs"][1] = {"vendor": "V0", "aspect_id": "a2", "supported": False}
+    assert te.parse_grades([grade], key, QS, ASPECTS)
+
+
+def test_an_enumeration_item_needs_no_claims_and_extra_claims_are_ignored():
+    key = {"i4": KEY["i4"]}
+    grade = _enum_grade("i4", 3, 2)
+    assert "claims_total" not in grade
+    plain = te.parse_grades([grade], key, QS, ASPECTS)[0]
+    grade["claims_total"] = 99
+    grade["unsupported_claims"] = ["x"] * 99
+    assert te.parse_grades([grade], key, QS, ASPECTS)[0] == plain
+    assert (plain["claims_total"], plain["unsupported"]) == (0, [])
+
+
+def test_an_unhashable_item_is_a_listed_problem_not_a_crash():
+    key = {k: v for k, v in KEY.items() if v["run"] == "before"}
+    grades = [*_before_grades(), {"item": ["i1"]}, {"item": {"a": 1}}, "text", {"item": None}]
+    text = _problems(grades, key)
+    assert "['i1']: not in the key" in text
+    assert "{'a': 1}: not in the key" in text
+    assert "entry 6: not an object" in text
+    assert "None: not in the key" in text
 
 
 def test_an_item_missing_from_a_grades_file_is_an_error():
@@ -419,8 +624,7 @@ def test_build_then_score_end_to_end(tmp_path, capsys):
                                "unsupported_claims": [],
                                "aspects": {"Acme": {a["id"]: code for a in item["aspects"]}}})
             else:
-                grades.append({"item": item["item"], "pairs_total": 10, "claims_total": 0,
-                               "unsupported_claims": [],
+                grades.append({"item": item["item"], "pairs_total": 1,
                                "pairs": [{"vendor": "Acme",
                                           "aspect_id": item["aspects"][0]["id"],
                                           "supported": True}]})
@@ -436,7 +640,7 @@ def test_build_then_score_end_to_end(tmp_path, capsys):
     first = report["grades"][paths[0]]
     assert first["runs"]["topic-before"]["coverage"]["coverage"] == 0.0
     assert first["runs"]["topic-after"]["coverage"]["coverage"] == 1.0
-    assert first["runs"]["topic-after"]["enumeration"]["estimate"] == 10.0
+    assert first["runs"]["topic-after"]["enumeration"]["estimate"] == 1.0
     assert first["pass_check"]["pass"] is True
     assert report["agreement"]["share"] == 1.0
     # a grades file with a hole exits 2 and says where
@@ -450,5 +654,19 @@ def test_build_then_score_end_to_end(tmp_path, capsys):
 def test_the_grading_brief_names_every_label_kind_and_field():
     brief = (REPO / "eval" / "TOPIC_GRADING_BRIEF.md").read_text()
     for word in (*te.LABELS, *te.KINDS, "claims_total", "unsupported_claims", "pairs_total",
-                 "aspect_id", "supported", '"*"'):
+                 "aspect_id", "supported", '"*"', "ceil(pairs_total / 30)", "stride"):
         assert word in brief
+    # enumeration items no longer carry claims: the brief says so
+    assert "`enumeration` items have no claims" in " ".join(brief.split())
+
+
+def test_the_grading_brief_describes_the_lines_vendorkb_emits_and_only_those():
+    brief = " ".join((REPO / "eval" / "TOPIC_GRADING_BRIEF.md").read_text().split())
+    emitted = (REFUSAL, BLANK_NOTE, LEGEND, "the retrieved sources do not cover this",
+               "No fact found for:", "Facts current to", "No fact was found for ransomware",
+               closing_line(["X"]).removesuffix("X."), unconfirmed_line(["X"]).removesuffix("X."))
+    for line in emitted:
+        assert " ".join(line.split()) in brief, line
+    # lines vendorkb never writes stay out of the brief
+    for never in ("needs validation", "Checked", "Documented for", "Vendor ·", "(Vendor"):
+        assert never not in brief, never

@@ -27,26 +27,37 @@ labels). ``sides`` and ``by_aspect`` items (the side key is ``"*"`` for ``by_asp
      "aspects": {"<side>": {"<aspect_id>": "covered_supported" | "covered_unsupported"
                                            | "not_covered" | "stated_not_covered"}}}
 
-``enumeration`` items (pairs in answer order, at most 30 of the ``pairs_total``)::
+``enumeration`` items carry pairs, not claims. ``pairs_total`` is the number of distinct
+(vendor, aspect) pairs the answer covers; ``pairs`` is an even-stride sample of them in answer
+order: every ``ceil(pairs_total / 30)``-th pair starting with the first (all of them up to 30),
+with no (vendor, aspect_id) twice. The count is checked (``sample_size``)::
 
-    {"item": id, "claims_total": int, "unsupported_claims": [str, ...], "pairs_total": int,
+    {"item": id, "pairs_total": int,
      "pairs": [{"vendor": str, "aspect_id": str, "supported": bool}, ...]}
 
 ``score`` prints JSON per grades file and run: coverage (``covered_supported`` slots over the
 graded side-aspect slots, less the ``stated_not_covered`` slots that ``--corpus`` marks as not
-documented), the unsupported-claim rate (``sides`` and ``by_aspect`` items), the enumeration
-estimate (per item ``pairs_total`` times the supported share of its sampled pairs; per run the
-sum over its enumeration items), and for two or more grades files the agreement of the first
-two (the share of identical aspect labels, with the slots that differ). With exactly two runs
-and ``--before``/``--after`` it also prints the spec's pass check: coverage rises by at least
-10 points (this scorer's reading of "clearly") and the unsupported rate by at most 2. The corpus
-file is ``{"<side>": {"<aspect_id>": true | false}}``, true meaning the corpus documents it.
-A grades file with a missing or invalid slot exits 2 and lists every problem.
+documented) and the unsupported rate, pooled over every item::
+
+    (unsupported claims of sides and by_aspect items
+     + sum of pairs_total x (1 - supported share) over enumeration items)
+    / (claims_total of sides and by_aspect items + sum of pairs_total over enumeration items)
+
+The enumeration supported share and estimate (per item ``pairs_total`` times the supported share
+of its sampled pairs; per run the sum over its enumeration items, null with none) are reported
+separately. For two or more grades files it prints the agreement of the first two (the share of
+identical aspect labels, with the slots that differ). With exactly two runs and
+``--before``/``--after`` it also prints the spec's pass check on the pooled rate: coverage rises
+by at least 10 points (this scorer's reading of "clearly") and the unsupported rate by at most
+2. A question missing from one run is dropped from the pass check, and the output says which.
+The corpus file is ``{"<side>": {"<aspect_id>": true | false}}``, true meaning the corpus
+documents it; its sides and aspect ids must exist in the questions file and the taxonomy, and
+without it the output warns when ``stated_not_covered`` slots exist. A grades file with a
+missing or invalid slot exits 2 and lists every problem.
 """
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import random
 import sys
@@ -67,6 +78,7 @@ KINDS = ("sides", "by_aspect", "enumeration")
 ANY_SIDE = "*"  # the side key of a by_aspect item
 MIN_COVERAGE_RISE = 10.0  # points: this scorer's reading of the spec's "rises clearly"
 MAX_UNSUPPORTED_RISE = 2.0  # points: the spec's "by no more than two points"
+MAX_PAIRS = 30  # an enumeration item lists at most this many of its pairs
 EPSILON = 1e-6
 
 
@@ -185,8 +197,8 @@ def build_items(runs: dict[str, list[dict[str, Any]]], questions: list[dict[str,
                 aspects: dict[str, list[dict[str, str]]], seed: int = 1
                 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
     """``(items, key)``: one blind item per answer row, shuffled; ``key`` maps item id to
-    ``{run, question_id}``. The item id is a hash salted with ``seed``, so it cannot be
-    recomputed from a run label."""
+    ``{run, question_id}``. The ids are drawn from the same seeded generator after the shuffle,
+    so they say nothing about the run or the question and cannot be recomputed from either."""
     by_id = {q["id"]: q for q in questions}
     problems: list[str] = []
     entries: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
@@ -205,13 +217,14 @@ def build_items(runs: dict[str, list[dict[str, Any]]], questions: list[dict[str,
                 entries.append((run, row, question))
     if problems:
         raise SystemExit("\n".join(problems))
-    random.Random(seed).shuffle(entries)
+    rng = random.Random(seed)
+    rng.shuffle(entries)
     items: list[dict[str, Any]] = []
     key: dict[str, dict[str, str]] = {}
     for run, row, question in entries:
-        item_id = hashlib.sha256(f"{seed}|{run}|{question['id']}".encode()).hexdigest()[:8]
-        if item_id in key:
-            raise SystemExit(f"item id collision on {item_id}: change --seed")
+        item_id = f"{rng.getrandbits(32):08x}"
+        while item_id in key:
+            item_id = f"{rng.getrandbits(32):08x}"
         key[item_id] = {"run": run, "question_id": question["id"]}
         sources = [{"marker": c.get("marker"), "title": c.get("title"), "vendor": c.get("vendor"),
                     "url": c.get("url"), "text": c.get("text")}
@@ -273,6 +286,17 @@ def _grade_sides(item: str, grade: dict[str, Any], question: dict[str, Any],
     return slots
 
 
+def pair_stride(pairs_total: int) -> int:
+    """The stride of the enumeration sample: every this-many-th pair, starting with the first."""
+    return max(1, -(-pairs_total // MAX_PAIRS))
+
+
+def sample_size(pairs_total: int) -> int:
+    """How many pairs the even-stride sample of ``pairs_total`` holds: all of them up to
+    ``MAX_PAIRS``, else every ``pair_stride``-th one (so 20 of 40, 30 of 60, 25 of 100)."""
+    return -(-pairs_total // pair_stride(pairs_total))
+
+
 def _grade_pairs(item: str, grade: dict[str, Any], aspect_ids: list[str],
                  problems: list[str]) -> tuple[int | None, list[dict[str, Any]]]:
     total = grade.get("pairs_total")
@@ -284,16 +308,25 @@ def _grade_pairs(item: str, grade: dict[str, Any], aspect_ids: list[str],
         problems.append(f"{item}: pairs must be a list")
         return total, []
     good = []
+    listed: set[tuple[str, str]] = set()
     for n, pair in enumerate(pairs):
         if (not isinstance(pair, dict) or not isinstance(pair.get("vendor"), str)
                 or pair.get("aspect_id") not in aspect_ids
                 or not isinstance(pair.get("supported"), bool)):
             problems.append(f"{item}: pair {n} needs a vendor, an aspect_id of the item and a "
                             "boolean supported")
-        else:
-            good.append(pair)
-    if total is not None and total < len(pairs):
-        problems.append(f"{item}: pairs_total {total} is below the {len(pairs)} pairs listed")
+            continue
+        who = (_norm(pair["vendor"]), pair["aspect_id"])
+        if who in listed:
+            problems.append(f"{item}: pair {n} repeats {pair['vendor']} / {pair['aspect_id']}")
+        listed.add(who)
+        good.append(pair)
+    if total is not None and len(pairs) != sample_size(total):
+        stride = pair_stride(total)
+        how = (f"stride {stride} over pairs_total {total}, starting with the first pair"
+               if stride > 1 else f"all of pairs_total {total}")
+        problems.append(f"{item}: {len(pairs)} pairs listed, expected {sample_size(total)} "
+                        f"({how})")
     return total, good
 
 
@@ -308,10 +341,14 @@ def parse_grades(grades: Any, key: dict[str, dict[str, str]],
     if not isinstance(grades, list):
         raise GradeError(["the grades file must be a list of objects"])
     seen: set[str] = set()
-    for grade in grades:
-        item = grade.get("item") if isinstance(grade, dict) else None
-        if item not in key:
-            problems.append(f"{item}: not in the key")
+    for n, grade in enumerate(grades):
+        if not isinstance(grade, dict):
+            problems.append(f"entry {n}: not an object")
+            continue
+        item = grade.get("item")
+        if not isinstance(item, str) or item not in key:
+            problems.append(f"{item!r}: not in the key" if not isinstance(item, str)
+                            else f"{item}: not in the key")
             continue
         if item in seen:
             problems.append(f"{item}: graded twice")
@@ -321,13 +358,15 @@ def parse_grades(grades: Any, key: dict[str, dict[str, str]],
         aspect_ids = [a["id"] for a in aspects[question["topic"]]]
         record: dict[str, Any] = {"item": item, "run": key[item]["run"],
                                   "question_id": question["id"], "kind": question["grading"],
-                                  "slots": {}, "pairs_total": None, "pairs": []}
-        record["claims_total"] = _count_problem(item, grade, problems)
-        record["unsupported"] = list(grade.get("unsupported_claims") or [])
+                                  "slots": {}, "pairs_total": None, "pairs": [],
+                                  "claims_total": 0, "unsupported": []}
         if question["grading"] == "enumeration":
             record["pairs_total"], record["pairs"] = _grade_pairs(item, grade, aspect_ids,
                                                                    problems)
         else:
+            record["claims_total"] = _count_problem(item, grade, problems)
+            unsupported = grade.get("unsupported_claims")
+            record["unsupported"] = list(unsupported) if isinstance(unsupported, list) else []
             record["slots"] = _grade_sides(item, grade, question, aspect_ids, problems)
         records.append(record)
     problems.extend(f"{item}: not graded" for item in key if item not in seen)
@@ -369,32 +408,41 @@ def _enumeration(records: list[dict[str, Any]]) -> dict[str, Any]:
     for r in records:
         supported = sum(p["supported"] for p in r["pairs"])
         share = _ratio(supported, len(r["pairs"]))
-        estimate = (0.0 if not r["pairs_total"]
-                    else None if share is None else r["pairs_total"] * share)
+        total = r["pairs_total"]
+        estimate = 0.0 if not total else None if share is None else total * share
+        unsupported = 0.0 if not total else None if share is None else total * (1 - share)
         per_item.append({"item": r["item"], "question_id": r["question_id"],
-                         "pairs_total": r["pairs_total"], "sampled": len(r["pairs"]),
-                         "supported": supported, "share": share, "estimate": estimate})
+                         "pairs_total": total, "sampled": len(r["pairs"]),
+                         "supported": supported, "share": share, "estimate": estimate,
+                         "unsupported_estimate": unsupported})
+
+    def total_of(name: str) -> float | None:
+        values = [i[name] for i in per_item]
+        return None if not values or any(v is None for v in values) else sum(values)
+
     sampled = sum(i["sampled"] for i in per_item)
     supported = sum(i["supported"] for i in per_item)
-    estimates = [i["estimate"] for i in per_item]
     return {"items": len(records), "pairs_total": sum(i["pairs_total"] for i in per_item),
             "sampled": sampled, "supported": supported, "share": _ratio(supported, sampled),
-            "estimate": None if any(e is None for e in estimates) else sum(estimates),
-            "claims_total": sum(r["claims_total"] for r in records),
-            "unsupported_claims": sum(len(r["unsupported"]) for r in records),
-            "per_item": per_item}
+            "estimate": total_of("estimate"), "unsupported_estimate": total_of(
+                "unsupported_estimate"), "per_item": per_item}
 
 
 def score_records(records: list[dict[str, Any]],
                   corpus: dict[str, dict[str, bool]]) -> dict[str, dict[str, Any]]:
-    """The metrics of each run in ``records``: coverage, labels, the unsupported-claim rate
-    (``sides`` and ``by_aspect`` items), the enumeration estimate and a per-question table.
-    ``corpus`` sides are matched without regard to case and spacing."""
+    """The metrics of each run in ``records``: coverage, labels, the pooled unsupported rate,
+    the enumeration estimate and a per-question table. The rate is the unsupported claims of
+    ``sides`` and ``by_aspect`` items plus the estimated unsupported pairs of ``enumeration``
+    items, over those items' ``claims_total`` plus the enumeration ``pairs_total`` (None when
+    an enumeration item has no sampled pair to estimate from). ``corpus`` sides are matched
+    without regard to case and spacing."""
     corpus = {_norm(side): aspects for side, aspects in corpus.items()}
     out: dict[str, dict[str, Any]] = {}
     for run in dict.fromkeys(r["run"] for r in records):
         mine = [r for r in records if r["run"] == run]
         graded = [r for r in mine if r["kind"] != "enumeration"]
+        enumerated = [r for r in mine if r["kind"] == "enumeration"]
+        enum = _enumeration(enumerated)
 
         def slots_of(rs: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
             return [(side, aspect, label) for r in rs
@@ -403,17 +451,24 @@ def score_records(records: list[dict[str, Any]],
         claims = sum(r["claims_total"] for r in graded)
         unsupported = sum(len(r["unsupported"]) for r in graded)
         counts = Counter(label for _, _, label in slots_of(graded))
-        by_question = {}
+        by_question: dict[str, dict[str, Any]] = {}
         for r in graded:
             by_question[r["question_id"]] = {
                 **_coverage(slots_of([r]), corpus), "claims_total": r["claims_total"],
                 "unsupported_claims": len(r["unsupported"])}
+        for row in enum["per_item"]:
+            by_question[row["question_id"]] = {k: row[k] for k in ("pairs_total", "share",
+                                                                   "estimate")}
+        pair_unsupported = 0.0 if not enumerated else enum["unsupported_estimate"]
+        rate = (None if pair_unsupported is None else
+                _ratio(unsupported + pair_unsupported, claims + enum["pairs_total"]))
         out[run] = {"items": len(mine), "coverage": _coverage(slots_of(graded), corpus),
                     "labels": {label: counts[label] for label in LABELS},
                     "unsupported": {"claims_total": claims, "unsupported_claims": unsupported,
-                                    "rate": _ratio(unsupported, claims)},
-                    "enumeration": _enumeration([r for r in mine if r["kind"] == "enumeration"]),
-                    "by_question": by_question}
+                                    "pairs_total": enum["pairs_total"],
+                                    "unsupported_pairs_estimate": pair_unsupported,
+                                    "rate": rate},
+                    "enumeration": enum, "by_question": by_question}
     return out
 
 
@@ -442,9 +497,9 @@ def agreement(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> dict
 
 
 def pass_check(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    """The spec's bar: coverage rises by at least ``MIN_COVERAGE_RISE`` points and the
-    unsupported-claim rate by at most ``MAX_UNSUPPORTED_RISE``. A rate that cannot be computed
-    (no claims in one run) fails the check."""
+    """The spec's bar: coverage rises by at least ``MIN_COVERAGE_RISE`` points and the pooled
+    unsupported rate by at most ``MAX_UNSUPPORTED_RISE``. A rate that cannot be computed (no
+    claims in one run) fails the check."""
     def points(metric: str, name: str) -> float | None:
         a, b = before[metric][name], after[metric][name]
         return None if a is None or b is None else round((b - a) * 100, 6)
@@ -454,15 +509,47 @@ def pass_check(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     cov_ok = None if cov is None else cov >= MIN_COVERAGE_RISE - EPSILON
     rate_ok = None if rate is None else rate <= MAX_UNSUPPORTED_RISE + EPSILON
     return {"bar": f"coverage rises by at least {MIN_COVERAGE_RISE:g} points (\"clearly\") and "
-                   f"the unsupported-claim rate by at most {MAX_UNSUPPORTED_RISE:g} points",
+                   f"the pooled unsupported rate by at most {MAX_UNSUPPORTED_RISE:g} points",
+            "coverage": {"before": before["coverage"]["coverage"],
+                         "after": after["coverage"]["coverage"]},
+            "unsupported_rate": {"before": before["unsupported"]["rate"],
+                                 "after": after["unsupported"]["rate"]},
             "coverage_rise_points": cov, "coverage_ok": cov_ok,
             "unsupported_rise_points": rate, "unsupported_ok": rate_ok,
             "pass": bool(cov_ok and rate_ok)}
 
 
-def report_for(records: list[dict[str, Any]], corpus: dict[str, dict[str, bool]],
+def check_corpus(corpus: dict[str, dict[str, bool]], questions: list[dict[str, Any]],
+                 aspects: dict[str, list[dict[str, str]]]) -> None:
+    """Every side of ``corpus`` must be one a question grades (or ``"*"``, the vendor-neutral
+    side) and every aspect id one of that side's topic; else a ``GradeError``."""
+    known: dict[str, set[str]] = {}
+    for q in questions:
+        sides = q["sides"] if q["grading"] == "sides" else [ANY_SIDE] if (
+            q["grading"] == "by_aspect") else []
+        for side in sides:
+            known.setdefault(_norm(side), set()).update(a["id"] for a in aspects[q["topic"]])
+    problems = []
+    for side, flags in corpus.items():
+        if _norm(side) not in known:
+            problems.append(f"corpus: unknown side {side!r}")
+            continue
+        problems.extend(f"corpus: {side}: unknown aspect {a!r}" for a in flags
+                        if a not in known[_norm(side)])
+    if problems:
+        raise GradeError(problems)
+
+
+def report_for(records: list[dict[str, Any]], corpus: dict[str, dict[str, bool]] | None,
                before: str | None, after: str | None) -> dict[str, Any]:
-    runs = score_records(records, corpus)
+    """The metrics of one grades file, a pass check, and ``warnings``. ``corpus`` None means
+    no corpus file was given; the pass check compares only the questions both runs have."""
+    runs = score_records(records, corpus or {})
+    warnings: list[str] = []
+    stated = sum(label == "stated_not_covered" for r in records for label in r["slots"].values())
+    if stated and corpus is None:
+        warnings.append(f"{stated} stated_not_covered slots count against coverage: no --corpus "
+                        "file was given to excuse the aspects a side's documents lack")
     if len(runs) != 2:
         check: dict[str, Any] = {"skipped": f"the pass check needs exactly two runs, found "
                                             f"{len(runs)}"}
@@ -472,8 +559,24 @@ def report_for(records: list[dict[str, Any]], corpus: dict[str, dict[str, bool]]
         missing = [label for label in (before, after) if label not in runs]
         if missing:
             raise SystemExit(f"no such run: {', '.join(missing)} (runs: {', '.join(runs)})")
-        check = {"before": before, "after": after, **pass_check(runs[before], runs[after])}
-    return {"runs": runs, "pass_check": check}
+        asked = {run: {r["question_id"] for r in records if r["run"] == run}
+                 for run in (before, after)}
+        common = asked[before] & asked[after]
+        dropped = sorted(asked[before] ^ asked[after])
+        warnings.extend(f"pass check: {qid} has no graded answer in run "
+                        f"{after if qid in asked[before] else before}; left out of the "
+                        "comparison" for qid in dropped)
+        compared = runs
+        if dropped:
+            compared = score_records([r for r in records if r["question_id"] in common],
+                                     corpus or {})
+        if not common:
+            check = {"skipped": "the two runs have no question in common"}
+        else:
+            check = {"before": before, "after": after, "questions_compared": sorted(common),
+                     "questions_dropped": dropped,
+                     **pass_check(compared[before], compared[after])}
+    return {"runs": runs, "pass_check": check, "warnings": warnings}
 
 
 # ---- command line ---------------------------------------------------------------------------
@@ -502,7 +605,13 @@ def cmd_score(args: argparse.Namespace) -> int:
     unknown = sorted({v["question_id"] for v in key.values()} - {q["id"] for q in questions})
     if unknown:
         raise SystemExit(f"the key names questions not in {args.questions}: {', '.join(unknown)}")
-    corpus = load_corpus(args.corpus) if args.corpus else {}
+    corpus = load_corpus(args.corpus) if args.corpus else None
+    if corpus is not None:
+        try:
+            check_corpus(corpus, questions, aspects)
+        except GradeError as e:
+            print(f"{args.corpus}:", *e.problems, sep="\n  ", file=sys.stderr)
+            return 2
     parsed: dict[str, list[dict[str, Any]]] = {}
     failed = False
     for path in args.grades:

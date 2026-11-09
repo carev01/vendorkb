@@ -42,32 +42,75 @@ attached to it, or to the sentence, list item, table row or table cell it belong
   says it. A source about a different vendor or product than the claim names does not support
   the claim.
 - A claim about a vendor's product is supported by text about that product (or about a
-  component or feature documented as part of it).
+  component or feature documented as part of it). Answers name the product each statement is
+  about; judge the statement against the sources for that product.
 
 ## What counts as a claim
 
-`claims_total` is the number of **distinct factual claims about products** in the answer: one
-capability, property, setting or behaviour stated about a product. A sentence that lists three
-features makes three claims; the same claim made twice counts once. A recommendation or
-instruction the answer attributes to the documentation ("keep 3 copies, one offsite") is a
-claim too. Not claims:
-
-- framing and headings ("Here is what the sources say", "Plan ahead");
-- statements about the sources themselves ("the retrieved sources do not cover this");
-- `(Vendor · Product)` labels, which are attribution, not claims; never mark anything
-  unsupported because of a label;
-- lines the system adds: the grid legend, "Facts current to ...", the note on blank cells,
-  "No fact found for: ..." or "No supporting passage found for: ..." and "Checked ... /
-  Documented for ..." lines;
-- an item flagged "needs validation": a declared hedge. Leave it out of the claims, and treat
-  it as if it were not in the answer when you label aspects.
+`claims_total` (for `sides` and `by_aspect` items) is the number of **distinct factual claims
+about products** in the answer: one capability, property, setting or behaviour stated about a
+product. A sentence that lists three features makes three claims; the same claim made twice
+counts once. A recommendation or instruction the answer attributes to the documentation ("keep
+3 copies, one offsite") is a claim too. Not claims: framing and headings ("Plan ahead"),
+statements about the sources or the documentation rather than the product (see "The boundary"
+below) and the lines the system adds (next section).
 
 Record every unsupported claim in `unsupported_claims`, as a short quote or paraphrase, once
-each. `len(unsupported_claims)` must not exceed `claims_total`.
+each. `len(unsupported_claims)` must not exceed `claims_total`. `enumeration` items have no
+claims: they are graded on pairs (below).
 
-**Claiming a product lacks something.** "Product X has no air gap" is a claim about X. It is
-supported only if a cited source's text says X lacks it; otherwise it is an unsupported claim.
-It does not make the aspect covered (see `not_covered`).
+## Lines the system adds
+
+Some lines are written by the system, not by the answer model. Here is each one and how it
+counts. None of them is a claim, and none is evidence.
+
+- **"the retrieved sources do not cover this"**, written by the answer model for an aspect its
+  sources do not cover (usually under an aspect heading, for one product). It says the sources
+  do not cover that aspect for that side: label it `stated_not_covered` (see Labels).
+- **"I don't have enough information to answer that from the available sources."** The whole
+  answer, alone. The answer covers nothing: for a `sides` or `by_aspect` item, every slot is
+  `stated_not_covered` and `claims_total` is 0; for an `enumeration` item `pairs_total` is 0.
+- **"No supporting passage found for: X, Y."** A closing line. In a `sides` item X and Y are
+  sides of the question for which no passage was retrieved: every aspect of that side is
+  `stated_not_covered`, unless the answer also states something about the side, in which case
+  label that statement. In an `enumeration` item X and Y are vendors: they make no pair.
+- **"Passages found but not judged to show it: X, Y."** A closing line of some `enumeration`
+  answers: vendors for which passages were retrieved but none was judged to show the
+  capability. They make no pair, and the line is no evidence for them.
+- **The grid** of an `enumeration` answer, a markdown table with a row per vendor and a column
+  per aspect (the eight aspect names). A filled cell is a mark and a citation, for example
+  `✓ [3]`, `◐ [4]` or `○ [5]`, with a `†` after the marker when the fact comes from an
+  earlier version of the page. The marks (tick, half circle, open circle) and the dagger are
+  the system's own hints about how sure it is, not evidence: judge the cell by the cited text.
+  A filled cell is one pair (its row's vendor, its column's aspect). A blank cell is not a pair
+  and not a claim.
+- **The grid's legend and footers**, below the table: the legend ("✓ supported · ◐ partial
+  · ○ found in a page not yet analysed (not verified) · † from an earlier version of the
+  page."), "Facts current to YYYY-MM-DD." followed by "A blank cell means no fact was found,
+  not that the product lacks the capability.", and "No fact found for: X, Y." The last one
+  lists **vendors** (vendors with no filled cell at all), not aspects. None is a pair or a
+  claim. If no cell is filled the whole answer is "No fact was found for ransomware
+  protection in the documented vendors' pages.": `pairs_total` is 0.
+- **The short summary above a grid** (at most four sentences restating how many vendors have
+  something per aspect). It has no citations and is not graded: not a pair, not a claim. The
+  cells are what is graded.
+
+## The boundary: the documentation versus the product
+
+Read what the sentence asserts.
+
+- A statement about the **sources or the documentation** ("the documentation does not describe
+  X", "the retrieved sources do not cover X", "X is not documented") is a statement that the
+  aspect is not covered. It is `stated_not_covered`, **never** `not_covered`, and it is not a
+  claim.
+- A statement about the **product** ("X does not support Y", "X has no Y", "X lacks Y") is a
+  claim about X. It is supported only if a cited source's text says X lacks Y; otherwise it is
+  an **unsupported claim**, recorded in `unsupported_claims`. Either way it does not make the
+  aspect covered: label the aspect `not_covered` (unless the answer also states something
+  that covers it).
+- When a sentence mixes the two, take each part by itself. When you cannot tell which it is
+  asserting, take the plain reading of its words: "not documented" and "not covered" are about
+  the sources; "does not", "cannot", "has no" are about the product.
 
 ## Labels for `sides` and `by_aspect` items
 
@@ -91,41 +134,44 @@ The labels:
   supported (no citation, or the cited text does not say it).
 - `not_covered`: the answer says nothing for this side on this aspect, or only says the product
   lacks it. A statement that the product lacks the aspect is never coverage.
-- `stated_not_covered`: the answer says explicitly that the sources it retrieved do not cover
-  this aspect for this side (or for every side), for example "the retrieved sources do not
-  cover this". Saying the sources do not cover an aspect is `stated_not_covered`, **never**
-  `not_covered`. If the answer says it and also states something about the aspect, label the
-  statement (`covered_supported` or `covered_unsupported`).
+- `stated_not_covered`: the answer says the sources or documentation do not cover this aspect
+  for this side (or for every side), by "the retrieved sources do not cover this", one of the
+  lines above, or the same in other words. Saying the sources do not cover an aspect is
+  `stated_not_covered`, **never** `not_covered`. If the answer says it and also states
+  something about the aspect, label the statement (`covered_supported` or
+  `covered_unsupported`).
 
 Every side listed in the item, and for `by_aspect` the side `"*"`, gets all eight aspect ids.
 
 ## `enumeration` items
 
-These answer "which vendors ...". They are graded on **pairs**, not on aspect labels. A pair is
-a (vendor, aspect) combination the answer asserts: the vendor offers something that falls
-within that aspect. In a table (a grid of vendors by aspects), each filled cell is one pair:
-the row's vendor and the column's aspect; blank cells are not pairs. In prose, each aspect the
-answer attributes to a vendor is one pair. Rules:
+These answer "which vendors ...". They are graded on **pairs**, not on aspect labels or claims.
+A pair is a (vendor, aspect) combination the answer asserts: the vendor offers something that
+falls within that aspect. In a grid each filled cell is one pair; in prose (one line per
+vendor, in the form `Vendor (Product, ...): how it is done [n]`), each aspect the line
+attributes to the vendor is one pair. Rules:
 
 - Give the `aspect_id` of the one aspect of the item that best fits. A statement that fits
-  none of the aspects is not a pair (it is still a claim).
-- The same vendor and aspect twice is one pair. A statement that a vendor lacks something, or
-  a blank cell, is not a pair.
-- `pairs_total` is the number of distinct pairs in the whole answer.
-- Sample the pairs in answer order (table: row by row, left to right) and list the first 30;
-  if the answer has 30 or fewer, list them all. `vendor` is the name as the answer writes it.
+  none of the aspects is not a pair.
+- The same vendor and aspect twice is one pair. A statement that a vendor lacks something, a
+  blank cell and the lines in the previous section are not pairs.
+- `pairs_total` is the number of distinct pairs in the whole answer. List them first, in
+  answer order (a grid: row by row, left to right).
+- **Sample at an even stride.** If `pairs_total` is 30 or fewer, list every pair. Otherwise let
+  k = ceil(pairs_total / 30) and list the 1st, (1+k)-th, (1+2k)-th ... pair, to the end of the
+  list: that is every k-th pair, starting with the first. So 40 pairs: k = 2, you list 20; 60
+  pairs: k = 2, 30; 100 pairs: k = 4, 25. The number you list must equal ceil(pairs_total / k)
+  (the scorer checks it), and no (vendor, aspect_id) may appear twice. Do not pick the pairs
+  you find easy.
+- `vendor` is the name as the answer writes it.
 - `supported` is true when a source cited for that mark or statement has text stating that the
-  vendor offers that. In a table, the cell's own `[n]` is its citation. The symbols in a cell
-  (a tick, half circle, open circle) and a dagger after the marker are the system's own hints,
-  not evidence: judge the cited text.
-- `claims_total` and `unsupported_claims` are counted over the whole answer by the claim rules
-  above (for a table, each filled cell is a claim, which is its pair).
+  vendor offers that. In a grid, the cell's own `[n]` is its citation.
 
 ## Output
 
 Write one JSON file: a list with one object per item, in item order, nothing else in the file.
 Every item must be graded; every side must list every aspect id of its item. A file with a
-missing item, side or aspect cannot be scored.
+missing item, side or aspect, or a wrong number of pairs, cannot be scored.
 
 `sides` and `by_aspect` items (the side key is `"*"` for `by_aspect`):
 
@@ -145,12 +191,11 @@ short.)
 ```json
 {"item": "b71e0d55", "pairs_total": 41,
  "pairs": [{"vendor": "Acme", "aspect_id": "immutability", "supported": true},
-           {"vendor": "Globex", "aspect_id": "encryption", "supported": false}],
- "claims_total": 63,
- "unsupported_claims": ["Globex encrypts backups with customer-managed keys [4]"]}
+           {"vendor": "Globex", "aspect_id": "encryption", "supported": false}]}
 ```
 
-(A real item lists up to 30 pairs.)
+(A real item lists all of its sampled pairs: 41 pairs give k = 2 and 21 listed pairs. The
+example shows two to stay short.)
 
 Labels are exactly `covered_supported`, `covered_unsupported`, `not_covered` and
 `stated_not_covered`. Work item by item and do not carry impressions from one answer to the
