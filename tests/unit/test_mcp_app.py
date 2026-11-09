@@ -55,3 +55,21 @@ async def test_health_needs_no_token():
                                  base_url="http://vendorkb-mcp:8080") as c:
         r = await c.get("/healthz")
     assert (r.status_code, r.text) == (200, "ok")
+
+
+@pytest.mark.parametrize("headers", [{"x-api-key": "s3cret"},
+                                     {"x-api-key": "s3cret", "authorization": "Bearer nope"},
+                                     {"authorization": "Bearer s3cret", "x-api-key": "nope"}])
+async def test_the_secret_as_an_api_key_reaches_the_server(headers):
+    app = _app()
+    async with app.router.lifespan_context(app):
+        r = await _post(app, {**HDRS, **headers})
+    assert r.status_code == 200 and "vendorkb" in r.text
+
+
+@pytest.mark.parametrize("headers", [{"x-api-key": "nope"}, {"x-api-key": ""},
+                                     {"x-api-key": "Bearer s3cret"},
+                                     {"x-api-key": "nope", "authorization": "Bearer nope"}])
+async def test_a_wrong_api_key_is_401(headers):
+    r = await _post(_app(), {**HDRS, **headers})
+    assert r.status_code == 401 and r.headers["www-authenticate"] == "Bearer"

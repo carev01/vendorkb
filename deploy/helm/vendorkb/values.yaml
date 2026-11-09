@@ -140,6 +140,15 @@ mcp:
     host: ""               # e.g. vendorkb-mcp.k3s.home.lan (add it to allowedHosts)
     tlsSecret: ""
     annotations: {}
+  # The public route for Copilot Studio: only /mcp, at a Cloudflare-proxied host; the host is
+  # added to allowedHosts. TLS: a copy of DocExtractor's Cloudflare Origin CA secret
+  # (docs/deploy/copilot-studio.md).
+  publicIngress:
+    enabled: false
+    className: traefik
+    host: ""               # vendorkb.area51.pp.ua
+    tlsSecret: ""          # cloudflare-origin-ca
+    annotations: {traefik.ingress.kubernetes.io/router.entrypoints: websecure}
   resources:   # queries are bounded in SQL; 2Gi leaves room for concurrent tool calls
     requests: {cpu: 100m, memory: 512Mi}
     limits: {cpu: "2", memory: 2Gi}
