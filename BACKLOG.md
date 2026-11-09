@@ -274,12 +274,16 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     eight aspects, per-aspect retrieval and answers, MCP `query_capabilities(topic=)`). Blind
     eval PASS: aspect coverage 67.0% -> 98.9%, unsupported-claim rate 2.39% -> 0.72%; agent gate
     PASS (recall 97%, precision 96%). Report: `docs/superpowers/topic-expansion-2026-11-09.md`.
-33. **The "which vendors" grid is off (`TOPIC_GRID`).** Its precision is the capability facts'
+33. **Done 2026-11-09: the "which vendors" grid is on (`TOPIC_GRID=true`, helm rev 28)** after the
+    mapping fix (BACKLOG 34) brought it to 95% adjudicated precision (pooled unsupported rate +0.46
+    pts, bar +2). Before the fix: Its precision is the capability facts'
     (blind-graded 87-95% of sampled cells supported with cue gating) against 98-100% for today's
     prose enumeration. Path to enable: a cheap model check of each cell ("does this passage state
     that <vendor> has <aspect>?"; ~200 short calls per grid question), then re-run the topic eval
     with `--expect-topic` and the grid sampling already in `eval/topic_eval.py`.
-34. **Capability precision on the cyber/security dimensions.** The grid grading found facts
+34. **Done 2026-11-09 (PR #35, taxonomy 2-48ffb013):** sharper definitions and alias removals
+    for 16 security/cyber dimensions, `cyber.threat_detection`; re-asked dimensions 74% -> 79% on
+    the right dimension, grid cells 87% -> 95%. RBAC was not re-asked. Originally: The grid grading found facts
     mapped to the wrong dimension ("Inactive files" -> anomaly detection, "Dedicated backup
     networks" -> air gap, AI-agent session details -> deletion safeguards); they also reach
     `query_capabilities`. A blind sample per security/cyber dimension would size it.
@@ -289,3 +293,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     27-80 s and 109-148k rerank tokens (vs 8-23 s, 12-23k); `vendorkb stats` counts superseded
     chunks; MCP does not surface `catch_up_ok`/`summary_error`; the grid's catch-up has no
     per-vendor cap.
+36. **Claims whose quote does not establish them for the vendor.** 15.6% of the distilled 9B's
+    facts (vs 5.1% of Opus's) on the 1,100 graded security facts: generic advice, another product,
+    a prerequisite. The evidence gate only checks that the quote is verbatim. Options, cheapest
+    first: a one-time support check of existing facts with a cheap model, calibrated on the graded
+    facts (Haiku: ~$1-2 for the ransomware-kit dimensions, ~$15-20 for every fact), then in the
+    refresh pipeline for new claims; re-extracting with a stronger model (~$50-100 with Haiku batch
+    for the corpus, quality unmeasured); retraining the 9B with negative examples.
+
