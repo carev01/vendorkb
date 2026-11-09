@@ -90,7 +90,7 @@ bootstrap:
 # support.backend anthropic.
 claimsRefresh:
   enabled: false
-  schedule: "45 * * * *"   # hourly, between sync runs
+  schedule: "45 3 * * 0"   # weekly, Sunday 03:45 (between sync runs)
   suspend: false
   settleMinutes: 60
   startingDeadlineSeconds: 1800

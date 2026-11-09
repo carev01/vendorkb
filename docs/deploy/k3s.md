@@ -235,7 +235,7 @@ The CronJob runs every 30 minutes with `concurrencyPolicy: Forbid` and
 ## 7a. Reactive claims refresh
 
 `vendorkb refresh` (`claims/refresh.py`) keeps claims and capabilities current without a GPU
-running between DocExtractor refreshes. The CronJob `vendorkb-claims-refresh` runs it hourly.
+running between DocExtractor refreshes. The CronJob `vendorkb-claims-refresh` runs it weekly (Sunday 03:45).
 Until the sync has written chunks that no extraction has touched, a run is two queries and
 contacts nothing. When such chunks exist and no new document has arrived for
 `claimsRefresh.settleMinutes` (or the backlog fills a run), it wakes the distilled extractor
