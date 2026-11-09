@@ -878,10 +878,11 @@ dimensions:
   applies_to: all
 - id: security.encryption_at_rest
   name: Encryption at rest
-  definition: Encryption of stored backups and its algorithm.
-  aliases: [encryption at rest, aes-256, encrypted backups, backup encryption, backup data 
-      encryption, aes-256 backup encryption, aes-256 encryption at rest, encrypted snapshot metadata,
-    Snapshot metadata encryption]
+  definition: "Whether and how the backup product encrypts stored backups, copies, archives and repositories, with which algorithm or strength, including provider-managed default keys. Not encryption of primary or source storage, a database's native encryption, data-integrity checks, or restoring from encrypted backups."
+  aliases: [encryption at rest, encrypted backups, backup encryption, backup data encryption,
+      aes-256 backup encryption, aes-256 encryption at rest, encrypted snapshot metadata,
+      snapshot metadata encryption, backup file encryption, repository encryption,
+      vendor-managed keys, built-in master encryption key]
   lookup_aliases: [envelope encryption]
   applies_to: all
 - id: security.encryption_in_transit
@@ -898,17 +899,19 @@ dimensions:
   applies_to: all
 - id: security.customer_managed_keys
   name: Customer-managed keys
-  definition: Using the customer's own keys or key management service, and which ones.
-  aliases: [byok, customer-managed keys, kms, key vault, bring your own key, hsm, key management, 
-      customer-managed encryption keys, cloud drive encryption with customer-managed keys, cloud kms
-      for data-at-rest encryption keys, customer-managed key encryption, customer-managed master 
-      encryption key, encryption with customer-managed kms keys, bring your own key encryption, 
-      bring-your-own-key encryption, custom kms key arn for restore encryption, cross-account custom
-      kms key for restore encryption, customer keys hosted outside aws, snapshot re-encryption with 
-      gateway kms key, kms connection shared across tenants, shared kms connection across tenants, 
-      customer-managed encryption password, customer-supplied encryption password, legacy key vault 
-      access policies, vault access policy permission model, Vault access policy model, built-in 
-      master encryption key, Vendor-managed keys, encryption key validation]
+  definition: "Encrypting backup data with the customer's own keys or key management service (cloud KMS, KMIP, HSM or key vault), and which are supported. Not provider-managed keys, HSM protection of the product's certificates, passphrase validation, or accessing source data the customer's keys encrypt."
+  aliases: [byok, customer-managed keys, bring your own key, key management,
+      customer-managed encryption keys, cloud drive encryption with customer-managed keys,
+      cloud kms for data-at-rest encryption keys, customer-managed key encryption,
+      customer-managed master encryption key, encryption with customer-managed kms keys,
+      bring your own key encryption, bring-your-own-key encryption,
+      custom kms key arn for restore encryption,
+      cross-account custom kms key for restore encryption, customer keys hosted outside aws,
+      snapshot re-encryption with gateway kms key, kms connection shared across tenants,
+      shared kms connection across tenants, customer-managed encryption password,
+      customer-supplied encryption password, legacy key vault access policies,
+      vault access policy permission model, vault access policy model, cmek, kmip key management,
+      external kms]
   applies_to: all
 - id: security.field_level_encryption
   name: Field-level encryption
@@ -924,19 +927,21 @@ dimensions:
   applies_to: all
 - id: security.rbac
   name: Role-based access control
-  definition: Built-in roles, custom roles and how roles can be scoped.
-  aliases: [rbac, role-based access control, custom roles, predefined roles, permissions, roles, 
-      role-based access control for tenant management, built-in role-based access control, granular 
-      role based access control, user management with role-based access, workload-scoped roles, 
-      tenant-scoped role assignment, workload-scoped role assignment, custom rbac roles, custom role
-      with granular permissions, custom roles with custom permissions, custom user roles, role scope
-      by user groups and sharepoint sites, role scope by user groups and sites, role-based access 
-      control for restore, role-based access control for backup operations, connector role-based 
-      access control, role-based access control for connector, create role bindings from dashboard, 
-      restore operator roles, restore operator role assignment, Role-based restore access, 
-      group-based role assignment via sso, group-based access control via sso, group-based access 
-      management, group-based role assignment, revoke backup share access, Revoking shared backup 
-      access]
+  definition: "Roles and permissions that govern what users and groups can do in the product's own console, API and backup resources: built-in and custom roles, privileges and how assignments are scoped. Not permissions inside protected applications, cloud-account permissions the product needs, or operating-system user rights."
+  aliases: [rbac, role-based access control, custom roles, predefined roles,
+      role-based access control for tenant management, built-in role-based access control,
+      granular role based access control, user management with role-based access,
+      workload-scoped roles, tenant-scoped role assignment, workload-scoped role assignment,
+      custom rbac roles, custom role with granular permissions,
+      custom roles with custom permissions, custom user roles,
+      role scope by user groups and sharepoint sites, role scope by user groups and sites,
+      role-based access control for restore, role-based access control for backup operations,
+      connector role-based access control, role-based access control for connector,
+      create role bindings from dashboard, restore operator roles,
+      restore operator role assignment, role-based restore access,
+      group-based role assignment via sso, group-based access control via sso,
+      group-based access management, group-based role assignment, revoke backup share access,
+      revoking shared backup access, custom role privileges, custom administrator roles]
   lookup_aliases: [compliance and review officer role, data protection officer role]
   applies_to: all
 - id: security.mfa
@@ -972,27 +977,28 @@ dimensions:
   platform: true
 - id: security.multi_person_authorization
   name: Multi-person authorization
-  definition: Requiring a second approver for sensitive operations, and which operations are 
-    covered.
-  aliases: [four-eyes, multi-user authorization, dual authorization, quorum approval, approval 
-      workflow, action approval workflow, four-eye approval for disabling backups, Dual approval for
-      disabling backups]
+  definition: "Requiring a second administrator or a quorum to approve sensitive operations in the backup product, such as deleting backups or changing security settings, and which operations are covered. Not approval workflows for changes in protected applications or business reviews, or confirmation prompts."
+  aliases: [four-eyes, multi-user authorization, dual authorization, quorum approval,
+      four-eye approval for disabling backups, dual approval for disabling backups,
+      multi-person authorization, multi-party approval, four-eyes authorization,
+      quorum group approval]
   lookup_aliases: [quorum group configuration, quorum group management, quorum group operation 
       templates]
   applies_to: all
   platform: true
 - id: security.audit_logging
   name: Audit logging
-  definition: Recording user and administrator actions in the product.
-  aliases: [audit log, audit trail, activity log, audit events, audit log activity page, audit logs 
-      of user actions, admin audit trail, audit logs, system activity log, user activity audit, user
-      activity auditing, audit trail of security-sensitive events, audit logging of 
-      security-sensitive events, unauthorized activity audit logging, audit log export, activity log
-      csv export, audit log csv export, audit log export to csv, audit log filtering, audit log 
-      search and filtering, api interaction logging, login attempt logging, audit log retention, log
-      entry retention days, Log retention period, restore reason recorded in session history, 
-      restore reason logging, restore reason saved to session history, restore reason logging in 
-      session history, restore reason tracking, restore reason in session history]
+  definition: "Recording actions that users, administrators and API callers take in the product's own console, API and accounts, and searching, exporting or retaining those records. Not activity on protected machines, applications or data stores, data-access reports, or diagnostic log retention."
+  aliases: [audit log, audit trail, audit events, audit log activity page,
+      audit logs of user actions, admin audit trail, audit logs, system activity log,
+      audit trail of security-sensitive events, audit logging of security-sensitive events,
+      unauthorized activity audit logging, audit log export, audit log csv export,
+      audit log export to csv, audit log filtering, audit log search and filtering,
+      api interaction logging, login attempt logging, audit log retention,
+      restore reason recorded in session history, restore reason logging,
+      restore reason saved to session history, restore reason logging in session history,
+      restore reason tracking, restore reason in session history, administrator audit log,
+      console audit log]
   applies_to: all
   platform: true
 - id: security.platform_hardening
@@ -1013,38 +1019,49 @@ dimensions:
 # ---------------- cyber ----------------
 - id: cyber.detection_entropy
   name: Encryption and entropy detection
-  definition: Detecting suspicious encryption in backup data through entropy analysis.
-  aliases: [entropy analysis, encryption detection, ransomware encryption detection, inline scan]
+  definition: "Detecting that backup or replicated data has been encrypted by ransomware through entropy, randomness or value-distribution analysis, and its thresholds. Not ransomware alerts that do not say how, process-behaviour detection on production machines, or malware scan types such as quick scans."
+  aliases: [entropy analysis, encryption detection, ransomware encryption detection, inline scan,
+      entropy-based ransomware detection, entropy-based anomaly detection, entropy detection]
   applies_to: all
 - id: cyber.detection_signatures
   name: Signature-based malware detection
-  definition: Scanning backups with a signature-based engine.
-  aliases: [malware scan, antivirus scan, signature-based detection, virus scan, malware scanning]
+  definition: "Scanning backups, snapshots or restore points for known malware with an antivirus, signature or threat-library engine, and their resulting malware status. Not real-time or scheduled antivirus protecting production machines, or detection that does not say how."
+  aliases: [malware scan, signature-based detection, malware scanning, malware scan of backups,
+      malware scan of restore points, antivirus scan of restore points, backup antimalware scan]
   lookup_aliases: [malware scanning of backup data, malware scanning of backups, on-demand malware 
       scanning, scheduled malware scan]
   applies_to: all
 - id: cyber.detection_rules
   name: Rule-based scanning
-  definition: Scanning backups with customer-supplied rules such as YARA.
-  aliases: [yara, yara rules, custom rules, ioc scan]
+  definition: "Scanning backups or restore points with detection rules such as YARA, or with indicator feeds or hash lists the customer supplies. Not data-classification patterns or dictionaries, compliance or configuration policy rules, or alerting rules."
+  aliases: [yara, yara rules, ioc scan, yara scan, yara scanning, yara rule scanning]
   applies_to: all
 - id: cyber.detection_behavior
   name: Behavioral and anomaly detection
-  definition: Detecting anomalies in backup statistics, file activity or user behavior.
-  aliases: [anomaly detection, behavioral analysis, mass deletion detection, unusual activity, file 
-      activity analysis, smart alerts for data changes, data change alerts, data change event 
-      notifications, data change notifications, smart alerts on data changes, file access monitoring,
-    ransomware detection baseline period, Detection baseline period]
+  definition: "Detecting threats from anomalies in backup data or job statistics (change rates, deletions, file activity) or from user or process behaviour the backup product monitors, and its alerts. Not detection stating no method, manual log searches, file access monitoring, network usage monitoring, or compliance violations."
+  aliases: [anomaly detection, behavioral analysis, mass deletion detection,
+      file activity analysis, smart alerts for data changes, data change alerts,
+      smart alerts on data changes, ransomware detection baseline period,
+      detection baseline period, data anomaly detection, file activity anomaly detection,
+      backup anomaly detection]
   applies_to: all
 - id: cyber.indicators_of_compromise
   name: Indicators of compromise
-  definition: Detecting known attacker tools, suspicious files or extensions in backups.
-  aliases: [indicators of compromise, ioc, suspicious files, known bad extensions, ransom notes]
+  definition: "Searching backups for specific indicators of compromise, such as known malicious hashes, file names or extensions, suspect files, ransom notes or attacker tools, including IoC libraries, feeds and threat hunts. Not reputation scores, breach analysis, IP monitoring, endpoint incident forensics, or detection naming no indicator."
+  aliases: [indicators of compromise, ioc, known bad extensions, ransom notes, ioc library,
+      hash hunting, ransomware note detection, ransomware extension detection]
+  applies_to: all
+- id: cyber.threat_detection
+  name: "Threat detection, method not stated"
+  definition: "Detecting ransomware, malware or other threats in backups, and the resulting alerts, where the documentation does not say how. A stated method (entropy, malware or antivirus scans, YARA rules, anomalies or behaviour, IoCs, a third-party scanner) belongs to that method's dimension instead."
+  aliases: [ransomware detection alerts, proactive threat detection,
+      ransomware detection in backups, threat detection in backups]
   applies_to: all
 - id: cyber.third_party_scanners
   name: Third-party scanner integration
-  definition: Using external antivirus or security tools to scan backups.
-  aliases: [third-party antivirus, external scanner, antivirus integration]
+  definition: "Using an external antivirus or threat-intelligence engine to scan or classify backup data and restore points, and which engines are supported. Not antivirus on production hosts, excluding backups from antivirus, integrations that do not scan backups, or uploading scan results."
+  aliases: [third-party antivirus, external scanner, antivirus integration,
+      external antivirus integration, third-party antivirus scan of restore points]
   applies_to: all
 - id: cyber.incident_api
   name: Incident intake from security tools
@@ -1055,20 +1072,22 @@ dimensions:
   applies_to: all
 - id: cyber.siem_integration
   name: SIEM and SOAR integration
-  definition: Sending events to SIEM or SOAR tools.
-  aliases: [siem, soar, syslog, splunk, sentinel integration, event forwarding to siem, siem 
-      integration, raw event forwarding, event forwarding integration, event forwarding to 
-      integration destinations, event forwarding to integrations, Event forwarding, forward events 
-      from managed organizations, Event forwarding from tenants, audit event forwarding to log 
-      forwarding endpoints, Audit log forwarding, multiple event rules per integration, Multiple 
-      event rules]
+  definition: "Sending the product's own events, alerts and audit records to SIEM, syslog or log platforms, and SOAR playbooks that act on the product. Not logging settings of protected cloud resources, querying security events inside the product, or partner integrations with no event or playbook exchange."
+  aliases: [siem, soar, syslog, splunk, sentinel integration, event forwarding to siem,
+      siem integration, raw event forwarding, event forwarding integration,
+      event forwarding to integration destinations, event forwarding to integrations,
+      event forwarding, forward events from managed organizations, event forwarding from tenants,
+      audit event forwarding to log forwarding endpoints, audit log forwarding,
+      multiple event rules per integration, multiple event rules, microsoft sentinel integration,
+      syslog forwarding, siem forwarding]
   applies_to: all
   platform: true
 - id: cyber.quarantine
   name: Quarantine and containment
-  definition: Isolating or blocking use of suspicious restore points.
-  aliases: [quarantine, contain, block infected restore point, quarantine backups, central 
-      quarantine destination, snapshot quarantine]
+  definition: "Isolating suspicious restore points, snapshots or backup copies: marking them quarantined, blocking or aborting restores from them, releasing them, or restoring infected machines into an isolated network. Not quarantining files in production data stores, or endpoint antivirus quarantine."
+  aliases: [quarantine, block infected restore point, quarantine backups,
+      central quarantine destination, snapshot quarantine, quarantine recovery points,
+      quarantine infected snapshots, quarantine snapshots]
   lookup_aliases: [block restore of tagged snapshots]
   applies_to: all
 - id: cyber.clean_room
@@ -1078,14 +1097,16 @@ dimensions:
   applies_to: all
 - id: cyber.scan_on_restore
   name: Scan on restore
-  definition: Scanning data for malware as part of a restore.
-  aliases: [secure restore, scan during restore, clean recovery, malware-free restore, malware 
-      scanning during restore]
+  definition: "Scanning restore points or restored data for malware before, during or right after a restore, and what happens when malware is found. Not scans in backup verification jobs, on-access scanning of live file shares, or restore workflows that include no scan."
+  aliases: [secure restore, scan during restore, clean recovery, malware-free restore,
+      malware scanning during restore, restore scan, antivirus scan during restore,
+      malware scan before restore, threat scan before restore]
   applies_to: all
 - id: cyber.clean_point_identification
   name: Last clean restore point
-  definition: Finding the most recent restore point without signs of compromise.
-  aliases: [last clean restore point, clean recovery point, threat hunting]
+  definition: "Finding the most recent clean restore point, such as by scanning or hunting across restore points to suggest one for recovery. Not threat hunting that picks no recovery point, a single restore point's scan result, or manually changing its infection status."
+  aliases: [last clean restore point, clean recovery point, clean point recovery,
+      last clean snapshot, most recent clean snapshot, latest clean recovery point]
   applies_to: all
 - id: cyber.recoverability_testing
   name: Recoverability testing
@@ -2122,10 +2143,10 @@ dimensions:
   applies_to: all
 - id: security.soft_delete_of_backups
   name: Soft delete of backups
-  definition: Whether deleted backups, recovery points or vaults stay recoverable for a set period 
-    before permanent removal, how long, and whether it can be disabled.
-  aliases: [soft delete for vaults, soft delete of log recovery points, Soft delete of recovery 
-      points]
+  definition: "Deleted backups, recovery points, backup items or vaults staying recoverable for a set period before permanent removal (soft delete, undelete, rollback), how long, and whether it can be disabled. Not soft delete of source data or key vaults, deletion prevention, or deletion alerts."
+  aliases: [soft delete for vaults, soft delete of log recovery points,
+      soft delete of recovery points, soft delete of backup items, soft delete of backup vaults,
+      rollback of deleted backups, rollback of deleted backup sets]
   applies_to: all
 - id: recovery.reconcile_deletion
   name: Removal of extra objects on restore

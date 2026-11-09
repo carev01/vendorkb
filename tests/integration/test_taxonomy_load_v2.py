@@ -493,9 +493,10 @@ def test_the_shipped_taxonomy_keeps_the_production_version():
     cut = data[:data.index(b"\ntopics:") + 1]
     assert load.version_string(2, data) == f"2-{hashlib.sha256(cut).hexdigest()[:8]}"
     if load.parse_doc(data)["version"] == 2:
-        # main's bytes before the topics were added: production's version. An edit of the
-        # taxonomy outside its topics changes it, and this test with it, on purpose.
-        assert load.version_string(2, data) == "2-c9fd3d55"
+        # production's version (2026-11-09: sharper security/cyber definitions and
+        # cyber.threat_detection). An edit of the taxonomy outside its topics changes it, and
+        # this test with it, on purpose.
+        assert load.version_string(2, data) == "2-48ffb013"
 
 
 async def test_a_load_records_the_version_without_the_topics(vkb_dsn, tmp_path):
