@@ -841,6 +841,66 @@ async def test_facet_candidates_equal_scoped_hybrid_search(vkb_dsn):
         await conn.close()
 
 
+async def test_vector_candidates_are_the_nearest_chunks_within_each_side(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        rank = 0  # every chunk its own distance from the query: no tie for the index to break
+        for vendor, product, n in (("BIG", "BIG-P", 40), ("MID", "MID-P", 20),
+                                   ("MID", "MID-Q", 8), ("SMALL", "SMALL-P", 4)):
+            d = await _doc(conn, vendor, product)
+            for j in range(n):
+                rank += 1
+                await _raw_chunk(conn, d, j, f"{product} {j}", _fine(rank))
+        # a page's earlier version, the nearest chunk of all: never a candidate
+        old = await _raw_chunk(conn, await _doc(conn, "BIG", "BIG-P"), 0, "old", _fine(0))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s", (old,))
+        # the approximate index, rebuilt: the rows the earlier tests deleted would still be in it
+        await conn.execute("REINDEX INDEX chunks_embedding_idx")
+        qvecs = [_fine(0), _fine(45)]
+        sides = [("vendor", "BIG"), ("product", "MID-Q"), ("vendor", "MID"), None,
+                 ("vendor", "ABSENT")]
+        for limit in (20, 5):
+            cc = CountingConn(conn)
+            await search._pgvector_version(cc)  # read once per connection
+            cc.executes = 0
+            got = await search.vector_candidates(cc, qvecs, sides, limit=limit)
+            # one SET LOCAL and one vector query per pair: no full-text statement
+            assert cc.executes == 1 + len(qvecs) * len(sides)
+            assert len(got) == len(qvecs) and all(len(g) == len(sides) for g in got)
+            for qvec, per_side in zip(qvecs, got):
+                for side, hits in zip(sides, per_side):
+                    kind, name = side or (None, None)
+                    col = {"vendor": "d.vendor", "product": "d.product"}.get(kind, "true")
+                    cur = await conn.execute(
+                        "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
+                        f" WHERE c.superseded_at IS NULL AND ({col} = %s OR %s::text IS NULL)"
+                        " ORDER BY c.embedding <=> %s, c.chunk_id LIMIT %s",
+                        (name, name, Vector(qvec), limit))
+                    assert [(h.chunk_id, h.rrf_rank) for h in hits] == [
+                        (r[0], n) for n, r in enumerate(await cur.fetchall(), start=1)], side
+                    assert all(h.rerank_score is None and h.chunk_id != old for h in hits)
+            assert got[0][4] == [] and len(got[0][3]) == limit
+            assert {h.vendor for h in got[1][0]} == {"BIG"}
+            assert {h.product for h in got[0][1]} == {"MID-Q"}
+    finally:
+        await conn.close()
+
+
+async def test_vector_candidates_edge_inputs(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _facet_corpus(conn)
+        side = [("vendor", "BIG")]
+        assert await search.vector_candidates(conn, [], side, limit=5) == []
+        assert await search.vector_candidates(conn, [_vec(0)], [], limit=5) == [[]]
+        with pytest.raises(ValueError, match="unknown vector column"):
+            await search.vector_candidates(conn, [_vec(0)], side, limit=5, vector_column="text")
+    finally:
+        await conn.close()
+
+
 async def test_comparison_statement_count_has_one_full_text_query(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

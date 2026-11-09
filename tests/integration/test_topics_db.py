@@ -1,3 +1,4 @@
+import asyncio
 import re
 import uuid
 from datetime import timedelta
@@ -9,6 +10,7 @@ import yaml
 from pgvector import Vector
 
 from tests.integration.test_capabilities_v2 import T0, _claim, _doc_of, _fresh, _tail_chunk
+from vendorkb import search
 from vendorkb.db import connect, init_schema
 from vendorkb.search import hybrid_candidates
 from vendorkb.taxonomy import capabilities, load
@@ -146,6 +148,43 @@ class _Reranker:
         scores = [_score(query, d) for d in documents]
         order = sorted(range(len(documents)), key=lambda i: (-scores[i], i))
         return [(i, scores[i]) for i in order[:top_k]]
+
+
+class _Gauge(_Reranker):
+    """Remembers the most calls it had in flight at once."""
+
+    def __init__(self):
+        super().__init__()
+        self.now = self.most = 0
+
+    async def rerank(self, query, documents, top_k):
+        self.now += 1
+        self.most = max(self.most, self.now)
+        try:
+            await asyncio.sleep(0.01)  # long enough for every call that may start to start
+            return await super().rerank(query, documents, top_k)
+        finally:
+            self.now -= 1
+
+
+class _Recorder:
+    """A connection that remembers the statements and transactions it was asked to run."""
+
+    def __init__(self, conn):
+        self._conn = conn
+        self.statements = []
+        self.transactions = 0
+
+    async def execute(self, sql, params=None):
+        self.statements.append(sql)
+        return await self._conn.execute(sql, params)
+
+    def transaction(self):
+        self.transactions += 1
+        return self._conn.transaction()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
 
 @pytest.fixture
@@ -367,6 +406,58 @@ async def test_the_default_budget_holds(kb, facets, spent):
     assert res.reranked_docs <= TOPIC_RERANK_DOCS
 
 
+async def test_a_two_facet_question_scans_the_text_once(kb):
+    conn, v = kb
+    await _vendor_corpus(conn, "Alpha", "Alpha Backup")
+    await _vendor_corpus(conn, "Beta", "Beta Vault")
+    fact = await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
+                        mapped_version=v)
+    await _retext(conn, fact, "ninety days, then it expires", FAR)
+    await capabilities.build(conn)
+    rec = _Recorder(conn)
+    res = await topic_hits(rec, QUESTION, TOPIC, facets=[ALPHA, BETA], embedder=_Embedder(),
+                           reranker=_Reranker())
+    assert {h.vendor for h in res.hits} == {"Alpha", "Beta"}
+    # one full-text statement, the question's own passages' (both sides at once); the aspects'
+    # candidates are vector queries (one per aspect and side) in one transaction
+    assert sum("ts_rank_cd" in sql for sql in rec.statements) == 1
+    assert sum("<=>" in sql for sql in rec.statements) == 2 + 6  # own passages, then aspects
+    assert rec.transactions == 2
+
+
+async def test_aspect_candidates_come_from_vector_search_alone(kb, monkeypatch):
+    conn, _ = kb
+    monkeypatch.setattr(search, "FTS_WEIGHT", 1.0)  # a full-text match counts as a vector one
+    await _vendor_corpus(conn, "Alpha", "Alpha Backup", per_theme=2)
+    doc = await _doc(conn, "Alpha", "Alpha Backup")
+    for n in range(8):
+        await _chunk(conn, doc, f"plain filler words {n}", _unit(OTHER_AXIS))
+    # every word of the keeping query, and an embedding behind every plain chunk
+    words = "retention period for kept copies, in so many words"
+    await _chunk(conn, doc, words, FAR)
+    [avec] = (await _Embedder().embed([KEEPING.query]))
+    found = await hybrid_candidates(conn, KEEPING.query, avec, vendor=["Alpha"], limit=7)
+    assert words in [h.text for h in found]  # a hybrid search for the aspect would bring it in
+    rr = _Reranker()
+    res = await topic_hits(conn, QUESTION, TOPIC, facets=[ALPHA], embedder=_Embedder(),
+                           reranker=rr, budget=30)  # 7 candidates per aspect
+    aspect_calls = [docs for query, docs, _ in rr.calls if query.startswith("Alpha: ")]
+    assert len(aspect_calls) == 3 and not any(words in docs for docs in aspect_calls)
+    assert words not in [h.text for h in res.hits]
+
+
+async def test_at_most_four_reranks_are_in_flight(kb):
+    conn, _ = kb
+    await _vendor_corpus(conn, "Alpha", "Alpha Backup")
+    await _vendor_corpus(conn, "Beta", "Beta Vault")
+    gauge = _Gauge()
+    res = await topic_hits(conn, QUESTION, TOPIC, facets=[ALPHA, BETA], embedder=_Embedder(),
+                           reranker=gauge)
+    # 2 own lists and 6 (aspect, side) lists: all 8 are reranked, 4 at a time
+    assert len(gauge.calls) == 8 and gauge.most == 4
+    assert res.rerank_ok and res.reranked_docs == sum(len(d) for _, d, _ in gauge.calls)
+
+
 async def test_a_budget_the_own_passages_use_up_still_gives_each_list_two(kb):
     conn, _ = kb
     await _vendor_corpus(conn, "Alpha", "Alpha Backup", loss=10, per_theme=10)
@@ -388,15 +479,18 @@ async def test_topic_hits_without_a_reranker(kb, reranker):
     assert res.rerank_ok is False and res.reranked_docs == 0
     assert all(h.rerank_score is None for h in res.hits)
     assert len(res.hits) == 3 + 6
-    # every list in the order the search gave it (limits: (240 - 9) // 3 = 77 per aspect)
+    # every list in the order the search gave it: the question's own passages by hybrid search,
+    # each aspect's by nearest chunk (candidates per aspect: (240 - 9) // 3 = 77)
     qvec, *avecs = (await emb.embed([QUESTION, *(a.query for a in TOPIC.aspects)]))
     expected = await hybrid_candidates(conn, QUESTION, qvec, vendor=["Alpha"], limit=9)
     assert [h.chunk_id for h in res.hits[:3]] == [h.chunk_id for h in expected[:3]]
     for aspect, avec in zip(TOPIC.aspects, avecs):
-        expected = await hybrid_candidates(conn, f"Alpha: {aspect.query}", avec,
-                                           vendor=["Alpha"], limit=77)
+        cur = await conn.execute(
+            "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
+            " WHERE d.vendor = 'Alpha' ORDER BY c.embedding <=> %s, c.chunk_id LIMIT 77",
+            (Vector(avec),))
         assert [h.chunk_id for h in res.hits if res.aspect_of.get(h.chunk_id) == aspect.id] == [
-            h.chunk_id for h in expected[:2]]
+            r[0] for r in (await cur.fetchall())[:2]]
 
 
 async def test_a_failed_rerank_falls_back_for_that_list_only(kb):

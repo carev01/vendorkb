@@ -24,7 +24,8 @@ import psycopg
 
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.modes import _distinct
-from vendorkb.search import _COLS, Hit, _hit, hybrid_candidates
+from vendorkb.search import (
+    _COLS, Hit, _hit, facet_candidates, hybrid_candidates, vector_candidates)
 from vendorkb.shape import Facet
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Aspect, Topic, current_version
@@ -32,6 +33,8 @@ from vendorkb.taxonomy.load import Aspect, Topic, current_version
 # Documents one topic question sends to the reranker in all, its own passages' reranks included:
 # the hard cap on the main cost (rerank tokens).
 TOPIC_RERANK_DOCS = 240
+# Rerank calls of one topic question in flight at once (the rest wait their turn).
+TOPIC_RERANKS_IN_FLIGHT = 4
 
 _HYPHENS = re.compile("[-\u2010\u2011\u2013\u2014]")  # hyphen-minus, hyphens, en/em dash
 
@@ -121,14 +124,6 @@ def _key(text: str) -> str:
     return " ".join(text.split())
 
 
-async def _candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
-                      side: Facet | None, limit: int) -> list[Hit]:
-    """``hybrid_candidates`` within the side (the whole corpus for None)."""
-    return await hybrid_candidates(
-        conn, query, qvec, vendor=[side[1]] if side and side[0] == "vendor" else None,
-        product=[side[1]] if side and side[0] == "product" else None, limit=limit)
-
-
 async def _rerank(reranker: Reranker | None, query: str,
                   candidates: list[Hit]) -> tuple[list[Hit], bool]:
     """The candidates best first with their rerank scores, and True; or, when relevance could
@@ -149,44 +144,62 @@ async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic,
                      own: int = 3) -> TopicHits:
     """Evidence for a broad question on ``topic``: for each side (``facets``, or the whole
     corpus when there are none) the question's own best ``own`` passages, then for each aspect
-    and side the best ``per_aspect`` passages for the aspect's query (the side's name before it
-    in the search and the rerank; the aspect queries are embedded as written, once).
+    and side the best ``per_aspect`` passages for the aspect's query.
 
-    Every rerank counts against ``budget`` documents: the own passages' candidates (``own * 3``
-    per side) first, the rest shared out equally over the (side, aspect) lists, at least 2 each
-    (so a small budget can be exceeded). A list's candidates are the side's fact chunks
-    (``fact_chunks``, up to half the list, for a side only) and the aspect search's hits. All
-    lists are reranked concurrently, none retried: one whose rerank fails keeps its RRF order,
+    The question and the aspect queries are embedded in one call, as written (no side name).
+    The question's own candidates come from hybrid search (``own * 3`` per side): one full-text
+    statement, ``facet_candidates`` for two or more facets. An aspect's candidates come from
+    vector search alone (``search.vector_candidates``, one transaction for every aspect and
+    side): the full-text scan costs about 2 s per query text on the full corpus, so a topic
+    question pays for one, not for one per aspect and side. Only the rerank query names the
+    side, as ``"<side name>: <aspect query>"``.
+
+    Every rerank counts against ``budget`` documents: the own passages' candidates first, the
+    rest shared out equally over the (side, aspect) lists, at least 2 each (so a small budget
+    can be exceeded). A list's candidates are the side's fact chunks (``fact_chunks``, up to
+    half the list, for a side only) and the aspect's nearest chunks, in that order. The lists
+    are reranked concurrently, at most ``TOPIC_RERANKS_IN_FLIGHT`` calls at a time, none
+    retried: one whose rerank fails keeps its order (``rrf_rank``, the list position),
     unscored, and clears ``rerank_ok``; ``reranked_docs`` counts the calls that succeeded.
 
     Hits are the own passages (side order), then the aspect passages in aspect order (side order
     within an aspect), a text repeated anywhere kept once at its first place. An aspect passes
-    over passages an earlier aspect took, so a page that covers two aspects does not leave the
-    second short; an own passage an aspect also chose keeps its place and is labelled in
+    over passages an earlier aspect took (so a page that covers two aspects does not leave the
+    second short); an own passage an aspect also chose keeps its place and is labelled in
     ``aspect_of``. An embedder failure propagates: the caller records it."""
     sides: list[Facet | None] = list(facets) or [None]
     vecs = await embedder.embed([question, *(a.query for a in topic.aspects)],
                                 input_type="query")
-    qvec, aspect_vecs = vecs[0], vecs[1:]
     version = await current_version(conn)
+    if len(facets) >= 2:
+        own_lists = await facet_candidates(conn, question, vecs[0], list(facets), limit=own * 3)
+    else:
+        side = sides[0]
+        own_lists = [await hybrid_candidates(
+            conn, question, vecs[0], vendor=[side[1]] if side and side[0] == "vendor" else None,
+            product=[side[1]] if side and side[0] == "product" else None, limit=own * 3)]
 
     # (rerank query, candidates, aspect id, None for an own-passages list), in output order
-    jobs: list[tuple[str, list[Hit], str | None]] = []
-    for side in sides:
-        jobs.append((question, await _candidates(conn, question, qvec, side, own * 3), None))
+    jobs: list[tuple[str, list[Hit], str | None]] = [(question, c, None) for c in own_lists]
     own_docs = sum(len(c) for _, c, _ in jobs)
     allowance = max(2, (budget - own_docs) // (len(sides) * len(topic.aspects)))
-    for aspect, avec in zip(topic.aspects, aspect_vecs):
-        for side in sides:
+    nearest = await vector_candidates(conn, vecs[1:], sides, limit=allowance)
+    for aspect, by_side in zip(topic.aspects, nearest):
+        for side, near in zip(sides, by_side):
             query = aspect.query if side is None else f"{side[1]}: {aspect.query}"
             facts = ([] if side is None or version is None else
                      await fact_chunks(conn, aspect, side, version, allowance // 2))
             seen = {h.chunk_id for h in facts}
-            found = await _candidates(conn, query, avec, side, allowance)
-            merged = (facts + [h for h in found if h.chunk_id not in seen])[:allowance]
+            merged = (facts + [h for h in near if h.chunk_id not in seen])[:allowance]
             jobs.append((query, [replace(h, rrf_rank=n) for n, h in enumerate(merged, start=1)],
                          aspect.id))
-    results = await asyncio.gather(*(_rerank(reranker, q, c) for q, c, _ in jobs))
+    gate = asyncio.Semaphore(TOPIC_RERANKS_IN_FLIGHT)
+
+    async def rerank(query: str, candidates: list[Hit]) -> tuple[list[Hit], bool]:
+        async with gate:
+            return await _rerank(reranker, query, candidates)
+
+    results = await asyncio.gather(*(rerank(q, c) for q, c, _ in jobs))
 
     hits: list[Hit] = []
     aspect_of: dict[str, str] = {}

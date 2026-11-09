@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import weakref
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -206,6 +207,30 @@ async def facet_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list
                     weights=[FTS_WEIGHT, 1.0])
         out.append([_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)])
     return out
+
+
+async def vector_candidates(conn: psycopg.AsyncConnection, qvecs: Sequence[list[float]],
+                            sides: Sequence[tuple[str, str] | None], *, limit: int,
+                            vector_column: str = "embedding") -> list[list[list[Hit]]]:
+    """The ``limit`` current chunks nearest each query vector within each side, as ``out[i][j]``
+    (vector ``i``, side ``j``), nearest first with ``rrf_rank`` the position (no rerank score).
+    A side is a (kind, name) pair, kind "vendor" or "product", or None for the whole corpus.
+
+    No full-text search: that is a seq scan whose cost grows with the corpus and with every
+    query text (about 2 s each on the full corpus), where a scoped HNSW scan is cheap. One
+    transaction holds one SET LOCAL and a scoped vector query per pair."""
+    if vector_column not in VECTOR_COLUMNS:
+        raise ValueError(f"unknown vector column {vector_column!r}")
+    queries = []
+    for qvec in qvecs:
+        for side in sides:
+            where, fparams = _filters([side[1]] if side and side[0] == "vendor" else None,
+                                      [side[1]] if side and side[0] == "product" else None)
+            queries.append((_vec_sql(vector_column, where),
+                            [Vector(qvec), *fparams, Vector(qvec), limit]))
+    rows = iter(await _vector_rows_many(conn, queries) if queries else [])
+    return [[[_hit(r, n) for n, r in enumerate(next(rows), start=1)] for _ in sides]
+            for _ in qvecs]
 
 
 async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
