@@ -95,6 +95,8 @@ def test_aspect_specific_questions_do_not_expand(T, question):
     "How do I recover after ransomware encrypted my files?",
     "How does Rubrik handle cyber threats?",
     "Which products help after cyberattacks?",
+    "How does Veeam help at restore time after a ransomware attack?",
+    "What happens in transition to a new repository after ransomware?",
 ])
 def test_broad_questions_expand(T, question):
     topic = detect_topic(question, T)

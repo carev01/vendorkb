@@ -4557,5 +4557,5 @@ topics:
   - id: encryption
     name: Backup encryption
     query: encryption of backup data at rest and in transit, client-side encryption, customer-managed keys
-    cues: [encryption, encrypt backup, encrypting backup, encrypted backup, customer-managed key, kms, encrypt data, encrypts data, at rest, in transit, aes]
+    cues: [encryption, encrypt backup, encrypting backup, encrypted backup, customer-managed key, kms, encrypt data, encrypts data, data at rest, data in transit, aes 256, aes256, aes 128]
     dimensions: [security.encryption_at_rest, security.encryption_in_transit, security.client_side_encryption, security.customer_managed_keys]
