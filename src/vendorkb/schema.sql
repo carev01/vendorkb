@@ -364,6 +364,30 @@ CREATE TABLE IF NOT EXISTS aliases (
 -- candidates (and stored decisions) of other phrases.
 ALTER TABLE aliases ADD COLUMN IF NOT EXISTS search boolean NOT NULL DEFAULT true;
 
+-- Topics (2026-11-08), loaded with the taxonomy from its ``topics`` section: a curated topic
+-- (a broad subject such as ransomware protection) with the phrases that name it, and its
+-- aspects in YAML order (``ordinal``). An aspect's ``dimensions`` are dimension ids (the load
+-- checks them; no foreign key, like ``dimensions.applies_to``), ``query`` is the phrasing
+-- retrieval uses for it and ``cues`` are the words that mean a question names it. ``triggers``
+-- and ``cues`` are stored normalized (lowercase, whitespace collapsed), hyphens as written. A
+-- load replaces every row.
+CREATE TABLE IF NOT EXISTS topics (
+    topic_id text PRIMARY KEY,
+    name text NOT NULL,
+    triggers text[] NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS topic_aspects (
+    topic_id text NOT NULL REFERENCES topics ON DELETE CASCADE,
+    aspect_id text NOT NULL,
+    ordinal int NOT NULL,
+    name text NOT NULL,
+    query text NOT NULL,
+    cues text[] NOT NULL,
+    dimensions text[] NOT NULL,
+    PRIMARY KEY (topic_id, aspect_id)
+);
+
 -- M4 mapping (taxonomy map, v1): each raw claim's feature and target under the taxonomy
 -- version it was mapped with. ``*_method`` is 'alias' (exact normalized alias or name),
 -- 'nn' (embedding nearest neighbour at or above the threshold) or 'unmapped'; a claim with

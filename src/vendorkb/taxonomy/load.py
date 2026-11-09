@@ -1,7 +1,7 @@
 """Load the taxonomy v2 YAML (``taxonomy/taxonomy.yaml``, reviewed in git) into its tables.
 
-The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``targets`` and
-``offerings`` (which may be omitted), and no others:
+The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``targets``,
+``offerings`` and ``topics`` (the last two may be omitted), and no others:
 
 - **dimension** ``{id, name, definition, aliases, [lookup_aliases], [lookup_only], applies_to,
   [value_unit], [platform]}``: one vendor-neutral comparable aspect. ``id`` is ``<family>.<snake>`` with the family one of
@@ -18,6 +18,13 @@ The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``t
   own words for them; ``variants`` is a list of ``{id, name, aliases}``.
 - **offering** ``{vendor, id, name, aliases, editions}``: ``id`` is ``<snake>.<snake>`` and
   ``editions`` a list of ``{id, name, aliases}``.
+- **topic** ``{id, name, triggers, aspects}``: a broad subject whose answer covers a fixed kit
+  of aspects. ``id`` is snake case; ``triggers`` is a non-empty list of phrases that name the
+  topic; ``aspects`` a non-empty list of ``{id, name, query, [cues], dimensions}``: ``id`` is
+  snake case and unique within the topic, ``query`` the phrasing retrieval uses for the aspect,
+  ``cues`` the words that mean a question names the aspect, ``dimensions`` a non-empty list of
+  dimension ids, each of which must exist. Triggers and cues are stored normalized
+  (``cluster.normalize``: lowercase, whitespace collapsed), nothing else changed.
 
 ``aliases`` may be omitted (none). ``lookup_aliases`` (dimensions and targets) are matched like
 aliases but are never candidate-search keys of the mapper (``aliases.search`` false): adding one
@@ -127,12 +134,33 @@ class Offering:
 
 
 @dataclass(frozen=True)
+class Aspect:
+    """One part of a topic's kit: the dimensions that cover it, the phrasing retrieval uses
+    for it and the cues (normalized) that mean a question names it."""
+
+    id: str
+    name: str
+    query: str
+    cues: tuple[str, ...]
+    dimensions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Topic:
+    id: str
+    name: str
+    triggers: tuple[str, ...]  # normalized phrases that name the topic
+    aspects: tuple[Aspect, ...]  # YAML order
+
+
+@dataclass(frozen=True)
 class Taxonomy:
     version: int
     dimensions: list[Dimension]
     classes: list[WorkloadClass]
     targets: list[Target]
     offerings: list[Offering]
+    topics: list[Topic] = field(default_factory=list)
 
     def lineage(self, class_id: str) -> list[str]:
         """``class_id`` first, then its ancestors, nearest first. KeyError if unknown."""
@@ -298,6 +326,29 @@ class _Checker:
                 texts.append(str(a))  # a bare YAML number such as 365 is text here
         return tuple(dict.fromkeys(a for a in map(normalize, texts) if a))
 
+    def phrases(self, where: str, item: dict, key: str, *, required: bool = True,
+                exact: bool = False) -> tuple[str, ...]:
+        """A list of text (``triggers``, ``cues``, ``dimensions``), normalized (``exact``:
+        only trimmed, for ids), duplicates dropped. ``required`` means it may not be empty; a
+        missing key is ``keys``' to report. A bare number is not text here."""
+        value = item.get(key)
+        if key not in item or (value is None and not required):
+            return ()
+        if not isinstance(value, list) or (required and not value):
+            kind = "a non-empty list" if required else "a list"
+            self.add(f"{where}: {key} must be {kind} of text, got {value!r}")
+            return ()
+        texts: list[str] = []
+        for entry in value:
+            text = ""
+            if isinstance(entry, str):
+                text = entry.strip() if exact else normalize(entry)
+            if text:
+                texts.append(text)
+            else:
+                self.add(f"{where}: {key} entry {entry!r} must be non-empty text")
+        return tuple(dict.fromkeys(texts))
+
     def entries(self, where: str, value: Any) -> list[tuple[str, dict]]:
         """The mappings of a list, each with its location; problems for the rest."""
         if value is None:
@@ -434,6 +485,38 @@ def _offerings(ck: _Checker, raw: Any) -> list[Offering]:
     return out
 
 
+def _topics(ck: _Checker, raw: Any, dimension_ids: set[str]) -> list[Topic]:
+    out: list[Topic] = []
+    seen: set[str] = set()
+    for where, item in ck.entries("topics", raw):
+        ck.keys(where, item, ("id", "name", "triggers", "aspects"), ())
+        tid = ck.ident(where, item, SNAKE_RE, "topic", seen)
+        label = f"{where} ({tid})" if tid else where
+        name = ck.text(label, item, "name")
+        triggers = ck.phrases(label, item, "triggers")
+        aspects: list[Aspect] = []
+        seen_aspects: set[str] = set()
+        raw_aspects = item.get("aspects")
+        if "aspects" in item and not raw_aspects:
+            ck.add(f"{label}: aspects must be a non-empty list")
+        for loc, entry in ck.entries(f"{label} aspects", raw_aspects):
+            ck.keys(loc, entry, ("id", "name", "query", "dimensions"), ("cues",))
+            aid = ck.ident(loc, entry, SNAKE_RE, "aspect", seen_aspects)
+            alabel = f"{loc} ({aid})" if aid else loc
+            aname = ck.text(alabel, entry, "name")
+            query = ck.text(alabel, entry, "query")
+            cues = ck.phrases(alabel, entry, "cues", required=False)
+            dimensions = ck.phrases(alabel, entry, "dimensions", exact=True)
+            for d in dimensions:
+                if d not in dimension_ids:
+                    ck.add(f"{alabel}: unknown dimension {d!r}")
+            if aid is not None and aname and query and dimensions:
+                aspects.append(Aspect(aid, aname, query, cues, dimensions))
+        if tid is not None and name and triggers and aspects:
+            out.append(Topic(tid, name, triggers, tuple(aspects)))
+    return out
+
+
 def _check_alias_owners(ck: _Checker, rows: list[AliasRow]) -> None:
     owners: dict[tuple[str, str, str], list[str]] = {}
     for alias, etype, scope, eid in rows:
@@ -450,7 +533,7 @@ def validate(doc: dict[str, Any]) -> Taxonomy:
     """The taxonomy in ``doc``, or a ``TaxonomyError`` listing every problem."""
     ck = _Checker()
     for key in doc:
-        if key not in ("version", "dimensions", "classes", "targets", "offerings"):
+        if key not in ("version", "dimensions", "classes", "targets", "offerings", "topics"):
             ck.add(f"unknown top-level key {key!r}")
     version = doc.get("version")
     if version != FORMAT_VERSION or isinstance(version, bool):
@@ -462,6 +545,7 @@ def validate(doc: dict[str, Any]) -> Taxonomy:
     classes = _classes(ck, doc.get("classes"))
     targets = _targets(ck, doc.get("targets"))
     offerings = _offerings(ck, doc.get("offerings"))
+    topics = _topics(ck, doc.get("topics"), {d.id for d, _ in dimensions})
 
     class_by_id = {c.id: c for c in classes}
     known = set(class_by_id)
@@ -523,7 +607,7 @@ def validate(doc: dict[str, Any]) -> Taxonomy:
                            f" for {class_owner[a]}")
 
     taxonomy = Taxonomy(FORMAT_VERSION, [d for d, _ in dimensions], classes,
-                        [t for t, _ in targets], offerings)
+                        [t for t, _ in targets], offerings, topics)
     _check_alias_owners(ck, taxonomy.alias_rows())
     if ck.problems:
         raise TaxonomyError(ck.problems)
@@ -536,8 +620,8 @@ async def current_version(conn: psycopg.AsyncConnection) -> str | None:
     return None if row is None else str(row[0])
 
 
-_TABLES = ("aliases", "editions", "offerings", "variants", "targets", "object_types",
-           "classes", "dimensions")  # children first
+_TABLES = ("topic_aspects", "topics", "aliases", "editions", "offerings", "variants",
+           "targets", "object_types", "classes", "dimensions")  # children first
 
 
 async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict:
@@ -561,6 +645,9 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
         "offerings": [(f.id, f.vendor, f.name) for f in tax.offerings],
         "editions": [(f.id, e.id, e.name) for f in tax.offerings for e in f.editions],
         "aliases": [(*r, r[:3] not in lookup_only) for r in tax.alias_rows()],
+        "topics": [(t.id, t.name, list(t.triggers)) for t in tax.topics],
+        "topic_aspects": [(t.id, a.id, n, a.name, a.query, list(a.cues), list(a.dimensions))
+                          for t in tax.topics for n, a in enumerate(t.aspects)],
     }
     columns = {
         "dimensions": "dimension_id, family, name, definition, applies_to, value_unit, platform",
@@ -571,6 +658,8 @@ async def load_taxonomy(conn: psycopg.AsyncConnection, path: str | Path) -> dict
         "offerings": "offering_id, vendor, name",
         "editions": "offering_id, edition_id, name",
         "aliases": "alias, entity_type, scope, entity_id, search",
+        "topics": "topic_id, name, triggers",
+        "topic_aspects": "topic_id, aspect_id, ordinal, name, query, cues, dimensions",
     }
     async with conn.transaction():
         for table in _TABLES:

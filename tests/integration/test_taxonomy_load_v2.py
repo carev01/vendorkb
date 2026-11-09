@@ -10,9 +10,9 @@ from vendorkb.taxonomy import load
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 V2_TABLES = ("dimensions", "classes", "object_types", "targets", "variants", "offerings",
-             "editions", "aliases")
+             "editions", "aliases", "topics", "topic_aspects")
 COUNTS = {"dimensions": 9, "classes": 5, "object_types": 9, "targets": 6, "variants": 2,
-          "offerings": 1, "editions": 2, "aliases": 69}
+          "offerings": 1, "editions": 2, "aliases": 69, "topics": 0, "topic_aspects": 0}
 
 
 def _doc() -> dict:
@@ -22,6 +22,28 @@ def _doc() -> dict:
 def _write(path: Path, doc: dict) -> Path:
     path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
     return path
+
+
+def _topic() -> dict:
+    """One topic over the fixture's dimensions, with mixed-case triggers and cues."""
+    return {"id": "data_loss", "name": "Data loss protection",
+            "triggers": ["Data  Loss", "lost data", "Data Loss"],
+            "aspects": [
+                {"id": "keeping", "name": "Keeping copies", "query": "How long copies are kept",
+                 "cues": ["Retention", "keep  copies"],
+                 "dimensions": ["retention.maximum_period", "schedule.backup_frequency"]},
+                {"id": "getting_back", "name": "Getting data back",
+                 "query": "Restoring objects, and writing them out of a backup",
+                 "dimensions": ["coverage.restore", "coverage.export"]}]}
+
+
+def _with_topic(change):
+    """A ``mutate`` for the validation cases: add ``_topic()`` after ``change`` altered it."""
+    def mutate(doc: dict) -> None:
+        topic = _topic()
+        change(topic)
+        doc["topics"] = [topic]
+    return mutate
 
 
 async def _rows(conn, sql, *args):
@@ -165,6 +187,28 @@ def test_child_class_cannot_redefine_parent_object_type():
     (lambda d: d["targets"][2]["variants"][0].update(lookup_aliases=["x"]), "lookup_aliases"),
     (lambda d: d["dimensions"][0].update(lookup_only="yes"), "lookup_only"),
     (lambda d: d["targets"][0].update(lookup_only=True), "lookup_only"),
+    (_with_topic(lambda t: t["aspects"][1].update(dimensions=["coverage.restore",
+                                                              "security.nope"])),
+     "unknown dimension 'security.nope'"),
+    (_with_topic(lambda t: t["aspects"][0].update(dimensions=["Retention.Maximum_Period"])),
+     "unknown dimension 'Retention.Maximum_Period'"),
+    (_with_topic(lambda t: t["aspects"][1].update(id="keeping")), "duplicate aspect id"),
+    (_with_topic(lambda t: t.update(triggers=[])), "triggers must be a non-empty list"),
+    (_with_topic(lambda t: t.update(triggers=[" ", 7.5])), "triggers entry"),
+    (_with_topic(lambda t: t.pop("triggers")), "triggers is required"),
+    (_with_topic(lambda t: t.update(aspects=[])), "aspects must be a non-empty list"),
+    (_with_topic(lambda t: t.pop("aspects")), "aspects is required"),
+    (_with_topic(lambda t: t.update(proposed=True)), "unknown key 'proposed'"),
+    (_with_topic(lambda t: t["aspects"][0].update(weight=2)), "unknown key 'weight'"),
+    (_with_topic(lambda t: t.update(id="Data-Loss")), "invalid topic id 'Data-Loss'"),
+    (_with_topic(lambda t: t["aspects"][0].update(id="2nd")), "invalid aspect id '2nd'"),
+    (_with_topic(lambda t: t["aspects"][0].update(dimensions=[])),
+     "dimensions must be a non-empty list"),
+    (_with_topic(lambda t: t["aspects"][0].pop("query")), "query is required"),
+    (_with_topic(lambda t: t["aspects"][0].update(query="  ")), "query must be non-empty text"),
+    (_with_topic(lambda t: t["aspects"][0].update(cues="retention")), "cues must be a list"),
+    (lambda d: d.update(topics=[_topic(), _topic()]), "duplicate topic id 'data_loss'"),
+    (lambda d: d.update(topics={"id": "data_loss"}), "topics: must be a list"),
 ])
 def test_validation_rejects(mutate, needle):
     doc = copy.deepcopy(_doc())
@@ -385,3 +429,71 @@ async def test_a_lookup_only_dimension_is_never_a_search_key(vkb_dsn, tmp_path):
                         ("max retention", False), ("maximum retention period", False)]
     finally:
         await conn.close()
+
+
+def test_topics_are_optional_and_parsed_in_order():
+    assert load.validate(_doc()).topics == []
+    doc = _doc()
+    doc["topics"] = [_topic()]
+    topic = load.validate(doc).topics[0]
+    assert isinstance(topic, load.Topic)
+    assert all(isinstance(a, load.Aspect) for a in topic.aspects)
+    assert [a.id for a in topic.aspects] == ["keeping", "getting_back"]
+    assert topic.triggers == ("data loss", "lost data")  # normalized, duplicates dropped
+    assert topic.aspects[0].cues == ("retention", "keep copies")
+    assert topic.aspects[1].cues == ()  # cues may be omitted
+    assert topic.aspects[0].dimensions == ("retention.maximum_period",
+                                           "schedule.backup_frequency")
+    assert topic.aspects[1].query == "Restoring objects, and writing them out of a backup"
+
+
+async def test_topics_load_into_their_tables(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = _doc()
+        doc["topics"] = [_topic()]
+        loaded = await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc))
+        assert loaded["topics"] == 1 and loaded["topic_aspects"] == 2
+        assert {k: loaded[k] for k in COUNTS} == {**COUNTS, "topics": 1, "topic_aspects": 2}
+        assert await _rows(conn, "SELECT topic_id, name, triggers FROM topics") == [
+            ("data_loss", "Data loss protection", ["data loss", "lost data"])]
+        # aspects keep their YAML order; triggers and cues are stored lowercase
+        assert await _rows(conn, "SELECT topic_id, aspect_id, ordinal, name, query, cues,"
+                                 " dimensions FROM topic_aspects ORDER BY ordinal") == [
+            ("data_loss", "keeping", 0, "Keeping copies", "How long copies are kept",
+             ["retention", "keep copies"],
+             ["retention.maximum_period", "schedule.backup_frequency"]),
+            ("data_loss", "getting_back", 1, "Getting data back",
+             "Restoring objects, and writing them out of a backup", [],
+             ["coverage.restore", "coverage.export"])]
+        # a load replaces the topics too: a file without any leaves none behind
+        again = await load.load_taxonomy(conn, FIXTURE)
+        assert again["topics"] == 0 and again["topic_aspects"] == 0
+        assert await _counts(conn) == COUNTS
+    finally:
+        await conn.close()
+
+
+async def test_init_schema_keeps_loaded_topics(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = _doc()
+        doc["topics"] = [_topic()]
+        await load.load_taxonomy(conn, _write(tmp_path / "t.yaml", doc))
+        before = await _snapshot(conn)
+        # without the marker the DDL runs again: CREATE TABLE IF NOT EXISTS keeps the rows
+        await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")
+        await init_schema(conn, embed_dim=768)
+        assert await _snapshot(conn) == before
+        assert len(await _rows(conn, "SELECT 1 FROM topic_aspects")) == 2
+    finally:
+        await conn.close()
+
+
+def test_the_shipped_taxonomy_defines_the_ransomware_topic():
+    shipped = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
+    topics = load.validate(load.read_doc(shipped)).topics  # every aspect dimension exists
+    ransomware = next(t for t in topics if t.id == "ransomware_protection")
+    assert "ransomware" in ransomware.triggers and len(ransomware.aspects) == 8
