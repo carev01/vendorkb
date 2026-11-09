@@ -21,7 +21,7 @@ request, so it bounds the worst case.
 A chunk whose call fails, is refused, is cut off at ``max_tokens``, returns unusable JSON, or
 errors or expires inside a batch is recorded ``errored`` with the reason and retried by the
 next run; after ``MAX_ATTEMPTS`` it is ``failed`` and skipped. It is never counted as done
-with zero claims. A result for a chunk that sync has since deleted is skipped
+with zero claims. A result for a chunk that sync has since deleted or superseded is skipped
 (``skipped_deleted``).
 
 ``settings.extract_backend`` picks the client. "anthropic": an ``anthropic.AsyncAnthropic``
@@ -322,7 +322,7 @@ class ExtractReport:
     done: int = 0
     skipped: int = 0          # already done
     skipped_failed: int = 0   # already failed MAX_ATTEMPTS times
-    skipped_deleted: int = 0  # not (or no longer) in chunks
+    skipped_deleted: int = 0  # not (or no longer) a current chunk: deleted or superseded
     errored: int = 0          # errored this run (includes those that became failed)
     failed: int = 0           # reached MAX_ATTEMPTS this run
     claims_accepted: int = 0
@@ -558,9 +558,11 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
 
     The result's tokens and cost always count (they were paid for); in sync mode they are
     added to the run's ledger row in the same transaction. The chunk row is locked against
-    deletion (FOR KEY SHARE) for the write; a chunk that is gone is skipped. Only a new or
-    'errored' extraction row is (re)written, and never twice by the same batch, so a resumed
-    batch is idempotent and 'done' / 'failed' rows are final.
+    deletion (FOR KEY SHARE) for the write; a chunk that is gone is skipped. The claims are
+    gated against the text the chunk holds under that lock, not ``chunk.text``: a re-sync may
+    have reused the chunk with new text since ``chunk`` was loaded, and a quote no longer in
+    it is rejected. Only a new or 'errored' extraction row is (re)written, and never twice by
+    the same batch, so a resumed batch is idempotent and 'done' / 'failed' rows are final.
     """
     model = settings.extract_model
     cost = _cost(outcome, batch=batch, settings=settings)
@@ -574,12 +576,13 @@ async def _record(conn: psycopg.AsyncConnection, chunk_id: str, chunk: ChunkRow 
                 " chunk_ids = array_append(chunk_ids, %s) WHERE batch_id=%s",
                 (cost, chunk_id, ledger_id))
         cur = await conn.execute(
-            "SELECT 1 FROM chunks WHERE chunk_id=%s FOR KEY SHARE", (chunk_id,))
-        if chunk is None or await cur.fetchone() is None:
+            "SELECT text FROM chunks WHERE chunk_id=%s FOR KEY SHARE", (chunk_id,))
+        locked = await cur.fetchone()
+        if chunk is None or locked is None:
             report.skipped_deleted += 1
             log.warning("extract: chunk %s no longer exists; result skipped", chunk_id)
             return
-        judged = [(c, _judge(c, chunk.text)) for c in map(_clean, outcome.claims)]
+        judged = [(c, _judge(c, locked[0])) for c in map(_clean, outcome.claims)]
         accepted = [(c, r) for c, r in judged if r.ok]
         rejected = [(c, r) for c, r in judged if not r.ok]
         cur = await conn.execute(
@@ -648,10 +651,12 @@ async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None =
                           limit: int | None = None) -> list[str]:
     """Chunks with no final ('done' or 'failed') extraction of the v3 prompt family by any
     model: new and re-synced chunks, and those still 'errored' (``run`` retries them). A chunk
-    another model already extracted (the Opus teacher set, say) is not extracted again."""
+    another model already extracted (the Opus teacher set, say) is not extracted again. A
+    superseded chunk (an earlier version of a page, kept for its claims) is never extracted."""
     cur = await conn.execute(
         "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
-        " WHERE NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        " WHERE c.superseded_at IS NULL AND NOT EXISTS (SELECT 1 FROM extractions e"
+        " WHERE e.chunk_id = c.chunk_id"
         " AND e.prompt_version LIKE %(family)s AND e.status IN ('done', 'failed'))"
         " AND (%(vendor)s::text IS NULL OR d.vendor = %(vendor)s)"
         " ORDER BY c.chunk_id LIMIT %(limit)s",
@@ -660,10 +665,11 @@ async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None =
 
 
 async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[str, ChunkRow]:
+    """The current chunks among ``ids``: a superseded one is never extracted, however named."""
     cur = await conn.execute(
         "SELECT c.chunk_id::text, c.doc_id::text, d.vendor, d.product, d.version, d.title,"
         " c.section_path, c.text FROM chunks c JOIN documents d USING (doc_id)"
-        " WHERE c.chunk_id = ANY(%s::uuid[])", (ids,))
+        " WHERE c.chunk_id = ANY(%s::uuid[]) AND c.superseded_at IS NULL", (ids,))
     return {row[0]: ChunkRow(*row) for row in await cur.fetchall()}
 
 
@@ -977,7 +983,8 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         final = await _final_ids(conn, ids, settings.extract_model)
         missing = [i for i in ids if i not in chunks and i not in final]
         if missing:
-            log.warning("extract: %d chunk ids not in the database (skipped), e.g. %s",
+            log.warning("extract: %d chunk ids not current chunks in the database (skipped), "
+                        "e.g. %s",
                         len(missing), missing[0])
         report.skipped_deleted += len(missing)
         report.skipped = sum(1 for s in final.values() if s == "done")

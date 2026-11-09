@@ -136,7 +136,7 @@ def test_taxonomy_load_lists_every_problem(stubbed, monkeypatch, capsys):
 
 def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     async def fake_build(conn):
-        return 7
+        return capabilities.Built(rows=7, retired=3)
 
     async def fake_version(conn):
         return "3"
@@ -147,14 +147,15 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
             "c1", "veeam", "VBR", None, None, "coverage.backup", "coverage", "cloud.database",
             "aws.rds", None, "database", "capability", "supported", "unstated", None, None,
             None, None, None, "product", None, True, "backs up", "Amazon RDS", "q", "k1",
-            "http://u", "T", "2026-01-01T00:00:00+00:00", "2-abc")
+            "http://u", "T", "2026-01-01T00:00:00+00:00", "2-abc", False)
         return capabilities.CapResult(facts=[fact], hint=None)
 
     monkeypatch.setattr(capabilities, "build", fake_build)
     monkeypatch.setattr(load, "current_version", fake_version)
     monkeypatch.setattr(capabilities, "query", fake_query)
     assert cli.main(["capabilities", "build"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"rows": 7, "taxonomy_version": "3"}
+    assert json.loads(capsys.readouterr().out) == {"rows": 7, "retired": 3,
+                                                  "taxonomy_version": "3"}
     assert cli.main(["capabilities", "query", "--target", "aws", "--vendor", "veeam",
                      "--vendor", "acme", "--support", "partial", "--offering", "o", "--edition", "e",
                      "--dimension", "d", "--family", "coverage", "--object-type", "database",

@@ -48,11 +48,13 @@ class RefreshReport:
 
 
 async def new_chunks(conn: psycopg.AsyncConnection) -> tuple[int, datetime | None]:
-    """(count, newest documents.fetched_at) of the chunks with no v3 extraction row at all."""
+    """(count, newest documents.fetched_at) of the current chunks with no v3 extraction row at
+    all (a superseded chunk, kept for its claims, is never new)."""
     cur = await conn.execute(
         "SELECT count(*), max(d.fetched_at) FROM chunks c JOIN documents d USING (doc_id)"
-        " WHERE NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
-        " AND e.prompt_version LIKE %s)", (extract.PROMPT_FAMILY,))
+        " WHERE c.superseded_at IS NULL AND NOT EXISTS (SELECT 1 FROM extractions e"
+        " WHERE e.chunk_id = c.chunk_id AND e.prompt_version LIKE %s)",
+        (extract.PROMPT_FAMILY,))
     count, newest = await cur.fetchone()  # type: ignore[misc]
     return int(count), newest
 
@@ -111,6 +113,6 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
         report.map["errors"] = report.map["errors"][:20]
         changed = changed or mapped.claims > 0
     if changed:
-        report.capabilities_rows = await capabilities.build(conn)
+        report.capabilities_rows = (await capabilities.build(conn)).rows
     log.info("refresh: %s", report)
     return report

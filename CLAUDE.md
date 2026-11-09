@@ -61,6 +61,18 @@ stack.
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
     MAP_API_KEY, else the EXTRACT_ ones) and rebuilds capabilities.
+  - a re-synced page (`store.write_document`) is written per chunk. A new chunk whose
+    `chunker.reuse_key` equals a current chunk's (whitespace, link targets, backslashes and
+    "Last Updated" lines ignored), with every claim quote still in the text, reuses that chunk:
+    same `chunk_id`, extraction and claims, new text and embedding (`SyncReport.chunks_reused`;
+    a chunk equal in text, section path and ordinal is not written at all).
+    A chunk the new version drops is kept with `chunks.superseded_at` set when a claim on it is
+    mapped, so its facts survive until the new version is extracted and mapped, else deleted
+    (`SyncReport.chunks_superseded` counts the kept ones); `capabilities build` then retires the
+    superseded ones (`store.retire_superseded`; the build's JSON `retired` counts them).
+    Superseded chunks stay out of search, extraction and the refresh trigger (every chunk query
+    that ranks or selects needs `superseded_at IS NULL`); their citations still resolve
+    (`read_section` of a superseded chunk returns the chunks superseded in the same write).
 - Production holds 74,885 v1 (Haiku) pilot claims.
 
 **Taxonomy v2 and claims v3 (2026-11-06; spec `specs/2026-11-06-taxonomy-v2-claims-v3-design.md`,
@@ -103,8 +115,13 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   dimension the model cannot file reliably can be `lookup_only: true` (never a candidate, not
   even pinned: only its curated phrasings map).
 - **capabilities v2:** `capabilities build|query`, with scope labels (offering, product,
-  product_wide), conflict groups and `is_current` (by `documents.fetched_at`). Product-wide
-  facts never appear as target facts.
+  product_wide), conflict groups and `is_current` (by `documents.fetched_at`, except that a row
+  on a superseded chunk ranks below every current-version row of its key, whatever the date).
+  `capabilities.evidence_superseded` marks facts whose claim is on a superseded chunk (stored
+  at build, and `query` also reads the chunk's own state, so a sync marks its facts before the
+  next build; `is_current` is as built); the MCP fact text says "from an earlier version of the
+  page", as does a `read_section` of a superseded chunk. Product-wide facts never appear as
+  target facts.
 - **Not on production yet:** the branch's `init_schema` drops the v1
   features/targets/aliases/capabilities tables, so never run it against production before
   merge and deploy. Extraction scripts that write to production must skip `init_schema`.

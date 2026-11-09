@@ -21,7 +21,14 @@ with a dimension. Each row is keyed on its claim and gets:
   rebuild reproduces the id.
 - ``is_current``: the key's rows from its most recently fetched document
   (``documents.fetched_at``, also kept as ``doc_version``); the latest document wins and the
-  older rows stay, so the conflict stays visible.
+  older rows stay, so the conflict stays visible. A row whose claim sits on a superseded chunk
+  ranks below every current-version row of its key, whatever the dates: its ``fetched_at`` is
+  its page's new fetch time (an update refreshes it), not its own version's.
+- ``evidence_superseded``: the row's claim is on a superseded chunk, an earlier version of its
+  page kept until the new version is extracted and mapped (``store.retire_superseded``, which
+  ``build`` runs first). The fact stays in every answer, marked. The stored column is as of the
+  build (it feeds ``is_current``); ``query`` also reads the chunk's own state, so a sync that
+  supersedes the chunk marks its fact before the next build.
 
 ``query`` serves only rows built under the current taxonomy version and sorts every matching
 row into one of four groups, so nothing is presented as more specific than its evidence:
@@ -47,10 +54,11 @@ rather than the less specific rows of the vendor.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Any
+from typing import Any, NamedTuple
 
 import psycopg
 
+from vendorkb.store import retire_superseded
 from vendorkb.taxonomy.aspects import _lineage, dimension_applies
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import current_version
@@ -114,6 +122,7 @@ class Fact:
     title: str | None
     doc_version: str | None  # documents.fetched_at, ISO 8601
     taxonomy_version: str
+    evidence_superseded: bool  # the claim is on an earlier version of its page
 
 
 @dataclass(frozen=True)
@@ -134,19 +143,28 @@ class CapResult:
     totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
 
 
-async def build(conn: psycopg.AsyncConnection) -> int:
-    """Rebuild ``capabilities`` for the current taxonomy version; returns the row count."""
+class Built(NamedTuple):
+    """What ``build`` did."""
+    rows: int  # capability rows written
+    retired: int  # superseded chunks deleted (their claims and facts with them)
+
+
+async def build(conn: psycopg.AsyncConnection) -> Built:
+    """Rebuild ``capabilities`` for the current taxonomy version; returns the row count and
+    the number of chunks retired. Superseded chunks whose page's new version is extracted and
+    mapped are retired first, and their facts with them."""
     version = await current_version(conn)
     key = ", ".join(_KEY)
     async with conn.transaction():
+        retired = await retire_superseded(conn, version)
         await conn.execute("DELETE FROM capabilities")
         if version is None:
-            return 0
+            return Built(0, retired)
         cur = await conn.execute(
             "INSERT INTO capabilities (claim_id, vendor, product, offering_id, edition_id,"
             " dimension_id, class_id, target_id, variant_id, object_type_id, kind, support,"
             " availability, default_state, value, unit, bound, conditions, doc_version,"
-            " taxonomy_version, scope, conflict_group, is_current)"
+            " taxonomy_version, scope, conflict_group, is_current, evidence_superseded)"
             " SELECT claim_id, vendor, product, offering_id, edition_id, dimension_id,"
             " class_id, target_id, variant_id, object_type_id, kind, support, availability,"
             " default_state, value, unit, bound, conditions, fetched_at, %(ver)s,"
@@ -157,13 +175,16 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             "   AND bool_or(support IN ('supported', 'partial')) OVER k)"
             "  OR min(value) OVER k <> max(value) OVER k"
             f" THEN md5(jsonb_build_array({key})::text)::uuid END,"
-            " fetched_at = max(fetched_at) OVER k"
+            # current-version rows (superseded false sorts first) outrank superseded ones, then
+            # the latest document wins
+            " rank() OVER (k ORDER BY superseded, fetched_at DESC) = 1, superseded"
             # vendor and product come from the document, not the claim: the sync re-tags a
             # document (store.update_metadata) without touching its chunks or their claims
             " FROM (SELECT r.claim_id, d.vendor, d.product, r.offering_id, r.edition_id,"
             "  r.dimension_id, r.class_id, r.target_id, r.variant_id, r.object_type_id, r.kind,"
             "  r.support, r.availability, r.default_state, r.value, r.unit, r.bound,"
-            "  r.conditions, d.fetched_at, dim.platform, r.target_method,"
+            "  r.conditions, d.fetched_at, ch.superseded_at IS NOT NULL AS superseded,"
+            "  dim.platform, r.target_method,"
             f"  {_norm('r.capability_raw')} AS cap_norm,"
             f"  CASE WHEN r.object_type_id IS NULL THEN {_norm('r.target_scope')} END AS scope_norm,"
             f"  {_norm('r.conditions')} AS cond_norm FROM raw_claims r"
@@ -173,7 +194,7 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             "  WHERE r.prompt_version LIKE %(family)s AND r.mapped_version = %(ver)s) s"
             f" WINDOW k AS (PARTITION BY {key})",
             {"ver": version, "family": PROMPT_FAMILY})
-        return cur.rowcount
+        return Built(cur.rowcount, retired)
 
 
 def _vendors(vendor: str | tuple[str, ...] | None) -> list[str] | None:
@@ -260,7 +281,9 @@ _FACT_COLUMNS = (
     " dim.family, c.class_id, c.target_id, c.variant_id, c.object_type_id, c.kind, c.support,"
     " c.availability, c.default_state, c.value, c.unit, c.bound, c.conditions, c.scope,"
     " c.conflict_group::text, c.is_current, r.capability_raw, r.target_raw, r.evidence_quote,"
-    " r.chunk_id::text, d.url, d.title, c.doc_version, c.taxonomy_version")
+    " r.chunk_id::text, d.url, d.title, c.doc_version, c.taxonomy_version,"
+    # the stored marker is as old as the last build; the chunk's own state is read now
+    " (c.evidence_superseded OR ch.superseded_at IS NOT NULL)")
 _FROM = (" FROM capabilities c JOIN raw_claims r ON r.claim_id = c.claim_id"
          " JOIN chunks ch ON ch.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = ch.doc_id"
          " LEFT JOIN dimensions dim ON dim.dimension_id = c.dimension_id")

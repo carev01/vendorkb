@@ -17,14 +17,16 @@ def _fact(**kw) -> Fact:
                 capability_raw="immutable snapshots", target_raw="Amazon RDS",
                 evidence_quote="Snapshots of  RDS\ninstances are immutable", chunk_id="k1",
                 url="https://docs.example/rds", title="Protecting RDS",
-                doc_version="2026-11-01T00:00:00+00:00", taxonomy_version="2-abc")
+                doc_version="2026-11-01T00:00:00+00:00", taxonomy_version="2-abc",
+                evidence_superseded=False)
     return Fact(**{**base, **kw})
 
 
-def _hit(n: int, text: str = "Passage text.") -> Hit:
+def _hit(n: int, text: str = "Passage text.", superseded: bool = False) -> Hit:
     return Hit(chunk_id=f"k{n}", doc_id=f"d{n}", text=text, section_path=["Guide", "RDS"],
                vendor="Examplevendor", product="Example Backup", title=f"Page {n}",
-               url=f"https://docs.example/{n}", rrf_rank=n, rerank_score=0.9)
+               url=f"https://docs.example/{n}", rrf_rank=n, rerank_score=0.9,
+               superseded=superseded)
 
 
 class FakeBackend:
@@ -62,6 +64,8 @@ class FakeBackend:
 
     async def section(self, chunk_id, expand):
         self.calls.append(("section", chunk_id, expand))
+        if chunk_id == "old":  # a chunk of an earlier version of its page
+            return [_hit(1, "Before.", True), _hit(2, "The chunk.", True)]
         return [_hit(1, "Before."), _hit(2, "The chunk."), _hit(3, "After.")] \
             if chunk_id == "k2" else []
 
@@ -126,6 +130,22 @@ async def test_unresolved_targets_show_the_documentation_wording():
     assert "Facts about a workload the taxonomy does not list" in text
     assert '| "Lotus Notes" (not in the taxonomy) | NOT_SUPPORTED' in text
     assert r.structured_content["unresolved_target_total"] == 1
+
+
+def test_superseded_fact_is_marked():
+    marked = ms.format_fact(1, _fact(evidence_superseded=True))
+    assert "from an earlier version of the page" in marked
+    assert "(chunk k1;" in marked and "https://docs.example/rds" in marked
+    assert "earlier version" not in ms.format_fact(1, _fact())
+
+
+def test_superseded_fact_does_not_claim_a_newer_document_contradicts_it():
+    # not current because its page was re-synced, not because another document disagrees
+    text = ms.format_fact(1, _fact(evidence_superseded=True, is_current=False))
+    assert "from an earlier version of the page" in text
+    assert "a newer document says otherwise" not in text
+    # a current-version row that a newer document outranks keeps its phrase
+    assert "a newer document says otherwise" in ms.format_fact(1, _fact(is_current=False))
 
 
 async def test_query_capabilities_limit_and_hint():
@@ -197,8 +217,20 @@ async def test_search_docs_and_read_section():
         r = await c.call_tool("read_section", {"chunk_id": "k2"})
         assert "Before.\n\nThe chunk.\n\nAfter." in r.content[0].text
         assert backend.calls[-1] == ("section", "k2", "1")
+        assert "earlier version" not in r.content[0].text
+        assert [x["superseded"] for x in r.structured_content["chunks"]] == [False] * 3
         r = await c.call_tool("read_section", {"chunk_id": "gone"})
         assert r.is_error and "search again" in r.content[0].text
+
+
+async def test_read_section_of_an_earlier_version_says_so():
+    async with Client(ms.build_server(FakeBackend())) as c:
+        r = await c.call_tool("read_section", {"chunk_id": "old"})
+    assert not r.is_error
+    assert "source: https://docs.example/1 (from an earlier version of the page)" \
+        in r.content[0].text
+    assert "Before.\n\nThe chunk." in r.content[0].text
+    assert [x["superseded"] for x in r.structured_content["chunks"]] == [True, True]
 
 
 async def test_answer_question_lists_its_sources():

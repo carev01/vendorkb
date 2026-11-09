@@ -34,6 +34,8 @@ QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content h
 # Per search hit in the text output (structured content has it whole): agent clients cap a tool
 # result's size, and 8 x 2,500 characters overflowed them in the 2026-11-08 agent eval.
 PASSAGE_CHARS = 1200
+# Said of a fact, or of a read_section result, whose text is no longer on its page.
+EARLIER_VERSION = " (from an earlier version of the page)"
 
 INSTRUCTIONS = """\
 vendorkb answers questions about backup vendors' technical documentation, precisely and with
@@ -98,7 +100,7 @@ def format_fact(n: int, f: Fact) -> str:
         _value(f),
         f"conditions: {f.conditions}" if f.conditions else "") if q]
     when = f"document fetched {f.doc_version[:10]}" if f.doc_version else "document date unknown"
-    if not f.is_current:
+    if not f.is_current and not f.evidence_superseded:  # a superseded row says why below
         when += "; a newer document says otherwise"
     lines = [f"[{n}] {f.vendor} · {f.product or 'unknown product'}"
              f"{f' ({where})' if where else ''} | {f.dimension_id} | {target} | "
@@ -109,8 +111,11 @@ def format_fact(n: int, f: Fact) -> str:
     if len(quote) > QUOTE_SHOWN:
         quote = quote[:QUOTE_SHOWN] + " […]"
     lines.append(f'    quote: "{quote}"')
-    lines.append(f"    source: {f.title or 'untitled'} — {f.url or 'no url'}"
-                 f" (chunk {f.chunk_id}; {when})")
+    source = (f"    source: {f.title or 'untitled'} — {f.url or 'no url'}"
+              f" (chunk {f.chunk_id}; {when})")
+    if f.evidence_superseded:
+        source += EARLIER_VERSION
+    lines.append(source)
     return "\n".join(lines)
 
 
@@ -284,8 +289,11 @@ def build_server(backend: Backend) -> MCPServer:
                             " search again)")
         h = hits[0]
         text = (f"{h.vendor} · {h.product or 'unknown product'} — {h.title}\n"
-                f"source: {h.url or 'no url'}\n\n" + "\n\n".join(x.text for x in hits))
-        return _result(text, {"chunks": format_hits(hits)[1]})
+                f"source: {h.url or 'no url'}{EARLIER_VERSION if h.superseded else ''}\n\n"
+                + "\n\n".join(x.text for x in hits))
+        chunks = [{**row, "superseded": x.superseded}
+                  for row, x in zip(format_hits(hits)[1], hits, strict=True)]
+        return _result(text, {"chunks": chunks})
 
     @server.tool(name="answer_question", annotations=_RO, description=(
         "Answer a question from the documentation in one call: vendorkb retrieves, checks every "

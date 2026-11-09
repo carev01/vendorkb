@@ -104,7 +104,8 @@ async def _must_rows(conn, must: list[dict[str, Any]]) -> list[tuple[str, str]]:
                              " title_like")
         cur = await conn.execute(
             "SELECT c.doc_id::text, c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
-            " WHERE (%s::text IS NULL OR lower(d.vendor) = lower(%s))"
+            " WHERE c.superseded_at IS NULL"
+            " AND (%s::text IS NULL OR lower(d.vendor) = lower(%s))"
             " AND (%s::text IS NULL OR d.product ILIKE %s)"
             " AND (%s::text IS NULL OR d.title ILIKE %s)",
             (entry.get("vendor"), entry.get("vendor"), entry.get("product_like"),
@@ -127,7 +128,7 @@ async def select_chunks(conn, *, must: list[dict[str, Any]], total: int, heldout
 
     cur = await conn.execute(
         "SELECT d.vendor, c.doc_id::text, c.chunk_id::text FROM chunks c"
-        " JOIN documents d USING (doc_id)")
+        " JOIN documents d USING (doc_id) WHERE c.superseded_at IS NULL")
     pool: dict[str, list[tuple[str, str]]] = defaultdict(list)
     vendor_of: dict[str, str] = {}
     for vendor, doc_id, chunk_id in await cur.fetchall():

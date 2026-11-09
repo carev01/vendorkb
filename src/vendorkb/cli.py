@@ -354,8 +354,8 @@ async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) ->
     try:
         if args.capabilities_cmd == "build":
             await init_schema(conn, embed_dim=settings.embed_dim)
-            rows = await capabilities.build(conn)
-            print(json.dumps({"rows": rows,
+            built = await capabilities.build(conn)
+            print(json.dumps({"rows": built.rows, "retired": built.retired,
                               "taxonomy_version": await load.current_version(conn)}))
             return 0
         found = await capabilities.query(conn, capabilities.CapFilter(

@@ -406,6 +406,36 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
         await conn.close()
 
 
+async def test_claims_are_gated_against_the_text_the_chunk_holds_when_recorded(vkb_dsn):
+    """A re-sync can reuse a chunk with new text while the model call is in flight: a quote
+    that is no longer in the text must not be stored as evidence."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+
+        class Resyncing(FakeMessages):
+            async def create(self, **params):
+                await conn.execute(
+                    "UPDATE chunks SET text = replace(text, 'Backups of Amazon RDS for"
+                    " PostgreSQL instances are supported with immutable snapshots.',"
+                    " 'Snapshots of Aurora clusters are listed.') WHERE chunk_id = %s", (cid,))
+                return await super().create(**params)
+
+        client = FakeClient()
+        client.messages = Resyncing(replies={"Amazon RDS": _message(
+            {"claims": [GOOD, PARTIAL]})})
+        report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                   mode="sync")
+        assert (report.done, report.claims_accepted, report.claims_rejected) == (1, 1, 1)
+        assert [r[0] for r in await _rows(conn, "SELECT capability_raw FROM raw_claims")] == [
+            "cross-region copy"]
+        [(reason,)] = await _rows(conn, "SELECT reason FROM rejected_claims")
+        assert reason.startswith("no-match:")
+    finally:
+        await conn.close()
+
+
 async def test_null_product_is_kept(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -599,6 +629,39 @@ async def test_unextracted_ids_are_chunks_with_no_final_v3_extraction(vkb_dsn):
         assert set(await extract.unextracted_ids(conn, vendor="rubrik")) == {
             new, errored, old_family}
         assert len(await extract.unextracted_ids(conn, limit=2)) == 2
+    finally:
+        await conn.close()
+
+
+async def test_unextracted_ids_skip_superseded_chunks(vkb_dsn):
+    """An earlier version of a page is kept for its claims; it is never extracted again."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        superseded, current = await _doc(conn, texts=("earlier version", "current version"))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s",
+                           (superseded,))
+        assert await extract.unextracted_ids(conn) == [current]
+    finally:
+        await conn.close()
+
+
+async def test_extracting_named_ids_skips_superseded_chunks(vkb_dsn):
+    """``extract --ids-file`` names chunks directly: an earlier version of a page is skipped
+    like a deleted chunk, with no call and no extraction row."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        superseded, current = await _doc(conn, texts=("earlier version", "current version"))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s",
+                           (superseded,))
+        client = FakeClient()
+        report = await extract.run(conn, [superseded, current], client=client,
+                                   settings=_settings(), mode="sync")
+        assert (report.done, report.skipped_deleted) == (1, 1)
+        assert len(client.messages.calls) == 1 and "current version" in str(
+            client.messages.calls[0]["messages"])
+        assert await _rows(conn, "SELECT chunk_id::text FROM extractions") == [(current,)]
     finally:
         await conn.close()
 

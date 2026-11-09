@@ -19,9 +19,28 @@ CREATE TABLE IF NOT EXISTS chunks (
     text text NOT NULL,
     token_count int NOT NULL,
     tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
-    embedding vector({embed_dim}) NOT NULL,
-    UNIQUE (doc_id, ordinal)
+    embedding vector({embed_dim}) NOT NULL
 );
+
+-- 2026-11-08 (docs/superpowers/specs/2026-11-08-topic-expansion-design.md, Part A): a re-synced
+-- page keeps each chunk whose text is unchanged, with its extraction and claims
+-- (``store.write_document``). A chunk the new version drops is kept when one of its claims is
+-- mapped, with ``superseded_at`` set (NULL = the current version), until the new version is
+-- extracted and mapped (``store.retire_superseded``); it is kept for its claims only: search,
+-- extraction and the refresh trigger skip it. So (doc_id, ordinal) is unique among the current
+-- chunks only: the inline UNIQUE of the earlier schema (named chunks_doc_id_ordinal_key)
+-- becomes a partial unique index. That constraint was also the only full index leading with
+-- doc_id, which the cascade from documents needs (``DELETE FROM ONLY chunks WHERE $1 = doc_id``;
+-- neither partial index can serve it: without chunks_doc_idx every page removal scans chunks),
+-- so chunks_doc_idx replaces it for that. chunks_superseded_idx stays: ``retire_superseded``
+-- scans the superseded chunks of every page, and the partial index keeps that small.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS superseded_at timestamptz;
+ALTER TABLE chunks DROP CONSTRAINT IF EXISTS chunks_doc_id_ordinal_key;
+CREATE UNIQUE INDEX IF NOT EXISTS chunks_doc_ordinal_current_idx ON chunks (doc_id, ordinal)
+    WHERE superseded_at IS NULL;
+CREATE INDEX IF NOT EXISTS chunks_superseded_idx ON chunks (doc_id)
+    WHERE superseded_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS chunks_doc_idx ON chunks (doc_id);
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);
@@ -58,9 +77,13 @@ CREATE TABLE IF NOT EXISTS sync_seen (
     doc_id uuid PRIMARY KEY
 );
 
--- M3/M4: claim extraction and the capability table. A chunk is replaced (new chunk_id) when
--- its document is re-synced, so everything keyed on chunk_id cascades with it: the new
--- chunks are extracted afresh, and no claim outlives the evidence it quotes.
+-- M3/M4: claim extraction and the capability table. A chunk whose text changed is replaced
+-- (new chunk_id) when its document is re-synced, so everything keyed on chunk_id cascades with
+-- it: the new chunks are extracted afresh, and no claim outlives the evidence it quotes. A
+-- chunk with a mapped claim is kept, superseded, until the new version is mapped
+-- (``chunks.superseded_at``). A chunk whose text matches (exactly or by ``chunker.reuse_key``)
+-- keeps its row, extraction and claims, and takes the new version's text, embedding, ordinal
+-- and section_path.
 -- Reserved (BACKLOG 14): never written. DocExtractor's delta records carry no version (only
 -- its products endpoint has one, per product), so documents.version and the claims'
 -- version stay NULL, and answers come from the latest documents.
@@ -389,14 +412,16 @@ $$;
 
 -- capabilities v2 (``taxonomy.capabilities``): one row per claims-v3 claim mapped under the
 -- current taxonomy version with a dimension, rebuilt from raw_claims by ``capabilities
--- build``. Keyed on the claim, so a claim's deletion (a document re-sync) cascades here.
+-- build``. Keyed on the claim, so a claim's deletion (its page removed, or retired after a
+-- re-sync) cascades here.
 -- ``doc_version`` is the claim's ``documents.fetched_at``. ``scope``: 'product_wide' (no
 -- target, and a workload dimension; an offering may be named), else 'offering' (an offering is
 -- named), else 'product'. Rows sharing the conflict key (vendor, product, offering, edition,
 -- dimension, target, variant, object type) but differing in support or in a stated value
 -- share a ``conflict_group``; ``is_current`` marks the key's rows from its most recently
--- fetched document. No foreign keys into the
--- taxonomy tables: a ``taxonomy load`` replaces them, and stale rows wait for map and build.
+-- fetched document (a row on a superseded chunk ranks below every current-version row). No
+-- foreign keys into the taxonomy tables: a ``taxonomy load`` replaces them, and stale rows
+-- wait for map and build.
 -- (No ``feature_id`` column: that is what the v1-drop block above keys on.)
 CREATE TABLE IF NOT EXISTS capabilities (
     claim_id uuid PRIMARY KEY REFERENCES raw_claims ON DELETE CASCADE,
@@ -428,6 +453,9 @@ CREATE TABLE IF NOT EXISTS capabilities (
 ALTER TABLE capabilities DROP CONSTRAINT IF EXISTS capabilities_scope_check;
 ALTER TABLE capabilities ADD CONSTRAINT capabilities_scope_check
     CHECK (scope IN ('offering', 'product', 'product_wide', 'target_unmapped'));
+-- 2026-11-08: the claim's chunk is an earlier version of its page (``chunks.superseded_at``),
+-- kept until the new version is extracted and mapped: the fact is shown as from that version.
+ALTER TABLE capabilities ADD COLUMN IF NOT EXISTS evidence_superseded boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS capabilities_dimension_idx ON capabilities (dimension_id);
 CREATE INDEX IF NOT EXISTS capabilities_target_idx ON capabilities (target_id);
 CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor));

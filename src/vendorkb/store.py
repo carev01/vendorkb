@@ -8,10 +8,11 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 import psycopg
 
-from vendorkb.chunker import Chunk
+from vendorkb.chunker import Chunk, reuse_key
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,12 @@ class DocMeta:
     url: str | None
 
 
+class Written(NamedTuple):
+    """What ``write_document`` did with the page's earlier chunks."""
+    reused: int  # kept their row, extraction and claims (same text)
+    superseded: int  # kept as an earlier version of the page, for their mapped claims
+
+
 async def stored_hashes(conn: psycopg.AsyncConnection,
                         doc_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     cur = await conn.execute(
@@ -32,20 +39,121 @@ async def stored_hashes(conn: psycopg.AsyncConnection,
     return {doc_id: h for doc_id, h in await cur.fetchall()}
 
 
+def _norm(text: str) -> str:
+    """Whitespace collapsed and lowercased: the quote check ignores both."""
+    return " ".join(text.split()).lower()
+
+
 async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_hash: str,
-                         chunks: list[Chunk], vectors: list[list[float]]) -> None:
-    await conn.execute("DELETE FROM documents WHERE doc_id=%s", (meta.doc_id,))
+                         chunks: list[Chunk], vectors: list[list[float]]) -> Written:
+    """Store a new version of a page (a first write, or an update); how many current chunks
+    it reused and superseded.
+
+    Per chunk, so unchanged text keeps its facts. A new chunk reuses a current chunk of the
+    page when their ``reuse_key`` is equal and every claim's evidence quote still appears in
+    the new text (whitespace and case ignored): it keeps its ``chunk_id``, extraction and
+    claims, and takes the new section path, ordinal, text and embedding (a chunk that is
+    equal in all three is not written at all, its stored embedding stays). Each other current
+    chunk is kept, with ``superseded_at`` set, when a claim on it is mapped (its facts are in
+    the capability table or soon will be) and deleted otherwise. Superseded chunks are never
+    deleted here: only ``retire_superseded`` does, once the new chunks are extracted and
+    mapped. The new chunks that reused nothing are inserted."""
+    # Locked until the caller's transaction ends: an extraction recording its claims on one of
+    # these chunks (FOR KEY SHARE, claims/extract.py) waits, then gates them against the new
+    # text, and one that committed first is seen by the quote check below.
+    await conn.execute("SELECT chunk_id FROM chunks WHERE doc_id = %s AND superseded_at IS NULL"
+                       " ORDER BY chunk_id FOR UPDATE", (meta.doc_id,))
     await conn.execute(
         "INSERT INTO documents(doc_id, vendor, product, source, source_id, title, url,"
-        " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        " content_hash, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+        " ON CONFLICT (doc_id) DO UPDATE SET vendor = EXCLUDED.vendor,"
+        " product = EXCLUDED.product, source = EXCLUDED.source, source_id = EXCLUDED.source_id,"
+        " title = EXCLUDED.title, url = EXCLUDED.url, content_hash = EXCLUDED.content_hash,"
+        " fetched_at = EXCLUDED.fetched_at",
         (meta.doc_id, meta.vendor, meta.product, meta.source, meta.source_id, meta.title,
          meta.url, content_hash, datetime.now(UTC)))
+    cur = await conn.execute(
+        "SELECT c.chunk_id, c.text, coalesce(array_agg(r.evidence_quote)"
+        " FILTER (WHERE r.claim_id IS NOT NULL), '{}'), coalesce(bool_or("
+        "r.mapped_version IS NOT NULL), false), c.section_path, c.ordinal FROM chunks c"
+        " LEFT JOIN raw_claims r ON r.chunk_id = c.chunk_id WHERE c.doc_id = %s"
+        " AND c.superseded_at IS NULL GROUP BY c.chunk_id ORDER BY c.ordinal", (meta.doc_id,))
+    rows = await cur.fetchall()
+    mapped = {chunk_id: has_mapped for chunk_id, _, _, has_mapped, _, _ in rows}
+    stored = {chunk_id: (text, path, ordinal) for chunk_id, text, _, _, path, ordinal in rows}
+    by_key: dict[str, list[tuple[uuid.UUID, list[str]]]] = {}  # in ordinal order
+    for chunk_id, text, quotes, _, _, _ in rows:
+        by_key.setdefault(reuse_key(text), []).append((chunk_id, quotes))
+    reused: list[tuple[uuid.UUID, Chunk, list[float]]] = []
+    fresh: list[tuple[Chunk, list[float]]] = []
+    used: set[uuid.UUID] = set()
+    for chunk, vector in zip(chunks, vectors, strict=True):
+        text = _norm(chunk.text)
+        match = next((chunk_id for chunk_id, quotes in by_key.get(reuse_key(chunk.text), [])
+                      if chunk_id not in used and all(_norm(q) in text for q in quotes)), None)
+        if match is None:
+            fresh.append((chunk, vector))
+        else:
+            used.add(match)
+            reused.append((match, chunk, vector))
+    dropped = [chunk_id for chunk_id in mapped if chunk_id not in used]
+    superseded = [c for c in dropped if mapped[c]]
+    await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = ANY(%s)",
+                       (superseded,))
+    await conn.execute("DELETE FROM chunks WHERE chunk_id = ANY(%s)",
+                       ([c for c in dropped if not mapped[c]],))
+    # A reused chunk is written only as far as it changed (every write is an index update,
+    # the HNSW one included): not at all when text, section path and ordinal are the same,
+    # and with its final ordinal when only the ordinal is. One that changes ordinal moves
+    # through a negative one, so that none collides with another on the partial unique
+    # index while a swap is half done; no other target collides, the ordinals of the new
+    # version being unique and one that stays never vacated.
+    rewrite, moves = [], []
+    for chunk_id, c, v in reused:
+        text, path, ordinal = stored[chunk_id]
+        if ordinal != c.ordinal:
+            moves.append((list(c.section_path), -1 - c.ordinal, c.text, c.token_count, v,
+                          chunk_id))
+        elif text != c.text or path != list(c.section_path):
+            rewrite.append((list(c.section_path), c.ordinal, c.text, c.token_count, v,
+                            chunk_id))
     async with conn.cursor() as cur:
+        await cur.executemany(
+            "UPDATE chunks SET section_path = %s, ordinal = %s, text = %s, token_count = %s,"
+            " embedding = %s WHERE chunk_id = %s", rewrite + moves)
+        if moves:
+            await cur.execute("UPDATE chunks SET ordinal = -1 - ordinal WHERE doc_id = %s"
+                              " AND superseded_at IS NULL AND ordinal < 0", (meta.doc_id,))
         await cur.executemany(
             "INSERT INTO chunks(chunk_id, doc_id, section_path, ordinal, text, token_count,"
             " embedding) VALUES (%s,%s,%s,%s,%s,%s,%s)",
             [(uuid.uuid4(), meta.doc_id, list(c.section_path), c.ordinal, c.text,
-              c.token_count, v) for c, v in zip(chunks, vectors, strict=True)])
+              c.token_count, v) for c, v in fresh])
+    return Written(reused=len(reused), superseded=len(superseded))
+
+
+async def retire_superseded(conn: psycopg.AsyncConnection, taxonomy_version: str | None) -> int:
+    """Delete the superseded chunks of every page whose current version is fully extracted and
+    mapped; the cascade removes their extractions, claims and capability rows. Returns the
+    number of chunks deleted.
+
+    A page is ready when each of its current chunks has a final extraction (done or failed) of
+    the claims-v3 family and every claim of that family on them is mapped under
+    ``taxonomy_version`` (an unmapped claim blocks it too; None: the extraction condition
+    only)."""
+    # Imported here, not at the top: ``sync`` imports this module and must stay free of the
+    # claims stack (anthropic) in its 1 Gi pod (tests/unit/test_vendorkb_cli_imports.py).
+    from vendorkb.claims.extract import PROMPT_FAMILY
+    cur = await conn.execute(
+        "DELETE FROM chunks s WHERE s.superseded_at IS NOT NULL AND NOT EXISTS ("
+        " SELECT 1 FROM chunks c WHERE c.doc_id = s.doc_id AND c.superseded_at IS NULL AND ("
+        "  NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        "   AND e.status IN ('done', 'failed') AND e.prompt_version LIKE %(family)s)"
+        "  OR (%(version)s::text IS NOT NULL AND EXISTS (SELECT 1 FROM raw_claims r"
+        "   WHERE r.chunk_id = c.chunk_id AND r.prompt_version LIKE %(family)s"
+        "   AND r.mapped_version IS DISTINCT FROM %(version)s::text))))",
+        {"family": PROMPT_FAMILY, "version": taxonomy_version})
+    return cur.rowcount
 
 
 async def update_metadata(conn: psycopg.AsyncConnection, meta: DocMeta) -> bool:
