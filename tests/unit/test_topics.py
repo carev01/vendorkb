@@ -178,11 +178,9 @@ def test_a_term_that_is_no_whole_word_matches_no_topic(T, term):
     assert match_topics(term, T) == []  # "immutability" names an aspect, not the topic
 
 
-def test_aspect_names_match_only_when_asked(T):
-    assert match_topics("worm", T) == []
-    assert [t.id for t in match_topics("worm", T, aspects=True)] == ["ransomware_protection"]
-    assert [t.id for t in match_topics("Air gap / isolated", T, aspects=True)] == [
-        "ransomware_protection"]
+def test_an_aspect_name_names_no_topic(T):
+    for term in ("worm", "Immutability / WORM", "Air gap / isolated copies", "air gap"):
+        assert match_topics(term, T) == [], term
 
 
 def test_an_exact_match_beats_a_whole_word_and_ties_keep_the_order():
@@ -193,7 +191,3 @@ def test_an_exact_match_beats_a_whole_word_and_ties_keep_the_order():
     assert [t.id for t in match_topics("b topic", [a, b])] == ["b_topic"]  # the id, normalised
     only_aspect = _topic("d_topic", ("zzz",), ())  # its aspect is named "One"
     assert match_topics("one", [only_aspect]) == []
-    assert match_topics("one", [only_aspect], aspects=True) == [only_aspect]
-    # an aspect-name match ranks below a word of the topic's id, name or triggers
-    assert [t.id for t in match_topics("one", [only_aspect, _topic("one_x", ("zzz",), ())],
-                                       aspects=True)] == ["one_x", "d_topic"]

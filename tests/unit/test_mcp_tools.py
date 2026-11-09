@@ -71,12 +71,20 @@ class FakeBackend:
             raise self.fail
         return self.caps(f) if callable(self.caps) else self.caps
 
-    async def topics(self, query):
-        self.calls.append(("topics", query))
-        if query is None:
-            return self.known_topics
-        return [t for t in self.known_topics
-                if query.lower() in " ".join((t.id, t.name, *t.triggers)).lower()]
+    async def capabilities_many(self, filters, limit):
+        self.calls.append(("capabilities_many", filters, limit))
+        if self.fail:
+            raise self.fail
+        out = []
+        for f in filters:
+            out.append(self.caps(f) if callable(self.caps) else self.caps)
+            if out[-1].unresolved:  # like DbBackend: the rest would fail the same way
+                break
+        return out
+
+    async def topics(self):
+        self.calls.append(("topics",))
+        return self.known_topics
 
     async def search(self, query, vendor, product, k):
         self.calls.append(("search", query, vendor, product, k))
@@ -194,6 +202,7 @@ async def test_query_capabilities_needs_a_filter_and_reports_failures():
     async with Client(ms.build_server(backend)) as c:
         r = await c.call_tool("query_capabilities", {})
         assert r.is_error and "at least one filter" in r.content[0].text
+        assert "or topic" in r.content[0].text
         assert backend.calls == []
         r = await c.call_tool("query_capabilities", {"dimension": "x"})
         assert r.is_error and "RuntimeError: db down" in r.content[0].text
@@ -286,8 +295,11 @@ async def test_browse_tools(tool, args):
                             " Example Backup (3)"}[tool] == text
 
 
-def _caps_calls(backend: FakeBackend) -> list[tuple]:
-    return [c for c in backend.calls if c[0] == "capabilities"]
+def _topic_call(backend: FakeBackend) -> tuple:
+    """The one capabilities_many call of a topic query: (name, filters, limit)."""
+    [call] = [c for c in backend.calls if c[0] == "capabilities_many"]
+    assert not [c for c in backend.calls if c[0] == "capabilities"]
+    return call
 
 
 async def test_query_by_topic_groups_facts_by_aspect(ransomware):
@@ -298,12 +310,12 @@ async def test_query_by_topic_groups_facts_by_aspect(ransomware):
             "topic": "ransomware protection", "vendor": "Examplevendor", "target": "RDS",
             "support": "supported", "offering": "enterprise", "limit": 20})
     assert not r.is_error
-    calls = _caps_calls(backend)
-    assert [call[1].dimension_ids for call in calls] == [a.dimensions for a in aspects]
-    for _, f, limit in calls:
+    _, filters, limit = _topic_call(backend)  # one call, every aspect's filter in order
+    assert [f.dimension_ids for f in filters] == [a.dimensions for a in aspects]
+    assert limit == max(1, 20 // len(aspects))
+    for f in filters:
         assert (f.vendor, f.target, f.support, f.offering, f.dimension) == (
             ("Examplevendor",), "RDS", "supported", "enterprise", None)
-        assert limit == max(1, 20 // len(aspects))
     text = r.content[0].text
     assert [x for x in text.splitlines() if x.startswith("## ")] == [
         f"## {a.name}" for a in aspects]
@@ -315,13 +327,15 @@ async def test_query_by_topic_groups_facts_by_aspect(ransomware):
     assert [(a["id"], a["name"], tuple(a["dimensions"])) for a in sc["aspects"]] == [
         (a.id, a.name, a.dimensions) for a in aspects]
     assert all(a["facts_total"] == 1 and len(a["facts"]) == 1 for a in sc["aspects"])
+    assert sc["aspects"][0]["facts"][0]["evidence_superseded"] is False
 
 
 async def test_each_aspect_gets_at_least_one_fact(ransomware):
     backend = FakeBackend(topics=[ransomware])
     async with Client(ms.build_server(backend)) as c:
         await c.call_tool("query_capabilities", {"topic": "ransomware", "limit": 3})
-    assert [call[2] for call in _caps_calls(backend)] == [1] * len(ransomware.aspects)
+    _, filters, limit = _topic_call(backend)
+    assert (len(filters), limit) == (len(ransomware.aspects), 1)
 
 
 async def test_an_aspect_without_facts_keeps_its_heading_and_claims_no_absence(ransomware):
@@ -373,7 +387,7 @@ async def test_unknown_topic_lists_the_known_ones(ransomware):
     assert r.is_error
     text = r.content[0].text
     assert "'tape drives'" in text and "ransomware_protection (Ransomware protection)" in text
-    assert _caps_calls(backend) == []
+    assert [c[0] for c in backend.calls] == ["topics"]  # no capabilities query
 
 
 async def test_a_topic_failure_is_reported(ransomware):
@@ -404,10 +418,58 @@ async def test_list_dimensions_shows_matching_topics(ransomware):
 
 
 @pytest.mark.parametrize("args", [{}, {"query": "  "}, {"family": "security"},
-                                  {"query": "retention"}])
+                                  {"query": "retention"},
+                                  {"query": "immutability"},  # an aspect's name, not the topic's
+                                  {"query": "Air gap / isolated copies"}])
 async def test_list_dimensions_without_a_topic_match_is_unchanged(ransomware, args):
     async with Client(ms.build_server(FakeBackend(topics=[ransomware]))) as c:
         r = await c.call_tool("list_dimensions", args)
     assert r.content[0].text == ("security.immutability — Immutability: Copies that cannot be"
                                  " changed. (aliases: immutable backups)")
     assert list(r.structured_content) == ["dimensions"]
+
+
+async def test_an_aspect_name_does_not_resolve_a_topic(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "Immutability / WORM"})
+    assert r.is_error and "unknown topic" in r.content[0].text
+    assert [c[0] for c in backend.calls] == ["topics"]
+
+
+async def test_unresolved_filters_are_reported_once_and_the_other_aspects_do_not_run(ransomware):
+    hint = "No taxonomy entity matches target 'tape' (by id or alias). Search the documents"
+    backend = FakeBackend(caps=CapResult(hint=hint, unresolved=["target 'tape'"]),
+                          topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware", "target": "tape"})
+    assert not r.is_error
+    assert r.content[0].text == f"No facts. {hint}"  # once, with no aspect headings
+    sc = r.structured_content
+    assert (sc["topic"], sc["aspects"], sc["hint"]) == ("ransomware_protection", [], hint)
+    # the backend was asked for every aspect and stopped at the first result
+    [(_, filters, _)] = [c for c in backend.calls if c[0] == "capabilities_many"]
+    assert len(filters) == len(ransomware.aspects)
+
+
+async def test_a_topic_without_aspects_does_not_divide_by_zero():
+    empty = load.Topic("empty_topic", "Empty topic", ("empty",), ())
+    backend = FakeBackend(topics=[empty])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "empty", "limit": 7})
+    assert not r.is_error
+    assert _topic_call(backend)[1:] == ([], 7)
+    assert r.structured_content["aspects"] == []
+
+
+async def test_a_topic_fact_on_an_earlier_page_version_is_marked(ransomware):
+    caps = CapResult(facts=[_fact(evidence_superseded=True, is_current=False)])
+    async with Client(ms.build_server(FakeBackend(caps=caps, topics=[ransomware]))) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware"})
+    assert "(from an earlier version of the page)" in r.content[0].text
+    assert r.structured_content["aspects"][0]["facts"][0]["evidence_superseded"] is True
+
+
+def test_the_instructions_name_the_topic_route():
+    assert "query_capabilities(topic=...)" in ms.INSTRUCTIONS
+    assert "list_dimensions with the subject shows the topic's aspects" in ms.INSTRUCTIONS

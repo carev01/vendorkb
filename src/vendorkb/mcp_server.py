@@ -51,6 +51,8 @@ citations. Rules:
   "no evidence found".
 - Use list_dimensions / list_targets to turn the user's wording into taxonomy ids when
   query_capabilities reports that a filter matched nothing.
+- For a broad subject such as ransomware protection, query_capabilities(topic=...) returns facts
+  grouped by aspect; list_dimensions with the subject shows the topic's aspects.
 - For one vendor's details (limits, versions, prerequisites), search_docs with the vendor
   filter, then read_section for the surrounding text.
 - answer_question returns a complete cited answer in one call when you do not need to combine
@@ -211,23 +213,27 @@ def build_server(backend: Backend) -> MCPServer:
 
     async def _topic_facts(term: str, base: CapFilter, limit: int) -> tuple[str, dict[str, Any]]:
         """The facts of the topic ``term`` names (an id, a name or a trigger): one query per
-        aspect, one after another, each with ``base``'s filters on the aspect's dimensions and
-        its share of ``limit``."""
+        aspect on one connection, each with ``base``'s filters on the aspect's dimensions and
+        its share of ``limit``. A filter that names no taxonomy entity fails every aspect the
+        same way, so its hint is returned once."""
         try:
-            known = await backend.topics(None)
+            known = await backend.topics()
         except Exception as e:
             raise _fail("query_capabilities", e) from e
         if not (found := match_topics(term, known)):
             listing = ", ".join(f"{t.id} ({t.name})" for t in known) or "none defined"
             raise ToolError(f"unknown topic {term!r}; known topics: {listing}")
         topic = found[0]
-        share = max(1, limit // len(topic.aspects))
+        share = max(1, limit // max(1, len(topic.aspects)))
         try:
-            results = [await backend.capabilities(
-                dataclasses.replace(base, dimension_ids=a.dimensions), share)
-                for a in topic.aspects]
+            results = await backend.capabilities_many(
+                [dataclasses.replace(base, dimension_ids=a.dimensions) for a in topic.aspects],
+                share)
         except Exception as e:
             raise _fail("query_capabilities", e) from e
+        if failed := next((r for r in results if r.unresolved), None):
+            text, structured = format_capabilities(failed, share)
+            return text, {**structured, "topic": topic.id, "name": topic.name, "aspects": []}
         return format_topic_capabilities(topic, results, share)
 
     @server.tool(name="list_vendors", annotations=_RO, description=(
@@ -254,7 +260,7 @@ def build_server(backend: Backend) -> MCPServer:
                               limit: int = 25) -> CallToolResult:
         try:
             rows = await backend.dimensions(query, family, max(1, min(limit, MAX_LIMIT)))
-            found = await backend.topics(query) if query and query.strip() else []
+            found = match_topics(query, await backend.topics()) if query and query.strip() else []
         except Exception as e:
             raise _fail("list_dimensions", e) from e
         lines = [f"{d['id']} — {d['name']}: {d['definition']}"
@@ -321,7 +327,7 @@ def build_server(backend: Backend) -> MCPServer:
             if all(v is None for v in dataclasses.asdict(f).values()):
                 raise ToolError((f"{note} " if note else "")
                                 + "query_capabilities needs at least one filter (e.g. dimension "
-                                "and target; see list_dimensions and list_targets)")
+                                "and target, or topic; see list_dimensions and list_targets)")
             try:
                 res = await backend.capabilities(f, limit)
             except Exception as e:

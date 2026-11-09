@@ -92,11 +92,11 @@ def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
     return None
 
 
-def match_topics(term: str, topics: list[Topic], *, aspects: bool = False) -> list[Topic]:
+def match_topics(term: str, topics: list[Topic]) -> list[Topic]:
     """The ``topics`` that ``term`` names, best match first, ties in ``topics`` order. Compared
     as ``_label`` text: a topic whose id, name or a trigger is the term, then one holding it
-    as a whole word there; with ``aspects``, then one holding it as a whole word in an
-    aspect's name. MCP tools turn the wording of an agent into topics with it."""
+    as a whole word there. An aspect's name names no topic. MCP tools turn the wording of an
+    agent into topics with it."""
     text = _label(term)
     if not text:
         return []
@@ -108,8 +108,6 @@ def match_topics(term: str, topics: list[Topic], *, aspects: bool = False) -> li
             ranked.append((0, i))
         elif any(word.search(x) for x in names):
             ranked.append((1, i))
-        elif aspects and any(word.search(_label(a.name)) for a in topic.aspects):
-            ranked.append((2, i))
     return [topics[i] for _, i in sorted(ranked)]
 
 

@@ -132,19 +132,56 @@ async def test_backend_topics(vkb_dsn, backend, tmp_path):
     conn = await connect(vkb_dsn)
     try:
         await _fresh(conn)
-        assert await backend.topics(None) == []  # a taxonomy with no topics
+        assert await backend.topics() == []  # a taxonomy with no topics
         await _load(conn, tmp_path, [_topic("backup_keeping", ["keeping"]),
                                      _topic("recovery_basics", ["restore"])])
     finally:
         await conn.close()
-    assert [t.id for t in await backend.topics(None)] == ["backup_keeping", "recovery_basics"]
-    [topic] = await backend.topics("Backup-Keeping")
+    found = await backend.topics()
+    assert [t.id for t in found] == ["backup_keeping", "recovery_basics"]
+    topic = found[0]
     assert topic.name == "Topic backup_keeping" and topic.triggers == ("keeping",)
     assert [a.id for a in topic.aspects] == ["keeping", "getting_back"]
     assert topic.aspects[0].dimensions == ("retention.maximum_period",
                                            "schedule.backup_frequency")
-    assert [t.id for t in await backend.topics("restore")] == ["recovery_basics"]
-    # the aspect names count here, after the id, name and triggers
-    assert [t.id for t in await backend.topics("getting data")] == [
-        "backup_keeping", "recovery_basics"]
-    assert await backend.topics("tape") == []
+
+
+async def test_capabilities_many_uses_one_connection_and_stops_on_unresolved(
+        vkb_dsn, backend, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "retention.maximum_period", vendor="examplevendor",
+                     mapped_version=v, quote="Copies are kept for 30 days")
+        await _claim(conn, "coverage.restore", vendor="examplevendor", mapped_version=v,
+                     quote="Objects can be restored")
+        await capabilities.build(conn)
+    finally:
+        await conn.close()
+    opened = []
+    real = mcp_backend.connect
+
+    async def counting(dsn):
+        opened.append(dsn)
+        return await real(dsn)
+
+    monkeypatch.setattr(mcp_backend, "connect", counting)
+    filters = [CapFilter(dimension_ids=("coverage.restore",)),
+               CapFilter(dimension_ids=("coverage.export",)),  # no fact on it
+               CapFilter(dimension_ids=("retention.maximum_period",))]
+    results = await backend.capabilities_many(filters, 5)
+    assert len(opened) == 1  # not one per filter
+    assert [[f.dimension_id for f in r.facts + r.product_wide] for r in results] == [
+        ["coverage.restore"], [], ["retention.maximum_period"]]  # in the filters' order
+    assert not any(r.unresolved for r in results)
+    assert await backend.capabilities_many([], 5) == []
+
+    # a target that names nothing fails every aspect alike: the first result says so, and the
+    # others are not run
+    opened.clear()
+    results = await backend.capabilities_many(
+        [CapFilter(dimension_ids=f.dimension_ids, target="no such workload") for f in filters],
+        5)
+    assert len(opened) == 1 and len(results) == 1
+    assert results[0].unresolved == ["target 'no such workload'"]
+    assert results[0].hint and results[0].hint.startswith("No taxonomy entity matches")

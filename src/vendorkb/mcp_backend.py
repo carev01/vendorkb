@@ -19,9 +19,10 @@ from vendorkb.db import connect
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import Hit, SearchResult, read_section, search_docs
 from vendorkb.taxonomy import capabilities
+from vendorkb.taxonomy.capabilities import CapFilter, CapResult
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Topic
-from vendorkb.topics import load_topics, match_topics
+from vendorkb.topics import load_topics
 
 Expand = Literal["0", "1", "full"]
 
@@ -31,9 +32,11 @@ class Backend(Protocol):
     async def dimensions(self, query: str | None, family: str | None,
                          limit: int) -> list[dict[str, Any]]: ...
     async def targets(self, query: str | None, limit: int) -> list[dict[str, Any]]: ...
-    async def topics(self, query: str | None) -> list[Topic]: ...
+    async def topics(self) -> list[Topic]: ...
     async def capabilities(self, f: capabilities.CapFilter,
                            limit: int) -> capabilities.CapResult: ...
+    async def capabilities_many(self, filters: list[CapFilter],
+                                limit: int) -> list[CapResult]: ...
     async def search(self, query: str, vendor: list[str] | None, product: list[str] | None,
                      k: int) -> SearchResult: ...
     async def section(self, chunk_id: str, expand: Expand) -> list[Hit]: ...
@@ -141,21 +144,35 @@ class DbBackend:
         return [{"id": r[0], "name": r[1], "class": r[2], "parent": r[3], "aliases": list(r[4])}
                 for r in rows]
 
-    async def topics(self, query: str | None) -> list[Topic]:
-        """Every topic of the loaded taxonomy, or those ``query`` names (``match_topics``,
-        aspect names included), best match first."""
+    async def topics(self) -> list[Topic]:
+        """Every topic of the loaded taxonomy."""
         conn = await connect(self.settings.vendorkb_dsn)
         try:
-            found = await load_topics(conn)
+            return await load_topics(conn)
         finally:
             await conn.close()
-        return found if query is None else match_topics(query, found, aspects=True)
 
     async def capabilities(self, f: capabilities.CapFilter,
                            limit: int) -> capabilities.CapResult:
         conn = await connect(self.settings.vendorkb_dsn)
         try:  # bounded in SQL: a broad filter matches hundreds of thousands of rows
             return await capabilities.query(conn, f, limit=limit)
+        finally:
+            await conn.close()
+
+    async def capabilities_many(self, filters: list[CapFilter],
+                                limit: int) -> list[CapResult]:
+        """``capabilities`` for each filter, in order, on one connection. It stops after a
+        result that reports unresolved filters, the rest being the same query on other
+        dimensions: the list is then shorter than ``filters``."""
+        conn = await connect(self.settings.vendorkb_dsn)
+        try:
+            results: list[CapResult] = []
+            for f in filters:
+                results.append(await capabilities.query(conn, f, limit=limit))
+                if results[-1].unresolved:
+                    break
+            return results
         finally:
             await conn.close()
 

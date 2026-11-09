@@ -141,6 +141,7 @@ class CapResult:
     unresolved_target: list[Fact] = field(default_factory=list)
     conflicts: list[Conflict] = field(default_factory=list)
     hint: str | None = None
+    unresolved: list[str] = field(default_factory=list)  # filters that named no taxonomy entity
     totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
 
 
@@ -330,7 +331,8 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
     unresolved = _unresolved(f, targets, dimensions, offerings, editions)
     if unresolved:
         # never fall back to the less specific rows of a filter that named nothing
-        return CapResult(hint=await _hint(conn, f, targets, dimensions, unresolved))
+        return CapResult(hint=await _hint(conn, f, targets, dimensions, unresolved),
+                         unresolved=unresolved)
     if version is None:
         return CapResult(hint=await _hint(conn, f, targets, dimensions))
 
