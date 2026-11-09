@@ -282,8 +282,9 @@ async def test_answer_question_lists_its_sources():
                           "title": "Page 1", "section_path": ["Guide"], "text": "..."}]}
     async with Client(ms.build_server(FakeBackend(answer=out))) as c:
         r = await c.call_tool("answer_question", {"question": "Is RDS immutable?"})
+    # the chunk id is in the text: the agent's way to read_document a cited page
     assert r.content[0].text == ("Snapshots are immutable [1].\n\nSources:\n"
-                                 "[1] Page 1 — https://docs.example/1")
+                                 "[1] Page 1 — https://docs.example/1 (chunk k1)")
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
     assert "citations_total" not in r.structured_content  # a grid answer's key only
@@ -321,10 +322,12 @@ async def test_a_grid_answer_lists_each_page_once_within_a_cap(ransomware):
     assert len("Sources:\n" + sources) <= ms.GRID_SOURCES_CHARS == 8000
     *lines, more = sources.split("\n")
     # one line per page, all its markers, no title
-    by_url: dict[str, list[int]] = {}
+    by_url: dict[str, list[dict]] = {}
     for c in out["citations"]:
-        by_url.setdefault(c["url"], []).append(c["marker"])
-    expected = [f"[{', '.join(map(str, m))}] {url}" for url, m in by_url.items()]
+        by_url.setdefault(c["url"], []).append(c)
+    # each page with its first cited chunk, for read_document
+    expected = [f"[{', '.join(str(c['marker']) for c in cs)}] {url} (chunk {cs[0]['chunk_id']})"
+                for url, cs in by_url.items()]
     assert lines == expected[:len(lines)] and lines[0].startswith("[1, 2] https://")
     assert not any("page title" in line for line in lines)
     assert more == (f"… {len(expected) - len(lines)} more sources: query_capabilities("
@@ -342,7 +345,8 @@ async def test_a_short_grid_answer_lists_every_page(ransomware):
         r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
     sources = r.content[0].text.split("\n\nSources:\n")[1].split("\n")
     # under the cap: every page, and no pointer line
-    assert [line.rsplit(" ", 1)[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
+    assert [line.split(" https://")[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
+    assert all(line.endswith(")") and "(chunk k" in line for line in sources)
 
 
 @pytest.mark.parametrize("tool, args", [("list_dimensions", {"query": "immutable"}),

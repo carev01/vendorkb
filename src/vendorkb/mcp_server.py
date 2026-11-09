@@ -238,20 +238,23 @@ def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
 
 
 def format_sources(out: dict[str, Any]) -> str:
-    """The Sources section of an answer: ``[n] title — url`` per citation; for a grid answer
-    (``topic`` set, shape enumeration), each page once with all its markers, ``[3, 17] url``,
-    cut at ``GRID_SOURCES_CHARS`` with a pointer to the topic's facts. Empty with no citation."""
+    """The Sources section of an answer: ``[n] title — url (chunk id)`` per citation; for a grid
+    answer (``topic`` set, shape enumeration), each page once with all its markers and its first
+    cited chunk, ``[3, 17] url (chunk id)``, cut at ``GRID_SOURCES_CHARS`` with a pointer to the
+    topic's facts. The chunk id is in the text so an agent can ``read_document`` a cited page.
+    Empty with no citation."""
     citations = out.get("citations") or []
     if not citations:
         return ""
     if not (out.get("topic") and out.get("shape") == "enumeration"):
         return "Sources:\n" + "\n".join(
             f"[{c['marker']}] {c.get('title') or 'untitled'} — {c.get('url') or 'no url'}"
-            for c in citations)
-    pages: dict[str, list[str]] = {}
+            f" (chunk {c.get('chunk_id')})" for c in citations)
+    pages: dict[str, list[dict[str, Any]]] = {}
     for c in citations:
-        pages.setdefault(c.get("url") or "no url", []).append(str(c["marker"]))
-    lines = [f"[{', '.join(markers)}] {url}" for url, markers in pages.items()]
+        pages.setdefault(c.get("url") or "no url", []).append(c)
+    lines = [f"[{', '.join(str(c['marker']) for c in cs)}] {url} (chunk {cs[0].get('chunk_id')})"
+             for url, cs in pages.items()]
     text = "Sources:\n" + "\n".join(lines)
     shown = len(lines)
     while len(text) > GRID_SOURCES_CHARS and shown > 0:

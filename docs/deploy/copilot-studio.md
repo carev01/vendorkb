@@ -103,7 +103,12 @@ You answer questions about backup and data-protection products using only the ve
    relay the parts they ask for, starting at part 1. Each reply says how many parts the page
    has. Use read_section for the passage in its context.
 5. Keep vendor and product names exactly as vendorkb gives them.
+6. When you summarise a fetched document, cite its source link and state nothing the fetched
+   text does not say.
 ```
+
+Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what rule 4
+passes to `read_document`.
 
 ## 6. Measured limits
 

@@ -270,9 +270,9 @@ of topic dimensions not yet checked and reviews the flagged ones (Anthropic API 
 
 `vendorkb mcp` (`src/vendorkb/mcp_app.py`, `mcp_server.py`) serves the agent tools
 (`list_vendors`, `list_dimensions`, `list_targets`, `query_capabilities`, `search_docs`,
-`read_section`, `answer_question`) over streamable HTTP at `/mcp`, stateless. Every request must
-carry `Authorization: Bearer $MCP_BEARER_TOKEN`; the server refuses to start without the
-token. Host headers outside `mcp.allowedHosts` get 421 (DNS-rebinding guard).
+`read_section`, `read_document`, `answer_question`) over streamable HTTP at `/mcp`, stateless.
+Every request must carry `MCP_BEARER_TOKEN`, as `Authorization: Bearer <token>` or as
+`X-API-Key: <token>`; the server refuses to start without the token. Host headers outside `mcp.allowedHosts` get 421 (DNS-rebinding guard).
 
 ```
 MCP_TOKEN=$(openssl rand -hex 32)
@@ -291,8 +291,9 @@ curl -s http://vendorkb-mcp.k3s.home.lan/mcp -H "Authorization: Bearer $MCP_TOKE
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
 ```
 
-The LAN ingress is plain HTTP like the cluster's other `*.k3s.home.lan` services. Exposing it
-to Microsoft Copilot needs a public HTTPS route and OAuth in front (not built yet).
+The LAN ingress is plain HTTP like the cluster's other `*.k3s.home.lan` services. Copilot
+Studio reaches the server through the public HTTPS route below, with the shared secret; there is
+no OAuth.
 
 **Public route (Copilot Studio).** `mcp.publicIngress` adds a second Ingress,
 `vendorkb-mcp-public`, that carries only `/mcp`:
