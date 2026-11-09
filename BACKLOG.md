@@ -311,7 +311,17 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     selective. Open:
     - other dimensions (~$15-20 with Haiku for every fact, plus the review);
     - target verification;
-    - the Message Batches API for half price;
+    - the Message Batches API for half price (item 37);
     - the mapper's per-claim handling of 401/402/404 (it spends its budget on a misconfigured
       endpoint; `support` stops instead).
-
+37. **Every Claude call on the Message Batches API** (study approved 2026-11-09, build week of
+    2026-11-16, lower priority; spec `specs/2026-11-09-message-batches-design.md`).
+    - **Scope:** taxonomy map, support check and review, propose. Extraction already has a batch
+      mode.
+    - **Why:** half price, and nothing is urgent.
+    - **The refresh:** every stage runs as a batch (user decision). New facts typically appear
+      within a few hours, at worst after about 4 days.
+    - **Order:** the runner and ledger, support, map (two rounds), the refresh pipeline, then
+      propose (optional).
+    - **Production:** the map moves to the Anthropic API, and `ANTHROPIC_API_KEY` goes into the
+      secret.
