@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from vendorkb.taxonomy import load
-from vendorkb.topics import detect_topic
+from vendorkb.topics import detect_topic, match_topics
 
 SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
 
@@ -161,3 +161,39 @@ def test_typographic_dashes_count_as_hyphens(dash):
     topics = [_topic("t", ("cyber resilience",), ("anti virus",))]
     assert detect_topic(f"Which products give cyber{dash}resilience?", topics) is not None
     assert detect_topic(f"Which products give cyber resilience, anti{dash}virus?", topics) is None
+
+
+@pytest.mark.parametrize("term", [
+    "ransomware_protection", "ransomware protection", "Ransomware Protection",  # id, name
+    "ransomware-protection", " RANSOMWARE\t_ protection ", "ransomware",  # a trigger
+    "Cyber-Attack", "cyber  recovery", "cyber\u2013resilience",
+    "protection", "cyber"])  # a whole word of the name, of a trigger
+def test_a_topic_resolves_by_id_name_trigger_and_separators(T, term):
+    assert [t.id for t in match_topics(term, T)] == ["ransomware_protection"]
+
+
+@pytest.mark.parametrize("term", ["", "  ", "-", "ransom", "ware", "protect", "cyberatt", "tape",
+                                  "immutability"])
+def test_a_term_that_is_no_whole_word_matches_no_topic(T, term):
+    assert match_topics(term, T) == []  # "immutability" names an aspect, not the topic
+
+
+def test_aspect_names_match_only_when_asked(T):
+    assert match_topics("worm", T) == []
+    assert [t.id for t in match_topics("worm", T, aspects=True)] == ["ransomware_protection"]
+    assert [t.id for t in match_topics("Air gap / isolated", T, aspects=True)] == [
+        "ransomware_protection"]
+
+
+def test_an_exact_match_beats_a_whole_word_and_ties_keep_the_order():
+    a = _topic("a_topic", ("recovery",), ())  # "recovery" is a trigger: exact
+    b = _topic("b_topic", ("fast recovery",), ())  # a whole word of a trigger
+    c = _topic("c_topic", ("recovery",), ())
+    assert [t.id for t in match_topics("recovery", [b, a, c])] == ["a_topic", "c_topic", "b_topic"]
+    assert [t.id for t in match_topics("b topic", [a, b])] == ["b_topic"]  # the id, normalised
+    only_aspect = _topic("d_topic", ("zzz",), ())  # its aspect is named "One"
+    assert match_topics("one", [only_aspect]) == []
+    assert match_topics("one", [only_aspect], aspects=True) == [only_aspect]
+    # an aspect-name match ranks below a word of the topic's id, name or triggers
+    assert [t.id for t in match_topics("one", [only_aspect, _topic("one_x", ("zzz",), ())],
+                                       aspects=True)] == ["one_x", "d_topic"]

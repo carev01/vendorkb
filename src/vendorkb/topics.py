@@ -71,6 +71,11 @@ def _cue(phrase: str) -> re.Pattern[str] | None:
     return re.compile(rf"(?<!\w){re.escape(text)}") if text else None
 
 
+def _label(text: str) -> str:
+    """``_norm`` with underscores as spaces too: a topic id and a topic name compare equal."""
+    return _norm(text.replace("_", " "))
+
+
 def _found(pattern: re.Pattern[str] | None, text: str) -> bool:
     return pattern is not None and pattern.search(text) is not None
 
@@ -85,6 +90,27 @@ def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
         if not any(_found(_cue(c), text) for a in topic.aspects for c in a.cues):
             return topic
     return None
+
+
+def match_topics(term: str, topics: list[Topic], *, aspects: bool = False) -> list[Topic]:
+    """The ``topics`` that ``term`` names, best match first, ties in ``topics`` order. Compared
+    as ``_label`` text: a topic whose id, name or a trigger is the term, then one holding it
+    as a whole word there; with ``aspects``, then one holding it as a whole word in an
+    aspect's name. MCP tools turn the wording of an agent into topics with it."""
+    text = _label(term)
+    if not text:
+        return []
+    word = re.compile(rf"(?<!\w){re.escape(text)}(?!\w)")
+    ranked: list[tuple[int, int]] = []
+    for i, topic in enumerate(topics):
+        names = [_label(x) for x in (topic.id, topic.name, *topic.triggers)]
+        if text in names:
+            ranked.append((0, i))
+        elif any(word.search(x) for x in names):
+            ranked.append((1, i))
+        elif aspects and any(word.search(_label(a.name)) for a in topic.aspects):
+            ranked.append((2, i))
+    return [topics[i] for _, i in sorted(ranked)]
 
 
 async def load_topics(conn: psycopg.AsyncConnection) -> list[Topic]:

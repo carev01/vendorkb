@@ -4,6 +4,7 @@ Every claim, quote and name here is invented for the tests."""
 import pytest
 
 from tests.integration.test_capabilities_v2 import _claim, _fresh
+from tests.integration.test_topics_db import _load, _topic
 from vendorkb import mcp_backend
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect
@@ -95,3 +96,55 @@ async def test_browse_query_search_and_read(vkb_dsn, backend):
     [hit] = await backend.section(found.hits[0].chunk_id, "1")
     assert hit.chunk_id == found.hits[0].chunk_id and hit.url == "http://docs/okta"
     assert await backend.section("00000000-0000-0000-0000-000000000000", "0") == []
+
+
+async def test_capfilter_dimension_ids(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "retention.maximum_period", vendor="examplevendor",
+                     mapped_version=v, quote="Copies are kept for 30 days")
+        await _claim(conn, "coverage.restore", vendor="examplevendor", mapped_version=v,
+                     quote="Objects can be restored")
+        await _claim(conn, "coverage.export", vendor="othervendor", mapped_version=v,
+                     quote="Objects can be exported")
+        await capabilities.build(conn)
+        two = ("retention.maximum_period", "coverage.restore")
+        res = await capabilities.query(conn, CapFilter(dimension_ids=two))
+        assert sorted(f.dimension_id for f in res.facts + res.product_wide) == sorted(two)
+        # exact ids, none resolved: a name or alias is not one, and the other filters still apply
+        res = await capabilities.query(
+            conn, CapFilter(dimension_ids=(*two, "coverage.export"), vendor="OtherVendor"))
+        assert [f.dimension_id for f in res.facts + res.product_wide] == ["coverage.export"]
+        named = await capabilities.query(conn, CapFilter(dimension_ids=("Backed up objects",)))
+        assert not (named.facts or named.product_wide) and named.hint
+        assert "No taxonomy entity matches" not in named.hint  # nothing is looked up
+        empty = await capabilities.query(conn, CapFilter(dimension_ids=()))
+        assert not (empty.facts or empty.product_wide) and "No taxonomy entity" not in empty.hint
+        both = await capabilities.query(
+            conn, CapFilter(dimension="coverage.export", dimension_ids=two))  # ids win
+        assert sorted(f.dimension_id for f in both.facts + both.product_wide) == sorted(two)
+    finally:
+        await conn.close()
+
+
+async def test_backend_topics(vkb_dsn, backend, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        assert await backend.topics(None) == []  # a taxonomy with no topics
+        await _load(conn, tmp_path, [_topic("backup_keeping", ["keeping"]),
+                                     _topic("recovery_basics", ["restore"])])
+    finally:
+        await conn.close()
+    assert [t.id for t in await backend.topics(None)] == ["backup_keeping", "recovery_basics"]
+    [topic] = await backend.topics("Backup-Keeping")
+    assert topic.name == "Topic backup_keeping" and topic.triggers == ("keeping",)
+    assert [a.id for a in topic.aspects] == ["keeping", "getting_back"]
+    assert topic.aspects[0].dimensions == ("retention.maximum_period",
+                                           "schedule.backup_frequency")
+    assert [t.id for t in await backend.topics("restore")] == ["recovery_basics"]
+    # the aspect names count here, after the id, name and triggers
+    assert [t.id for t in await backend.topics("getting data")] == [
+        "backup_keeping", "recovery_basics"]
+    assert await backend.topics("tape") == []

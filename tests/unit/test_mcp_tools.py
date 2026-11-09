@@ -1,10 +1,22 @@
 """The MCP tools (mcp_server) through an in-process client, over a fake backend."""
+from pathlib import Path
+
 import pytest
 from mcp import Client
 
 from vendorkb import mcp_server as ms
 from vendorkb.search import Hit, SearchResult
+from vendorkb.taxonomy import load
 from vendorkb.taxonomy.capabilities import CapResult, Conflict, Fact
+
+SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
+
+
+@pytest.fixture(scope="module")
+def ransomware() -> load.Topic:
+    """The shipped taxonomy's ransomware protection topic."""
+    [topic] = load.validate(load.read_doc(SHIPPED)).topics
+    return topic
 
 
 def _fact(**kw) -> Fact:
@@ -30,9 +42,10 @@ def _hit(n: int, text: str = "Passage text.", superseded: bool = False) -> Hit:
 
 
 class FakeBackend:
-    def __init__(self, *, caps=None, hits=None, answer=None, fail=None):
+    def __init__(self, *, caps=None, hits=None, answer=None, fail=None, topics=()):
         self.calls: list[tuple] = []
-        self.caps = caps or CapResult()
+        self.caps = caps or CapResult()  # or a function of the filter
+        self.known_topics = list(topics)
         self.hits = hits or []
         self._answer = answer or {}
         self.fail = fail
@@ -56,7 +69,14 @@ class FakeBackend:
         self.calls.append(("capabilities", f, limit))
         if self.fail:
             raise self.fail
-        return self.caps
+        return self.caps(f) if callable(self.caps) else self.caps
+
+    async def topics(self, query):
+        self.calls.append(("topics", query))
+        if query is None:
+            return self.known_topics
+        return [t for t in self.known_topics
+                if query.lower() in " ".join((t.id, t.name, *t.triggers)).lower()]
 
     async def search(self, query, vendor, product, k):
         self.calls.append(("search", query, vendor, product, k))
@@ -81,6 +101,11 @@ async def test_the_tools_are_listed_read_only():
                           "query_capabilities", "search_docs", "read_section",
                           "answer_question"}
     assert all(t.annotations.read_only_hint for t in tools.values())
+    caps = tools["query_capabilities"]
+    assert "topic" in caps.input_schema["properties"]
+    assert "`topic`" in caps.description and "grouped by aspect" in caps.description
+    assert "exclusive with `dimension`" in caps.description
+    assert "topic" in tools["list_dimensions"].description
 
 
 async def test_query_capabilities_cites_every_fact():
@@ -259,3 +284,130 @@ async def test_browse_tools(tool, args):
             "list_targets": "aws.rds — Amazon RDS [class cloud.database] (aliases: RDS)",
             "list_vendors": "Examplevendor — 3 documents, 7 capability facts; products:"
                             " Example Backup (3)"}[tool] == text
+
+
+def _caps_calls(backend: FakeBackend) -> list[tuple]:
+    return [c for c in backend.calls if c[0] == "capabilities"]
+
+
+async def test_query_by_topic_groups_facts_by_aspect(ransomware):
+    aspects = ransomware.aspects
+    backend = FakeBackend(caps=CapResult(facts=[_fact()]), topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {
+            "topic": "ransomware protection", "vendor": "Examplevendor", "target": "RDS",
+            "support": "supported", "offering": "enterprise", "limit": 20})
+    assert not r.is_error
+    calls = _caps_calls(backend)
+    assert [call[1].dimension_ids for call in calls] == [a.dimensions for a in aspects]
+    for _, f, limit in calls:
+        assert (f.vendor, f.target, f.support, f.offering, f.dimension) == (
+            ("Examplevendor",), "RDS", "supported", "enterprise", None)
+        assert limit == max(1, 20 // len(aspects))
+    text = r.content[0].text
+    assert [x for x in text.splitlines() if x.startswith("## ")] == [
+        f"## {a.name}" for a in aspects]
+    # one numbering across the aspects: every [N] points at one fact
+    assert [f"[{n}] Examplevendor" in text for n in (1, len(aspects), len(aspects) + 1)] == [
+        True, True, False]
+    sc = r.structured_content
+    assert sc["topic"] == ransomware.id
+    assert [(a["id"], a["name"], tuple(a["dimensions"])) for a in sc["aspects"]] == [
+        (a.id, a.name, a.dimensions) for a in aspects]
+    assert all(a["facts_total"] == 1 and len(a["facts"]) == 1 for a in sc["aspects"])
+
+
+async def test_each_aspect_gets_at_least_one_fact(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        await c.call_tool("query_capabilities", {"topic": "ransomware", "limit": 3})
+    assert [call[2] for call in _caps_calls(backend)] == [1] * len(ransomware.aspects)
+
+
+async def test_an_aspect_without_facts_keeps_its_heading_and_claims_no_absence(ransomware):
+    first = ransomware.aspects[0].dimensions
+
+    def caps(f):
+        if f.dimension_ids == first:
+            return CapResult(facts=[_fact()])
+        return CapResult(hint="No capability facts match. Search the document chunks")
+
+    backend = FakeBackend(caps=caps, topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware",
+                                                     "vendor": "Examplevendor"})
+    assert not r.is_error
+    text = r.content[0].text
+    n = len(ransomware.aspects)
+    assert [x for x in text.splitlines() if x.startswith("## ")] == [
+        f"## {a.name}" for a in ransomware.aspects]
+    assert text.count("No facts. No capability facts match. Search") == n - 1
+    assert "not supported" not in text.lower() and "lacks" not in text
+    assert [bool(a["facts"]) for a in r.structured_content["aspects"]] == [True] + [False] * (n - 1)
+
+
+async def test_topic_resolves_by_id_name_trigger_and_separators(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        for term in ("ransomware_protection", "Ransomware-Protection", "  RANSOMWARE  protection ",
+                     "ransomware", "Cyber-Attack", "protection"):  # "protection": a whole word
+            r = await c.call_tool("query_capabilities", {"topic": term})
+            assert not r.is_error, term
+            assert r.structured_content["topic"] == "ransomware_protection", term
+
+
+async def test_topic_and_dimension_are_exclusive(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware",
+                                                     "dimension": "immutability"})
+    assert r.is_error
+    assert "topic" in r.content[0].text and "dimension" in r.content[0].text
+    assert backend.calls == []
+
+
+async def test_unknown_topic_lists_the_known_ones(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "tape drives"})
+    assert r.is_error
+    text = r.content[0].text
+    assert "'tape drives'" in text and "ransomware_protection (Ransomware protection)" in text
+    assert _caps_calls(backend) == []
+
+
+async def test_a_topic_failure_is_reported(ransomware):
+    backend = FakeBackend(topics=[ransomware], fail=RuntimeError("db down"))
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware"})
+    assert r.is_error and "RuntimeError: db down" in r.content[0].text
+
+
+async def test_list_dimensions_shows_matching_topics(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("list_dimensions", {"query": "ransomware"})
+    assert not r.is_error
+    text = r.content[0].text
+    assert text.startswith("Topic ransomware_protection — Ransomware protection:\n- ")
+    for a in ransomware.aspects:
+        assert f"- {a.name}: {', '.join(a.dimensions)}\n" in text + "\n"
+    # then the usual listing
+    assert text.endswith("security.immutability — Immutability: Copies that cannot be changed."
+                         " (aliases: immutable backups)")
+    sc = r.structured_content
+    assert [d["id"] for d in sc["dimensions"]] == ["security.immutability"]
+    [t] = sc["topics"]
+    assert (t["id"], t["name"]) == ("ransomware_protection", "Ransomware protection")
+    assert [a["id"] for a in t["aspects"]] == [a.id for a in ransomware.aspects]
+    assert ("dimensions", "ransomware", None, 25) in backend.calls
+
+
+@pytest.mark.parametrize("args", [{}, {"query": "  "}, {"family": "security"},
+                                  {"query": "retention"}])
+async def test_list_dimensions_without_a_topic_match_is_unchanged(ransomware, args):
+    async with Client(ms.build_server(FakeBackend(topics=[ransomware]))) as c:
+        r = await c.call_tool("list_dimensions", args)
+    assert r.content[0].text == ("security.immutability — Immutability: Copies that cannot be"
+                                 " changed. (aliases: immutable backups)")
+    assert list(r.structured_content) == ["dimensions"]

@@ -81,6 +81,7 @@ class CapFilter:
     offering: str | None = None
     edition: str | None = None
     dimension: str | None = None
+    dimension_ids: tuple[str, ...] | None = None  # exact ids, not resolved; beats ``dimension``
     family: str | None = None
     target: str | None = None  # descendants included
     object_type: str | None = None
@@ -239,7 +240,7 @@ def _unresolved(f: CapFilter, targets: list[str] | None, dimensions: list[str] |
     missing = []
     if targets == []:
         missing.append(f"target {f.target!r}")
-    if dimensions == []:
+    if dimensions == [] and f.dimension_ids is None:
         missing.append(f"dimension {f.dimension!r}")
     if offerings == []:
         missing.append(f"offering {f.offering!r}")
@@ -318,7 +319,9 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
     targets = dimensions = offerings = None
     if f.target is not None:
         targets = await _resolve(conn, "targets", "target_id", "target", f.target)
-    if f.dimension is not None:
+    if f.dimension_ids is not None:
+        dimensions = list(f.dimension_ids)
+    elif f.dimension is not None:
         dimensions = await _resolve(conn, "dimensions", "dimension_id", "dimension",
                                     f.dimension)
     if f.offering is not None:

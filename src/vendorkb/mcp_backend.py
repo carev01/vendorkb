@@ -2,8 +2,8 @@
 
 ``Backend`` is the interface the tools call; ``DbBackend`` implements it on the vendorkb
 database with the same functions the CLI uses (``search_docs``, ``read_section``,
-``capabilities.query``, ``answer``). Each call opens and closes its own connection and HTTP
-clients, so one slow or failed call never affects another.
+``capabilities.query``, ``answer``, ``load_topics``). Each call opens and closes its own
+connection and HTTP clients, so one slow or failed call never affects another.
 """
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from vendorkb.scope import scope_index_from_db
 from vendorkb.search import Hit, SearchResult, read_section, search_docs
 from vendorkb.taxonomy import capabilities
 from vendorkb.taxonomy.cluster import normalize
+from vendorkb.taxonomy.load import Topic
+from vendorkb.topics import load_topics, match_topics
 
 Expand = Literal["0", "1", "full"]
 
@@ -29,6 +31,7 @@ class Backend(Protocol):
     async def dimensions(self, query: str | None, family: str | None,
                          limit: int) -> list[dict[str, Any]]: ...
     async def targets(self, query: str | None, limit: int) -> list[dict[str, Any]]: ...
+    async def topics(self, query: str | None) -> list[Topic]: ...
     async def capabilities(self, f: capabilities.CapFilter,
                            limit: int) -> capabilities.CapResult: ...
     async def search(self, query: str, vendor: list[str] | None, product: list[str] | None,
@@ -137,6 +140,16 @@ class DbBackend:
             await conn.close()
         return [{"id": r[0], "name": r[1], "class": r[2], "parent": r[3], "aliases": list(r[4])}
                 for r in rows]
+
+    async def topics(self, query: str | None) -> list[Topic]:
+        """Every topic of the loaded taxonomy, or those ``query`` names (``match_topics``,
+        aspect names included), best match first."""
+        conn = await connect(self.settings.vendorkb_dsn)
+        try:
+            found = await load_topics(conn)
+        finally:
+            await conn.close()
+        return found if query is None else match_topics(query, found, aspects=True)
 
     async def capabilities(self, f: capabilities.CapFilter,
                            limit: int) -> capabilities.CapResult:

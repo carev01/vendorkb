@@ -5,8 +5,9 @@ passage carries its source URL and chunk id from the database; nothing here writ
 
 - ``list_vendors``: vendors and products with documentation, document and fact counts.
 - ``list_dimensions`` / ``list_targets``: browse the taxonomy; resolve the user's wording to ids.
+  ``list_dimensions`` also shows the topics (broad subjects of several dimensions) a query names.
 - ``query_capabilities``: the cross-vendor fact table (support, conditions, values), each fact
-  with its evidence quote and source.
+  with its evidence quote and source; by dimension, or by topic with the facts grouped by aspect.
 - ``search_docs``: hybrid search over the documentation chunks, reranked.
 - ``read_section``: a chunk with its neighbours or its whole section.
 - ``answer_question``: vendorkb's cited answer (retrieval plus synthesis) in one call.
@@ -24,6 +25,8 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from vendorkb.mcp_backend import Backend
 from vendorkb.search import Hit
 from vendorkb.taxonomy.capabilities import CapFilter, CapResult, Fact
+from vendorkb.taxonomy.load import Topic
+from vendorkb.topics import match_topics
 
 log = logging.getLogger(__name__)
 
@@ -119,7 +122,12 @@ def format_fact(n: int, f: Fact) -> str:
     return "\n".join(lines)
 
 
-def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]]:
+_FACT_GROUPS = ("facts", "product_level", "product_wide", "unresolved_target")
+
+
+def format_capabilities(res: CapResult, limit: int,
+                        start: int = 0) -> tuple[str, dict[str, Any]]:
+    """The result as text and structured content; the facts are numbered from ``start`` + 1."""
     groups = [("facts", "Facts", res.facts),
               ("product_level", "Product-level facts (less specific than the offering/edition"
                " filter)", res.product_level),
@@ -128,7 +136,7 @@ def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]
                " as the documentation wrote it)", res.unresolved_target)]
     parts: list[str] = []
     structured: dict[str, Any] = {}
-    n = 0
+    n = start
     for key, title, facts in groups:
         shown = facts[:min(limit, WIDE_SHOWN) if key in ("product_wide", "unresolved_target")
                       else limit]
@@ -157,6 +165,32 @@ def format_capabilities(res: CapResult, limit: int) -> tuple[str, dict[str, Any]
     return "\n\n".join(parts) or "No facts.", structured
 
 
+def format_topic(topic: Topic) -> tuple[str, dict[str, Any]]:
+    """A topic and its aspects, each with its dimension ids, as text and structured content."""
+    lines = [f"Topic {topic.id} — {topic.name}:"]
+    lines += [f"- {a.name}: {', '.join(a.dimensions)}" for a in topic.aspects]
+    return "\n".join(lines), {"id": topic.id, "name": topic.name, "aspects": [
+        {"id": a.id, "name": a.name, "dimensions": list(a.dimensions)} for a in topic.aspects]}
+
+
+def format_topic_capabilities(topic: Topic, results: list[CapResult],
+                              limit: int) -> tuple[str, dict[str, Any]]:
+    """A topic's facts grouped by aspect: ``results`` holds one result per aspect, each cut at
+    ``limit`` rows per group. An aspect with no facts keeps its heading."""
+    parts = [f"Topic {topic.id} — {topic.name}: facts grouped by aspect, up to {limit} per "
+             f"group in each aspect."]
+    aspects: list[dict[str, Any]] = []
+    n = 0
+    for aspect, res in zip(topic.aspects, results, strict=True):
+        text, structured = format_capabilities(res, limit, start=n)
+        n += sum(len(structured[k]) for k in _FACT_GROUPS)
+        parts.append(f"## {aspect.name}\n{text}")
+        aspects.append({"id": aspect.id, "name": aspect.name,
+                        "dimensions": list(aspect.dimensions), **structured})
+    return "\n\n".join(parts), {"topic": topic.id, "name": topic.name, "aspect_limit": limit,
+                                 "aspects": aspects}
+
+
 def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
     parts, rows = [], []
     for n, h in enumerate(hits, 1):
@@ -175,6 +209,27 @@ def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
 def build_server(backend: Backend) -> MCPServer:
     server = MCPServer("vendorkb", instructions=INSTRUCTIONS)
 
+    async def _topic_facts(term: str, base: CapFilter, limit: int) -> tuple[str, dict[str, Any]]:
+        """The facts of the topic ``term`` names (an id, a name or a trigger): one query per
+        aspect, one after another, each with ``base``'s filters on the aspect's dimensions and
+        its share of ``limit``."""
+        try:
+            known = await backend.topics(None)
+        except Exception as e:
+            raise _fail("query_capabilities", e) from e
+        if not (found := match_topics(term, known)):
+            listing = ", ".join(f"{t.id} ({t.name})" for t in known) or "none defined"
+            raise ToolError(f"unknown topic {term!r}; known topics: {listing}")
+        topic = found[0]
+        share = max(1, limit // len(topic.aspects))
+        try:
+            results = [await backend.capabilities(
+                dataclasses.replace(base, dimension_ids=a.dimensions), share)
+                for a in topic.aspects]
+        except Exception as e:
+            raise _fail("query_capabilities", e) from e
+        return format_topic_capabilities(topic, results, share)
+
     @server.tool(name="list_vendors", annotations=_RO, description=(
         "List the vendors and products that have documentation, with document counts and how "
         "many capability facts each vendor has. Use it for valid vendor/product filter names."))
@@ -192,18 +247,25 @@ def build_server(backend: Backend) -> MCPServer:
     @server.tool(name="list_dimensions", annotations=_RO, description=(
         "Browse the taxonomy's dimensions (comparable capability aspects such as immutability, "
         "retention or backup coverage). `query` matches an id, an alias or part of a name; "
-        "`family` narrows to one family (coverage, retention, security, ...). Use the ids with "
-        "query_capabilities(dimension=...)."))
+        "`family` narrows to one family (coverage, retention, security, ...). A query that "
+        "names a topic (a broad subject such as ransomware) also shows it with its aspects. "
+        "Use the ids with query_capabilities(dimension=...)."))
     async def list_dimensions(query: str | None = None, family: str | None = None,
                               limit: int = 25) -> CallToolResult:
         try:
             rows = await backend.dimensions(query, family, max(1, min(limit, MAX_LIMIT)))
+            found = await backend.topics(query) if query and query.strip() else []
         except Exception as e:
             raise _fail("list_dimensions", e) from e
         lines = [f"{d['id']} — {d['name']}: {d['definition']}"
                  + (f" (aliases: {', '.join(d['aliases'][:8])})" if d["aliases"] else "")
                  for d in rows]
-        return _result("\n".join(lines) or "No dimension matches.", {"dimensions": rows})
+        if not found:
+            return _result("\n".join(lines) or "No dimension matches.", {"dimensions": rows})
+        shown = [format_topic(t) for t in found]
+        blocks = [text for text, _ in shown] + (["\n".join(lines)] if lines else [])
+        return _result("\n\n".join(blocks),
+                       {"dimensions": rows, "topics": [data for _, data in shown]})
 
     @server.tool(name="list_targets", annotations=_RO, description=(
         "Browse the taxonomy's targets (workloads, platforms, services and storage a backup "
@@ -225,15 +287,22 @@ def build_server(backend: Backend) -> MCPServer:
         "values and an evidence quote and source for every fact. Filters take a taxonomy id or "
         "alias (dimension, target, offering, edition) or exact values (vendor, support, "
         "availability, value range); `vendor` takes one name or a list. Give at least one "
-        "filter. A vendor missing here is not evidence of absence: check it with search_docs."))
+        "filter. `topic` (a broad subject such as ransomware protection; list_dimensions shows "
+        "them) covers all its dimensions at once, with the facts grouped by aspect and `limit` "
+        "shared among the aspects; it is exclusive with `dimension`. A vendor missing here is "
+        "not evidence of absence: check it with search_docs."))
     async def query_capabilities(
-            dimension: str | None = None, target: str | None = None,
+            dimension: str | None = None, topic: str | None = None, target: str | None = None,
             vendor: str | list[str] | None = None,
             family: str | None = None, offering: str | None = None, edition: str | None = None,
             object_type: str | None = None,
             support: Literal["supported", "partial", "not_supported", "unclear"] | None = None,
             availability: str | None = None, value_min: float | None = None,
             value_max: float | None = None, limit: int = 20) -> CallToolResult:
+        topic = (topic or "").strip() or None
+        if topic is not None and dimension is not None:
+            raise ToolError("query_capabilities takes a topic or a dimension, not both: a topic "
+                            "stands for all the dimensions of its aspects")
         note = None
         if (section := _section(target)) is not None:
             note = (f"Note: {target!r} is a section of the results, not a taxonomy target, so "
@@ -245,15 +314,19 @@ def build_server(backend: Backend) -> MCPServer:
         f = CapFilter(vendor=vendors, offering=offering, edition=edition, dimension=dimension,
                       family=family, target=target, object_type=object_type, support=support,
                       availability=availability, value_min=value_min, value_max=value_max)
-        if all(v is None for v in dataclasses.asdict(f).values()):
-            raise ToolError((f"{note} " if note else "")
-                            + "query_capabilities needs at least one filter (e.g. dimension "
-                            "and target; see list_dimensions and list_targets)")
-        try:
-            res = await backend.capabilities(f, max(1, min(limit, MAX_LIMIT)))
-        except Exception as e:
-            raise _fail("query_capabilities", e) from e
-        text, structured = format_capabilities(res, max(1, min(limit, MAX_LIMIT)))
+        limit = max(1, min(limit, MAX_LIMIT))
+        if topic is not None:
+            text, structured = await _topic_facts(topic, f, limit)
+        else:
+            if all(v is None for v in dataclasses.asdict(f).values()):
+                raise ToolError((f"{note} " if note else "")
+                                + "query_capabilities needs at least one filter (e.g. dimension "
+                                "and target; see list_dimensions and list_targets)")
+            try:
+                res = await backend.capabilities(f, limit)
+            except Exception as e:
+                raise _fail("query_capabilities", e) from e
+            text, structured = format_capabilities(res, limit)
         if note:
             text, structured = f"{note}\n{text}", {**structured, "note": note}
         return _result(text, structured)
