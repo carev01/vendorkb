@@ -385,3 +385,41 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       `citation_style` option of `answer_question`.
 
     Done when an agent reply keeps a marker on every cited statement.
+42. **Do we need vendorkb's answer model?** (user, 2026-11-09; take with items 40 and 41,
+    which touch the same answer path).
+
+    `answer_question` does two jobs:
+    - *gathers the evidence* deterministically: every vendor checked for "which vendors"
+      questions, per-vendor and per-aspect comparisons, the topic grid built in code,
+      relevance floors, refusals;
+    - *writes* a cited answer with the answer model (GLM, `JUDGE_*`), with the uncited check.
+
+    The Copilot agent then rewrites that answer, so two model passes stand between the
+    evidence and the reader. That second pass likely drops the markers (item 41).
+
+    **Proposal.** Keep the evidence gathering and drop the second model pass. A new tool returns
+    the evidence bundle with no prose: the cited facts and passages per vendor and aspect, the
+    grid table where it applies, and evidence ids to cite. The agent (Claude Haiku in Copilot
+    Studio) writes the answer from it.
+
+    **Gains:** one model pass instead of two; no GLM cost; faster answers. Today's 25–80 s is
+    mostly writing and checking.
+
+    **Cost:** the citation check moves from code into the agent's instructions, and vendorkb can
+    no longer verify the final text.
+
+    **Broad questions.** For "which vendors do X?", the agent must know every vendor and product.
+    `list_vendors` already returns them, with document and fact counts. Make sure the agent uses
+    it: in its instructions and the tool description; possibly with per-vendor coverage of the
+    question's dimensions or topic, so that "no evidence" and "not checked" stay distinct.
+
+    **Decide by measurement.** Run `eval/agent_eval.py` with Haiku as the agent, on the labelled
+    questions plus the user's "Compare ransomware protection capabilities between Veeam and
+    Commvault", in three arms:
+    1. relay `answer_question`, as today;
+    2. write from the evidence bundle;
+    3. raw tools only (`search_docs`, `query_capabilities`, `list_vendors`).
+
+    Score each blind on unsupported claims, vendor recall and kept citations. Drop the answer
+    model if arm 2 matches or beats arm 1. For reference, the 2026-11-08 raw-tool agent eval
+    with Sonnet reached vendor recall 93% and precision 98%.
