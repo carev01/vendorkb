@@ -299,7 +299,9 @@ no OAuth.
 `vendorkb-mcp-public`, that carries only `/mcp`:
 - host `vendorkb.area51.pp.ua`, proxied by Cloudflare;
 - TLS from `cloudflare-origin-ca`, a copy of DocExtractor's secret in this namespace;
-- the host is appended to `MCP_ALLOWED_HOSTS`.
+- the host is appended to `MCP_ALLOWED_HOSTS`;
+- two Traefik rate limits apply (per client by `CF-Connecting-IP`, and global for the host;
+  `mcp.publicIngress.rateLimit`).
 
 The server accepts its secret as `Authorization: Bearer <token>` or as `X-API-Key: <token>`.
 Setup and the agent's instructions: `docs/deploy/copilot-studio.md`.

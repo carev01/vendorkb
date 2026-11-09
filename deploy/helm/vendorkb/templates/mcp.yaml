@@ -84,15 +84,19 @@ spec:
 {{- if $m.publicIngress.enabled }}
 ---
 # The public route for Copilot Studio (docs/deploy/copilot-studio.md): only /mcp, TLS from the
-# Cloudflare Origin CA certificate; Cloudflare proxies the host (no WAF rules on the free plan).
+# Cloudflare Origin CA certificate; Cloudflare proxies the host; Traefik rate-limits it (below).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: vendorkb-mcp-public
   labels: {{- include "vendorkb.labels" . | nindent 4 }}
-  {{- with $m.publicIngress.annotations }}
-  annotations: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  annotations:
+    {{- with $m.publicIngress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $m.publicIngress.rateLimit.enabled }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ printf "%s-vendorkb-mcp-ratelimit-client@kubernetescrd,%s-vendorkb-mcp-ratelimit-global@kubernetescrd" .Release.Namespace .Release.Namespace }}
+    {{- end }}
 spec:
   ingressClassName: {{ $m.publicIngress.className }}
   rules:
@@ -106,5 +110,38 @@ spec:
   tls:
     - hosts: [{{ $m.publicIngress.host | quote }}]
       secretName: {{ required "mcp.publicIngress.tlsSecret is required when the public ingress is enabled" $m.publicIngress.tlsSecret }}
+{{- end }}
+{{- if and $m.publicIngress.enabled $m.publicIngress.rateLimit.enabled }}
+{{- $rl := $m.publicIngress.rateLimit }}
+---
+# Rate limits on the public route (Traefik RateLimit middlewares; 429 when exceeded). Per client:
+# keyed on Cloudflare's CF-Connecting-IP (Traefik itself sees only Cloudflare's addresses).
+# Global: one bucket for the host, so total spend stays bounded even if a client reaches the
+# origin directly and forges that header.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vendorkb-mcp-ratelimit-client
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ $rl.client.average }}
+    period: {{ $rl.client.period }}
+    burst: {{ $rl.client.burst }}
+    sourceCriterion:
+      requestHeaderName: CF-Connecting-IP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: vendorkb-mcp-ratelimit-global
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  rateLimit:
+    average: {{ $rl.global.average }}
+    period: {{ $rl.global.period }}
+    burst: {{ $rl.global.burst }}
+    sourceCriterion:
+      requestHost: true
 {{- end }}
 {{- end }}
