@@ -21,7 +21,7 @@ request, so it bounds the worst case.
 A chunk whose call fails, is refused, is cut off at ``max_tokens``, returns unusable JSON, or
 errors or expires inside a batch is recorded ``errored`` with the reason and retried by the
 next run; after ``MAX_ATTEMPTS`` it is ``failed`` and skipped. It is never counted as done
-with zero claims. A result for a chunk that sync has since deleted is skipped
+with zero claims. A result for a chunk that sync has since deleted or superseded is skipped
 (``skipped_deleted``).
 
 ``settings.extract_backend`` picks the client. "anthropic": an ``anthropic.AsyncAnthropic``
@@ -322,7 +322,7 @@ class ExtractReport:
     done: int = 0
     skipped: int = 0          # already done
     skipped_failed: int = 0   # already failed MAX_ATTEMPTS times
-    skipped_deleted: int = 0  # not (or no longer) in chunks
+    skipped_deleted: int = 0  # not (or no longer) a current chunk: deleted or superseded
     errored: int = 0          # errored this run (includes those that became failed)
     failed: int = 0           # reached MAX_ATTEMPTS this run
     claims_accepted: int = 0
@@ -665,10 +665,11 @@ async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None =
 
 
 async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[str, ChunkRow]:
+    """The current chunks among ``ids``: a superseded one is never extracted, however named."""
     cur = await conn.execute(
         "SELECT c.chunk_id::text, c.doc_id::text, d.vendor, d.product, d.version, d.title,"
         " c.section_path, c.text FROM chunks c JOIN documents d USING (doc_id)"
-        " WHERE c.chunk_id = ANY(%s::uuid[])", (ids,))
+        " WHERE c.chunk_id = ANY(%s::uuid[]) AND c.superseded_at IS NULL", (ids,))
     return {row[0]: ChunkRow(*row) for row in await cur.fetchall()}
 
 
@@ -982,7 +983,8 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         final = await _final_ids(conn, ids, settings.extract_model)
         missing = [i for i in ids if i not in chunks and i not in final]
         if missing:
-            log.warning("extract: %d chunk ids not in the database (skipped), e.g. %s",
+            log.warning("extract: %d chunk ids not current chunks in the database (skipped), "
+                        "e.g. %s",
                         len(missing), missing[0])
         report.skipped_deleted += len(missing)
         report.skipped = sum(1 for s in final.values() if s == "done")

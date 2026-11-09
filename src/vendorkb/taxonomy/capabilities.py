@@ -26,7 +26,9 @@ with a dimension. Each row is keyed on its claim and gets:
   its page's new fetch time (an update refreshes it), not its own version's.
 - ``evidence_superseded``: the row's claim is on a superseded chunk, an earlier version of its
   page kept until the new version is extracted and mapped (``store.retire_superseded``, which
-  ``build`` runs first). The fact stays in every answer, marked.
+  ``build`` runs first). The fact stays in every answer, marked. The stored column is as of the
+  build (it feeds ``is_current``); ``query`` also reads the chunk's own state, so a sync that
+  supersedes the chunk marks its fact before the next build.
 
 ``query`` serves only rows built under the current taxonomy version and sorts every matching
 row into one of four groups, so nothing is presented as more specific than its evidence:
@@ -52,7 +54,7 @@ rather than the less specific rows of the vendor.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import Any
+from typing import Any, NamedTuple
 
 import psycopg
 
@@ -141,17 +143,23 @@ class CapResult:
     totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
 
 
-async def build(conn: psycopg.AsyncConnection) -> int:
-    """Rebuild ``capabilities`` for the current taxonomy version; returns the row count.
-    Superseded chunks whose page's new version is extracted and mapped are retired first, and
-    their facts with them."""
+class Built(NamedTuple):
+    """What ``build`` did."""
+    rows: int  # capability rows written
+    retired: int  # superseded chunks deleted (their claims and facts with them)
+
+
+async def build(conn: psycopg.AsyncConnection) -> Built:
+    """Rebuild ``capabilities`` for the current taxonomy version; returns the row count and
+    the number of chunks retired. Superseded chunks whose page's new version is extracted and
+    mapped are retired first, and their facts with them."""
     version = await current_version(conn)
     key = ", ".join(_KEY)
     async with conn.transaction():
-        await retire_superseded(conn, version)
+        retired = await retire_superseded(conn, version)
         await conn.execute("DELETE FROM capabilities")
         if version is None:
-            return 0
+            return Built(0, retired)
         cur = await conn.execute(
             "INSERT INTO capabilities (claim_id, vendor, product, offering_id, edition_id,"
             " dimension_id, class_id, target_id, variant_id, object_type_id, kind, support,"
@@ -186,7 +194,7 @@ async def build(conn: psycopg.AsyncConnection) -> int:
             "  WHERE r.prompt_version LIKE %(family)s AND r.mapped_version = %(ver)s) s"
             f" WINDOW k AS (PARTITION BY {key})",
             {"ver": version, "family": PROMPT_FAMILY})
-        return cur.rowcount
+        return Built(cur.rowcount, retired)
 
 
 def _vendors(vendor: str | tuple[str, ...] | None) -> list[str] | None:
@@ -274,7 +282,8 @@ _FACT_COLUMNS = (
     " c.availability, c.default_state, c.value, c.unit, c.bound, c.conditions, c.scope,"
     " c.conflict_group::text, c.is_current, r.capability_raw, r.target_raw, r.evidence_quote,"
     " r.chunk_id::text, d.url, d.title, c.doc_version, c.taxonomy_version,"
-    " c.evidence_superseded")
+    # the stored marker is as old as the last build; the chunk's own state is read now
+    " (c.evidence_superseded OR ch.superseded_at IS NOT NULL)")
 _FROM = (" FROM capabilities c JOIN raw_claims r ON r.claim_id = c.claim_id"
          " JOIN chunks ch ON ch.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = ch.doc_id"
          " LEFT JOIN dimensions dim ON dim.dimension_id = c.dimension_id")

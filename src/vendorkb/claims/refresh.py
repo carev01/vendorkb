@@ -113,6 +113,6 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
         report.map["errors"] = report.map["errors"][:20]
         changed = changed or mapped.claims > 0
     if changed:
-        report.capabilities_rows = await capabilities.build(conn)
+        report.capabilities_rows = (await capabilities.build(conn)).rows
     log.info("refresh: %s", report)
     return report

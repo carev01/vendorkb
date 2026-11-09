@@ -8,6 +8,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import NamedTuple
 
 import psycopg
 
@@ -25,6 +26,12 @@ class DocMeta:
     url: str | None
 
 
+class Written(NamedTuple):
+    """What ``write_document`` did with the page's earlier chunks."""
+    reused: int  # kept their row, extraction and claims (same text)
+    superseded: int  # kept as an earlier version of the page, for their mapped claims
+
+
 async def stored_hashes(conn: psycopg.AsyncConnection,
                         doc_ids: list[uuid.UUID]) -> dict[uuid.UUID, str]:
     cur = await conn.execute(
@@ -38,14 +45,15 @@ def _norm(text: str) -> str:
 
 
 async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_hash: str,
-                         chunks: list[Chunk], vectors: list[list[float]]) -> int:
-    """Store a new version of a page (a first write, or an update); the number of current
-    chunks reused.
+                         chunks: list[Chunk], vectors: list[list[float]]) -> Written:
+    """Store a new version of a page (a first write, or an update); how many current chunks
+    it reused and superseded.
 
     Per chunk, so unchanged text keeps its facts. A new chunk reuses a current chunk of the
     page when their ``reuse_key`` is equal and every claim's evidence quote still appears in
     the new text (whitespace and case ignored): it keeps its ``chunk_id``, extraction and
-    claims, and takes the new section path, ordinal, text and embedding. Each other current
+    claims, and takes the new section path, ordinal, text and embedding (a chunk that is
+    equal in all three is not written at all, its stored embedding stays). Each other current
     chunk is kept, with ``superseded_at`` set, when a claim on it is mapped (its facts are in
     the capability table or soon will be) and deleted otherwise. Superseded chunks are never
     deleted here: only ``retire_superseded`` does, once the new chunks are extracted and
@@ -67,13 +75,14 @@ async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_h
     cur = await conn.execute(
         "SELECT c.chunk_id, c.text, coalesce(array_agg(r.evidence_quote)"
         " FILTER (WHERE r.claim_id IS NOT NULL), '{}'), coalesce(bool_or("
-        "r.mapped_version IS NOT NULL), false) FROM chunks c LEFT JOIN raw_claims r"
-        " ON r.chunk_id = c.chunk_id WHERE c.doc_id = %s AND c.superseded_at IS NULL"
-        " GROUP BY c.chunk_id ORDER BY c.ordinal", (meta.doc_id,))
+        "r.mapped_version IS NOT NULL), false), c.section_path, c.ordinal FROM chunks c"
+        " LEFT JOIN raw_claims r ON r.chunk_id = c.chunk_id WHERE c.doc_id = %s"
+        " AND c.superseded_at IS NULL GROUP BY c.chunk_id ORDER BY c.ordinal", (meta.doc_id,))
     rows = await cur.fetchall()
-    mapped = {chunk_id: has_mapped for chunk_id, _, _, has_mapped in rows}
+    mapped = {chunk_id: has_mapped for chunk_id, _, _, has_mapped, _, _ in rows}
+    stored = {chunk_id: (text, path, ordinal) for chunk_id, text, _, _, path, ordinal in rows}
     by_key: dict[str, list[tuple[uuid.UUID, list[str]]]] = {}  # in ordinal order
-    for chunk_id, text, quotes, _ in rows:
+    for chunk_id, text, quotes, _, _, _ in rows:
         by_key.setdefault(reuse_key(text), []).append((chunk_id, quotes))
     reused: list[tuple[uuid.UUID, Chunk, list[float]]] = []
     fresh: list[tuple[Chunk, list[float]]] = []
@@ -88,26 +97,39 @@ async def write_document(conn: psycopg.AsyncConnection, meta: DocMeta, content_h
             used.add(match)
             reused.append((match, chunk, vector))
     dropped = [chunk_id for chunk_id in mapped if chunk_id not in used]
+    superseded = [c for c in dropped if mapped[c]]
     await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = ANY(%s)",
-                       ([c for c in dropped if mapped[c]],))
+                       (superseded,))
     await conn.execute("DELETE FROM chunks WHERE chunk_id = ANY(%s)",
                        ([c for c in dropped if not mapped[c]],))
-    # The reused chunks move to their new ordinals through negative ones, so that none
-    # collides with another on the partial unique index while a swap is half done.
+    # A reused chunk is written only as far as it changed (every write is an index update,
+    # the HNSW one included): not at all when text, section path and ordinal are the same,
+    # and with its final ordinal when only the ordinal is. One that changes ordinal moves
+    # through a negative one, so that none collides with another on the partial unique
+    # index while a swap is half done; no other target collides, the ordinals of the new
+    # version being unique and one that stays never vacated.
+    rewrite, moves = [], []
+    for chunk_id, c, v in reused:
+        text, path, ordinal = stored[chunk_id]
+        if ordinal != c.ordinal:
+            moves.append((list(c.section_path), -1 - c.ordinal, c.text, c.token_count, v,
+                          chunk_id))
+        elif text != c.text or path != list(c.section_path):
+            rewrite.append((list(c.section_path), c.ordinal, c.text, c.token_count, v,
+                            chunk_id))
     async with conn.cursor() as cur:
         await cur.executemany(
             "UPDATE chunks SET section_path = %s, ordinal = %s, text = %s, token_count = %s,"
-            " embedding = %s WHERE chunk_id = %s",
-            [(list(c.section_path), -1 - c.ordinal, c.text, c.token_count, v, chunk_id)
-             for chunk_id, c, v in reused])
-        await cur.execute("UPDATE chunks SET ordinal = -1 - ordinal WHERE doc_id = %s"
-                          " AND superseded_at IS NULL AND ordinal < 0", (meta.doc_id,))
+            " embedding = %s WHERE chunk_id = %s", rewrite + moves)
+        if moves:
+            await cur.execute("UPDATE chunks SET ordinal = -1 - ordinal WHERE doc_id = %s"
+                              " AND superseded_at IS NULL AND ordinal < 0", (meta.doc_id,))
         await cur.executemany(
             "INSERT INTO chunks(chunk_id, doc_id, section_path, ordinal, text, token_count,"
             " embedding) VALUES (%s,%s,%s,%s,%s,%s,%s)",
             [(uuid.uuid4(), meta.doc_id, list(c.section_path), c.ordinal, c.text,
               c.token_count, v) for c, v in fresh])
-    return len(reused)
+    return Written(reused=len(reused), superseded=len(superseded))
 
 
 async def retire_superseded(conn: psycopg.AsyncConnection, taxonomy_version: str | None) -> int:

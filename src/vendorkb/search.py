@@ -38,6 +38,7 @@ class Hit:
     url: str | None
     rrf_rank: int
     rerank_score: float | None
+    superseded: bool = False  # an earlier version of its page (only ``read_section`` returns one)
 
 
 @dataclass
@@ -292,7 +293,7 @@ async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
     """The chunk, its neighbours or its section, all of the anchor's own version of the page:
     the current chunks around a current anchor; around a superseded one, the chunks superseded
     in the same write (one ``write_document`` call sets one ``superseded_at``), never those of
-    another earlier version."""
+    another earlier version; those hits carry ``superseded=True``."""
     cur = await conn.execute(
         "SELECT doc_id, ordinal, section_path, superseded_at FROM chunks WHERE chunk_id = %s",
         (chunk_id,))
@@ -316,4 +317,6 @@ async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
     else:
         sql, params = base + " AND c.section_path = %s", [*args, list(path)]
     cur = await conn.execute(sql + " ORDER BY c.ordinal", params)
-    return [_hit(r) for r in await cur.fetchall()]
+    hits = [_hit(r) for r in await cur.fetchall()]
+    # every chunk returned is of the anchor's version: the text may be gone from the page
+    return hits if superseded_at is None else [replace(h, superseded=True) for h in hits]

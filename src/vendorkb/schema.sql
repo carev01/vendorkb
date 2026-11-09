@@ -29,13 +29,18 @@ CREATE TABLE IF NOT EXISTS chunks (
 -- extracted and mapped (``store.retire_superseded``); it is kept for its claims only: search,
 -- extraction and the refresh trigger skip it. So (doc_id, ordinal) is unique among the current
 -- chunks only: the inline UNIQUE of the earlier schema (named chunks_doc_id_ordinal_key)
--- becomes a partial unique index.
+-- becomes a partial unique index. That constraint was also the only full index leading with
+-- doc_id, which the cascade from documents needs (``DELETE FROM ONLY chunks WHERE $1 = doc_id``;
+-- neither partial index can serve it: without chunks_doc_idx every page removal scans chunks),
+-- so chunks_doc_idx replaces it for that. chunks_superseded_idx stays: ``retire_superseded``
+-- scans the superseded chunks of every page, and the partial index keeps that small.
 ALTER TABLE chunks ADD COLUMN IF NOT EXISTS superseded_at timestamptz;
 ALTER TABLE chunks DROP CONSTRAINT IF EXISTS chunks_doc_id_ordinal_key;
 CREATE UNIQUE INDEX IF NOT EXISTS chunks_doc_ordinal_current_idx ON chunks (doc_id, ordinal)
     WHERE superseded_at IS NULL;
 CREATE INDEX IF NOT EXISTS chunks_superseded_idx ON chunks (doc_id)
     WHERE superseded_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS chunks_doc_idx ON chunks (doc_id);
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);

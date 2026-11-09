@@ -646,6 +646,26 @@ async def test_unextracted_ids_skip_superseded_chunks(vkb_dsn):
         await conn.close()
 
 
+async def test_extracting_named_ids_skips_superseded_chunks(vkb_dsn):
+    """``extract --ids-file`` names chunks directly: an earlier version of a page is skipped
+    like a deleted chunk, with no call and no extraction row."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        superseded, current = await _doc(conn, texts=("earlier version", "current version"))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s",
+                           (superseded,))
+        client = FakeClient()
+        report = await extract.run(conn, [superseded, current], client=client,
+                                   settings=_settings(), mode="sync")
+        assert (report.done, report.skipped_deleted) == (1, 1)
+        assert len(client.messages.calls) == 1 and "current version" in str(
+            client.messages.calls[0]["messages"])
+        assert await _rows(conn, "SELECT chunk_id::text FROM extractions") == [(current,)]
+    finally:
+        await conn.close()
+
+
 async def test_cli_extract_unextracted(vkb_dsn, monkeypatch, capsys):
     import asyncio
 

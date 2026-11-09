@@ -7,6 +7,7 @@ import uuid
 import httpx
 import psycopg
 
+from tests.integration.test_supersede import _extract
 from vendorkb import sync as sync_mod
 from vendorkb.chunker import chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
@@ -393,12 +394,37 @@ async def test_an_update_reuses_the_chunks_whose_text_is_unchanged(vkb_dsn):
         emb = FakeEmbedder()
         report = await _run(conn, fd, emb)
         assert report.complete and (report.written, report.chunks_reused) == (1, 1)
+        assert report.chunks_superseded == 0  # the dropped chunk carried no claim
         assert len(emb.texts) == 2
         # the old second chunk carried no claim, so it is gone rather than superseded
         cur = await conn.execute("SELECT chunk_id, ordinal, text FROM chunks ORDER BY ordinal")
         rows = await cur.fetchall()
         assert len(rows) == 2 and rows[0][:2] == (first[0][0], 0)
         assert rows[1][0] != first[1][0] and "gamma" in rows[1][2]
+    finally:
+        await conn.close()
+
+
+async def test_an_update_reports_the_chunks_it_superseded(vkb_dsn):
+    # as above, but the chunk the update drops carries a mapped claim: it is kept, superseded,
+    # and the report counts it
+    conn = await _fresh(vkb_dsn)
+    try:
+        def page(second: str) -> str:
+            return f"## A\n\n{'alpha ' * 250}\n\n## B\n\n{second * 250}"
+
+        fd = FakeDocExt([
+            [_start("S0"), _rec(A[0], body=page("beta ")), _cursor("S9", 1)],
+            [_rec(A[0], change="updated", body=page("gamma ")), _cursor("S10", 1)]])
+        await _run(conn, fd, FakeEmbedder())
+        cur = await conn.execute("SELECT chunk_id FROM chunks ORDER BY ordinal")
+        first = await cur.fetchall()
+        await _extract(conn, first[1][0], claim_mapped="v")
+
+        report = await _run(conn, fd, FakeEmbedder())
+        assert report.complete and (report.chunks_reused, report.chunks_superseded) == (1, 1)
+        cur = await conn.execute("SELECT chunk_id FROM chunks WHERE superseded_at IS NOT NULL")
+        assert await cur.fetchall() == [first[1]]
     finally:
         await conn.close()
 

@@ -37,7 +37,8 @@ import psycopg
 from vendorkb.chunker import Chunk, chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.feed import BootstrapStart, Content, CursorLine, MalformedRecord, Tombstone
-from vendorkb.store import DocMeta, delete_document, stored_hashes, update_metadata, write_document
+from vendorkb.store import (DocMeta, Written, delete_document, stored_hashes, update_metadata,
+                            write_document)
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class SyncReport:
     complete: bool = False
     stopped_by_budget: bool = False
     locked: bool = False
+    chunks_superseded: int = 0  # chunks of updated pages kept, as an earlier version, for facts
 
 
 Item = Content | Tombstone | MalformedRecord
@@ -350,9 +352,11 @@ class _Run:
         r.failed += counts["failed"]
         r.written += counts["written"]
         r.chunks_reused += counts["chunks_reused"]
-        logger.info("%s page %s..%s committed: written=%d chunks_reused=%d unchanged=%d "
-                    "removed=%d failed=%d tokens=%d", r.mode, page[0].doc_id, page[-1].doc_id,
-                    counts["written"], counts["chunks_reused"], counts["unchanged"],
+        r.chunks_superseded += counts["chunks_superseded"]
+        logger.info("%s page %s..%s committed: written=%d chunks_reused=%d "
+                    "chunks_superseded=%d unchanged=%d removed=%d failed=%d tokens=%d",
+                    r.mode, page[0].doc_id, page[-1].doc_id, counts["written"],
+                    counts["chunks_reused"], counts["chunks_superseded"], counts["unchanged"],
                     counts["removed"], counts["failed"], self.budget_tokens())
 
     async def _apply_page(self, page: list[Item], deletes: list[uuid.UUID],
@@ -506,7 +510,8 @@ class _Run:
         failures = list(failures)
         settled: list[uuid.UUID] = []
         counts = dict.fromkeys(
-            ("removed", "unchanged", "metadata_updated", "written", "chunks_reused"), 0)
+            ("removed", "unchanged", "metadata_updated", "written", "chunks_reused",
+             "chunks_superseded"), 0)
 
         async def one(doc_id: uuid.UUID, op: Callable[[], Awaitable[object]]) -> object:
             if not isolate:
@@ -544,7 +549,8 @@ class _Run:
             res = await one(meta.doc_id, partial(write_document, conn, meta, h, chunks, vecs))
             if res is not _FAILED:
                 counts["written"] += 1
-                counts["chunks_reused"] += cast(int, res)
+                counts["chunks_reused"] += cast(Written, res).reused
+                counts["chunks_superseded"] += cast(Written, res).superseded
         if quarantine and quarantine.to_write >= 2 and not counts["written"]:
             # Systemic, not per-record: roll the page back; it is refused until it changes.
             raise _QuarantineFailed(f"quarantine: every record on the page failed "

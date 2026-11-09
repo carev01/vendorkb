@@ -45,8 +45,8 @@ async def _write_texts(conn, meta: DocMeta, texts: list[str], vec: Vector = VEC,
     reused, and the document's current chunk ids by ordinal."""
     chunks = [Chunk(section_path=path, ordinal=i, text=t, token_count=token_count)
               for i, t in enumerate(texts)]
-    reused = await write_document(conn, meta, f"hash-{texts}", chunks, [vec] * len(texts))
-    return reused, await _current(conn, meta.doc_id)
+    written = await write_document(conn, meta, f"hash-{texts}", chunks, [vec] * len(texts))
+    return written.reused, await _current(conn, meta.doc_id)
 
 
 async def _current(conn, doc_id: uuid.UUID) -> list[uuid.UUID]:
@@ -299,6 +299,7 @@ async def test_the_schema_upgrade_lets_superseded_ordinals_coexist(vkb_dsn):
         await _write(conn, _meta(doc_id), 1, "v1")
         await conn.execute("DROP INDEX chunks_doc_ordinal_current_idx")
         await conn.execute("DROP INDEX chunks_superseded_idx")
+        await conn.execute("DROP INDEX chunks_doc_idx")
         await conn.execute("ALTER TABLE chunks DROP COLUMN superseded_at")
         await conn.execute("ALTER TABLE chunks ADD UNIQUE (doc_id, ordinal)")
         await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")
@@ -307,6 +308,9 @@ async def test_the_schema_upgrade_lets_superseded_ordinals_coexist(vkb_dsn):
         # the upgrade removed the unique constraint PostgreSQL named for the old inline one
         assert await _count(conn, "SELECT count(*) FROM pg_constraint WHERE contype = 'u'"
                                   " AND conrelid = 'chunks'::regclass") == 0
+        # and the unique constraint's index leading with doc_id is replaced by a plain one
+        assert await _count(conn, "SELECT count(*) FROM pg_indexes WHERE tablename = 'chunks'"
+                                  " AND indexname = 'chunks_doc_idx'") == 1
         first = (await _current(conn, doc_id))[0]
         await _extract(conn, first, claim_mapped=version)
         await _write(conn, _meta(doc_id), 1, "v2")  # ordinal 0 twice: superseded + current
@@ -463,6 +467,28 @@ async def test_a_dropped_chunk_is_kept_only_with_a_mapped_claim(vkb_dsn):
         await conn.close()
 
 
+async def test_write_document_counts_the_chunks_it_reused_and_superseded(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        meta = _meta(uuid.uuid4())
+        _, v1 = await _write_texts(conn, meta, [_body(x) for x in "abcd"])
+        await _extract(conn, v1[0], claim_mapped=version)  # reused
+        await _extract(conn, v1[1], claim_mapped=version)  # dropped, mapped: superseded
+        await _extract(conn, v1[2], claim_mapped=None)  # dropped, unmapped: deleted
+        # v1[3] was never extracted: deleted
+
+        chunks = [Chunk(section_path=("T",), ordinal=i, text=t, token_count=3)
+                  for i, t in enumerate([_body("a"), _body("z")])]
+        written = await write_document(conn, meta, "h2", chunks, [VEC] * 2)
+        assert (written.reused, written.superseded) == (1, 1)
+        # a first write has nothing to reuse or supersede
+        first = await write_document(conn, _meta(uuid.uuid4()), "h", chunks, [VEC] * 2)
+        assert (first.reused, first.superseded) == (0, 0)
+    finally:
+        await conn.close()
+
+
 async def test_a_reused_chunk_takes_the_new_section_path(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -478,6 +504,78 @@ async def test_a_reused_chunk_takes_the_new_section_path(vkb_dsn):
         assert reused == 1 and v2 == v1
         cur = await conn.execute("SELECT section_path FROM chunks WHERE chunk_id = %s", (v1[0],))
         assert await cur.fetchone() == (["T", "Plan 2026-03"],)
+    finally:
+        await conn.close()
+
+
+async def _xmins(conn, doc_id: uuid.UUID) -> dict[uuid.UUID, str]:
+    """The row version (``xmin``) of each of the page's chunks: it changes when a row is updated."""
+    cur = await conn.execute("SELECT chunk_id, xmin::text FROM chunks WHERE doc_id = %s",
+                             (doc_id,))
+    return {chunk_id: xmin for chunk_id, xmin in await cur.fetchall()}
+
+
+async def test_an_exact_reuse_in_the_same_position_leaves_the_row_untouched(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        _, v1 = await _write_texts(conn, meta, [_body("a"), _body("b")])
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        before = await _xmins(conn, doc_id)
+
+        # same text, section path and ordinal; the new embedding differs and is not stored
+        new_vec = Vector([0.9] * 8)
+        reused, v2 = await _write_texts(conn, meta, [_body("a"), _body("b")], vec=new_vec)
+        assert reused == 2 and v2 == v1  # still counted as reused
+        assert await _xmins(conn, doc_id) == before
+        assert await _count(conn, "SELECT count(*) FROM chunks WHERE doc_id = %s"
+                                  " AND embedding = %s", doc_id, VEC) == 2
+    finally:
+        await conn.close()
+
+
+async def _updated(conn) -> int:
+    """The chunk rows updated so far by the connection's open transaction."""
+    return await _count(conn, "SELECT n_tup_upd FROM pg_stat_xact_user_tables"
+                              " WHERE relname = 'chunks'")
+
+
+async def test_a_reused_chunk_is_updated_once_and_only_a_moved_one_takes_the_hop(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        doc_id = uuid.uuid4()
+        meta = _meta(doc_id)
+        old = "T\n\nSee [the guide](g.html) for the quote."
+        new = "T\n\nSee [the guide](./g.html) for the quote."  # same reuse_key, other text
+        _, v1 = await _write_texts(conn, meta, [_body("a"), old, _body("c")])
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        before = await _xmins(conn, doc_id)
+
+        # the middle chunk changes in place: one UPDATE; its neighbours are not touched
+        new_vec = Vector([0.9] * 8)
+        async with conn.transaction():
+            reused, v2 = await _write_texts(conn, meta, [_body("a"), new, _body("c")],
+                                            vec=new_vec)
+            assert await _updated(conn) == 1
+        assert reused == 3 and v2 == v1
+        after = await _xmins(conn, doc_id)
+        assert (after[v1[0]], after[v1[2]]) == (before[v1[0]], before[v1[2]])
+        assert after[v1[1]] != before[v1[1]]
+        cur = await conn.execute("SELECT text, embedding = %s FROM chunks WHERE chunk_id = %s",
+                                 (new_vec, v1[1]))
+        assert await cur.fetchone() == (new, True)
+
+        # two chunks swap places: only they are updated
+        reused, v3 = await _write_texts(conn, meta, [_body("a"), _body("c"), new])
+        assert reused == 3 and v3 == [v1[0], v1[2], v1[1]]
+        swapped = await _xmins(conn, doc_id)
+        assert swapped[v1[0]] == after[v1[0]]
+        assert swapped[v1[1]] != after[v1[1]] and swapped[v1[2]] != after[v1[2]]
     finally:
         await conn.close()
 
@@ -531,6 +629,23 @@ async def test_read_section_of_a_superseded_chunk_stays_in_its_own_write(vkb_dsn
             assert await ids(version_ids[1], "full") == [str(c) for c in version_ids]
             assert not {str(c) for c in other} & set(await ids(version_ids[0], "full"))
         assert await ids(v3[0], "full") == [str(c) for c in v3]
+    finally:
+        await conn.close()
+
+
+async def test_read_section_marks_the_chunks_of_an_earlier_version(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        meta = _meta(uuid.uuid4())
+        v1 = await _write(conn, meta, 2, "v1")
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        v2 = await _write(conn, meta, 2, "v2")
+        # the text of a superseded chunk is no longer on the page: its reader is told
+        assert [h.superseded for h in await read_section(conn, str(v1[0]), "full")] == [True] * 2
+        assert [h.superseded for h in await read_section(conn, str(v1[1]), "0")] == [True]
+        assert [h.superseded for h in await read_section(conn, str(v2[0]), "full")] == [False] * 2
     finally:
         await conn.close()
 
@@ -623,9 +738,10 @@ class _Recorder:
         return await self.conn.execute(sql, params)
 
 
-async def test_read_section_context_stays_on_the_partial_indexes(vkb_dsn):
+async def test_read_section_context_does_not_scan_chunks(vkb_dsn):
     """``chunks`` holds every chunk of the corpus: the context query of either kind of anchor
-    must be able to use the partial index that matches it, never scan the table."""
+    must be able to use an index (``chunks_doc_idx`` or the partial index that matches it),
+    never scan the table."""
     conn = await connect(vkb_dsn)
     try:
         version = await _fresh(conn)
@@ -636,15 +752,29 @@ async def test_read_section_context_stays_on_the_partial_indexes(vkb_dsn):
         v2 = await _write(conn, meta, 2, "v2")  # v1 is superseded, v2 current
         await conn.execute("SET enable_seqscan = off")  # a tiny table would not need an index
         recorder = _Recorder(conn)
-        for anchor, index in ((v2[0], "chunks_doc_ordinal_current_idx"),
-                              (v1[0], "chunks_superseded_idx")):
+        for anchor in (v2[0], v1[0]):
             for expand in ("1", "full"):
                 await read_section(recorder, str(anchor), expand)
                 sql, params = recorder.statements[-1]
                 cur = await conn.execute("EXPLAIN " + sql, params)
                 plan = "\n".join(row[0] for row in await cur.fetchall())
-                assert f"Index Scan using {index}" in plan or (
-                    f"Bitmap Index Scan on {index}" in plan), (anchor, expand, plan)
                 assert "Seq Scan on chunks" not in plan, (anchor, expand, plan)
+    finally:
+        await conn.close()
+
+
+async def test_removing_a_page_does_not_scan_chunks(vkb_dsn):
+    """The foreign key cascade from ``documents`` runs ``DELETE FROM ONLY chunks WHERE $1 =
+    doc_id`` per removed page: only a full index leading with ``doc_id`` can serve it (the
+    partial ones cannot be proven for it), or every removal scans the whole table."""
+    conn = await connect(vkb_dsn)  # its own session: the settings below are not pooled away
+    try:
+        await _fresh(conn)
+        await conn.execute("SET enable_seqscan = off")  # a tiny table would not need an index
+        await conn.execute("SET plan_cache_mode = force_generic_plan")  # as the cascade plans it
+        await conn.execute("PREPARE d(uuid) AS DELETE FROM ONLY chunks WHERE $1 = doc_id")
+        cur = await conn.execute(f"EXPLAIN EXECUTE d('{uuid.uuid4()}')")
+        plan = "\n".join(row[0] for row in await cur.fetchall())
+        assert "Seq Scan on chunks" not in plan, plan
     finally:
         await conn.close()
