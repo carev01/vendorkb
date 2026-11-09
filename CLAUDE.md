@@ -91,7 +91,17 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   - dimensions (`<family>.<id>`, 12 families, `applies_to` classes, `platform`, `value_unit`);
   - classes with object-type templates (dotted ids nest);
   - targets (class instances with `object_aliases` and `variants`);
-  - offerings with editions.
+  - offerings with editions;
+  - topics (`topics:` key; tables `topics`, `topic_aspects`): a broad subject as a kit of aspects
+    (each: `dimensions`, search `query`, `cues`); `topics.detect_topic` fires on a trigger when no
+    aspect cue is named (product names are masked first). Used by `answer` (per-aspect
+    retrieval, unless a workload vendor qualifies it; a broad "which vendors" question gets a
+    cited grid whose cells are cue-gated: a cell shows its best fact on a chunk that names the
+    aspect (a cue, matched in the facts SQL), else stays empty, counted in `gated_out`) and MCP
+    (`query_capabilities(topic=)` by aspect; `list_dimensions` shows the topic). The grid is off
+    by default (`TOPIC_GRID`): its precision is bounded by the capability facts'. The taxonomy
+    version hash leaves the `topics:` section out: a topic edit needs a `taxonomy load` only, no
+    re-map or build.
 
   New entries from `taxonomy propose` carry `proposed: true` until reviewed. v1 of the
   reviewed taxonomy, with its decision log, is in `taxonomy/review-2026-11-06.tsv`.

@@ -1,10 +1,24 @@
 """The MCP tools (mcp_server) through an in-process client, over a fake backend."""
+from pathlib import Path
+
 import pytest
 from mcp import Client
 
 from vendorkb import mcp_server as ms
+from vendorkb.answer import citation
 from vendorkb.search import Hit, SearchResult
+from vendorkb.taxonomy import load
 from vendorkb.taxonomy.capabilities import CapResult, Conflict, Fact
+from vendorkb.topics import Cell, Grid, render_grid
+
+SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
+
+
+@pytest.fixture(scope="module")
+def ransomware() -> load.Topic:
+    """The shipped taxonomy's ransomware protection topic."""
+    [topic] = load.validate(load.read_doc(SHIPPED)).topics
+    return topic
 
 
 def _fact(**kw) -> Fact:
@@ -30,9 +44,10 @@ def _hit(n: int, text: str = "Passage text.", superseded: bool = False) -> Hit:
 
 
 class FakeBackend:
-    def __init__(self, *, caps=None, hits=None, answer=None, fail=None):
+    def __init__(self, *, caps=None, hits=None, answer=None, fail=None, topics=()):
         self.calls: list[tuple] = []
-        self.caps = caps or CapResult()
+        self.caps = caps or CapResult()  # or a function of the filter
+        self.known_topics = list(topics)
         self.hits = hits or []
         self._answer = answer or {}
         self.fail = fail
@@ -56,7 +71,22 @@ class FakeBackend:
         self.calls.append(("capabilities", f, limit))
         if self.fail:
             raise self.fail
-        return self.caps
+        return self.caps(f) if callable(self.caps) else self.caps
+
+    async def capabilities_many(self, filters, limit):
+        self.calls.append(("capabilities_many", filters, limit))
+        if self.fail:
+            raise self.fail
+        out = []
+        for f in filters:
+            out.append(self.caps(f) if callable(self.caps) else self.caps)
+            if out[-1].unresolved:  # like DbBackend: the rest would fail the same way
+                break
+        return out
+
+    async def topics(self):
+        self.calls.append(("topics",))
+        return self.known_topics
 
     async def search(self, query, vendor, product, k):
         self.calls.append(("search", query, vendor, product, k))
@@ -81,6 +111,11 @@ async def test_the_tools_are_listed_read_only():
                           "query_capabilities", "search_docs", "read_section",
                           "answer_question"}
     assert all(t.annotations.read_only_hint for t in tools.values())
+    caps = tools["query_capabilities"]
+    assert "topic" in caps.input_schema["properties"]
+    assert "`topic`" in caps.description and "grouped by aspect" in caps.description
+    assert "exclusive with `dimension`" in caps.description
+    assert "topic" in tools["list_dimensions"].description
 
 
 async def test_query_capabilities_cites_every_fact():
@@ -169,6 +204,7 @@ async def test_query_capabilities_needs_a_filter_and_reports_failures():
     async with Client(ms.build_server(backend)) as c:
         r = await c.call_tool("query_capabilities", {})
         assert r.is_error and "at least one filter" in r.content[0].text
+        assert "or topic" in r.content[0].text
         assert backend.calls == []
         r = await c.call_tool("query_capabilities", {"dimension": "x"})
         assert r.is_error and "RuntimeError: db down" in r.content[0].text
@@ -244,6 +280,63 @@ async def test_answer_question_lists_its_sources():
                                  "[1] Page 1 — https://docs.example/1")
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
+    assert "citations_total" not in r.structured_content  # a grid answer's key only
+
+
+def _grid_answer(topic: load.Topic) -> dict:
+    """An answer_question envelope for a grid of 30 vendors by the topic's aspects, one cell
+    short of full (239 cells), its pages long URLs, two cells to a page."""
+    vendors = [f"Vendor {n:02d}" for n in range(30)]
+    cells = {}
+    for n, (vendor, aspect) in enumerate((v, a) for v in vendors for a in topic.aspects):
+        url = (f"https://help.example-vendor-documentation.com/en-us/{vendor.replace(' ', '-')}"
+               f"/backup/security/topic-{n // 2}.html")
+        hit = Hit(chunk_id=f"k{n}", doc_id=f"d{n}", text="t", section_path=[], vendor=vendor,
+                  product="P", title=f"A rather long page title, number {n}", url=url,
+                  rrf_rank=0, rerank_score=None)
+        cells[(vendor, aspect.id)] = Cell("supported", hit, False)
+    del cells[(vendors[-1], topic.aspects[-1].id)]
+    grid = Grid(vendors=vendors, cells=cells, facts_as_of=None, no_fact=[])
+    table, hits = render_grid(grid, topic)
+    return {"answer": f"Thirty vendors have facts for every aspect.\n\n{table}",
+            "shape": "enumeration", "topic": topic.id, "scope": {}, "uncited": False,
+            "error": None, "citations": [citation(n, h) for n, h in enumerate(hits, 1)]}
+
+
+async def test_a_grid_answer_lists_each_page_once_within_a_cap(ransomware):
+    out = _grid_answer(ransomware)
+    assert len(out["citations"]) == 239
+    async with Client(ms.build_server(FakeBackend(answer=out))) as c:
+        r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
+    text = r.content[0].text
+    assert len(text) <= 14_000
+    answer, sources = text.split("\n\nSources:\n")
+    assert answer == out["answer"]
+    assert len("Sources:\n" + sources) <= ms.GRID_SOURCES_CHARS == 8000
+    *lines, more = sources.split("\n")
+    # one line per page, all its markers, no title
+    by_url: dict[str, list[int]] = {}
+    for c in out["citations"]:
+        by_url.setdefault(c["url"], []).append(c["marker"])
+    expected = [f"[{', '.join(map(str, m))}] {url}" for url, m in by_url.items()]
+    assert lines == expected[:len(lines)] and lines[0].startswith("[1, 2] https://")
+    assert not any("page title" in line for line in lines)
+    assert more == (f"… {len(expected) - len(lines)} more sources: query_capabilities("
+                    f"topic=\"ransomware_protection\") lists the cited facts.")
+    assert len(expected) - len(lines) > 0
+    # the structured content: the first 60 citations, and how many there are
+    assert [c["marker"] for c in r.structured_content["citations"]] == list(range(1, 61))
+    assert r.structured_content["citations_total"] == 239
+
+
+async def test_a_short_grid_answer_lists_every_page(ransomware):
+    out = _grid_answer(ransomware)
+    out["citations"] = out["citations"][:5]
+    async with Client(ms.build_server(FakeBackend(answer=out))) as c:
+        r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
+    sources = r.content[0].text.split("\n\nSources:\n")[1].split("\n")
+    # under the cap: every page, and no pointer line
+    assert [line.rsplit(" ", 1)[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
 
 
 @pytest.mark.parametrize("tool, args", [("list_dimensions", {"query": "immutable"}),
@@ -259,3 +352,183 @@ async def test_browse_tools(tool, args):
             "list_targets": "aws.rds — Amazon RDS [class cloud.database] (aliases: RDS)",
             "list_vendors": "Examplevendor — 3 documents, 7 capability facts; products:"
                             " Example Backup (3)"}[tool] == text
+
+
+def _topic_call(backend: FakeBackend) -> tuple:
+    """The one capabilities_many call of a topic query: (name, filters, limit)."""
+    [call] = [c for c in backend.calls if c[0] == "capabilities_many"]
+    assert not [c for c in backend.calls if c[0] == "capabilities"]
+    return call
+
+
+async def test_query_by_topic_groups_facts_by_aspect(ransomware):
+    aspects = ransomware.aspects
+    backend = FakeBackend(caps=CapResult(facts=[_fact()]), topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {
+            "topic": "ransomware protection", "vendor": "Examplevendor", "target": "RDS",
+            "support": "supported", "offering": "enterprise", "limit": 20})
+    assert not r.is_error
+    _, filters, limit = _topic_call(backend)  # one call, every aspect's filter in order
+    assert [f.dimension_ids for f in filters] == [a.dimensions for a in aspects]
+    assert limit == max(1, 20 // len(aspects))
+    for f in filters:
+        assert (f.vendor, f.target, f.support, f.offering, f.dimension) == (
+            ("Examplevendor",), "RDS", "supported", "enterprise", None)
+    text = r.content[0].text
+    assert [x for x in text.splitlines() if x.startswith("## ")] == [
+        f"## {a.name}" for a in aspects]
+    # one numbering across the aspects: every [N] points at one fact
+    assert [f"[{n}] Examplevendor" in text for n in (1, len(aspects), len(aspects) + 1)] == [
+        True, True, False]
+    sc = r.structured_content
+    assert sc["topic"] == ransomware.id
+    assert [(a["id"], a["name"], tuple(a["dimensions"])) for a in sc["aspects"]] == [
+        (a.id, a.name, a.dimensions) for a in aspects]
+    assert all(a["facts_total"] == 1 and len(a["facts"]) == 1 for a in sc["aspects"])
+    assert sc["aspects"][0]["facts"][0]["evidence_superseded"] is False
+
+
+async def test_each_aspect_gets_at_least_one_fact(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        await c.call_tool("query_capabilities", {"topic": "ransomware", "limit": 3})
+    _, filters, limit = _topic_call(backend)
+    assert (len(filters), limit) == (len(ransomware.aspects), 1)
+
+
+async def test_an_aspect_without_facts_keeps_its_heading_and_claims_no_absence(ransomware):
+    first = ransomware.aspects[0].dimensions
+
+    def caps(f):
+        if f.dimension_ids == first:
+            return CapResult(facts=[_fact()])
+        return CapResult(hint="No capability facts match. Search the document chunks")
+
+    backend = FakeBackend(caps=caps, topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware",
+                                                     "vendor": "Examplevendor"})
+    assert not r.is_error
+    text = r.content[0].text
+    n = len(ransomware.aspects)
+    assert [x for x in text.splitlines() if x.startswith("## ")] == [
+        f"## {a.name}" for a in ransomware.aspects]
+    assert text.count("No facts. No capability facts match. Search") == n - 1
+    assert "not supported" not in text.lower() and "lacks" not in text
+    assert [bool(a["facts"]) for a in r.structured_content["aspects"]] == [True] + [False] * (n - 1)
+
+
+async def test_topic_resolves_by_id_name_trigger_and_separators(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        for term in ("ransomware_protection", "Ransomware-Protection", "  RANSOMWARE  protection ",
+                     "ransomware", "Cyber-Attack", "protection"):  # "protection": a whole word
+            r = await c.call_tool("query_capabilities", {"topic": term})
+            assert not r.is_error, term
+            assert r.structured_content["topic"] == "ransomware_protection", term
+
+
+async def test_topic_and_dimension_are_exclusive(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware",
+                                                     "dimension": "immutability"})
+    assert r.is_error
+    assert "topic" in r.content[0].text and "dimension" in r.content[0].text
+    assert backend.calls == []
+
+
+async def test_unknown_topic_lists_the_known_ones(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "tape drives"})
+    assert r.is_error
+    text = r.content[0].text
+    assert "'tape drives'" in text and "ransomware_protection (Ransomware protection)" in text
+    assert [c[0] for c in backend.calls] == ["topics"]  # no capabilities query
+
+
+async def test_a_topic_failure_is_reported(ransomware):
+    backend = FakeBackend(topics=[ransomware], fail=RuntimeError("db down"))
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware"})
+    assert r.is_error and "RuntimeError: db down" in r.content[0].text
+
+
+async def test_list_dimensions_shows_matching_topics(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("list_dimensions", {"query": "ransomware"})
+    assert not r.is_error
+    text = r.content[0].text
+    assert text.startswith("Topic ransomware_protection — Ransomware protection:\n- ")
+    for a in ransomware.aspects:
+        assert f"- {a.name}: {', '.join(a.dimensions)}\n" in text + "\n"
+    # then the usual listing
+    assert text.endswith("security.immutability — Immutability: Copies that cannot be changed."
+                         " (aliases: immutable backups)")
+    sc = r.structured_content
+    assert [d["id"] for d in sc["dimensions"]] == ["security.immutability"]
+    [t] = sc["topics"]
+    assert (t["id"], t["name"]) == ("ransomware_protection", "Ransomware protection")
+    assert [a["id"] for a in t["aspects"]] == [a.id for a in ransomware.aspects]
+    assert ("dimensions", "ransomware", None, 25) in backend.calls
+
+
+@pytest.mark.parametrize("args", [{}, {"query": "  "}, {"family": "security"},
+                                  {"query": "retention"},
+                                  {"query": "immutability"},  # an aspect's name, not the topic's
+                                  {"query": "Air gap / isolated copies"}])
+async def test_list_dimensions_without_a_topic_match_is_unchanged(ransomware, args):
+    async with Client(ms.build_server(FakeBackend(topics=[ransomware]))) as c:
+        r = await c.call_tool("list_dimensions", args)
+    assert r.content[0].text == ("security.immutability — Immutability: Copies that cannot be"
+                                 " changed. (aliases: immutable backups)")
+    assert list(r.structured_content) == ["dimensions"]
+
+
+async def test_an_aspect_name_does_not_resolve_a_topic(ransomware):
+    backend = FakeBackend(topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "Immutability / WORM"})
+    assert r.is_error and "unknown topic" in r.content[0].text
+    assert [c[0] for c in backend.calls] == ["topics"]
+
+
+async def test_unresolved_filters_are_reported_once_and_the_other_aspects_do_not_run(ransomware):
+    hint = "No taxonomy entity matches target 'tape' (by id or alias). Search the documents"
+    backend = FakeBackend(caps=CapResult(hint=hint, unresolved=["target 'tape'"]),
+                          topics=[ransomware])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware", "target": "tape"})
+    assert not r.is_error
+    assert r.content[0].text == f"No facts. {hint}"  # once, with no aspect headings
+    sc = r.structured_content
+    assert (sc["topic"], sc["aspects"], sc["hint"]) == ("ransomware_protection", [], hint)
+    # the backend was asked for every aspect and stopped at the first result
+    [(_, filters, _)] = [c for c in backend.calls if c[0] == "capabilities_many"]
+    assert len(filters) == len(ransomware.aspects)
+
+
+async def test_a_topic_without_aspects_does_not_divide_by_zero():
+    empty = load.Topic("empty_topic", "Empty topic", ("empty",), ())
+    backend = FakeBackend(topics=[empty])
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "empty", "limit": 7})
+    assert not r.is_error
+    assert _topic_call(backend)[1:] == ([], 7)
+    assert r.structured_content["aspects"] == []
+
+
+async def test_a_topic_fact_on_an_earlier_page_version_is_marked(ransomware):
+    caps = CapResult(facts=[_fact(evidence_superseded=True, is_current=False)])
+    async with Client(ms.build_server(FakeBackend(caps=caps, topics=[ransomware]))) as c:
+        r = await c.call_tool("query_capabilities", {"topic": "ransomware"})
+    assert "(from an earlier version of the page)" in r.content[0].text
+    assert r.structured_content["aspects"][0]["facts"][0]["evidence_superseded"] is True
+
+
+def test_the_instructions_name_the_topic_route():
+    assert "query_capabilities(topic=...)" in ms.INSTRUCTIONS
+    assert "list_dimensions with the subject shows the topic's aspects" in ms.INSTRUCTIONS

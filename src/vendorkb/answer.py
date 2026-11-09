@@ -2,19 +2,42 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
 
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
-from vendorkb.scope import ScopeIndex, find_facets
+from vendorkb.scope import ScopeIndex, find_facets, product_surfaces
 from vendorkb.search import Hit, SearchResult, search_docs
-from vendorkb.shape import WORKLOAD_VENDORS, detect_shape
+from vendorkb.shape import WORKLOAD_VENDORS, Facet, Shape, detect_shape, named_facets
+
+if TYPE_CHECKING:
+    import psycopg
+
+    from vendorkb.clients import Embedder, Reranker
+    from vendorkb.taxonomy.load import Topic
+    from vendorkb.topics import Grid, TopicHits
 
 log = logging.getLogger(__name__)
 
 # up to ~40 vendor lines over 60 chunks, with reasoning on
 # The model's reasoning uses most of it (5.8k-8k tokens for a 20-30 line answer, 2026-11-08).
 ENUMERATION_MAX_TOKENS = 16000
+# A topic question with more sides than this keeps the plain comparison path: the per-aspect
+# searches and rerank scale with the sides (4 sides x 8 aspects).
+TOPIC_MAX_SIDES = 4
+# The summary above a topic grid: a short call, its reasoning included.
+GRID_SUMMARY_MAX_TOKENS = 2000
+GRID_SUMMARY_RULES = (
+    "Summarise this coverage table of backup vendors in at most four sentences, using only the "
+    "counts and names given; no citations, no claims beyond the table. A vendor not listed may "
+    "still offer a capability: never state or imply that a vendor lacks one, and never write "
+    "\"only\".")
+# A summary saying this is dropped (the grid stands alone): the table records facts found, and
+# a vendor with none may still offer the capability.
+_ABSENCE = re.compile(r"\b(only|no vendors?|none of|lacks?|lacking|does not offer|do not offer"
+                      r"|doesn['\u2019]t|don['\u2019]t|not supported|unsupported)\b", re.IGNORECASE)
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -42,6 +65,80 @@ ENUMERATION_RULES = (
     "- Add nothing after the lines."
 )
 
+
+def topic_rules(topic: Topic, *, products_named: bool) -> str:
+    """Rules for a broad question on ``topic``: one part of the answer per aspect, in order."""
+    head = (f"\n- The question asks about {topic.name.lower()} in general. Organise the answer by "
+            f"these aspects, in this order: {'; '.join(a.name for a in topic.aspects)}.\n")
+    if products_named:
+        return head + ("- For each product in the question, state what its sources show for each "
+                       "aspect, with citations, and name the product each statement is about (a "
+                       "vendor may have several); for an aspect its sources do not cover, write "
+                       "\"the retrieved sources do not cover this\", never that the product "
+                       "lacks it.")
+    return head + ("- The question names no product: for each aspect, describe what the sources "
+                   "show, with citations, naming the vendor and product each statement comes "
+                   "from; do not present the vendors named as a complete list.")
+
+
+# `vendorkb sync` runs in a 1 Gi pod and imports this module through the CLI, and the topics code
+# pulls in the taxonomy stack (numpy, scikit-learn): these import it on first use.
+async def load_topics(conn: psycopg.AsyncConnection) -> list[Topic]:
+    from vendorkb.topics import load_topics as load
+    return await load(conn)
+
+
+def detect_topic(question: str, topics: list[Topic],
+                 exclude: Iterable[str] = ()) -> Topic | None:
+    from vendorkb.topics import detect_topic as detect
+    return detect(question, topics, exclude)
+
+
+def is_broad(question: str, topic: Topic) -> bool:
+    from vendorkb.topics import is_broad as broad
+    return broad(question, topic)
+
+
+def topic_applies(question: str, shape: Shape, topic: Topic, named: list[Facet]) -> bool:
+    """Whether a question that triggers ``topic`` gets the topic's answer. A "which vendors"
+    question gets the grid only with no facet and nothing but broad words (``is_broad``); a
+    single or comparison question keeps today's path when it names a workload vendor beside
+    another facet ("How does Veeam protect Microsoft 365 against ransomware?"). ``named`` are
+    the facets as the question names them (``shape.named_facets``), before ``detect_shape``
+    drops a workload vendor from the sides of a weak comparison."""
+    if shape.kind == "enumeration":
+        return not shape.facets and is_broad(question, topic)
+    workload = [f for f in named if f[0] == "vendor" and f[1] in WORKLOAD_VENDORS]
+    return not (workload and len(workload) < len(named))
+
+
+async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic, *,
+                     facets: list[Facet], embedder: Embedder, reranker: Reranker | None,
+                     budget: int | None = None, per_aspect: int | None = None,
+                     own: int | None = None) -> TopicHits:
+    """``topics.topic_hits``; a tunable left None keeps that function's own default."""
+    from vendorkb.topics import topic_hits as hits
+    tunables = {k: v for k, v in (("budget", budget), ("per_aspect", per_aspect), ("own", own))
+                if v is not None}
+    return await hits(conn, question, topic, facets=facets, embedder=embedder,
+                      reranker=reranker, **tunables)
+
+
+async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: list[str],
+                     embedder: Embedder, reranker: Reranker | None,
+                     catch_up: bool | None = None) -> Grid:
+    """``topics.topic_grid``; ``catch_up`` left None keeps that function's own default."""
+    from vendorkb.topics import topic_grid as grid
+    extra = {} if catch_up is None else {"catch_up": catch_up}
+    return await grid(conn, topic, vendors=vendors, embedder=embedder, reranker=reranker,
+                      **extra)
+
+
+def render_grid(grid: Grid, topic: Topic) -> tuple[str, list[Hit]]:
+    from vendorkb.topics import render_grid as render
+    return render(grid, topic)
+
+
 _GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
 
 
@@ -60,6 +157,12 @@ def build_enumeration_prompt(question: str, hits: list[Hit], vendors: list[str])
         products = list(dict.fromkeys(h.product for h in hits if h.vendor == v and h.product))
         items.append(f"{v} ({', '.join(products)})" if products else v)
     return build_prompt(question, hits) + "Vendors: " + "; ".join(items) + "\n"
+
+
+def _facets_without_hits(facets: list[Facet], hits: list[Hit]) -> list[str]:
+    """Names of the facets none of ``hits`` belongs to."""
+    return [name for kind, name in facets
+            if not any((h.vendor if kind == "vendor" else h.product) == name for h in hits)]
 
 
 def closing_line(names: list[str]) -> str:
@@ -183,6 +286,15 @@ def count_lines_naming_other_vendors(text: str, corpus_vendors: list[str]) -> in
     return count
 
 
+def citation(n: int, hit: Hit) -> dict:
+    """The citation of marker ``n``: the chunk and its page."""
+    return {"marker": n, "chunk_id": hit.chunk_id, "doc_id": hit.doc_id,
+            "url": hit.url, "title": hit.title, "section_path": hit.section_path,
+            # the evidence as the model saw it: judging never depends on a
+            # later DB state (a re-ingest may replace the chunk)
+            "text": hit.text}
+
+
 def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
     valid = len(hits)
     order: list[int] = []
@@ -203,15 +315,7 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
         return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]" if keep else ""
 
     text = _GROUP.sub(repl, raw)
-    citations = []
-    for n in order:
-        h = hits[n - 1]
-        citations.append({"marker": n, "chunk_id": h.chunk_id, "doc_id": h.doc_id,
-                          "url": h.url, "title": h.title, "section_path": h.section_path,
-                          # the evidence as the model saw it: judging never depends on a
-                          # later DB state (a re-ingest may replace the chunk)
-                          "text": h.text})
-    return text, citations, unknown
+    return text, [citation(n, hits[n - 1]) for n in order], unknown
 
 
 def _renumber(text: str, sub: list[Hit], hits: list[Hit]) -> str:
@@ -303,6 +407,75 @@ async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SY
     return None, totals, error, None
 
 
+def _summary_prompt(grid: Grid, topic: Topic) -> str:
+    """One line per aspect: how many vendors have a capability fact for it, and which. A page
+    not yet analysed is no fact (the summary must not state what nothing verified). Worded as
+    facts found, never as vendors lacking the aspect."""
+    lines = []
+    for aspect in topic.aspects:
+        names = sorted(v for (v, a), cell in grid.cells.items()
+                       if a == aspect.id and cell.mark != "recent")
+        lines.append(f"{aspect.name}: facts found for {len(names)} vendors: {', '.join(names)}"
+                     if names else f"{aspect.name}: no facts found")
+    return "\n".join(lines)
+
+
+async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder, reranker,
+                       scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
+    """A "which vendors" question on ``topic``: the grid of every vendor with documents by the
+    topic's aspects, built from the capability table in code (``topic_grid``), under a short
+    model summary of its counts. The model writes no cell and no citation: ``[n]`` is the
+    n-th cell of the table. A failed summary leaves the grid alone."""
+    checked = list(scope_index.vendors)
+    grid = await topic_grid(conn, topic, vendors=checked, embedder=embedder, reranker=reranker)
+    table, hits = render_grid(grid, topic)
+    out: dict = {
+        "query": question, "answer": table,
+        "citations": [citation(n, h) for n, h in enumerate(hits, start=1)],
+        "unknown_markers": 0, "uncited": False, "shape": "enumeration", "topic": topic.id,
+        "aspects": [a.name for a in topic.aspects],
+        "scope": {"vendors": [], "products": [], "relaxed": False},
+        "rerank_ok": grid.rerank_ok, "retrieved": len(hits),
+        "reranked_docs": grid.reranked_docs, "catch_up_ok": grid.catch_up_ok,
+        "gated_out": grid.gated_out,
+        "truncated": False, "usage": None, "error": None, "summary_error": None,
+        "vendors_checked": checked, "vendors_listed": list(grid.vendors), "lines_dropped": 0,
+        "lines_naming_other_vendors": 0, "second_pass_listed": 0}
+    if not hits:  # nothing to summarise
+        return out
+    content, usage, error, finish_reason = await _call_model(
+        client, settings, _summary_prompt(grid, topic), GRID_SUMMARY_RULES,
+        max_tokens=GRID_SUMMARY_MAX_TOKENS)
+    out["usage"] = usage
+    out["truncated"] = finish_reason == "length"
+    if out["truncated"]:
+        log.warning("vendorkb grid summary truncated at %d tokens", GRID_SUMMARY_MAX_TOKENS)
+    if content is None:
+        # `error` stays None: the grid is an answer, and mcp_server turns `error` into a ToolError
+        log.warning("vendorkb grid summary failed: %s", error)
+        out["summary_error"] = error
+        return out
+    stripped = 0
+
+    def drop(m: re.Match[str]) -> str:
+        nonlocal stripped
+        stripped += len(re.split(r"\s*,\s*", m.group(2)))
+        return ""
+
+    # a marker in the summary would cite a cell of the table by accident; counted by number,
+    # as resolve_markers counts the ones it drops
+    summary = _GROUP.sub(drop, content).strip()
+    out["unknown_markers"] = stripped
+    if not summary:
+        out["summary_error"] = "empty reply"
+    elif _ABSENCE.search(summary):
+        log.warning("vendorkb grid summary dropped: it states or implies absence")
+        out["summary_error"] = "absence wording"
+    else:
+        out["answer"] = f"{summary}\n\n{table}"
+    return out
+
+
 async def answer(conn, question: str, *, settings, embedder, reranker,
                  scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
     shape = detect_shape(question, scope_index)
@@ -314,6 +487,22 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     checked: list[str] = []
     kept: list[str] = []
     system = SYSTEM_RULES
+    topic = None
+    reranked_docs = 0  # the topic path's (TopicHits.reranked_docs)
+    # a "which vendors" topic question gets the grid only with TOPIC_GRID on; off, it is any
+    # other enumeration (no topic lookup at all)
+    if (settings.topic_grid if shape.kind == "enumeration"
+            else len(shape.facets) <= TOPIC_MAX_SIDES):
+        # a product's name ("PowerProtect Cyber Recovery") never stands for the topic; the
+        # offerings (taxonomy) are not in the scope index, so they are not excluded here
+        topic = detect_topic(question, await load_topics(conn),
+                             exclude=product_surfaces(scope_index))
+        if topic is not None and not topic_applies(question, shape, topic,
+                                                   named_facets(question, scope_index)):
+            topic = None  # a qualified question: today's answer
+    if shape.kind == "enumeration" and topic is not None:
+        return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
+                                  reranker=reranker, scope_index=scope_index, client=client)
     if shape.kind == "enumeration":
         checked = list(scope_index.vendors)
         er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
@@ -324,6 +513,18 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         kept = er.kept
         system = SYSTEM_RULES + ENUMERATION_RULES
         vendors, products = [], []
+    elif topic is not None:
+        # the sides are the question's facets (a vendor and its own product count once, see
+        # detect_shape); none for an unscoped question, searched across the whole corpus
+        th = await topic_hits(conn, question, topic, facets=shape.facets, embedder=embedder,
+                              reranker=reranker)
+        result = SearchResult(th.hits, th.rerank_ok)
+        reranked_docs = th.reranked_docs
+        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets))
+        vendors = [n for k, n in shape.facets if k == "vendor"]
+        products = [n for k, n in shape.facets if k == "product"]
+        if len(shape.facets) >= 2:  # a single question may name several sides too
+            facets_empty = _facets_without_hits(shape.facets, th.hits)
     elif shape.kind == "comparison":
         cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                   facets=shape.facets)
@@ -340,10 +541,14 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
             result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
     out: dict = {"query": question, "answer": None, "citations": [], "unknown_markers": 0,
                  "uncited": False, "shape": shape.kind,
+                 "topic": None if topic is None else topic.id,
                  "scope": {"vendors": vendors, "products": products, "relaxed": relaxed},
                  "rerank_ok": result.rerank_ok, "retrieved": len(result.hits),
                  "usage": None, "error": None}
-    if shape.kind == "comparison":
+    if topic is not None:
+        out["aspects"] = [a.name for a in topic.aspects]
+        out["reranked_docs"] = reranked_docs
+    if shape.kind == "comparison" or (topic is not None and len(shape.facets) >= 2):
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":
         out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0, lines_naming_other_vendors=0,
@@ -367,15 +572,17 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         return finish(REFUSAL)
     prompt = (build_enumeration_prompt(question, result.hits, kept)
               if shape.kind == "enumeration" else build_prompt(question, result.hits))
+    wide = shape.kind == "enumeration" or topic is not None  # a long, structured answer
     content, usage, error, finish_reason = await _call_model(
-        client, settings, prompt, system,
-        max_tokens=ENUMERATION_MAX_TOKENS if shape.kind == "enumeration" else 4000)
+        client, settings, prompt, system, max_tokens=ENUMERATION_MAX_TOKENS if wide else 4000)
     out["usage"] = usage
-    if shape.kind == "enumeration":
-        # a cut-off reply loses its trailing vendor lines, which the closing line then lists
+    if wide:
+        # a cut-off reply loses its tail: an enumeration's trailing vendor lines, which the
+        # closing line then lists, or a topic answer's last aspects
         out["truncated"] = finish_reason == "length"
         if out["truncated"]:
-            log.warning("vendorkb enumeration answer truncated at %d tokens",
+            log.warning("vendorkb %s answer truncated at %d tokens",
+                        "enumeration" if shape.kind == "enumeration" else "topic",
                         ENUMERATION_MAX_TOKENS)
     if content is None:
         out["error"] = error

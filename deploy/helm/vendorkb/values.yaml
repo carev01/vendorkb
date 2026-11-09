@@ -21,6 +21,7 @@ config:
   RERANK_BASE_URL: https://api.voyageai.com/v1
   RERANK_MODEL: rerank-3
   JUDGE_BASE_URL: https://openrouter.ai/api/v1
+  TOPIC_GRID: "false"   # the "which vendors" topic grid (precision bounded by the facts')
 
 postgres:
   image: pgvector/pgvector:pg16

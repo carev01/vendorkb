@@ -1,0 +1,78 @@
+# Ransomware topic questions for eval/topic_eval.py. Ids, types and question texts are the ones
+# the "before" run answered (2026-11-08); never reword them. `sides` are the parties graded
+# separately (empty: vendor-neutral or enumeration). `grading` is needed when `sides` is empty:
+# by_aspect (graded per aspect across the whole answer) or enumeration (graded on sampled
+# vendor-aspect pairs; its type is cross_vendor like tp-08's, so only `grading` tells them apart).
+- id: tp-01
+  type: single_vendor
+  question: How does Veeam protect backups against ransomware?
+  vendors: [Veeam]
+  sides: [Veeam]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-02
+  type: single_vendor
+  question: How does Commvault protect backups against ransomware?
+  vendors: [Commvault]
+  sides: [Commvault]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-03
+  type: single_vendor
+  question: What ransomware protection does Rubrik offer?
+  vendors: [Rubrik]
+  sides: [Rubrik]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-04
+  type: single_vendor
+  question: How does Cohesity help me recover from a ransomware attack?
+  vendors: [Cohesity]
+  sides: [Cohesity]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-05
+  type: cross_vendor
+  question: How do Veeam Backup & Replication and Azure Backup each protect backups against ransomware?
+  vendors: [Veeam, Microsoft]
+  sides: [Veeam Backup & Replication, Azure Backup]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-06
+  type: cross_vendor
+  question: Compare Commvault and Rubrik on ransomware protection.
+  vendors: [Commvault, Rubrik]
+  sides: [Commvault, Rubrik]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-07
+  type: cross_vendor
+  question: How do Druva and Cohesity compare for cyber resilience?
+  vendors: [Druva, Cohesity]
+  sides: [Druva, Cohesity]
+  topic: ransomware_protection
+  holdout: true
+- id: tp-08
+  type: cross_vendor
+  question: How can I protect my backups against ransomware?
+  vendors: []
+  sides: []
+  grading: by_aspect
+  topic: ransomware_protection
+  holdout: true
+- id: tp-09
+  type: cross_vendor
+  question: Which vendors protect backups against ransomware?
+  vendors: []
+  sides: []
+  grading: enumeration
+  topic: ransomware_protection
+  holdout: true
+- id: tp-10
+  type: cross_vendor
+  question: Which backup vendors offer ransomware protection?
+  vendors: []
+  sides: []
+  grading: enumeration
+  topic: ransomware_protection
+  holdout: true

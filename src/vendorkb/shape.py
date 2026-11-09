@@ -81,12 +81,17 @@ def _has_or_pair(question: str, facets: list[Facet]) -> bool:
                for a in names for b in names if a != b)
 
 
-def detect_shape(question: str, index: ScopeIndex) -> Shape:
+def named_facets(question: str, index: ScopeIndex) -> list[Facet]:
+    """The facets the question names: its vendors and products, a vendor of a named product
+    counted once, as the product (a product is more specific than its vendor)."""
     vendors, products = find_facets(question, index)
-    # a product is more specific than its vendor: one facet, not two
     owners = {v for p in products for v in _vendor_of(p, index)}
-    facets: list[Facet] = [("vendor", v) for v in vendors if v not in owners]
-    facets += [("product", p) for p in products]
+    return [("vendor", v) for v in vendors if v not in owners] + [("product", p) for p in products]
+
+
+def detect_shape(question: str, index: ScopeIndex) -> Shape:
+    facets = named_facets(question, index)
+    products = [name for kind, name in facets if kind == "product"]
     if len(facets) >= 2:  # named facets: compared or asked about together, never a sweep
         cross = len({_product_vendor(p, index) for p in products}) >= 2
         if (cross or _COMPARISON_WORDING.search(question)

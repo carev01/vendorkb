@@ -1,7 +1,7 @@
 import json
 import sys
 
-from vendorkb.scope import ScopeIndex, detect_scope, load_scope_index
+from vendorkb.scope import ScopeIndex, detect_scope, load_scope_index, product_surfaces
 
 ALIASES = {
     "VBR": "Veeam Backup & Replication",
@@ -129,3 +129,20 @@ def test_a_generic_product_name_needs_its_vendor(tmp_path):
     # the cv-12 wording: Microsoft's Entra product, not Storware's
     assert detect_scope("Microsoft's built-in Entra Backup and Recovery", idx) == (
         ["Microsoft"], ["Entra ID Backup"])
+
+
+def test_product_surfaces_are_the_product_names_scope_detection_reads(tmp_path):
+    p = tmp_path / "aliases.json"
+    p.write_text(json.dumps(ALIASES))
+    idx = load_scope_index([*VENDORS, "Storware"], [*PRODUCTS, "Backup and Recovery"], p,
+                           SOURCE_PRODUCTS, SOURCE_VENDORS,
+                           product_vendors={"Backup and Recovery": "Storware"})
+    surfaces = product_surfaces(idx)
+    # product names, aliases of products, and distinctive sources (which stand for products)
+    for name in (*PRODUCTS, "VBR", "Veeam Agent", "Veeam Agent for Linux"):
+        assert name in surfaces, name
+    # a generic product name only after its vendor's name, as find_facets reads it
+    assert "Storware Backup and Recovery" in surfaces and "Backup and Recovery" not in surfaces
+    # vendor names and their aliases are no product surfaces; nor is a shared source name
+    for name in (*VENDORS, "Storware", "Amazon", "User Guide"):
+        assert name not in surfaces, name

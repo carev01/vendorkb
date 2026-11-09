@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -841,6 +842,66 @@ async def test_facet_candidates_equal_scoped_hybrid_search(vkb_dsn):
         await conn.close()
 
 
+async def test_vector_candidates_are_the_nearest_chunks_within_each_side(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        rank = 0  # every chunk its own distance from the query: no tie for the index to break
+        for vendor, product, n in (("BIG", "BIG-P", 40), ("MID", "MID-P", 20),
+                                   ("MID", "MID-Q", 8), ("SMALL", "SMALL-P", 4)):
+            d = await _doc(conn, vendor, product)
+            for j in range(n):
+                rank += 1
+                await _raw_chunk(conn, d, j, f"{product} {j}", _fine(rank))
+        # a page's earlier version, the nearest chunk of all: never a candidate
+        old = await _raw_chunk(conn, await _doc(conn, "BIG", "BIG-P"), 0, "old", _fine(0))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s", (old,))
+        # the approximate index, rebuilt: the rows the earlier tests deleted would still be in it
+        await conn.execute("REINDEX INDEX chunks_embedding_idx")
+        qvecs = [_fine(0), _fine(45)]
+        sides = [("vendor", "BIG"), ("product", "MID-Q"), ("vendor", "MID"), None,
+                 ("vendor", "ABSENT")]
+        for limit in (20, 5):
+            cc = CountingConn(conn)
+            await search._pgvector_version(cc)  # read once per connection
+            cc.executes = 0
+            got = await search.vector_candidates(cc, qvecs, sides, limit=limit)
+            # one SET LOCAL and one vector query per pair: no full-text statement
+            assert cc.executes == 1 + len(qvecs) * len(sides)
+            assert len(got) == len(qvecs) and all(len(g) == len(sides) for g in got)
+            for qvec, per_side in zip(qvecs, got):
+                for side, hits in zip(sides, per_side):
+                    kind, name = side or (None, None)
+                    col = {"vendor": "d.vendor", "product": "d.product"}.get(kind, "true")
+                    cur = await conn.execute(
+                        "SELECT c.chunk_id::text FROM chunks c JOIN documents d USING (doc_id)"
+                        f" WHERE c.superseded_at IS NULL AND ({col} = %s OR %s::text IS NULL)"
+                        " ORDER BY c.embedding <=> %s, c.chunk_id LIMIT %s",
+                        (name, name, Vector(qvec), limit))
+                    assert [(h.chunk_id, h.rrf_rank) for h in hits] == [
+                        (r[0], n) for n, r in enumerate(await cur.fetchall(), start=1)], side
+                    assert all(h.rerank_score is None and h.chunk_id != old for h in hits)
+            assert got[0][4] == [] and len(got[0][3]) == limit
+            assert {h.vendor for h in got[1][0]} == {"BIG"}
+            assert {h.product for h in got[0][1]} == {"MID-Q"}
+    finally:
+        await conn.close()
+
+
+async def test_vector_candidates_edge_inputs(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _facet_corpus(conn)
+        side = [("vendor", "BIG")]
+        assert await search.vector_candidates(conn, [], side, limit=5) == []
+        assert await search.vector_candidates(conn, [_vec(0)], [], limit=5) == [[]]
+        with pytest.raises(ValueError, match="unknown vector column"):
+            await search.vector_candidates(conn, [_vec(0)], side, limit=5, vector_column="text")
+    finally:
+        await conn.close()
+
+
 async def test_comparison_statement_count_has_one_full_text_query(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -931,5 +992,92 @@ async def test_superseded_chunks_are_never_retrieved(vkb_dsn):
         assert [h.chunk_id for h in await read_section(conn, old[0], "1")] == old
         assert [h.chunk_id for h in await read_section(conn, old[1], "full")] == old
         assert [h.chunk_id for h in await read_section(conn, old[1])] == [old[1]]
+    finally:
+        await conn.close()
+
+
+async def _extraction(conn, chunk, status, prompt_version="claims-v3.1", model="m"):
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status) VALUES (%s,%s,%s,%s,%s)", (uuid.uuid4(), chunk, model, prompt_version, status))
+
+
+async def test_unextracted_candidates(vkb_dsn):
+    """Only current chunks with no final extraction of the v3 prompt family are candidates:
+    ranked per query by vector distance and full text (RRF), in one statement."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d1, d2 = await _doc(conn, "V1", "P1"), await _doc(conn, "V2", "P2")
+        # the nearest chunks to the first query, every one of them out of the running
+        done = await _raw_chunk(conn, d1, 0, "stripes extracted", _fine(0))
+        await _extraction(conn, done, "done")
+        failed = await _raw_chunk(conn, d1, 1, "stripes given up", _fine(0))
+        await _extraction(conn, failed, "failed", "claims-v3")
+        by_another_model = await _raw_chunk(conn, d2, 0, "stripes by the teacher", _fine(0))
+        await _extraction(conn, by_another_model, "done", "claims-v3.1", "teacher")
+        old = await _raw_chunk(conn, d2, 4, "stripes of an earlier version", _fine(0))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s", (old,))
+        # still waiting to be extracted: never analysed, not final, or not of the v3 family
+        fresh = await _raw_chunk(conn, d2, 1, "zebra stripes never analysed", _fine(1))
+        errored = await _raw_chunk(conn, d1, 2, "to retry", _fine(2))
+        await _extraction(conn, errored, "errored")
+        older_prompt = await _raw_chunk(conn, d1, 3, "once read by v2", _fine(3))
+        await _extraction(conn, older_prompt, "done", "claims-v2")
+        vec_only = await _raw_chunk(conn, d2, 3, "other words entirely", _fine(4))
+        fts_only = await _raw_chunk(conn, d2, 2, "zebra elsewhere", _fine(20))
+
+        queries, qvecs = ["zebra", "quokka"], [_fine(0), _fine(20)]
+        cc = CountingConn(conn)
+        got = await search.unextracted_candidates(cc, queries, qvecs, limit=20)
+        assert cc.executes == 1  # one statement for every query
+        # the first query fuses a full-text match (fresh, fts_only) with the vector order; the
+        # second matches no text, so it is the vector order alone
+        by_query = [[fresh, fts_only, errored, older_prompt, vec_only],
+                    [fts_only, vec_only, older_prompt, errored, fresh]]
+        assert [[h.chunk_id for h in hits] for hits in got] == by_query
+        for hits in got:
+            assert [h.rrf_rank for h in hits] == [1, 2, 3, 4, 5]
+            assert all(h.rerank_score is None and not h.superseded for h in hits)
+        top = got[0][0]
+        assert (top.vendor, top.product, top.title) == ("V2", "P2", "T")
+        assert top.url.startswith("http://u/V2/") and top.text == "zebra stripes never analysed"
+        short = await search.unextracted_candidates(conn, queries, qvecs, limit=2)
+        assert [[h.chunk_id for h in hits] for hits in short] == [q[:2] for q in by_query]
+        # a query of stopwords has no full-text side, and an empty batch no statement
+        [stop] = await search.unextracted_candidates(conn, ["the of and"], [_fine(0)], limit=20)
+        assert [h.chunk_id for h in stop] == [fresh, errored, older_prompt, vec_only, fts_only]
+        nothing = CountingConn(conn)
+        assert await search.unextracted_candidates(nothing, [], [], limit=20) == []
+        assert nothing.executes == 0
+    finally:
+        await conn.close()
+
+
+async def test_unextracted_candidates_come_from_the_newest_pages(vkb_dsn, monkeypatch, caplog):
+    """The pool is the UNEXTRACTED_POOL most recently fetched unextracted chunks: a backlog of
+    old pages cannot make the catch-up statement scan without bound."""
+    assert search.UNEXTRACTED_POOL == 2000
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        monkeypatch.setattr(search, "UNEXTRACTED_POOL", 2)
+        chunks = []
+        for days, vec in ((3, _fine(0)), (2, _fine(1)), (1, _fine(2))):  # oldest is nearest
+            doc = await _doc(conn, "V1", "P1")
+            await conn.execute("UPDATE documents SET fetched_at = now() - make_interval(days => %s)"
+                               " WHERE doc_id = %s", (days, doc))
+            chunks.append(await _raw_chunk(conn, doc, 0, "zebra stripes", vec))
+        with caplog.at_level(logging.DEBUG, logger="vendorkb.search"):
+            [got] = await search.unextracted_candidates(conn, ["zebra"], [_fine(0)], limit=20)
+        # the oldest page's chunk, the nearest of all, is not in the pool
+        assert {h.chunk_id for h in got} == {chunks[1], chunks[2]}
+        assert "pool of 2 unextracted chunks" in caplog.text
+        caplog.clear()
+        await conn.execute("DELETE FROM documents")
+        with caplog.at_level(logging.DEBUG, logger="vendorkb.search"):
+            assert await search.unextracted_candidates(conn, ["zebra"], [_fine(0)],
+                                                       limit=20) == [[]]
+        assert "pool of 0 unextracted chunks" in caplog.text
     finally:
         await conn.close()

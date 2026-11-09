@@ -4,6 +4,7 @@ Every claim, quote and name here is invented for the tests."""
 import pytest
 
 from tests.integration.test_capabilities_v2 import _claim, _fresh
+from tests.integration.test_topics_db import _load, _topic
 from vendorkb import mcp_backend
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect
@@ -95,3 +96,92 @@ async def test_browse_query_search_and_read(vkb_dsn, backend):
     [hit] = await backend.section(found.hits[0].chunk_id, "1")
     assert hit.chunk_id == found.hits[0].chunk_id and hit.url == "http://docs/okta"
     assert await backend.section("00000000-0000-0000-0000-000000000000", "0") == []
+
+
+async def test_capfilter_dimension_ids(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "retention.maximum_period", vendor="examplevendor",
+                     mapped_version=v, quote="Copies are kept for 30 days")
+        await _claim(conn, "coverage.restore", vendor="examplevendor", mapped_version=v,
+                     quote="Objects can be restored")
+        await _claim(conn, "coverage.export", vendor="othervendor", mapped_version=v,
+                     quote="Objects can be exported")
+        await capabilities.build(conn)
+        two = ("retention.maximum_period", "coverage.restore")
+        res = await capabilities.query(conn, CapFilter(dimension_ids=two))
+        assert sorted(f.dimension_id for f in res.facts + res.product_wide) == sorted(two)
+        # exact ids, none resolved: a name or alias is not one, and the other filters still apply
+        res = await capabilities.query(
+            conn, CapFilter(dimension_ids=(*two, "coverage.export"), vendor="OtherVendor"))
+        assert [f.dimension_id for f in res.facts + res.product_wide] == ["coverage.export"]
+        named = await capabilities.query(conn, CapFilter(dimension_ids=("Backed up objects",)))
+        assert not (named.facts or named.product_wide) and named.hint
+        assert "No taxonomy entity matches" not in named.hint  # nothing is looked up
+        empty = await capabilities.query(conn, CapFilter(dimension_ids=()))
+        assert not (empty.facts or empty.product_wide) and "No taxonomy entity" not in empty.hint
+        both = await capabilities.query(
+            conn, CapFilter(dimension="coverage.export", dimension_ids=two))  # ids win
+        assert sorted(f.dimension_id for f in both.facts + both.product_wide) == sorted(two)
+    finally:
+        await conn.close()
+
+
+async def test_backend_topics(vkb_dsn, backend, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        assert await backend.topics() == []  # a taxonomy with no topics
+        await _load(conn, tmp_path, [_topic("backup_keeping", ["keeping"]),
+                                     _topic("recovery_basics", ["restore"])])
+    finally:
+        await conn.close()
+    found = await backend.topics()
+    assert [t.id for t in found] == ["backup_keeping", "recovery_basics"]
+    topic = found[0]
+    assert topic.name == "Topic backup_keeping" and topic.triggers == ("keeping",)
+    assert [a.id for a in topic.aspects] == ["keeping", "getting_back"]
+    assert topic.aspects[0].dimensions == ("retention.maximum_period",
+                                           "schedule.backup_frequency")
+
+
+async def test_capabilities_many_uses_one_connection_and_stops_on_unresolved(
+        vkb_dsn, backend, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "retention.maximum_period", vendor="examplevendor",
+                     mapped_version=v, quote="Copies are kept for 30 days")
+        await _claim(conn, "coverage.restore", vendor="examplevendor", mapped_version=v,
+                     quote="Objects can be restored")
+        await capabilities.build(conn)
+    finally:
+        await conn.close()
+    opened = []
+    real = mcp_backend.connect
+
+    async def counting(dsn):
+        opened.append(dsn)
+        return await real(dsn)
+
+    monkeypatch.setattr(mcp_backend, "connect", counting)
+    filters = [CapFilter(dimension_ids=("coverage.restore",)),
+               CapFilter(dimension_ids=("coverage.export",)),  # no fact on it
+               CapFilter(dimension_ids=("retention.maximum_period",))]
+    results = await backend.capabilities_many(filters, 5)
+    assert len(opened) == 1  # not one per filter
+    assert [[f.dimension_id for f in r.facts + r.product_wide] for r in results] == [
+        ["coverage.restore"], [], ["retention.maximum_period"]]  # in the filters' order
+    assert not any(r.unresolved for r in results)
+    assert await backend.capabilities_many([], 5) == []
+
+    # a target that names nothing fails every aspect alike: the first result says so, and the
+    # others are not run
+    opened.clear()
+    results = await backend.capabilities_many(
+        [CapFilter(dimension_ids=f.dimension_ids, target="no such workload") for f in filters],
+        5)
+    assert len(opened) == 1 and len(results) == 1
+    assert results[0].unresolved == ["target 'no such workload'"]
+    assert results[0].hint and results[0].hint.startswith("No taxonomy entity matches")

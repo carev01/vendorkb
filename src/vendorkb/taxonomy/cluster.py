@@ -6,10 +6,9 @@ from collections.abc import Sequence
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 
+from vendorkb.text import normalize
 
-def normalize(text: str) -> str:
-    """Lowercase, whitespace runs collapsed to one space, trimmed."""
-    return " ".join(text.split()).lower()
+__all__ = ["cluster_strings", "normalize"]  # normalize lives in vendorkb.text (no numpy there)
 
 
 def cluster_strings(strings: list[str], vectors: Sequence[Sequence[float]] | np.ndarray, *,
