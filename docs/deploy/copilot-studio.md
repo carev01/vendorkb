@@ -92,6 +92,9 @@ kubectl -n vendorkb delete pod -l app.kubernetes.io/name=vendorkb-mcp
 | `read_document` | |
 | `answer_question` | |
 
+**Agent model.** Use Claude Haiku. The default GPT model refused to relay a full page as
+copyrighted content; Haiku relays it (user, 2026-11-09).
+
 ## 5. Agent instructions
 
 Paste these into the agent's instructions:
