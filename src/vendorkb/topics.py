@@ -37,8 +37,8 @@ from vendorkb.search import (
     _COLS, VEC_LIMIT, Hit, _hit, facet_candidates, hybrid_candidates, unextracted_candidates,
     vector_candidates)
 from vendorkb.shape import Facet
-from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Aspect, Topic, current_version
+from vendorkb.text import normalize
 
 log = logging.getLogger(__name__)
 

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import uuid
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from vendorkb.db import connect, init_schema
 from vendorkb.taxonomy import load
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
+SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
 V2_TABLES = ("dimensions", "classes", "object_types", "targets", "variants", "offerings",
              "editions", "aliases", "topics", "topic_aspects")
 COUNTS = {"dimensions": 9, "classes": 5, "object_types": 9, "targets": 6, "variants": 2,
@@ -35,6 +37,11 @@ def _topic() -> dict:
                 {"id": "getting_back", "name": "Getting data back",
                  "query": "Restoring objects, and writing them out of a backup",
                  "dimensions": ["coverage.restore", "coverage.export"]}]}
+
+
+def _aspects(count: int) -> list[dict]:
+    return [{"id": f"a{n}", "name": f"Aspect {n}", "query": f"aspect {n}",
+             "dimensions": ["coverage.restore"]} for n in range(count)]
 
 
 def _with_topic(change):
@@ -197,6 +204,7 @@ def test_child_class_cannot_redefine_parent_object_type():
     (_with_topic(lambda t: t.update(triggers=[" ", 7.5])), "triggers entry"),
     (_with_topic(lambda t: t.pop("triggers")), "triggers is required"),
     (_with_topic(lambda t: t.update(aspects=[])), "aspects must be a non-empty list"),
+    (_with_topic(lambda t: t.update(aspects=_aspects(13))), "at most 12 aspects, got 13"),
     (_with_topic(lambda t: t.pop("aspects")), "aspects is required"),
     (_with_topic(lambda t: t.update(proposed=True)), "unknown key 'proposed'"),
     (_with_topic(lambda t: t["aspects"][0].update(weight=2)), "unknown key 'weight'"),
@@ -445,6 +453,63 @@ def test_topics_are_optional_and_parsed_in_order():
     assert topic.aspects[0].dimensions == ("retention.maximum_period",
                                            "schedule.backup_frequency")
     assert topic.aspects[1].query == "Restoring objects, and writing them out of a backup"
+
+
+def test_a_topic_may_have_twelve_aspects():
+    # the cap keeps a topic question inside its rerank budget at 4 sides
+    doc = _doc()
+    doc["topics"] = [{**_topic(), "aspects": _aspects(12)}]
+    assert len(load.validate(doc).topics[0].aspects) == load.MAX_TOPIC_ASPECTS == 12
+
+
+def test_topics_do_not_change_the_taxonomy_version():
+    data = SHIPPED.read_bytes()
+    version = load.version_string(2, data)
+    # a cue edited, or an aspect added: the version stays (topics never change a mapping)
+    cue = data.replace(b"cues: [anomal, unusual,", b"cues: [anomal, odd, unusual,")
+    assert cue != data and load.version_string(2, cue) == version
+    aspect = data + (b"  - id: extra\n    name: Extra\n    query: extra words\n"
+                     b"    dimensions: [security.rbac]\n")
+    assert load.version_string(2, aspect) == version
+    # a dimension edited: the version changes
+    dimension = data.replace(b"aliases: [entropy analysis,", b"aliases: [entropy score,", 1)
+    assert dimension != data and load.version_string(2, dimension) != version
+
+
+def test_only_the_topics_section_is_left_out_of_the_version():
+    head, tail = b"version: 2\n", b"offerings:\n- id: a.b\n"
+    topics = b"topics:\n- id: t\n  triggers: [x]\n# a comment in the section\n  aspects: []\n"
+    version = load.version_string(2, head + topics + tail)
+    assert version == load.version_string(2, head + tail) == load.version_string(
+        2, head + tail + topics)
+    assert version.startswith("2-") and len(version) == 10
+    # what follows the section counts, as does a key that only starts with "topics"
+    assert version != load.version_string(2, head + topics + b"offerings:\n- id: a.c\n")
+    assert load.version_string(2, head + b"topics_extra: 1\n") != load.version_string(2, head)
+
+
+def test_the_shipped_taxonomy_keeps_the_production_version():
+    data = SHIPPED.read_bytes()
+    cut = data[:data.index(b"\ntopics:") + 1]
+    assert load.version_string(2, data) == f"2-{hashlib.sha256(cut).hexdigest()[:8]}"
+    if load.parse_doc(data)["version"] == 2:
+        # main's bytes before the topics were added: production's version. An edit of the
+        # taxonomy outside its topics changes it, and this test with it, on purpose.
+        assert load.version_string(2, data) == "2-c9fd3d55"
+
+
+async def test_a_load_records_the_version_without_the_topics(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        plain = await load.load_taxonomy(conn, _write(tmp_path / "plain.yaml", _doc()))
+        doc = _doc()
+        doc["topics"] = [_topic()]
+        with_topic = await load.load_taxonomy(conn, _write(tmp_path / "topic.yaml", doc))
+        assert with_topic["topics"] == 1 and with_topic["version"] == plain["version"]
+        assert await load.current_version(conn) == plain["version"]
+    finally:
+        await conn.close()
 
 
 async def test_topics_load_into_their_tables(vkb_dsn, tmp_path):

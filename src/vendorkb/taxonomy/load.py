@@ -20,11 +20,12 @@ The YAML has the top-level keys ``version: 2``, ``dimensions``, ``classes``, ``t
   ``editions`` a list of ``{id, name, aliases}``.
 - **topic** ``{id, name, triggers, aspects}``: a broad subject whose answer covers a fixed kit
   of aspects. ``id`` is snake case; ``triggers`` is a non-empty list of phrases that name the
-  topic; ``aspects`` a non-empty list of ``{id, name, query, [cues], dimensions}``: ``id`` is
-  snake case and unique within the topic, ``query`` the phrasing retrieval uses for the aspect,
-  ``cues`` the words that mean a question names the aspect, ``dimensions`` a non-empty list of
-  dimension ids, each of which must exist. Triggers and cues are stored normalized
-  (``cluster.normalize``: lowercase, whitespace collapsed), nothing else changed.
+  topic; ``aspects`` a list of 1 to ``MAX_TOPIC_ASPECTS`` ``{id, name, query, [cues],
+  dimensions}``: ``id`` is snake case and unique within the topic, ``query`` the phrasing
+  retrieval uses for the aspect, ``cues`` the words that mean a question names the aspect,
+  ``dimensions`` a non-empty list of dimension ids, each of which must exist. Triggers and cues
+  are stored normalized (``text.normalize``: lowercase, whitespace collapsed), nothing else
+  changed.
 
 ``aliases`` may be omitted (none). ``lookup_aliases`` (dimensions and targets) are matched like
 aliases but are never candidate-search keys of the mapper (``aliases.search`` false): adding one
@@ -34,12 +35,14 @@ for an aspect the mapper's model cannot file reliably from free wording. Dimensi
 editions may carry ``proposed: true``, the review marker ``taxonomy propose`` puts on the
 entries it adds; it changes nothing else. Unknown keys are refused, so a misspelt key is not silently
 ignored. ``validate`` collects every problem before raising ``TaxonomyError``, and nothing is
-written unless the file is valid. Aliases are stored normalized (``cluster.normalize``) with
+written unless the file is valid. Aliases are stored normalized (``text.normalize``) with
 each entity's own name among them, keyed ``(alias, entity_type, scope)``: an alias may name
 only one entity of its type within its scope (and an object-type alias only one object type in
 a class's whole lineage). A load replaces every taxonomy row in one transaction and records the
-version ``"2-<first 8 hex of the file's sha256>"``, so a hand edit changes it. A mapping key
-given twice is refused; a bare YAML number used as an alias is taken as text.
+version ``"2-<first 8 hex of the sha256 of the file without its topics section>"``, so a hand
+edit changes it, except an edit of the topics: they never change a mapping, and a new version
+would leave every mapped claim and capability row behind until the next map and build. A
+mapping key given twice is refused; a bare YAML number used as an alias is taken as text.
 """
 from __future__ import annotations
 
@@ -53,7 +56,7 @@ from typing import Any
 import psycopg
 import yaml
 
-from vendorkb.taxonomy.cluster import normalize
+from vendorkb.text import normalize
 
 FAMILIES = ("coverage", "protection", "schedule", "retention", "storage", "recovery",
             "security", "cyber", "operations", "governance", "data_use", "vendor")
@@ -66,6 +69,11 @@ _SNAKE = r"[a-z][a-z0-9_]*"
 SNAKE_RE = re.compile(rf"^{_SNAKE}$")
 DOTTED_RE = re.compile(rf"^{_SNAKE}(\.{_SNAKE})*$")
 PAIR_RE = re.compile(rf"^{_SNAKE}\.{_SNAKE}$")  # dimension and offering ids
+# A topic question reranks own passages plus at least 2 documents per side and aspect: 12
+# aspects keep 4 sides (answer.TOPIC_MAX_SIDES) inside topics.TOPIC_RERANK_DOCS.
+MAX_TOPIC_ASPECTS = 12
+# The top-level topics section: from a ``topics:`` line at column 0 to the next top-level key.
+_TOPICS_SECTION = re.compile(rb"^topics:.*?(?=^[A-Za-z_][A-Za-z0-9_]*:|\Z)", re.M | re.S)
 
 # (alias, entity_type, scope, entity_id): see the aliases table in schema.sql.
 AliasRow = tuple[str, str, str, str]
@@ -260,9 +268,10 @@ def read_doc(path: str | Path) -> dict[str, Any]:
 
 
 def version_string(version: int, data: bytes) -> str:
-    """The taxonomy version: the YAML ``version`` plus the file's hash, so a hand edit
-    without a version bump still invalidates mappings made under the old file."""
-    return f"{version}-{hashlib.sha256(data).hexdigest()[:8]}"
+    """The taxonomy version: the YAML ``version`` plus the hash of the file without its
+    ``topics`` section, so a hand edit without a version bump still invalidates mappings made
+    under the old file, and a topic edit (which maps nothing) does not."""
+    return f"{version}-{hashlib.sha256(_TOPICS_SECTION.sub(b'', data)).hexdigest()[:8]}"
 
 
 class _Checker:
@@ -499,6 +508,8 @@ def _topics(ck: _Checker, raw: Any, dimension_ids: set[str]) -> list[Topic]:
         raw_aspects = item.get("aspects")
         if "aspects" in item and not raw_aspects:
             ck.add(f"{label}: aspects must be a non-empty list")
+        elif isinstance(raw_aspects, list) and len(raw_aspects) > MAX_TOPIC_ASPECTS:
+            ck.add(f"{label}: at most {MAX_TOPIC_ASPECTS} aspects, got {len(raw_aspects)}")
         for loc, entry in ck.entries(f"{label} aspects", raw_aspects):
             ck.keys(loc, entry, ("id", "name", "query", "dimensions"), ("cues",))
             aid = ck.ident(loc, entry, SNAKE_RE, "aspect", seen_aspects)
