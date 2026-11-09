@@ -22,7 +22,8 @@ An items file: a JSON list, one object per answer:
  "sources": [{"marker": 1, "title": "...", "vendor": "...", "url": "...", "text": "..."}]}
 ```
 
-- `item` is the id you write back. `kind` says how you grade it (below).
+- `item` is the id you write back. `kind` says how you grade it (below). An `enumeration`
+  item whose answer is a grid also has `cells` and `pairs_total` (see "Grid items").
 - `sides` are the parties the question names (vendors or products). It is empty for `by_aspect`
   and `enumeration`.
 - `aspects` are the eight parts of the topic. `id` is what you write; `name` and `description`
@@ -68,7 +69,9 @@ counts. None of them is a claim, and none is evidence.
   sources do not cover (usually under an aspect heading, for one product). It says the sources
   do not cover that aspect for that side: label it `stated_not_covered` (see Labels).
 - **"I don't have enough information to answer that from the available sources."** The whole
-  answer, alone. The answer covers nothing: for a `sides` or `by_aspect` item, every slot is
+  answer: this sentence alone, or followed by the closing lines below ("No supporting passage
+  found for: ..." and, in an `enumeration` answer, "Passages found but not judged to show it:
+  ..."). The answer covers nothing: for a `sides` or `by_aspect` item, every slot is
   `stated_not_covered` and `claims_total` is 0; for an `enumeration` item `pairs_total` is 0.
 - **"No supporting passage found for: X, Y."** A closing line. In a `sides` item X and Y are
   sides of the question for which no passage was retrieved: every aspect of that side is
@@ -89,8 +92,11 @@ counts. None of them is a claim, and none is evidence.
   page."), "Facts current to YYYY-MM-DD." followed by "A blank cell means no fact was found,
   not that the product lacks the capability.", and "No fact found for: X, Y." The last one
   lists **vendors** (vendors with no filled cell at all), not aspects. None is a pair or a
-  claim. If no cell is filled the whole answer is "No fact was found for ransomware
-  protection in the documented vendors' pages.": `pairs_total` is 0.
+  claim.
+- **The answer when no cell is filled**, with no table, no summary and no legend: "No fact
+  about ransomware protection was found in the capability table for the vendors checked.
+  This is not evidence that they lack it." followed by "Facts current to: no facts found."
+  It makes no pair and no claim: `pairs_total` is 0 (the item has no `cells`).
 - **The short summary above a grid** (at most four sentences restating how many vendors have
   something per aspect). It has no citations and is not graded: not a pair, not a claim. The
   cells are what is graded.
@@ -149,7 +155,8 @@ These answer "which vendors ...". They are graded on **pairs**, not on aspect la
 A pair is a (vendor, aspect) combination the answer asserts: the vendor offers something that
 falls within that aspect. In a grid each filled cell is one pair; in prose (one line per
 vendor, in the form `Vendor (Product, ...): how it is done [n]`), each aspect the line
-attributes to the vendor is one pair. Rules:
+attributes to the vendor is one pair. For a grid the item gives you the cells to grade (see
+"Grid items" below); these rules are for answers in prose:
 
 - Give the `aspect_id` of the one aspect of the item that best fits. A statement that fits
   none of the aspects is not a pair.
@@ -167,11 +174,28 @@ attributes to the vendor is one pair. Rules:
 - `supported` is true when a source cited for that mark or statement has text stating that the
   vendor offers that. In a grid, the cell's own `[n]` is its citation.
 
+### Grid items
+
+When the answer is a grid, the item gives you the cells to grade: `cells`, a list of
+`{"marker": n, "vendor": "...", "aspect_id": "..."}`, a random sample of the grid's filled
+cells, and `pairs_total`, the number of filled cells in the whole grid. `sources` holds the
+sources of those cells only. Do not count, list or sample pairs yourself:
+
+- copy `pairs_total` from the item;
+- list exactly the given cells as your pairs, each with its `vendor` and `aspect_id` as given,
+  no more and no fewer;
+- set `supported` to true when the text of the source whose `marker` is the cell's `marker`
+  states that the vendor offers something within that aspect, else false.
+
+A grid item with no `cells` (the answer when no cell is filled) has `pairs_total` 0 and no
+pairs.
+
 ## Output
 
 Write one JSON file: a list with one object per item, in item order, nothing else in the file.
 Every item must be graded; every side must list every aspect id of its item. A file with a
-missing item, side or aspect, or a wrong number of pairs, cannot be scored.
+missing item, side or aspect, a wrong number of pairs, or a grid item whose pairs are not
+exactly its cells, cannot be scored.
 
 `sides` and `by_aspect` items (the side key is `"*"` for `by_aspect`):
 
@@ -195,7 +219,8 @@ short.)
 ```
 
 (A real item lists all of its sampled pairs: 41 pairs give k = 2 and 21 listed pairs. The
-example shows two to stay short.)
+example shows two to stay short.) A grid item is written the same way, with the item's
+`pairs_total` and one pair per given cell.
 
 Labels are exactly `covered_supported`, `covered_unsupported`, `not_covered` and
 `stated_not_covered`. Work item by item and do not carry impressions from one answer to the

@@ -7,7 +7,9 @@ import yaml
 
 from eval import topic_eval as te
 from vendorkb.answer import REFUSAL, closing_line, unconfirmed_line
-from vendorkb.topics import BLANK_NOTE, LEGEND
+from vendorkb.search import Hit
+from vendorkb.taxonomy import load
+from vendorkb.topics import BLANK_NOTE, LEGEND, Cell, Grid, render_grid
 
 REPO = Path(__file__).resolve().parent.parent.parent
 SCRATCH = Path("/tmp/claude-1000/-home-openclaw-Documents-Shared-projects-graph-rag/"
@@ -188,7 +190,7 @@ def test_the_shuffle_mixes_two_runs_of_ten_questions():
     # the runs interleave: both fill the first half, and the run changes often down the list
     assert {run for run, _ in order[:10]} == set(runs)
     assert sum(x[0] != y[0] for x, y in zip(order, order[1:])) >= 8
-    # and one question's two answers are not next to each other by construction
+    # and the questions themselves leave their file order
     assert [q for _, q in order] != [q for _, q in unshuffled]
 
 
@@ -221,6 +223,146 @@ def test_build_refuses_an_answer_it_cannot_grade():
         te.build_items(runs, QS, ASPECTS, seed=1)
 
 
+GRID_TOPIC = load.Topic("topic_x", "Topic X", ("x",), tuple(
+    load.Aspect(i, f"Aspect {i}", "q", (), ("d.d",)) for i in IDS))
+
+
+def _grid_row(qid="q4", vendors=15, legend=True):
+    """An answer row whose answer is a vendorkb grid (a summary, then the table) of ``vendors``
+    vendors by the four aspects, about two cells in three filled; each cited text names its
+    vendor and aspect. ``legend`` False: only the row's keys tell it is a grid."""
+    cells = {}
+    for n in range(vendors):
+        for k, aspect in enumerate(IDS):
+            if (n + k) % 3:
+                vendor = f"Vendor {n:02d}"
+                cells[(vendor, aspect)] = Cell("supported", Hit(
+                    chunk_id=f"c{n}{aspect}", doc_id=f"d{n}{aspect}",
+                    text=f"{vendor} does {aspect}", section_path=[], vendor=vendor, product="P",
+                    title=f"T {n}", url=f"http://u/{n}/{aspect}", rrf_rank=0,
+                    rerank_score=None), False)
+    grid = Grid(vendors=sorted({v for v, _ in cells}), cells=cells, facts_as_of=None,
+                no_fact=["Zeta"])
+    table, hits = render_grid(grid, GRID_TOPIC)
+    if not legend:
+        table = table.replace(LEGEND, "")
+    row = _row(qid, answer=f"Vendors have facts.\n\n{table}")
+    row.update(shape="enumeration", topic="topic_x")
+    row["citations"] = [{"marker": n, "chunk_id": h.chunk_id, "doc_id": h.doc_id,
+                         "vendor": h.vendor, "url": h.url, "title": h.title, "text": h.text}
+                        for n, h in enumerate(hits, 1)]
+    return row, hits
+
+
+def _build_grid(row, seed=5):
+    items, key = te.build_items({"after": [row]}, QS, ASPECTS, seed=seed)
+    return items[0], key[items[0]["item"]]
+
+
+def test_a_grid_answer_is_graded_on_a_random_sample_of_its_cells():
+    row, hits = _grid_row()
+    assert len(hits) == 40
+    item, key = _build_grid(row)
+    assert item["kind"] == "enumeration" and item["pairs_total"] == 40
+    cells = item["cells"]
+    assert len(cells) == 30 == len({(c["vendor"], c["aspect_id"]) for c in cells})
+    # each cell: its row's vendor and its column's aspect, as the cited text says; row-major
+    for c in cells:
+        assert hits[c["marker"] - 1].text == f"{c['vendor']} does {c['aspect_id']}"
+    assert [c["marker"] for c in cells] == sorted(c["marker"] for c in cells)
+    # only the sampled cells' sources, each with its text
+    assert [s["marker"] for s in item["sources"]] == [c["marker"] for c in cells]
+    assert all(s["text"] for s in item["sources"])
+    # not the first 30 cells: a seeded random sample, the key holds it for the scorer
+    assert [c["marker"] for c in cells] != list(range(1, 31))
+    assert key["cells"] == [[c["vendor"], c["aspect_id"]] for c in cells]
+    assert key["pairs_total"] == 40 and key["question_id"] == "q4"
+    again, _ = _build_grid(row)
+    other, _ = _build_grid(row, seed=6)
+    assert again["cells"] == cells and other["cells"] != cells
+
+
+def test_a_small_grid_gives_every_cell_and_a_keyed_grid_needs_no_legend():
+    row, hits = _grid_row(vendors=6)
+    assert len(hits) <= 30
+    item, _ = _build_grid(row)
+    assert [c["marker"] for c in item["cells"]] == list(range(1, len(hits) + 1))
+    row, hits = _grid_row(legend=False)
+    item, _ = _build_grid(row)
+    assert item["pairs_total"] == 40 and len(item["cells"]) == 30
+    # vendorkb's answer when no cell is filled: a grid of nothing to grade
+    empty = _row("q4", answer=render_grid(Grid([], {}, None, ["Acme"]), GRID_TOPIC)[0])
+    empty.update(shape="enumeration", topic="topic_x", citations=[])
+    item, key = _build_grid(empty)
+    assert (item["pairs_total"], item["cells"], item["sources"]) == (0, [], [])
+    assert key["cells"] == []
+
+
+def test_a_prose_enumeration_answer_is_not_a_grid():
+    items, key = te.build_items({"after": [_row("q4")]}, QS, ASPECTS, seed=1)
+    assert "cells" not in items[0] and "pairs_total" not in items[0]
+    assert set(key[items[0]["item"]]) == {"run", "question_id"}
+
+
+def _grid_key(row):
+    item, key = _build_grid(row)
+    return item, {item["item"]: key}
+
+
+def test_a_grid_item_is_graded_on_exactly_its_cells():
+    item, key = _grid_key(_grid_row()[0])
+    pairs = [{"vendor": c["vendor"], "aspect_id": c["aspect_id"], "supported": n % 2 == 0}
+             for n, c in enumerate(item["cells"])]
+    grade = {"item": item["item"], "pairs_total": 40, "pairs": pairs}
+    [record] = te.parse_grades([grade], key, QS, ASPECTS)
+    enum = te.score_records([record], {})["after"]["enumeration"]
+    assert (enum["pairs_total"], enum["sampled"], enum["supported"]) == (40, 30, 15)
+    assert enum["estimate"] == pytest.approx(20.0)
+    first = item["cells"][0]
+    missing = {**grade, "pairs": pairs[1:]}
+    text = "\n".join(_problems_for([missing], key))
+    assert f"cell {first['vendor']} / {first['aspect_id']} not graded" in text
+    extra = {**grade, "pairs": [*pairs[1:], {"vendor": "Vendor 99", "aspect_id": "a1",
+                                              "supported": True}]}
+    assert "Vendor 99 / a1 is not one of the item's cells" in "\n".join(
+        _problems_for([extra], key))
+    wrong_total = {**grade, "pairs_total": 30}
+    assert "pairs_total must be 40, the grid's cell count" in "\n".join(
+        _problems_for([wrong_total], key))
+
+
+def _problems_for(grades, key):
+    with pytest.raises(te.GradeError) as err:
+        te.parse_grades(grades, key, QS, ASPECTS)
+    return err.value.problems
+
+
+def test_build_refuses_a_run_expected_to_take_the_topic_path(tmp_path, capsys):
+    grid = {**_row("q4"), "shape": "enumeration", "topic": "ransomware_protection"}
+    rows = {"before": [_row("q1"), _row("q4")],
+            "after": [{**_row("q1"), "topic": None}, {**grid, "truncated": True}]}
+    paths = []
+    for label, data in rows.items():
+        path = tmp_path / f"{label}.jsonl"
+        path.write_text("".join(json.dumps(r) + "\n" for r in data))
+        paths.append(str(path))
+    qs_path = tmp_path / "q.yaml"
+    qs_path.write_text(yaml.safe_dump([{**q, "topic": "ransomware_protection"} for q in QS]))
+    base = ["build", *paths, "--questions", str(qs_path), "--out", str(tmp_path / "i.json"),
+            "--key", str(tmp_path / "k.json")]
+    with pytest.raises(SystemExit) as err:
+        te.main([*base, "--expect-topic", "after"])
+    assert str(err.value) == ("--expect-topic: these rows have no topic or a truncated answer:"
+                              "\nafter: q1: topic is null\nafter: q4: truncated")
+    with pytest.raises(SystemExit, match="no such run: nope"):
+        te.main([*base, "--expect-topic", "nope"])
+    # the "before" run (no topic key: the code before topics) is not checked unless named
+    capsys.readouterr()
+    rows["after"] = [{**_row("q1"), "topic": "ransomware_protection"}, grid]
+    Path(paths[1]).write_text("".join(json.dumps(r) + "\n" for r in rows["after"]))
+    assert te.main([*base, "--expect-topic", "after"]) == 0
+
+
 def test_runs_are_labelled_by_file_stem_and_stems_must_differ(tmp_path):
     (tmp_path / "one").mkdir()
     (tmp_path / "two").mkdir()
@@ -249,7 +391,8 @@ def test_coverage_and_unsupported_rate_per_run():
     # pooled over every item: 4 of 19 claims, and 40 pairs of which 24 of 30 sampled hold
     assert before["unsupported"] == {
         "claims_total": 19, "unsupported_claims": 4, "pairs_total": 40,
-        "unsupported_pairs_estimate": pytest.approx(8.0), "rate": pytest.approx(12 / 59)}
+        "unsupported_pairs_estimate": pytest.approx(8.0), "rate": pytest.approx(12 / 59),
+        "prose_rate": pytest.approx(4 / 19), "pair_rate": pytest.approx(8 / 40)}
     assert before["labels"] == {"covered_supported": 4, "covered_unsupported": 1,
                                 "not_covered": 9, "stated_not_covered": 2}
     assert before["by_question"]["q2"]["covered_supported"] == 3
@@ -355,8 +498,34 @@ def test_agreement_is_the_share_of_identical_labels_between_the_first_two_files(
     assert te.agreement(first, first)["share"] == 1.0
 
 
-def _metrics(coverage, rate):
-    return {"coverage": {"coverage": coverage}, "unsupported": {"rate": rate}}
+def test_agreement_shows_counts_and_pairs_side_by_side():
+    first = te.parse_grades(_before_grades(), {k: v for k, v in KEY.items()
+                                               if v["run"] == "before"}, QS, ASPECTS)
+    changed = _before_grades()
+    changed[0]["claims_total"] = 7
+    changed[0]["unsupported_claims"] = ["a", "b"]
+    changed[3]["pairs"][0]["supported"] = False
+    changed[3]["pairs"][1]["vendor"] = "W1"
+    second = te.parse_grades(changed, {k: v for k, v in KEY.items()
+                                       if v["run"] == "before"}, QS, ASPECTS)
+    items = {i["item"]: i for i in te.agreement(first, second)["items"]}
+    assert list(items) == ["i1", "i2", "i3", "i4"]
+    assert items["i1"] == {"item": "i1", "kind": "sides", "claims_total": [5, 7],
+                           "unsupported_claims": [1, 2]}
+    assert items["i3"]["claims_total"] == [4, 4] and "pairs" not in items["i3"]
+    enum = items["i4"]
+    assert enum["kind"] == "enumeration" and enum["pairs_total"] == [40, 40]
+    assert "claims_total" not in enum
+    assert enum["pairs"][0] == {"vendor": "V0", "aspect_id": "a1", "supported": [True, False]}
+    # a pair only one file lists: None for the other
+    assert {"vendor": "V1", "aspect_id": "a2", "supported": [True, None]} in enum["pairs"]
+    assert {"vendor": "W1", "aspect_id": "a2", "supported": [None, True]} in enum["pairs"]
+    assert len(enum["pairs"]) == 21
+
+
+def _metrics(coverage, rate, prose="same"):
+    return {"coverage": {"coverage": coverage},
+            "unsupported": {"rate": rate, "prose_rate": rate if prose == "same" else prose}}
 
 
 def test_pass_check_needs_ten_points_of_coverage_and_at_most_two_of_rate():
@@ -370,6 +539,32 @@ def test_pass_check_needs_ten_points_of_coverage_and_at_most_two_of_rate():
     assert te.pass_check(_metrics(0.30, 0.05), _metrics(0.60, 0.01))["pass"] is True
     unknown = te.pass_check(_metrics(0.30, None), _metrics(0.60, 0.01))
     assert unknown["pass"] is False and unknown["unsupported_ok"] is None
+
+
+def test_pass_check_bounds_the_prose_rate_too():
+    # supported grid cells pooled in cannot hide a rise in the prose answers' unsupported claims
+    check = te.pass_check(_metrics(0.30, 0.20, prose=0.05), _metrics(0.60, 0.02, prose=0.08))
+    assert check["unsupported_ok"] is True and check["prose_ok"] is False
+    assert check["prose_rise_points"] == 3.0 and check["pass"] is False
+    assert check["prose_rate"] == {"before": 0.05, "after": 0.08}
+    assert "prose" in check["bar"]
+    ok = te.pass_check(_metrics(0.30, 0.05, prose=0.05), _metrics(0.60, 0.06, prose=0.07))
+    assert ok["prose_ok"] is True and ok["pass"] is True
+    unknown = te.pass_check(_metrics(0.30, 0.05, prose=None), _metrics(0.60, 0.05))
+    assert unknown["prose_ok"] is None and unknown["pass"] is False
+
+
+def test_a_large_supported_grid_cannot_swamp_a_prose_regression():
+    after = _after_grades(unsupported=(3, 3, 2))
+    after[3] = _enum_grade("j4", 600, 30)  # 600 cells, every sampled one supported
+    records = te.parse_grades(_before_grades() + after, KEY, QS, ASPECTS)
+    report = te.report_for(records, {}, before="before", after="after")
+    check = report["pass_check"]
+    assert check["unsupported_ok"] is True  # pooled: 12 / 59 before, 8 / 619 after
+    assert check["prose_rise_points"] == pytest.approx((8 / 19 - 4 / 19) * 100, abs=1e-4)
+    assert check["prose_ok"] is False and check["pass"] is False
+    # the pair rate is reported apart
+    assert report["runs"]["after"]["unsupported"]["pair_rate"] == 0.0
 
 
 def test_report_has_a_pass_check_only_for_exactly_two_runs_with_labels():
@@ -524,7 +719,7 @@ def test_bad_labels_sides_items_and_counts_are_all_reported():
     assert "i1: claims_total must be a non-negative integer" in _problems(grades, key)
 
 
-def test_an_enumeration_sample_is_min_of_pairs_total_and_thirty_distinct_pairs():
+def test_a_prose_enumeration_sample_is_an_even_stride_of_distinct_pairs():
     key = {"i4": KEY["i4"]}
     # 40 pairs: every 2nd, so 20 (listing 30, the cap, is too many)
     many = _enum_grade("i4", 40, 16)
@@ -662,11 +857,19 @@ def test_the_grading_brief_names_every_label_kind_and_field():
 
 def test_the_grading_brief_describes_the_lines_vendorkb_emits_and_only_those():
     brief = " ".join((REPO / "eval" / "TOPIC_GRADING_BRIEF.md").read_text().split())
+    ransomware = load.validate(load.read_doc(REPO / "taxonomy" / "taxonomy.yaml")).topics[0]
+    empty_grid = render_grid(Grid([], {}, None, ["Acme"]), ransomware)[0].split("\n")
+    assert empty_grid[1:] == ["", "Facts current to: no facts found."]
     emitted = (REFUSAL, BLANK_NOTE, LEGEND, "the retrieved sources do not cover this",
-               "No fact found for:", "Facts current to", "No fact was found for ransomware",
+               "No fact found for:", "Facts current to", empty_grid[0], empty_grid[2],
                closing_line(["X"]).removesuffix("X."), unconfirmed_line(["X"]).removesuffix("X."))
     for line in emitted:
         assert " ".join(line.split()) in brief, line
+    # the refusal can be followed by the closing lines, and the brief says so
+    assert "followed by the closing lines" in brief
+    # grid items: the cells are given, graded exactly
+    for word in ("`cells`", "exactly the given cells", "copy `pairs_total`"):
+        assert word in brief, word
     # lines vendorkb never writes stay out of the brief
     for never in ("needs validation", "Checked", "Documented for", "Vendor ·", "(Vendor"):
         assert never not in brief, never

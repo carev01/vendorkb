@@ -1,7 +1,8 @@
 """Topic eval: blind grading items and a scorer for the broad ransomware questions.
 
     uv run python eval/answer_eval.py --questions eval/topic_questions.yaml run --out RUN.jsonl
-    uv run python eval/topic_eval.py build before.jsonl after.jsonl --out items.json --key key.json
+    uv run python eval/topic_eval.py build before.jsonl after.jsonl \
+        --out items.json --key key.json [--expect-topic after]
     # one fresh grader per grades file, given items.json and eval/TOPIC_GRADING_BRIEF.md only
     uv run python eval/topic_eval.py score key.json opus.json fable.json \
         --before before --after after [--corpus corpus.json]
@@ -11,7 +12,17 @@ stem), shuffled with ``--seed`` and keyed by an opaque id. ``items.json`` carrie
 file name, model name, cost or timing; ``key.json`` maps each item id to ``{run, question_id}``.
 An answer that errored or is empty, or one to a question whose text differs from the questions
 file, stops the build (exit message names it): there is nothing to grade, or it is not the same
-question.
+question. ``--expect-topic LABEL`` (repeatable) names a run that must have answered every question
+on the topic path: a row of it whose ``topic`` is null (or absent) or that is ``truncated`` stops
+the build, and the message lists every such row.
+
+A grid answer to an ``enumeration`` question (vendorkb's table, known by its legend, or by a
+``topic`` and the enumeration shape in the row) is graded on its cells: ``build`` reads them from
+the table, row by row (the vendor from the row, the aspect from the column's header), draws a
+seeded random sample of up to ``MAX_PAIRS``, and gives the item exactly those ``cells``
+(``{marker, vendor, aspect_id}``), the sources of those cells only, and ``pairs_total``, the
+grid's cell count. ``key.json`` records the sample (``cells``) and ``pairs_total`` for the
+scorer.
 
 The questions file is ``eval/topic_questions.yaml``: ``id``, ``type``, ``question``, ``topic``
 (a topic id of ``taxonomy/taxonomy.yaml``, whose aspects are read from there) and ``sides`` (the
@@ -30,7 +41,8 @@ labels). ``sides`` and ``by_aspect`` items (the side key is ``"*"`` for ``by_asp
 ``enumeration`` items carry pairs, not claims. ``pairs_total`` is the number of distinct
 (vendor, aspect) pairs the answer covers; ``pairs`` is an even-stride sample of them in answer
 order: every ``ceil(pairs_total / 30)``-th pair starting with the first (all of them up to 30),
-with no (vendor, aspect_id) twice. The count is checked (``sample_size``)::
+with no (vendor, aspect_id) twice. The count is checked (``sample_size``). For a grid item the
+pairs are exactly the item's cells and ``pairs_total`` is the item's::
 
     {"item": id, "pairs_total": int,
      "pairs": [{"vendor": str, "aspect_id": str, "supported": bool}, ...]}
@@ -43,13 +55,17 @@ documented) and the unsupported rate, pooled over every item::
      + sum of pairs_total x (1 - supported share) over enumeration items)
     / (claims_total of sides and by_aspect items + sum of pairs_total over enumeration items)
 
-The enumeration supported share and estimate (per item ``pairs_total`` times the supported share
-of its sampled pairs; per run the sum over its enumeration items, null with none) are reported
-separately. For two or more grades files it prints the agreement of the first two (the share of
-identical aspect labels, with the slots that differ). With exactly two runs and
-``--before``/``--after`` it also prints the spec's pass check on the pooled rate: coverage rises
-by at least 10 points (this scorer's reading of "clearly") and the unsupported rate by at most
-2. A question missing from one run is dropped from the pass check, and the output says which.
+The prose rate (``sides`` and ``by_aspect`` items alone) and the pair rate (estimated unsupported
+pairs over ``pairs_total``, enumeration items alone) are reported too, as are the enumeration
+supported share and estimate (per item ``pairs_total`` times the supported share of its sampled
+pairs; per run the sum over its enumeration items, null with none). For two or more grades files
+it prints the agreement of the first two (the share of identical aspect labels, with the slots
+that differ, and per item the two files' ``claims_total`` and unsupported counts, or their pairs
+side by side). With exactly two runs and ``--before``/``--after`` it also prints the spec's pass
+check: coverage rises by at least 10 points (this scorer's reading of "clearly"), and the pooled
+rate and the prose rate each by at most 2 (a large, well-supported grid must not hide a rise in
+the prose answers). A question missing from one run is dropped from the pass check, and the
+output says which.
 The corpus file is ``{"<side>": {"<aspect_id>": true | false}}``, true meaning the corpus
 documents it; its sides and aspect ids must exist in the questions file and the taxonomy, and
 without it the output warns when ``stated_not_covered`` slots exist. A grades file with a
@@ -60,6 +76,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -80,6 +97,9 @@ MIN_COVERAGE_RISE = 10.0  # points: this scorer's reading of the spec's "rises c
 MAX_UNSUPPORTED_RISE = 2.0  # points: the spec's "by no more than two points"
 MAX_PAIRS = 30  # an enumeration item lists at most this many of its pairs
 EPSILON = 1e-6
+GRID_LEGEND = "✓ supported · ◐ partial"  # how vendorkb's grid legend (topics.LEGEND) starts
+_CELL = re.compile(r"\[(\d+)\]")
+_COLUMN = re.compile(r"(?<!\\)\|")  # a cell border: a pipe not escaped as "\|"
 
 
 class GradeError(ValueError):
@@ -188,6 +208,56 @@ def runs_from_files(paths: list[str | Path]) -> dict[str, list[dict[str, Any]]]:
     return runs
 
 
+def check_topic_runs(runs: dict[str, list[dict[str, Any]]], labels: list[str]) -> None:
+    """Stop (``SystemExit``) when a run of ``labels`` has a row with no ``topic`` or a
+    ``truncated`` answer: a run measured as the topic path that did not take it, or lost the
+    end of an answer, would grade something else. The message lists every such row."""
+    unknown = [label for label in labels if label not in runs]
+    if unknown:
+        raise SystemExit(f"no such run: {', '.join(unknown)} (runs: {', '.join(runs)})")
+    problems = []
+    for label in dict.fromkeys(labels):
+        for row in runs[label]:
+            why = [reason for reason, bad in (("topic is null", row.get("topic") is None),
+                                              ("truncated", row.get("truncated") is True)) if bad]
+            if why:
+                problems.append(f"{label}: {row.get('id')}: {', '.join(why)}")
+    if problems:
+        raise SystemExit("--expect-topic: these rows have no topic or a truncated answer:\n"
+                         + "\n".join(problems))
+
+
+def is_grid(row: dict[str, Any]) -> bool:
+    """Whether the answer is vendorkb's grid: its legend, or a topic and the enumeration shape
+    (the grid with no cell has no legend)."""
+    return (GRID_LEGEND in str(row.get("answer") or "")
+            or (row.get("topic") is not None and row.get("shape") == "enumeration"))
+
+
+def grid_cells(answer: str, aspects: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """The filled cells of the grid in ``answer``, row by row, left to right: ``{marker, vendor,
+    aspect_id}``, the vendor from the row's first cell, the aspect id from the column's header
+    (an aspect name). ``ValueError`` for a header naming no aspect."""
+    def cells(line: str) -> list[str]:
+        return [c.strip().replace("\\|", "|") for c in _COLUMN.split(line.strip())[1:-1]]
+
+    table = [line for line in answer.splitlines() if line.startswith("|")]
+    if not table:
+        return []
+    ids = {a["name"]: a["id"] for a in aspects}
+    header = cells(table[0])[1:]
+    unknown = [name for name in header if name not in ids]
+    if unknown:
+        raise ValueError(f"grid column {unknown[0]!r} is no aspect of the question's topic")
+    out = []
+    for line in table[2:]:  # past the header and its rule
+        vendor, *row = cells(line)
+        for name, text in zip(header, row):
+            if m := _CELL.search(text):
+                out.append({"marker": int(m.group(1)), "vendor": vendor, "aspect_id": ids[name]})
+    return out
+
+
 def _marker_order(citation: dict[str, Any]) -> tuple[int, str]:
     marker = str(citation.get("marker"))
     return (int(marker), "") if marker.isdigit() else (1 << 30, marker)
@@ -195,13 +265,15 @@ def _marker_order(citation: dict[str, Any]) -> tuple[int, str]:
 
 def build_items(runs: dict[str, list[dict[str, Any]]], questions: list[dict[str, Any]],
                 aspects: dict[str, list[dict[str, str]]], seed: int = 1
-                ) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
+                ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     """``(items, key)``: one blind item per answer row, shuffled; ``key`` maps item id to
-    ``{run, question_id}``. The ids are drawn from the same seeded generator after the shuffle,
-    so they say nothing about the run or the question and cannot be recomputed from either."""
+    ``{run, question_id}`` (plus ``cells`` and ``pairs_total`` for a grid item). The ids are
+    drawn from the same seeded generator after the shuffle, so they say nothing about the run or
+    the question and cannot be recomputed from either. A grid's cells are sampled with a second
+    generator of the same seed."""
     by_id = {q["id"]: q for q in questions}
     problems: list[str] = []
-    entries: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    entries: list[tuple[str, dict[str, Any], dict[str, Any], list[dict[str, Any]] | None]] = []
     for run, rows in runs.items():
         for row in rows:
             qid = row.get("id")
@@ -213,15 +285,23 @@ def build_items(runs: dict[str, list[dict[str, Any]]], questions: list[dict[str,
             elif row.get("question") not in (None, question["question"]):
                 problems.append(f"{run}: {qid}: the question asked differs from the questions"
                                 " file")
+            elif question["grading"] == "enumeration" and is_grid(row):
+                try:
+                    cells = grid_cells(row["answer"], aspects[question["topic"]])
+                except ValueError as e:
+                    problems.append(f"{run}: {qid}: {e}")
+                else:
+                    entries.append((run, row, question, cells))
             else:
-                entries.append((run, row, question))
+                entries.append((run, row, question, None))
     if problems:
         raise SystemExit("\n".join(problems))
     rng = random.Random(seed)
     rng.shuffle(entries)
+    sampler = random.Random(f"{seed}/cells")
     items: list[dict[str, Any]] = []
-    key: dict[str, dict[str, str]] = {}
-    for run, row, question in entries:
+    key: dict[str, dict[str, Any]] = {}
+    for run, row, question, cells in entries:
         item_id = f"{rng.getrandbits(32):08x}"
         while item_id in key:
             item_id = f"{rng.getrandbits(32):08x}"
@@ -229,10 +309,18 @@ def build_items(runs: dict[str, list[dict[str, Any]]], questions: list[dict[str,
         sources = [{"marker": c.get("marker"), "title": c.get("title"), "vendor": c.get("vendor"),
                     "url": c.get("url"), "text": c.get("text")}
                    for c in sorted(row.get("citations") or [], key=_marker_order)]
-        items.append({"item": item_id, "kind": question["grading"],
-                      "question": question["question"], "sides": question["sides"],
-                      "aspects": aspects[question["topic"]], "answer": row["answer"],
-                      "sources": sources})
+        item = {"item": item_id, "kind": question["grading"], "question": question["question"],
+                "sides": question["sides"], "aspects": aspects[question["topic"]],
+                "answer": row["answer"], "sources": sources}
+        if cells is not None:
+            picked = [cells[i] for i in sorted(sampler.sample(range(len(cells)),
+                                                              min(MAX_PAIRS, len(cells))))]
+            markers = {c["marker"] for c in picked}
+            item.update(pairs_total=len(cells), cells=picked,
+                        sources=[s for s in sources if s["marker"] in markers])
+            key[item_id].update(cells=[[c["vendor"], c["aspect_id"]] for c in picked],
+                                pairs_total=len(cells))
+        items.append(item)
     return items, key
 
 
@@ -298,7 +386,10 @@ def sample_size(pairs_total: int) -> int:
 
 
 def _grade_pairs(item: str, grade: dict[str, Any], aspect_ids: list[str],
-                 problems: list[str]) -> tuple[int | None, list[dict[str, Any]]]:
+                 problems: list[str], grid: dict[str, Any] | None = None
+                 ) -> tuple[int | None, list[dict[str, Any]]]:
+    """The pairs of an enumeration item: an even-stride sample, or for a grid item (``grid``,
+    its key entry) exactly the item's cells, with the item's ``pairs_total``."""
     total = grade.get("pairs_total")
     pairs = grade.get("pairs")
     if not (isinstance(total, int) and not isinstance(total, bool) and total >= 0):
@@ -321,7 +412,17 @@ def _grade_pairs(item: str, grade: dict[str, Any], aspect_ids: list[str],
             problems.append(f"{item}: pair {n} repeats {pair['vendor']} / {pair['aspect_id']}")
         listed.add(who)
         good.append(pair)
-    if total is not None and len(pairs) != sample_size(total):
+    if grid is not None:
+        cells = {(_norm(vendor), aspect): (vendor, aspect) for vendor, aspect in grid["cells"]}
+        if total is not None and total != grid["pairs_total"]:
+            problems.append(f"{item}: pairs_total must be {grid['pairs_total']}, the grid's cell "
+                            "count")
+        problems.extend(f"{item}: pair {n} {p['vendor']} / {p['aspect_id']} is not one of the "
+                        "item's cells" for n, p in enumerate(good)
+                        if (_norm(p["vendor"]), p["aspect_id"]) not in cells)
+        problems.extend(f"{item}: cell {vendor} / {aspect} not graded"
+                        for who, (vendor, aspect) in cells.items() if who not in listed)
+    elif total is not None and len(pairs) != sample_size(total):
         stride = pair_stride(total)
         how = (f"stride {stride} over pairs_total {total}, starting with the first pair"
                if stride > 1 else f"all of pairs_total {total}")
@@ -330,7 +431,7 @@ def _grade_pairs(item: str, grade: dict[str, Any], aspect_ids: list[str],
     return total, good
 
 
-def parse_grades(grades: Any, key: dict[str, dict[str, str]],
+def parse_grades(grades: Any, key: dict[str, dict[str, Any]],
                  questions: list[dict[str, Any]],
                  aspects: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
     """The validated records of one grades file, one per graded item. Every item of ``key``
@@ -361,8 +462,8 @@ def parse_grades(grades: Any, key: dict[str, dict[str, str]],
                                   "slots": {}, "pairs_total": None, "pairs": [],
                                   "claims_total": 0, "unsupported": []}
         if question["grading"] == "enumeration":
-            record["pairs_total"], record["pairs"] = _grade_pairs(item, grade, aspect_ids,
-                                                                   problems)
+            record["pairs_total"], record["pairs"] = _grade_pairs(
+                item, grade, aspect_ids, problems, key[item] if "cells" in key[item] else None)
         else:
             record["claims_total"] = _count_problem(item, grade, problems)
             unsupported = grade.get("unsupported_claims")
@@ -434,8 +535,9 @@ def score_records(records: list[dict[str, Any]],
     the enumeration estimate and a per-question table. The rate is the unsupported claims of
     ``sides`` and ``by_aspect`` items plus the estimated unsupported pairs of ``enumeration``
     items, over those items' ``claims_total`` plus the enumeration ``pairs_total`` (None when
-    an enumeration item has no sampled pair to estimate from). ``corpus`` sides are matched
-    without regard to case and spacing."""
+    an enumeration item has no sampled pair to estimate from); ``prose_rate`` is the claims'
+    part alone and ``pair_rate`` the pairs' (None without such items). ``corpus`` sides are
+    matched without regard to case and spacing."""
     corpus = {_norm(side): aspects for side, aspects in corpus.items()}
     out: dict[str, dict[str, Any]] = {}
     for run in dict.fromkeys(r["run"] for r in records):
@@ -462,26 +564,52 @@ def score_records(records: list[dict[str, Any]],
         pair_unsupported = 0.0 if not enumerated else enum["unsupported_estimate"]
         rate = (None if pair_unsupported is None else
                 _ratio(unsupported + pair_unsupported, claims + enum["pairs_total"]))
+        pair_rate = (None if not enumerated or pair_unsupported is None else
+                     _ratio(pair_unsupported, enum["pairs_total"]))
         out[run] = {"items": len(mine), "coverage": _coverage(slots_of(graded), corpus),
                     "labels": {label: counts[label] for label in LABELS},
                     "unsupported": {"claims_total": claims, "unsupported_claims": unsupported,
                                     "pairs_total": enum["pairs_total"],
                                     "unsupported_pairs_estimate": pair_unsupported,
-                                    "rate": rate},
+                                    "rate": rate, "prose_rate": _ratio(unsupported, claims),
+                                    "pair_rate": pair_rate},
                     "enumeration": enum, "by_question": by_question}
     return out
 
 
+def _side_by_side(mine: dict[str, Any], theirs: dict[str, Any]) -> dict[str, Any]:
+    """One item as the two grades files graded it: ``claims_total`` and the unsupported count,
+    or for an enumeration item ``pairs_total`` and each pair's ``supported`` in both (None in
+    the file that does not list the pair), the first file's pairs first."""
+    if mine["kind"] != "enumeration":
+        return {"item": mine["item"], "kind": mine["kind"],
+                "claims_total": [mine["claims_total"], theirs["claims_total"]],
+                "unsupported_claims": [len(mine["unsupported"]), len(theirs["unsupported"])]}
+    by_file = [{(_norm(p["vendor"]), p["aspect_id"]): p for p in r["pairs"]}
+               for r in (mine, theirs)]
+    pairs = []
+    for who in dict.fromkeys([*by_file[0], *by_file[1]]):
+        found = [pairs_of.get(who) for pairs_of in by_file]
+        named = next(p for p in found if p is not None)
+        pairs.append({"vendor": named["vendor"], "aspect_id": named["aspect_id"],
+                      "supported": [None if p is None else p["supported"] for p in found]})
+    return {"item": mine["item"], "kind": "enumeration",
+            "pairs_total": [mine["pairs_total"], theirs["pairs_total"]], "pairs": pairs}
+
+
 def agreement(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> dict[str, Any]:
-    """The share of identical aspect labels over the slots both grades files graded, and the
-    slots they differ on (item ids only, so adjudication can stay blind)."""
+    """The share of identical aspect labels over the slots both grades files graded, the
+    slots they differ on, and every item both graded side by side (``items``, see
+    ``_side_by_side``), by item id only, so adjudication can stay blind."""
     other = {r["item"]: r for r in second}
     slots = identical = 0
     disagreements = []
+    items = []
     for r in first:
         theirs = other.get(r["item"])
         if theirs is None:
             continue
+        items.append(_side_by_side(r, theirs))
         for (side, aspect), label in r["slots"].items():
             if (side, aspect) not in theirs["slots"]:
                 continue
@@ -493,30 +621,37 @@ def agreement(first: list[dict[str, Any]], second: list[dict[str, Any]]) -> dict
                                       "labels": [label, theirs["slots"][(side, aspect)]]})
     disagreements.sort(key=lambda d: (d["item"], d["side"], d["aspect"]))
     return {"slots": slots, "identical": identical, "share": _ratio(identical, slots),
-            "disagreements": disagreements}
+            "disagreements": disagreements, "items": items}
 
 
 def pass_check(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    """The spec's bar: coverage rises by at least ``MIN_COVERAGE_RISE`` points and the pooled
-    unsupported rate by at most ``MAX_UNSUPPORTED_RISE``. A rate that cannot be computed (no
-    claims in one run) fails the check."""
+    """The spec's bar: coverage rises by at least ``MIN_COVERAGE_RISE`` points, and the pooled
+    unsupported rate and the prose rate (``sides`` and ``by_aspect`` items) each by at most
+    ``MAX_UNSUPPORTED_RISE``: many supported grid cells pooled in could otherwise hide a rise in
+    the prose answers. A rate that cannot be computed (no claims in one run) fails the check."""
     def points(metric: str, name: str) -> float | None:
         a, b = before[metric][name], after[metric][name]
         return None if a is None or b is None else round((b - a) * 100, 6)
 
     cov = points("coverage", "coverage")
     rate = points("unsupported", "rate")
+    prose = points("unsupported", "prose_rate")
     cov_ok = None if cov is None else cov >= MIN_COVERAGE_RISE - EPSILON
     rate_ok = None if rate is None else rate <= MAX_UNSUPPORTED_RISE + EPSILON
-    return {"bar": f"coverage rises by at least {MIN_COVERAGE_RISE:g} points (\"clearly\") and "
-                   f"the pooled unsupported rate by at most {MAX_UNSUPPORTED_RISE:g} points",
+    prose_ok = None if prose is None else prose <= MAX_UNSUPPORTED_RISE + EPSILON
+    return {"bar": f"coverage rises by at least {MIN_COVERAGE_RISE:g} points (\"clearly\"), and "
+                   f"the pooled unsupported rate and the prose answers' rate each by at most "
+                   f"{MAX_UNSUPPORTED_RISE:g} points",
             "coverage": {"before": before["coverage"]["coverage"],
                          "after": after["coverage"]["coverage"]},
             "unsupported_rate": {"before": before["unsupported"]["rate"],
                                  "after": after["unsupported"]["rate"]},
+            "prose_rate": {"before": before["unsupported"]["prose_rate"],
+                           "after": after["unsupported"]["prose_rate"]},
             "coverage_rise_points": cov, "coverage_ok": cov_ok,
             "unsupported_rise_points": rate, "unsupported_ok": rate_ok,
-            "pass": bool(cov_ok and rate_ok)}
+            "prose_rise_points": prose, "prose_ok": prose_ok,
+            "pass": bool(cov_ok and rate_ok and prose_ok)}
 
 
 def check_corpus(corpus: dict[str, dict[str, bool]], questions: list[dict[str, Any]],
@@ -585,6 +720,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     questions = load_questions(args.questions)
     aspects = load_aspects([q["topic"] for q in questions], args.taxonomy)
     runs = runs_from_files(args.answers)
+    check_topic_runs(runs, args.expect_topic)
     items, key = build_items(runs, questions, aspects, args.seed)
     graded = {(v["run"], v["question_id"]) for v in key.values()}
     for run in runs:
@@ -644,6 +780,9 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--out", required=True, help="the blind items, for the graders")
     b.add_argument("--key", required=True, help="item id -> run and question id; not for graders")
     b.add_argument("--seed", type=int, default=1)
+    b.add_argument("--expect-topic", action="append", default=[], metavar="LABEL",
+                   help="a run (file stem) every row of which must carry a topic and not be "
+                        "truncated; repeatable")
     s = sub.add_parser("score", help="coverage, unsupported rate, enumeration and the pass check")
     s.add_argument("key")
     s.add_argument("grades", nargs="+", help="one grades JSON per grader")

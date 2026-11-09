@@ -11,7 +11,9 @@ stops before the next question once the cumulative charge (rows already in --out
 reaches --max-usd or cumulative rerank tokens reach --max-rerank-tokens. Charge = usage.cost;
 else $3/M prompt + $12/M completion tokens; else $0.05 (3 such questions stop the run, exit 1).
 An exception row is charged at least $0.05. Each citation line carries the cited chunk text, url and vendor (looked up by
-doc_id, one query per question) so graders need no DB access. Settings come from .env.
+doc_id, one query per question) so graders need no DB access. A row also records the answer's
+``topic``, ``aspects``, ``truncated``, ``catch_up_ok`` and ``summary_error`` when it has them.
+Settings come from .env.
 
 Grades JSONL (written by the grading step), one object per question::
 
@@ -51,6 +53,8 @@ from vendorkb.scope import scope_index_from_db
 
 _ENUM_KEYS = ("vendors_listed", "vendors_checked", "facets_empty", "lines_dropped",
               "lines_naming_other_vendors")
+# Recorded only when the answer has them (topic answers): eval/topic_eval.py reads them.
+_TOPIC_KEYS = ("topic", "aspects", "truncated", "catch_up_ok", "summary_error")
 
 
 PROMPT_USD_PER_TOKEN = 3 / 1_000_000
@@ -143,6 +147,7 @@ async def run_questions(questions: list[dict], answer_fn: Callable[[str], Awaita
                               "text": c.get("text")} for c in cites]}
         for k in _ENUM_KEYS:
             row[k] = res.get(k)
+        row.update((k, res[k]) for k in _TOPIC_KEYS if k in res)
         charge, strike = charge_for(res.get("usage"), exception=error is not None)
         row.update(rerank_ok=res.get("rerank_ok"), scope=res.get("scope"),
                    usage=res.get("usage"), error=error or res.get("error"), seconds=seconds,
