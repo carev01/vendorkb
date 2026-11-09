@@ -511,7 +511,9 @@ async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: li
     cells (``_catch_up``, its candidates gated too) for the cells no fact fills, the gated-out
     ones included. A fact never gives way to a recent page. ``facts_as_of`` is the newest
     ``doc_version`` of the fact cells shown; no taxonomy loaded means no fact cells. An
-    embedder that is down costs the catch-up only (``catch_up_ok`` False), never the facts."""
+    embedder that is down costs the catch-up only (``catch_up_ok`` False), never the facts.
+    ``answer`` uses it only with ``TOPIC_GRID`` on (off by default): its precision is bounded
+    by the capability facts'."""
     vendors = list(dict.fromkeys(vendors))
     version = await current_version(conn) if vendors else None
     named = {a.id: a for a in topic.aspects}

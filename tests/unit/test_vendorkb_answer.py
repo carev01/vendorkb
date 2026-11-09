@@ -858,8 +858,15 @@ SUMMARY_SYSTEM = (
     "\"only\".")
 
 
+def _grid_on(monkeypatch):
+    """Turn the grid on (``TOPIC_GRID``, off by default): ``_settings`` reads the environment."""
+    monkeypatch.setenv("TOPIC_GRID", "true")
+
+
 def _patch_grid(monkeypatch, grid):
-    """Answer every ``topic_grid`` with ``grid``; the returned list holds its kwargs."""
+    """Turn the grid on and answer every ``topic_grid`` with ``grid``; the returned list holds
+    its kwargs."""
+    _grid_on(monkeypatch)
     calls = []
 
     async def fake(conn, topic, **kw):
@@ -1039,14 +1046,18 @@ async def test_a_grid_with_no_marks_answers_without_the_model(monkeypatch, topic
     "Which vendors support YARA rules for ransomware?",  # names an aspect
 ])
 @pytest.mark.asyncio
-async def test_other_enumeration_questions_keep_todays_path(monkeypatch, topic, question):
+@pytest.mark.parametrize("grid", [False, True])
+async def test_other_enumeration_questions_keep_todays_path(monkeypatch, topic, question, grid):
+    if grid:
+        _grid_on(monkeypatch)
     seen = _patch_topics(monkeypatch, topic, [_hit(9)])
     _never(monkeypatch, "topic_grid")
     _patch_enum(monkeypatch, [_hit(1)], ["Veeam"])
     client = FakeClient(["Veeam (VBR): does X [1]"])
     r = await _run_topic(client, question, INDEX_VC)
     assert r["shape"] == "enumeration" and r["topic"] is None and "aspects" not in r
-    assert seen.hits == [] and len(seen.loads) == 1  # the topic query, nothing else
+    # with the grid on, the topic query and nothing else; off, not even that
+    assert seen.hits == [] and len(seen.loads) == (1 if grid else 0)
     assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
     assert r["vendors_listed"] == ["Veeam"] and r["truncated"] is False
 
@@ -1068,6 +1079,7 @@ INDEX_W = ScopeIndex(vendors=["Veeam", "Druva", "Commvault", "Microsoft", "Googl
 @pytest.mark.asyncio
 async def test_a_qualified_which_vendors_question_keeps_todays_path(monkeypatch, topic,
                                                                    question):
+    _grid_on(monkeypatch)  # with the grid on, R26 still keeps these questions off it
     seen = _patch_topics(monkeypatch, topic, [_hit(9)])
     _never(monkeypatch, "topic_grid")
     _patch_enum(monkeypatch, [_hit(1)], ["Veeam"])
@@ -1077,6 +1089,32 @@ async def test_a_qualified_which_vendors_question_keeps_todays_path(monkeypatch,
     assert seen.hits == []
     assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
     assert r["vendors_listed"] == ["Veeam"]
+
+
+def test_the_grid_is_off_by_default():
+    assert _settings().topic_grid is False
+
+
+@pytest.mark.asyncio
+async def test_by_default_a_which_vendors_topic_question_keeps_todays_enumeration(monkeypatch,
+                                                                                topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    _never(monkeypatch, "topic_grid")
+    enumerated = []
+
+    async def fake_enum(conn, query, **kw):
+        from vendorkb.modes import EnumerationResult
+        enumerated.append(query)
+        return EnumerationResult([_hit(1)], ["Veeam"], [], [], True)
+
+    monkeypatch.setattr(ans, "enumerate_vendors", fake_enum)
+    client = FakeClient(["Veeam (VBR): does X [1]"])
+    r = await _run_topic(client, "Which vendors protect backups against ransomware?", INDEX_VC)
+    assert enumerated == ["Which vendors protect backups against ransomware?"]
+    assert r["shape"] == "enumeration" and r["topic"] is None and "aspects" not in r
+    assert seen.loads == [] and seen.hits == []
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
+    assert r["vendors_listed"] == ["Veeam"] and "gated_out" not in r
 
 
 @pytest.mark.parametrize("question", [

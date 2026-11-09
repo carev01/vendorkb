@@ -31,6 +31,11 @@ class VendorkbSettings(BaseSettings):
     judge_model: str = "z-ai/glm-5.3-flash"
     judge_api_key: str = ""
     answer_reasoning_effort: str = "low"
+    # The vendor-by-aspect grid for broad "which vendors" topic questions (topics.topic_grid).
+    # Off: those questions keep the prose enumeration, whose precision (98-100% supported) the
+    # grid cannot match, bounded by the capability facts' (about 90-95%, blind grading
+    # 2026-11-09).
+    topic_grid: bool = False
     docext_base_url: str = ""
     docext_read_key: str = ""
     docext_verify_tls: bool = True

@@ -489,7 +489,10 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     system = SYSTEM_RULES
     topic = None
     reranked_docs = 0  # the topic path's (TopicHits.reranked_docs)
-    if shape.kind == "enumeration" or len(shape.facets) <= TOPIC_MAX_SIDES:
+    # a "which vendors" topic question gets the grid only with TOPIC_GRID on; off, it is any
+    # other enumeration (no topic lookup at all)
+    if (settings.topic_grid if shape.kind == "enumeration"
+            else len(shape.facets) <= TOPIC_MAX_SIDES):
         # a product's name ("PowerProtect Cyber Recovery") never stands for the topic; the
         # offerings (taxonomy) are not in the scope index, so they are not excluded here
         topic = detect_topic(question, await load_topics(conn),

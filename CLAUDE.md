@@ -98,7 +98,8 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
     retrieval, unless a workload vendor qualifies it; a broad "which vendors" question gets a
     cited grid whose cells are cue-gated: a cell shows its best fact on a chunk that names the
     aspect (a cue, matched in the facts SQL), else stays empty, counted in `gated_out`) and MCP
-    (`query_capabilities(topic=)` by aspect; `list_dimensions` shows the topic). The taxonomy
+    (`query_capabilities(topic=)` by aspect; `list_dimensions` shows the topic). The grid is off
+    by default (`TOPIC_GRID`): its precision is bounded by the capability facts'. The taxonomy
     version hash leaves the `topics:` section out: a topic edit needs a `taxonomy load` only, no
     re-map or build.
 
