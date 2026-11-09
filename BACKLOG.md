@@ -348,16 +348,19 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     product, Datto Backup for Microsoft Entra ID", and listed Datto under "No supporting passage
     found for". It should be the other way round: Datto has the product, Spanning does not.
 
-    Cause found: Datto's corpus holds only BCDR (714 docs) and SaaS Protection for M365 (123
-    docs). The Datto Entra ID passage sits in a Spanning document (Spanning and Datto are both
-    Kaseya brands). So the answer credits it to the page's vendor, and Datto has nothing of its
-    own to cite.
+    Not a data gap (corrected 2026-11-09). Datto BCDR documents it: a "DATTO BACKUP FOR
+    MICROSOFT ENTRA ID" page plus "What is backed up" and "Restoring". Capabilities hold 23
+    `coverage.backup` / `entra_id` facts for Datto, plus 11 export and 8 restore facts.
+
+    So the "which vendors" answer missed Datto's own facts. It then credited a Spanning page's
+    mention of the Kaseya sister product to Spanning.
 
     To investigate:
-    - whether DocExtractor should crawl Datto's Entra ID documentation;
-    - whether answers should credit a product named in the text to its own vendor (scope
-      aliases / offerings);
-    - whether "No supporting passage found" should note a sister brand's mention.
+    - why the enumeration's per-vendor retrieval and relevance floor (`enumeration_min_score`)
+      found no passage for Datto;
+    - whether the answer should credit a product named in the text to its own vendor
+      (offerings / scope aliases) rather than the page's vendor;
+    - possibly the same root cause as item 40: facts not feeding the answer path.
 40. **Topic comparisons ignore most of the facts** (user, 2026-11-09). "Compare ransomware
     protection capabilities between Veeam and Commvault" got a poor answer:
     - Only "threat/anomaly detection and malware scanning" was good.
