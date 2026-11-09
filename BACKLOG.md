@@ -333,3 +333,46 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       propose (optional).
     - **Production:** the map moves to the Anthropic API, and `ANTHROPIC_API_KEY` goes into the
       secret.
+38. **Copilot refuses to relay full documents** (user, 2026-11-09). Asked for a page's full
+    content, the Copilot Studio agent refuses because it is copyrighted content.
+    `read_document` works: through Cloudflare it returned part 1 of 2 of a Cohesity page.
+    To investigate:
+    - Copilot Studio's content moderation level and its generative-answers settings;
+    - an agent instruction that the documentation is licensed for the user's internal use;
+    - returning the source link plus the parts as quoted text, rather than asking the model to
+      reproduce the page.
+
+    Done when the user gets a full page through the agent.
+39. **A sister brand's product credited to the wrong vendor** (user, 2026-11-09). Asked "Which
+    vendors support backing up Entra ID?", the answer said "Spanning: provides a dedicated
+    product, Datto Backup for Microsoft Entra ID", and listed Datto under "No supporting passage
+    found for". It should be the other way round: Datto has the product, Spanning does not.
+
+    Cause found: Datto's corpus holds only BCDR (714 docs) and SaaS Protection for M365 (123
+    docs). The Datto Entra ID passage sits in a Spanning document (Spanning and Datto are both
+    Kaseya brands). So the answer credits it to the page's vendor, and Datto has nothing of its
+    own to cite.
+
+    To investigate:
+    - whether DocExtractor should crawl Datto's Entra ID documentation;
+    - whether answers should credit a product named in the text to its own vendor (scope
+      aliases / offerings);
+    - whether "No supporting passage found" should note a sister brand's mention.
+40. **Topic comparisons ignore most of the facts** (user, 2026-11-09). "Compare ransomware
+    protection capabilities between Veeam and Commvault" got a poor answer:
+    - Only "threat/anomaly detection and malware scanning" was good.
+    - It said "No documentation of MFA, encryption standards, or RBAC details appears in the
+      provided Commvault sources". Yet capabilities hold, for Commvault on the ransomware
+      dimensions, 971 encryption facts and 1,595 built-in security facts.
+    - It said Veeam has no documented cyber recovery testing; SureBackup is in the corpus.
+    - Two vendors × eight aspects got only 10 sources, the Veeam side mostly from one Vault
+      Security page.
+
+    Investigate the comparison path for a topic question (`shape` comparison with a topic):
+    - per-vendor, per-aspect retrieval quotas;
+    - whether the grid/fact chunks (`fact_chunks_many`) feed it;
+    - the rerank budget;
+    - the answer prompt's use of the citations.
+
+    Done when the same question cites evidence for every aspect each vendor documents.
+    Measure with `eval/topic_eval.py` plus the user's question, before and after.
