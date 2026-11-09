@@ -4,9 +4,16 @@ storing anything; score the answers against the labels.
     uv run python eval/map_replay.py run OUT.json k5 k8 k5+second --max-usd 0.3
     uv run python eval/map_replay.py score OUT.json [OUT2.json ...]
     uv run python eval/map_replay.py recall          # candidate recall only, no model call
+    uv run python eval/map_replay.py run OUT.json k5 --taxonomy EDITED.yaml --labels MY.json \\
+        --max-usd 0.3
 
-The labels (``eval/labels/dimension-sample-2026-11-08.json``) give each claim the acceptable
-answers (dimension ids, ``null`` for none). A variant is ``k<N>`` (the N nearest applicable
+The labels (``eval/labels/dimension-sample-2026-11-08.json``, or ``--labels PATH`` on ``run``,
+``score`` and ``recall``: the same format, extra item fields ignored) give each claim the
+acceptable answers (dimension ids, ``null`` for none). ``--taxonomy PATH`` (``run``, ``recall``)
+rehearses an edited taxonomy YAML: its dimensions (names, definitions, ``applies_to``, search
+aliases, new and removed ones) replace the database's for the replay, everything else stays from
+the database, and nothing is stored in the taxonomy tables; candidates are ranked as the mapper
+would rank them once that YAML is loaded. A variant is ``k<N>`` (the N nearest applicable
 dimensions, as the mapper computes them, without pinning), optionally ``+second`` (a none answer
 is asked once more over the five best keyword matches between the claim's phrase, target and
 evidence quote and the dimensions' names, definitions and aliases). Calls go through the
@@ -62,7 +69,8 @@ def bm25_ranker(docs: dict[str, str]):
 
 def score(answers: dict[str, str | None], items: list[dict[str, Any]]) -> dict[str, Any]:
     """Precision over the answered items, recall over the items with an acceptable dimension,
-    and how many answers fall outside the labels."""
+    and how many answers fall outside the labels (an item with no ``assigned_2026_11_08`` has
+    no known wrong answer, so any answer outside its acceptable ones counts)."""
     acceptable = {it["item_id"]: it["acceptable"] for it in items}
     answered = [i for i in acceptable if answers.get(i) is not None]
     with_dim = [i for i in acceptable if any(a is not None for a in acceptable[i])]
@@ -71,13 +79,14 @@ def score(answers: dict[str, str | None], items: list[dict[str, Any]]) -> dict[s
             "recall": sum(1 for i in with_dim if answers.get(i) in acceptable[i]) / len(with_dim),
             "right": sum(1 for i in acceptable if answers.get(i) in acceptable[i]),
             "unlabelled": sum(1 for i in answered if answers[i] not in acceptable[i]
-                              and answers[i] != next(it["assigned_2026_11_08"] for it in items
-                                                     if it["item_id"] == i))}
+                              and answers[i] != next(it.get("assigned_2026_11_08") for it in items
+                                                   if it["item_id"] == i))}
 
 
-async def _setup(conn, settings, items):
-    """The taxonomy snapshot, dimension keys with vectors, and each item's phrase, class mask
-    and nearest applicable dimensions."""
+async def _setup(conn, settings, items, taxonomy=None):
+    """The taxonomy snapshot (its dimensions from ``taxonomy``, a validated YAML, when given),
+    dimension keys with vectors, and each item's phrase, class mask and nearest applicable
+    dimensions."""
     import numpy as np
 
     from vendorkb.clients import Embedder
@@ -85,6 +94,8 @@ async def _setup(conn, settings, items):
     from vendorkb.taxonomy.cluster import normalize
 
     tax = await M._snapshot(conn)
+    if taxonomy is not None:
+        tax = M._with_dimensions(tax, taxonomy)
     keys = M._Keys(tax.search.get(("dimension", ""), {}))
     phrases = {it["item_id"]: normalize(it["phrase"]) for it in items}
     texts = list(dict.fromkeys([*keys.texts, *phrases.values()]))
@@ -116,18 +127,30 @@ def _query(it: dict[str, Any]) -> str:
     return f"{it['phrase']} {it['target_text']} {it['evidence_quote']}"
 
 
+def _inputs(args: argparse.Namespace) -> tuple[list[dict[str, Any]], Any]:
+    """The labelled items and the validated ``--taxonomy`` (None: the database's); an invalid
+    YAML raises ``TaxonomyError``, before anything is connected or paid."""
+    items = json.loads(args.labels.read_text())["items"]
+    if args.taxonomy is None:
+        return items, None
+    from vendorkb.taxonomy import load
+
+    return items, load.validate(load.read_doc(args.taxonomy))
+
+
 async def _run(args: argparse.Namespace) -> int:
     from vendorkb.cli import _map_client
     from vendorkb.config import VendorkbSettings
     from vendorkb.db import connect
     from vendorkb.taxonomy import mapper as M
 
-    items = json.loads(LABELS.read_text())["items"]
+    items, taxonomy = _inputs(args)
+    print(f"taxonomy: {args.taxonomy or 'database'}")
     settings = VendorkbSettings()
     conn = await connect(settings.vendorkb_dsn)
     try:
         await conn.execute("SET statement_timeout = '300s'")
-        tax, phrases, ranked, rank = await _setup(conn, settings, items)
+        tax, phrases, ranked, rank = await _setup(conn, settings, items, taxonomy)
         contexts = {}
         for it in items:  # the labelled claim first, then others with the same phrase and class
             cid = ranked[it["item_id"]][0]
@@ -177,11 +200,11 @@ async def _recall(args: argparse.Namespace) -> int:
     from vendorkb.config import VendorkbSettings
     from vendorkb.db import connect
 
-    items = json.loads(LABELS.read_text())["items"]
+    items, taxonomy = _inputs(args)
     settings = VendorkbSettings()
     conn = await connect(settings.vendorkb_dsn)
     try:
-        _, _, ranked, rank = await _setup(conn, settings, items)
+        _, _, ranked, rank = await _setup(conn, settings, items, taxonomy)
     finally:
         await conn.close()
     with_dim = [it for it in items if any(a is not None for a in it["acceptable"])]
@@ -195,9 +218,10 @@ async def _recall(args: argparse.Namespace) -> int:
 
 
 def _score(args: argparse.Namespace) -> int:
-    items = json.loads(LABELS.read_text())["items"]
-    assigned = {it["item_id"]: it["assigned_2026_11_08"] for it in items}
-    runs = {"mapped 2026-11-08": assigned}
+    items = json.loads(args.labels.read_text())["items"]
+    runs: dict[str, dict[str, str | None]] = {}
+    if all("assigned_2026_11_08" in it for it in items):  # the mapping the labels were made from
+        runs["mapped 2026-11-08"] = {it["item_id"]: it["assigned_2026_11_08"] for it in items}
     for path in args.runs:
         runs.update(json.loads(Path(path).read_text()))
     print(f"{'variant':20s} precision        recall  right  unlabelled")
@@ -215,13 +239,25 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("out")
     r.add_argument("variants", nargs="+")
     r.add_argument("--max-usd", type=float, required=True)
-    sub.add_parser("recall", help="candidate recall of the retrievers (no model call)")
+    rc = sub.add_parser("recall", help="candidate recall of the retrievers (no model call)")
     s = sub.add_parser("score", help="score run outputs against the labels")
     s.add_argument("runs", nargs="*")
+    for p in (r, rc, s):
+        p.add_argument("--labels", type=Path, default=LABELS,
+                       help="the labels JSON (default: the 2026-11-08 sample)")
+    for p in (r, rc):
+        p.add_argument("--taxonomy", type=Path,
+                       help="a taxonomy YAML whose dimensions replace the database's")
     args = ap.parse_args(argv)
     if args.cmd == "score":
         return _score(args)
-    return asyncio.run(_run(args) if args.cmd == "run" else _recall(args))
+    from vendorkb.taxonomy.load import TaxonomyError
+
+    try:
+        return asyncio.run(_run(args) if args.cmd == "run" else _recall(args))
+    except TaxonomyError as e:  # nothing was connected or paid
+        print(e, file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

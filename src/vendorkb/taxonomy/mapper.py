@@ -72,7 +72,7 @@ from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.aspects import dimension_applies
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.llm import build_request, call, object_schema, rate_limited
-from vendorkb.taxonomy.load import current_version
+from vendorkb.taxonomy.load import Taxonomy, current_version
 from vendorkb.taxonomy.propose import CHARS_PER_TOKEN, PROMPT_FAMILY
 
 log = logging.getLogger(__name__)
@@ -282,6 +282,29 @@ async def _snapshot(conn: psycopg.AsyncConnection) -> _Tax:
             conn, "SELECT dimension_id, name, definition, applies_to FROM dimensions")},
         vendor_offerings=vendor_offerings,
     )
+
+
+def _with_dimensions(tax: _Tax, taxonomy: Taxonomy) -> _Tax:
+    """A copy of ``tax`` with the dimensions of ``taxonomy`` (a validated YAML) in place of its
+    own: the rows, aliases and search keys that ``load_taxonomy`` would store for them, built by
+    the same ``alias_rows`` and ``lookup_only``. Everything else is kept and nothing is
+    written, so a replay can rank candidates under a taxonomy that is not loaded."""
+    lookup_only = taxonomy.lookup_only()
+    aliases: dict[str, str] = {}
+    search: dict[str, str] = {}
+    for alias, etype, scope, eid in taxonomy.alias_rows():
+        if etype == "dimension":
+            aliases[alias] = eid
+            if (alias, etype, scope) not in lookup_only:
+                search[alias] = eid
+    return dataclasses.replace(
+        tax,
+        aliases={**tax.aliases, ("dimension", ""): aliases},
+        search={**tax.search, ("dimension", ""): search},
+        dimensions={d.id: (d.name, d.definition,
+                           None if d.applies_to is None else list(d.applies_to))
+                    for d in taxonomy.dimensions},
+        _folded={})  # the folded alias indexes were built from the old dimension aliases
 
 
 async def _vendor_products(conn: psycopg.AsyncConnection) -> dict[str, set[str]]:
