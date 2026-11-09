@@ -334,16 +334,9 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       propose (optional).
     - **Production:** the map moves to the Anthropic API, and `ANTHROPIC_API_KEY` goes into the
       secret.
-38. **Copilot refuses to relay full documents** (user, 2026-11-09). Asked for a page's full
-    content, the Copilot Studio agent refuses because it is copyrighted content.
-    `read_document` works: through Cloudflare it returned part 1 of 2 of a Cohesity page.
-    To investigate:
-    - Copilot Studio's content moderation level and its generative-answers settings;
-    - an agent instruction that the documentation is licensed for the user's internal use;
-    - returning the source link plus the parts as quoted text, rather than asking the model to
-      reproduce the page.
-
-    Done when the user gets a full page through the agent.
+38. **Closed 2026-11-09: Copilot refused to relay full documents.** The refusal came from the
+    agent's default GPT model, a rule built into the model. With the agent's model switched to
+    Claude Haiku in Copilot Studio, it relays `read_document`'s full page (the user).
 39. **A sister brand's product credited to the wrong vendor** (user, 2026-11-09). Asked "Which
     vendors support backing up Entra ID?", the answer said "Spanning: provides a dedicated
     product, Datto Backup for Microsoft Entra ID", and listed Datto under "No supporting passage
@@ -380,3 +373,15 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
     Done when the same question cites evidence for every aspect each vendor documents.
     Measure with `eval/topic_eval.py` plus the user's question, before and after.
+41. **The Copilot agent drops the [N] markers** (user, 2026-11-09). `answer_question` returns
+    the answer with numbered citation markers and a Sources list. The agent's reply loses the
+    markers, so a statement no longer points to its source.
+
+    To investigate:
+    - which model and instructions are in use;
+    - whether rule 1 ("keep every [N] marker") is followed under Claude Haiku;
+    - whether Copilot Studio's generative-answers formatting strips bracketed numbers. If so,
+      a marker form it keeps (e.g. "(source 3)" or a superscript), offered as a
+      `citation_style` option of `answer_question`.
+
+    Done when an agent reply keeps a marker on every cited statement.
