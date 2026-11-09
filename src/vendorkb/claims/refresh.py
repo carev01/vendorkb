@@ -118,13 +118,15 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
         report.map = dataclasses.asdict(mapped)
         report.map["errors"] = report.map["errors"][:20]
         changed = changed or mapped.claims > 0
+        rejected = await support.rejected_count(conn)
         try:
             checked = await support.run(conn, client=support_client, settings=settings,
                                         check_max_usd=support_max_usd,
                                         review_max_usd=support_review_max_usd)
-        except Exception as e:  # what was extracted and mapped is still built; the Job fails
-            log.exception("refresh: the support check failed")
+        except Exception as e:  # what was extracted, mapped or rejected is still built; the
+            log.exception("refresh: the support check failed")  # Job fails
             report.support = {"error": f"{type(e).__name__}: {e}"}
+            changed = changed or await support.rejected_count(conn) != rejected
         else:
             report.support = dataclasses.asdict(checked)
             changed = changed or checked.check.calls > 0 or checked.review.calls > 0

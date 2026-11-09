@@ -22,8 +22,10 @@ the Anthropic API by default, or an OpenAI-compatible endpoint). Each call is es
 is sent, with ``MAX_TOKENS`` of output (the worst case); a step stops once spent plus in flight
 plus the next estimate would pass its budget. A failed or unusable call writes no verdict: the
 claim is asked again by the next run. A claim deleted while it was being asked is skipped
-(``vanished``). A non-rate-limit 400, or a 401, 402, 403 or 404 (a bad key, no credit, an
-unknown model), stops the step: nothing else would succeed either.
+(``vanished``). A non-rate-limit 400, a 401, 402, 403 or 404 (a bad key, no credit, an unknown
+model), or a TypeError (the Anthropic SDK's "no key" error) stops the step: nothing else would
+succeed either. A stopped check still lets the review run; the first such error is raised after
+both.
 Spec and calibration: docs/superpowers/specs/2026-11-09-claim-support-check-design.md.
 """
 from __future__ import annotations
@@ -218,7 +220,11 @@ class _Asker:
         self.client, self.settings, self.model, self.effort = client, settings, model, effort
         self.system, self.max_usd, self.report, self.label = system, max_usd, report, label
         self.record = record
-        self.price = price_per_mtok(model)
+        try:
+            self.price = price_per_mtok(model)  # never the EXTRACT_PRICE_* override
+        except ValueError:
+            raise ValueError(f"no price known for support model {model!r}: add it to"
+                             " claims.extract.PRICES_PER_MTOK") from None
         self.spent = self.in_flight = 0.0
         self.stop = False
         self.fatal: Exception | None = None
@@ -266,7 +272,7 @@ class _Asker:
                 return
             except Exception as e:  # API errors and odd provider shapes: this claim only
                 self.spent += estimate  # it may have been billed: count it against the cap
-                if getattr(e, "status_code", None) in FATAL_STATUS:
+                if isinstance(e, TypeError) or getattr(e, "status_code", None) in FATAL_STATUS:
                     self.stop, self.fatal = True, self.fatal or e
                     return
                 report.invalid += 1
@@ -358,15 +364,24 @@ async def run(conn: psycopg.AsyncConnection, *, client: Any, settings: VendorkbS
         report.locked = True
         log.warning("support: another support run holds the lock; nothing done")
         return report
+    fatal: Exception | None = None
     try:
-        await check(conn, version, client=client, settings=settings, max_usd=check_max_usd,
-                    report=report.check, limit=limit)
-        await review(conn, client=client, settings=settings, max_usd=review_max_usd,
-                     report=report.review, limit=limit)
+        try:
+            await check(conn, version, client=client, settings=settings,
+                        max_usd=check_max_usd, report=report.check, limit=limit)
+        except Exception as e:  # the review uses another model: it may still work
+            fatal = e
+        try:
+            await review(conn, client=client, settings=settings, max_usd=review_max_usd,
+                         report=report.review, limit=limit)
+        except Exception as e:
+            fatal = fatal or e
         report.flagged = len(await flagged_ids(conn))
         report.rejected = await rejected_count(conn)
     finally:
         await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+    if fatal is not None:
+        raise fatal
     for step in (report.check, report.review):
         step.errors = step.errors[:20]
     log.info("support: %s", report)

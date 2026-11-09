@@ -299,6 +299,65 @@ async def test_a_failed_support_step_still_builds_what_was_mapped(vkb_dsn, tmp_p
         await conn.close()
 
 
+async def test_rejections_stored_before_a_support_failure_are_built(vkb_dsn, tmp_path):
+    """A due run whose extraction and mapping change nothing still builds when its reviewer
+    rejected a claim before the support step failed."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
+        doc["topics"] = [{"id": "everything", "name": "Everything", "triggers": ["everything"],
+                          "aspects": [{"id": "all", "name": "All", "query": "All",
+                                       "dimensions": [d["id"] for d in doc["dimensions"]]}]}]
+        path = tmp_path / "taxonomy.yaml"
+        path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        await load.load_taxonomy(conn, path)
+        await _chunk(conn)
+        await _chunk(conn)
+        first = await refresh.refresh(
+            conn, settings=_settings(support_backend="openai"), extract_client=FakeExtract(),
+            map_client=NoCalls(), support_client=SupportVerdicts(), embedder=NoCalls(),
+            ready=Ready(), settle_minutes=60, extract_limit=100, map_max_usd=1.0,
+            support_max_usd=1.0, support_review_max_usd=0.0, now=NOW)
+        assert first.capabilities_rows == 2
+        await conn.execute("UPDATE claim_support SET supported = false")  # both flagged
+        # a new chunk whose extraction errors: the run is due but extracts and maps nothing
+        await _chunk(conn, text="Unrelated text.")
+
+        class Broken(FakeExtract):
+            async def create(self, **params):  # an unusable reply: the chunk is errored
+                message = SimpleNamespace(content="not json", refusal=None)
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(finish_reason="stop", message=message)],
+                    usage=SimpleNamespace(prompt_tokens=1000, completion_tokens=100, cost=0.0))
+
+        class RejectThenFail(SupportVerdicts):
+            async def create(self, **params):
+                if self.calls:
+                    error = RuntimeError("model not found")
+                    error.status_code = 404  # type: ignore[attr-defined]
+                    raise error
+                self.calls.append(params)
+                message = SimpleNamespace(content=json.dumps({"supported": False}),
+                                          refusal=None)
+                return SimpleNamespace(
+                    choices=[SimpleNamespace(finish_reason="stop", message=message)],
+                    usage=SimpleNamespace(prompt_tokens=300, completion_tokens=20, cost=0.002))
+
+        # the review rejects the first flagged claim, then the second one hits a 404
+        second = await refresh.refresh(
+            conn, settings=_settings(support_backend="openai", support_concurrency=1),
+            extract_client=Broken(), map_client=NoCalls(), support_client=RejectThenFail(),
+            embedder=NoCalls(), ready=Ready(), settle_minutes=60, extract_limit=100,
+            map_max_usd=1.0, support_max_usd=1.0, support_review_max_usd=1.0, now=NOW)
+        assert second.extract["done"] == 0 and "error" in second.support
+        assert await _count(conn, "SELECT count(*) FROM claim_support"
+                                  " WHERE NOT review_supported") == 1
+        assert second.capabilities_rows == 1  # the rejected claim left capabilities
+    finally:
+        await conn.close()
+
+
 async def test_wait_until_ready_polls_until_the_endpoint_answers():
     seen = []
 

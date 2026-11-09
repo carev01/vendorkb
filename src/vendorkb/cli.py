@@ -194,13 +194,14 @@ def _map_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncO
 
 def _support_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncOpenAI:
     """The support-check client for SUPPORT_BACKEND (anthropic: ANTHROPIC_API_KEY; openai:
-    SUPPORT_BASE_URL / SUPPORT_API_KEY, else the MAP_ ones, else the EXTRACT_ ones)."""
+    SUPPORT_BASE_URL with SUPPORT_API_KEY, or, when neither is set, MAP_BASE_URL with
+    MAP_API_KEY: a URL never takes another endpoint's key)."""
+    url, key = ((settings.support_base_url, settings.support_api_key)
+                if settings.support_base_url or settings.support_api_key
+                else (settings.map_base_url, settings.map_api_key))
     return _extract_client(settings.model_copy(update={
-        "extract_backend": settings.support_backend,
-        "extract_base_url": (settings.support_base_url or settings.map_base_url
-                             or settings.extract_base_url),
-        "extract_api_key": (settings.support_api_key or settings.map_api_key
-                            or settings.extract_api_key)}))
+        "extract_backend": settings.support_backend, "extract_base_url": url,
+        "extract_api_key": key}))
 
 
 def _read_ids(path: str, limit: int | None) -> list[str]:

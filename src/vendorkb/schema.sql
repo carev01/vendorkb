@@ -490,7 +490,7 @@ CREATE INDEX IF NOT EXISTS capabilities_conflict_idx ON capabilities (conflict_g
 -- that the vendor's product has the capability? ``supported`` and ``checker`` are the checker's
 -- verdict and id (model@effort/prompt version); ``review_supported`` and ``reviewer`` the
 -- reviewer's, NULL until a review. ``cost_usd`` sums both calls. ``capabilities build`` leaves
--- out the claims the reviewer rejected, and the flagged ones no vendor's "yes" rests on.
+-- out only the claims the reviewer rejected.
 CREATE TABLE IF NOT EXISTS claim_support (
     claim_id uuid PRIMARY KEY REFERENCES raw_claims ON DELETE CASCADE,
     supported boolean NOT NULL,

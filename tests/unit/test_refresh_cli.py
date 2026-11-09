@@ -112,6 +112,18 @@ def test_refresh_fails_when_the_support_step_raised(stubbed, monkeypatch, capsys
     assert cli.main(["refresh"]) == 1
 
 
+def test_the_support_endpoint_falls_back_as_a_url_and_key_pair(stubbed, monkeypatch):
+    monkeypatch.setenv("SUPPORT_BACKEND", "openai")
+    monkeypatch.setenv("MAP_BASE_URL", "http://router/v1")
+    monkeypatch.setenv("MAP_API_KEY", "map-key")
+    monkeypatch.setenv("EXTRACT_API_KEY", "gpu-key")
+    cli._support_client(cli.VendorkbSettings(_env_file=None))
+    monkeypatch.setenv("SUPPORT_BASE_URL", "http://other/v1")  # its key forgotten
+    cli._support_client(cli.VendorkbSettings(_env_file=None))
+    assert stubbed["clients"] == [("openai", "http://router/v1", "map-key"),
+                                  ("openai", "http://other/v1", "")]
+
+
 def test_claims_support_wires_its_endpoint_and_the_budgets(stubbed, monkeypatch, capsys):
     from vendorkb.claims import support
 

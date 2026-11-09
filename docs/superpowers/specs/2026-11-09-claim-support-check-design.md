@@ -108,7 +108,8 @@ The rows cascade with their claim.
 **Models.**
 
 - `SUPPORT_BACKEND` is `anthropic` by default, which uses `ANTHROPIC_API_KEY`. It can also be
-  `openai`, which uses `SUPPORT_BASE_URL` / `SUPPORT_API_KEY`, falling back to the `MAP_` ones.
+  `openai`, which uses `SUPPORT_BASE_URL` with `SUPPORT_API_KEY`, or the `MAP_` pair when
+  neither is set. A URL never takes another endpoint's key.
 - The models and efforts are settings:
 
 | setting | default |
@@ -128,7 +129,10 @@ The rows cascade with their claim.
 - A claim deleted while it is being asked is skipped (`vanished`).
 - These stop the step, because nothing else would succeed either:
   - a non-rate-limit 400;
-  - a 401, 402, 403 or 404 (a bad key, no credit, an unknown model).
+  - a 401, 402, 403 or 404 (a bad key, no credit, an unknown model);
+  - a TypeError (the Anthropic SDK's "no key" error).
+- A stopped check still lets the review run, and the first error is raised after both steps.
+- In `refresh`, rejections stored before a failure are still built.
 
 **Expected effect on the 31,476 ransomware-dimension facts.** From the production-path
 calibration:

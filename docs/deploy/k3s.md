@@ -246,11 +246,12 @@ the reviewer for every flagged claim, each with its own `maxUsd` per run; backen
 needs `ANTHROPIC_API_KEY` in the secret), and rebuilds capabilities. Chunks that only errored never trigger a
 run; they ride along with the next one.
 
-Add the two keys to the secret, then enable it with the endpoint's URL:
+Add the three keys to the secret (ANTHROPIC_API_KEY for the support check), then enable it with
+the endpoint's URL:
 
 ```
 kubectl -n vendorkb patch secret vendorkb-secret --type merge -p \
-  "{\"stringData\":{\"EXTRACT_API_KEY\":\"$SERVE_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\"}}"
+  "{\"stringData\":{\"EXTRACT_API_KEY\":\"$SERVE_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\",\"ANTHROPIC_API_KEY\":\"$ANTHROPIC_KEY\"}}"
 helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
   --set claimsRefresh.enabled=true \
   --set claimsRefresh.extract.baseUrl=https://<app>.<region>.azurecontainerapps.io/v1

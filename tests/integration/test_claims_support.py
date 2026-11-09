@@ -1,18 +1,23 @@
 """The claim support check (claims.support) against a real Postgres, with fake clients.
 
 Every vendor, phrase and quote here is invented for the tests."""
+import asyncio
 import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
 
+import httpx
+import openai
+import psycopg
+import pytest
 import yaml
 
 from tests.integration.test_capabilities_v2 import _claim
 from vendorkb.claims import support
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
-from vendorkb.taxonomy import capabilities, load
+from vendorkb.taxonomy import capabilities, llm, load
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 TOPIC = {"id": "loss", "name": "Data loss", "triggers": ["data loss"],
@@ -29,9 +34,9 @@ REVIEWER = "anthropic/claude-opus-5.5@low/review-v1"
 
 
 def _settings(**overrides) -> VendorkbSettings:
-    return VendorkbSettings(_env_file=None, support_backend="openai",
-                            support_model="anthropic/claude-haiku-5.5",
-                            support_review_model="anthropic/claude-opus-5.5", **overrides)
+    return VendorkbSettings(_env_file=None, **{
+        "support_backend": "openai", "support_model": "anthropic/claude-haiku-5.5",
+        "support_review_model": "anthropic/claude-opus-5.5", **overrides})
 
 
 class Fake:
@@ -314,25 +319,192 @@ async def test_a_claim_deleted_while_asked_is_skipped_and_the_run_finishes(vkb_d
         await conn.close()
 
 
-async def test_a_status_no_retry_can_fix_stops_the_step(vkb_dsn, tmp_path):
+@pytest.mark.parametrize("error", [Status(401), Status(402), Status(403), Status(404),
+                                   TypeError("Could not resolve authentication method")])
+async def test_an_error_no_retry_can_fix_stops_the_step(vkb_dsn, tmp_path, error):
     conn = await connect(vkb_dsn)
     try:
         version = await _fresh(conn, tmp_path)
         for n in range(4):
             await _fact(conn, version, RETENTION, f"kept {n}")
-        fake = Fake({f"kept {n}": Status(404) for n in range(4)})
-        try:
+        fake = Fake({f"kept {n}": error for n in range(4)})
+        with pytest.raises(type(error)):
             await support.run(conn, client=fake, settings=_settings(support_concurrency=1),
                               check_max_usd=1.0, review_max_usd=1.0)
-        except Status as e:
-            assert e.status_code == 404
-        else:
-            raise AssertionError("a 404 must stop the run")
         assert len(fake.calls) == 1 and await _rows(conn) == {}
-        # a transient status is this claim's failure only
+    finally:
+        await conn.close()
+
+
+async def test_a_transient_status_fails_only_its_claim(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        for n in range(4):
+            await _fact(conn, version, RETENTION, f"kept {n}")
         fake = Fake({f"kept {n}": Status(503) for n in range(4)})
         report = await support.run(conn, client=fake, settings=_settings(), check_max_usd=1.0,
                                    review_max_usd=1.0)
         assert report.check.invalid == 4 and len(fake.calls) == 4
+    finally:
+        await conn.close()
+
+
+def _bad_request(message: str) -> openai.BadRequestError:
+    response = httpx.Response(400, request=httpx.Request("POST", "http://router.test/v1"))
+    return openai.BadRequestError(message, response=response, body=None)
+
+
+async def test_a_bad_request_stops_the_step_but_a_rate_limit_fails_only_its_claim(
+        vkb_dsn, tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "RATE_LIMIT_BACKOFF_S", 0.0)
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        for n in range(3):
+            await _fact(conn, version, RETENTION, f"kept {n}")
+        fake = Fake({f"kept {n}": _bad_request("invalid schema") for n in range(3)})
+        with pytest.raises(openai.BadRequestError):
+            await support.run(conn, client=fake, settings=_settings(support_concurrency=1),
+                              check_max_usd=1.0, review_max_usd=1.0)
+        assert len(fake.calls) == 1
+        fake = Fake({f"kept {n}": _bad_request("rate limit exceeded") for n in range(3)})
+        report = await support.run(conn, client=fake, settings=_settings(), check_max_usd=1.0,
+                                   review_max_usd=1.0)
+        assert report.check.invalid == 3 and await _rows(conn) == {}
+    finally:
+        await conn.close()
+
+
+async def test_a_claim_deleted_by_an_open_transaction_is_skipped(vkb_dsn, tmp_path):
+    """The deleter's transaction is still open when the verdict is written: the foreign key
+    check waits for it, then fails, and the claim counts as vanished."""
+    conn = await connect(vkb_dsn)
+    deleter = await psycopg.AsyncConnection.connect(vkb_dsn)  # not autocommit
+    try:
+        version = await _fresh(conn, tmp_path)
+        doomed = await _fact(conn, version, RETENTION, "deleted meanwhile")
+        kept = await _fact(conn, version, RETENTION, "kept for a year")
+        commits = []
+
+        async def commit_later():
+            await asyncio.sleep(0.5)
+            await deleter.commit()
+            commits.append(True)
+
+        class Deleting(Fake):
+            async def create(self, **params):
+                if _capability(params) == "deleted meanwhile":
+                    await deleter.execute("DELETE FROM raw_claims WHERE claim_id = %s",
+                                          (doomed,))
+                    asyncio.get_running_loop().create_task(commit_later())
+                return await super().create(**params)
+
+        fake = Deleting({"deleted meanwhile": True, "kept for a year": True})
+        report = await support.run(conn, client=fake, settings=_settings(), check_max_usd=1.0,
+                                   review_max_usd=1.0)
+        assert commits == [True]
+        assert (report.check.calls, report.check.vanished, report.check.supported) == (2, 1, 1)
+        assert set(await _rows(conn)) == {kept}
+    finally:
+        await deleter.close()
+        await conn.close()
+
+
+async def test_a_claim_deleted_before_its_review_is_skipped(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        doomed = await _fact(conn, version, RETENTION, "deleted meanwhile")
+        await _verdict(conn, doomed, False)
+
+        class Deleting(Fake):
+            async def create(self, **params):
+                await conn.execute("DELETE FROM raw_claims WHERE claim_id = %s", (doomed,))
+                return await super().create(**params)
+
+        report = await support.run(conn, client=Deleting({"deleted meanwhile": False}),
+                                   settings=_settings(), check_max_usd=1.0, review_max_usd=1.0)
+        assert (report.review.calls, report.review.vanished, report.review.unsupported) == (
+            1, 1, 0)
+    finally:
+        await conn.close()
+
+
+async def test_a_stopped_check_still_lets_the_review_run(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        await _fact(conn, version, RETENTION, "never checked")
+        flagged = await _fact(conn, version, RETENTION, "flagged earlier")
+        await _verdict(conn, flagged, False)
+        fake = Fake({"never checked": Status(404), "flagged earlier": False})
+        with pytest.raises(Status):
+            await support.run(conn, client=fake, settings=_settings(), check_max_usd=1.0,
+                              review_max_usd=1.0)
+        assert fake.asked(support.REVIEW_SYSTEM) == ["flagged earlier"]
+        assert (await _rows(conn))[flagged][2] is False
+    finally:
+        await conn.close()
+
+
+class FakeAnthropic:
+    """Anthropic-shaped: ``messages.create`` with token usage and no reported cost."""
+
+    def __init__(self, verdicts: dict[str, bool]):
+        self.verdicts = verdicts
+        self.calls: list[dict] = []
+        self.messages = self
+
+    async def create(self, **params):
+        self.calls.append(params)
+        capability = re.search(r"^Capability: (.*)$", params["messages"][0]["content"],
+                               re.M).group(1)
+        text = json.dumps({"supported": self.verdicts[capability]})
+        return SimpleNamespace(
+            content=[SimpleNamespace(type="thinking", thinking=""),
+                     SimpleNamespace(type="text", text=text)],
+            stop_reason="end_turn", usage=SimpleNamespace(input_tokens=500, output_tokens=100))
+
+
+async def test_the_default_anthropic_backend_prices_each_step_from_tokens(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        claim = await _fact(conn, version, RETENTION, "generic advice")
+        fake = FakeAnthropic({"generic advice": False})
+        settings = VendorkbSettings(_env_file=None)  # the defaults: Anthropic, Haiku then Opus
+        report = await support.run(conn, client=fake, settings=settings, check_max_usd=1.0,
+                                   review_max_usd=1.0)
+        check, review = fake.calls
+        assert (check["model"], review["model"]) == ("claude-haiku-5-5", "claude-opus-5-5")
+        assert check["output_config"]["effort"] == "high"
+        assert review["output_config"]["effort"] == "low"
+        assert check["output_config"]["format"] == {"type": "json_schema",
+                                                    "schema": support.REPLY_SCHEMA}
+        assert (check["system"], review["system"]) == (support.CHECK_SYSTEM,
+                                                       support.REVIEW_SYSTEM)
+        assert check["max_tokens"] == support.MAX_TOKENS
+        haiku = (500 * 0.10 + 100 * 0.50) / 1e6
+        opus = (500 * 4.00 + 100 * 20.00) / 1e6
+        assert report.check.spent_usd == pytest.approx(haiku)
+        assert report.review.spent_usd == pytest.approx(opus)
+        row = (await _rows(conn))[claim]
+        assert row[0] is False and row[2] is False
+        assert row[4] == pytest.approx(haiku + opus)
+    finally:
+        await conn.close()
+
+
+async def test_an_unpriced_support_model_says_where_to_add_its_price(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        await _fact(conn, version, RETENTION, "kept for a year")
+        settings = _settings(support_model="vendor/unpriced-model",
+                             extract_price_in_per_mtok=2.0, extract_price_out_per_mtok=10.0)
+        with pytest.raises(ValueError, match="PRICES_PER_MTOK"):
+            await support.run(conn, client=Fake({}), settings=settings, check_max_usd=1.0,
+                              review_max_usd=1.0)
     finally:
         await conn.close()

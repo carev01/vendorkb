@@ -78,8 +78,9 @@ class VendorkbSettings(BaseSettings):
     # Claim support check (claims.support): the checker asks whether each in-scope claim's quote
     # shows the vendor's product has the capability; the reviewer re-asks every claim the checker
     # flags. SUPPORT_BACKEND "anthropic" uses ANTHROPIC_API_KEY; "openai" an OpenAI-compatible
-    # endpoint (SUPPORT_BASE_URL / SUPPORT_API_KEY, else the MAP_ ones; on OpenRouter set the
-    # models to anthropic/claude-haiku-5.5 and anthropic/claude-opus-5.5).
+    # endpoint (SUPPORT_BASE_URL with SUPPORT_API_KEY, or MAP_BASE_URL with MAP_API_KEY when
+    # neither is set; on OpenRouter set the models to anthropic/claude-haiku-5.5 and
+    # anthropic/claude-opus-5.5).
     support_backend: Literal["anthropic", "openai"] = "anthropic"
     support_base_url: str = ""
     support_api_key: str = ""
