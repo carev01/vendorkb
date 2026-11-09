@@ -3,7 +3,8 @@
 {{- $endpoint := required "claimsRefresh.extract.baseUrl is required: the extraction endpoint (deploy/azure), ending in /v1" $c.extract.baseUrl }}
 # `vendorkb refresh`, often: it contacts nothing until the sync has brought chunks no
 # extraction has touched, then wakes the scaled-to-zero extraction endpoint once per burst,
-# extracts them, maps their claims and rebuilds capabilities (src/vendorkb/claims/refresh.py).
+# extracts them, maps and support-checks their claims and rebuilds capabilities
+# (src/vendorkb/claims/refresh.py).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -43,6 +44,10 @@ spec:
                 - {{ $c.map.maxUsd | quote }}
                 - --warmup-seconds
                 - {{ $c.extract.warmupSeconds | quote }}
+                - --support-max-usd
+                - {{ $c.support.maxUsd | quote }}
+                - --support-review-max-usd
+                - {{ $c.support.reviewMaxUsd | quote }}
               {{- include "vendorkb.env" . | nindent 14 }}
                 # These win over the shared ConfigMap and secret (env beats envFrom).
                 - {name: EXTRACT_BACKEND, value: openai}
@@ -58,6 +63,11 @@ spec:
                 - {name: MAP_BACKEND, value: {{ $c.map.backend | quote }}}
                 - {name: MAP_BASE_URL, value: {{ $c.map.baseUrl | quote }}}
                 - {name: MAP_MODEL, value: {{ $c.map.model | quote }}}
+                - {name: SUPPORT_BACKEND, value: {{ $c.support.backend | quote }}}
+                - {name: SUPPORT_MODEL, value: {{ $c.support.model | quote }}}
+                - {name: SUPPORT_EFFORT, value: {{ $c.support.effort | quote }}}
+                - {name: SUPPORT_REVIEW_MODEL, value: {{ $c.support.reviewModel | quote }}}
+                - {name: SUPPORT_REVIEW_EFFORT, value: {{ $c.support.reviewEffort | quote }}}
               {{- include "vendorkb.envFrom" . | nindent 14 }}
               {{- include "vendorkb.containerSecurity" . | nindent 14 }}
               resources: {{- toYaml $c.resources | nindent 16 }}

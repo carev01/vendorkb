@@ -60,7 +60,18 @@ stack.
   - `vendorkb refresh` (`claims/refresh.py`, hourly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
-    MAP_API_KEY, else the EXTRACT_ ones) and rebuilds capabilities.
+    MAP_API_KEY, else the EXTRACT_ ones), support-checks and rebuilds capabilities.
+  - `vendorkb claims support` (`claims/support.py`, BACKLOG 36; spec
+    `specs/2026-11-09-claim-support-check-design.md`):
+    - the checker (`SUPPORT_MODEL`, Haiku 5.5 at effort high) asks whether the quote shows each
+      positive claim of a topic dimension (`claim_support`);
+    - the reviewer (`SUPPORT_REVIEW_MODEL`, Opus 5.5 at effort low) re-asks every claim the
+      checker flagged;
+    - `capabilities build` leaves out only the rejected claims (`Built.support_excluded`). A
+      flagged claim stays until its review, and each verdict is per claim, so nothing goes stale.
+
+    `SUPPORT_BACKEND` is anthropic (`ANTHROPIC_API_KEY`) by default, and each step has its own
+    budget. The refresh runs both steps too.
   - a re-synced page (`store.write_document`) is written per chunk. A new chunk whose
     `chunker.reuse_key` equals a current chunk's (whitespace, link targets, backslashes and
     "Last Updated" lines ignored), with every claim quote still in the text, reuses that chunk:

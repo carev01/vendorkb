@@ -293,11 +293,25 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     27-80 s and 109-148k rerank tokens (vs 8-23 s, 12-23k); `vendorkb stats` counts superseded
     chunks; MCP does not surface `catch_up_ok`/`summary_error`; the grid's catch-up has no
     per-vendor cap.
-36. **Claims whose quote does not establish them for the vendor.** 15.6% of the distilled 9B's
-    facts (vs 5.1% of Opus's) on the 1,100 graded security facts: generic advice, another product,
-    a prerequisite. The evidence gate only checks that the quote is verbatim. Options, cheapest
-    first: a one-time support check of existing facts with a cheap model, calibrated on the graded
-    facts (Haiku: ~$1-2 for the ransomware-kit dimensions, ~$15-20 for every fact), then in the
-    refresh pipeline for new claims; re-extracting with a stronger model (~$50-100 with Haiku batch
-    for the corpus, quality unmeasured); retraining the 9B with negative examples.
+36. **Claims whose quote does not establish them for the vendor.** On 1,078 security facts
+    with consensus gold labels (Opus + Fable, 96% agreement), 9.8% of the distilled 9B's facts
+    are unsupported, vs 0/57 of Opus's (the earlier 15.6% used a brief that counted
+    requirements and limits as unsupported). **Done 2026-11-09 (`claims/support.py`, spec
+    `specs/2026-11-09-claim-support-check-design.md`):**
+    - The checker is Haiku 5.5 at effort high: it flags 41% of the unsupported facts and 3.3%
+      of the supported ones.
+    - Opus 5.5 at effort low reviews every flagged claim. On the Anthropic API it kept 32/32
+      wrongly flagged facts and confirmed 32/41.
+    - End to end: 32% of the unsupported facts are removed, and none of the 978 supported
+      ones.
+    - Only rejected claims leave capabilities.
+    - Scope: the topic dimensions, also in `vendorkb refresh`, on the Anthropic API.
+
+    Retraining the 9B was not tried: graph-rag's DPO round (dpo4) made the student terse, not
+    selective. Open:
+    - other dimensions (~$15-20 with Haiku for every fact, plus the review);
+    - target verification;
+    - the Message Batches API for half price;
+    - the mapper's per-claim handling of 401/402/404 (it spends its budget on a misconfigured
+      endpoint; `support` stops instead).
 

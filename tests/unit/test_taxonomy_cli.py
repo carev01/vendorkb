@@ -136,7 +136,7 @@ def test_taxonomy_load_lists_every_problem(stubbed, monkeypatch, capsys):
 
 def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     async def fake_build(conn):
-        return capabilities.Built(rows=7, retired=3)
+        return capabilities.Built(rows=7, retired=3, support_excluded=2)
 
     async def fake_version(conn):
         return "3"
@@ -155,6 +155,7 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
     monkeypatch.setattr(capabilities, "query", fake_query)
     assert cli.main(["capabilities", "build"]) == 0
     assert json.loads(capsys.readouterr().out) == {"rows": 7, "retired": 3,
+                                                  "support_excluded": 2,
                                                   "taxonomy_version": "3"}
     assert cli.main(["capabilities", "query", "--target", "aws", "--vendor", "veeam",
                      "--vendor", "acme", "--support", "partial", "--offering", "o", "--edition", "e",

@@ -12,7 +12,11 @@ start per sync), unless the backlog already fills a run (``extract_limit``). A d
    ride along), at most ``extract_limit``;
 3. maps the claims not yet mapped under the current taxonomy version (``map_max_usd``; claims
    left over wait for the next due run, so an idle refresh never spends);
-4. rebuilds the capabilities table when anything was extracted or mapped.
+4. support-checks the claims of topic dimensions (``support.run`` with ``support_client``: the
+   checker, then the reviewer for every flagged claim; ``support_max_usd`` and
+   ``support_review_max_usd``; claims left over wait for the next due run; a failure is
+   reported in ``support.error`` and does not stop the rebuild);
+5. rebuilds the capabilities table when anything was extracted, mapped or support-checked.
 """
 from __future__ import annotations
 
@@ -28,7 +32,7 @@ from typing import Any
 import httpx
 import psycopg
 
-from vendorkb.claims import extract
+from vendorkb.claims import extract, support
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy import capabilities, mapper
 from vendorkb.taxonomy.load import current_version
@@ -44,6 +48,7 @@ class RefreshReport:
     reason: str = ""
     extract: dict[str, Any] | None = None  # extract.ExtractReport of a due run
     map: dict[str, Any] | None = None  # mapper.MapReport of a due run
+    support: dict[str, Any] | None = None  # support.SupportReport of a due run
     capabilities_rows: int | None = None  # set when the table was rebuilt
 
 
@@ -79,9 +84,10 @@ async def wait_until_ready(base_url: str, api_key: str, *, timeout_s: float,
 
 
 async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
-                  extract_client: Any, map_client: Any, embedder: Any,
+                  extract_client: Any, map_client: Any, support_client: Any, embedder: Any,
                   ready: Callable[[], Awaitable[None]], settle_minutes: float,
-                  extract_limit: int, map_max_usd: float,
+                  extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
+                  support_review_max_usd: float = 0.0,
                   now: datetime | None = None) -> RefreshReport:
     report = RefreshReport()
     count, newest = await new_chunks(conn)
@@ -112,6 +118,18 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
         report.map = dataclasses.asdict(mapped)
         report.map["errors"] = report.map["errors"][:20]
         changed = changed or mapped.claims > 0
+        rejected = await support.rejected_count(conn)
+        try:
+            checked = await support.run(conn, client=support_client, settings=settings,
+                                        check_max_usd=support_max_usd,
+                                        review_max_usd=support_review_max_usd)
+        except Exception as e:  # what was extracted, mapped or rejected is still built; the
+            log.exception("refresh: the support check failed")  # Job fails
+            report.support = {"error": f"{type(e).__name__}: {e}"}
+            changed = changed or await support.rejected_count(conn) != rejected
+        else:
+            report.support = dataclasses.asdict(checked)
+            changed = changed or checked.check.calls > 0 or checked.review.calls > 0
     if changed:
         report.capabilities_rows = (await capabilities.build(conn)).rows
     log.info("refresh: %s", report)

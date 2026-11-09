@@ -2,7 +2,8 @@
 
 ``build`` replaces every row (delete, then insert, in one transaction) with one row per claim
 of the claims-v3 family (``propose.PROMPT_FAMILY``) mapped under the current taxonomy version
-with a dimension. Each row is keyed on its claim and gets:
+with a dimension, except the claims the support check's reviewer rejected
+(``claims.support.NOT_REJECTED``). Each row is keyed on its claim and gets:
 
 - ``scope`` (workload dimensions, i.e. not ``platform``):
   - ``target_unmapped``: the claim names a target that matched no taxonomy target
@@ -58,6 +59,7 @@ from typing import Any, NamedTuple
 
 import psycopg
 
+from vendorkb.claims.support import NOT_REJECTED
 from vendorkb.store import retire_superseded
 from vendorkb.taxonomy.aspects import _lineage, dimension_applies
 from vendorkb.taxonomy.cluster import normalize
@@ -149,6 +151,7 @@ class Built(NamedTuple):
     """What ``build`` did."""
     rows: int  # capability rows written
     retired: int  # superseded chunks deleted (their claims and facts with them)
+    support_excluded: int = 0  # mapped claims left out: the support reviewer rejected them
 
 
 async def build(conn: psycopg.AsyncConnection) -> Built:
@@ -162,6 +165,11 @@ async def build(conn: psycopg.AsyncConnection) -> Built:
         await conn.execute("DELETE FROM capabilities")
         if version is None:
             return Built(0, retired)
+        cur = await conn.execute(
+            "SELECT count(*) FROM raw_claims r WHERE r.prompt_version LIKE %s"
+            f" AND r.mapped_version = %s AND r.dimension_id IS NOT NULL AND NOT {NOT_REJECTED}",
+            (PROMPT_FAMILY, version))
+        excluded = int((await cur.fetchone())[0])  # type: ignore[index]
         cur = await conn.execute(
             "INSERT INTO capabilities (claim_id, vendor, product, offering_id, edition_id,"
             " dimension_id, class_id, target_id, variant_id, object_type_id, kind, support,"
@@ -193,10 +201,11 @@ async def build(conn: psycopg.AsyncConnection) -> Built:
             "  JOIN chunks ch ON ch.chunk_id = r.chunk_id"
             "  JOIN documents d ON d.doc_id = ch.doc_id"
             "  JOIN dimensions dim ON dim.dimension_id = r.dimension_id"
-            "  WHERE r.prompt_version LIKE %(family)s AND r.mapped_version = %(ver)s) s"
+            "  WHERE r.prompt_version LIKE %(family)s AND r.mapped_version = %(ver)s"
+            f"  AND {NOT_REJECTED}) s"
             f" WINDOW k AS (PARTITION BY {key})",
             {"ver": version, "family": PROMPT_FAMILY})
-        return Built(cur.rowcount, retired)
+        return Built(cur.rowcount, retired, excluded)
 
 
 def _vendors(vendor: str | tuple[str, ...] | None) -> list[str] | None:
