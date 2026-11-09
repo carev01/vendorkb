@@ -4522,12 +4522,12 @@ topics:
   - id: built_in_security
     name: Built-in security (RBAC, MFA, SSO)
     query: role-based access control, multi-factor authentication and single sign-on for the backup console, audit logging, SIEM alerts
-    cues: [rbac, role-based access, mfa, multi-factor, two-factor, 2fa, single sign-on, sso, saml, access control, least privilege, audit log, siem, syslog]
+    cues: [rbac, role-based access, mfa, multi-factor, two-factor, 2fa, single sign-on, sso, saml, access control, least privilege, audit log, siem, syslog, splunk, sentinel]
     dimensions: [security.rbac, security.mfa, security.sso, security.audit_logging, cyber.siem_integration]
   - id: immutability
     name: Immutability / WORM
     query: immutable backups, WORM storage, object lock, hardened repository, backups that cannot be changed or deleted before retention ends
-    cues: [immutab, worm, object lock, hardened repositor, write once, retention lock]
+    cues: [immutab, worm, object lock, hardened repositor, write once, retention lock, datalock, snaplock, safe mode, safeguarded cop]
     dimensions: [security.immutability, security.immutability_level, security.immutability_mode, security.immutability_scope, security.immutability_period]
   - id: anomaly_detection
     name: Anomaly detection
@@ -4537,12 +4537,12 @@ topics:
   - id: malware_detection
     name: Malware detection
     query: malware scanning of backups with antivirus signatures, entropy or machine-learning analysis, YARA rules, indicators of compromise and hash lists
-    cues: [malware scan, malware detect, scan for malware, scanning for malware, detect malware, detecting malware, scan backup, scanning backup, antivirus, anti-virus, virus scan, yara, indicator of compromise, indicators of compromise, ioc, entropy, signature scan, threat hunt]
+    cues: [malware scan, malware detect, scan for malware, scanning for malware, detect malware, detecting malware, scan backup, scanning backup, antivirus, anti-virus, virus scan, yara, indicator of compromise, indicators of compromise, ioc, entropy, signature scan, threat hunt, detect ransomware, detecting ransomware, ransomware detect]
     dimensions: [cyber.detection_signatures, cyber.detection_entropy, cyber.detection_rules, cyber.indicators_of_compromise, cyber.third_party_scanners]
   - id: clean_recovery
     name: Clean recovery
     query: clean recovery after an attack, scanning backups during restore, quarantining infected restore points, finding the last clean restore point, clean room recovery
-    cues: [scan on restore, scan during restore, scan restore point, scanning restore point, scan before recover, scan before restor, secure restore, quarantin, clean restore point, last clean, clean recover, clean room, cleanroom, isolated recovery]
+    cues: [scan on restore, scan during restore, scan restore point, scanning restore point, scan before recover, scan before restor, secure restore, quarantin, clean restore point, last clean, clean recover, clean room, cleanroom, isolated recovery, known good]
     dimensions: [cyber.scan_on_restore, cyber.quarantine, cyber.clean_point_identification, cyber.clean_room]
   - id: air_gap
     name: Air gap / isolated copies
@@ -4552,10 +4552,10 @@ topics:
   - id: deletion_safeguards
     name: Deletion safeguards
     query: protection against deleting backups, soft delete of backups, a second approver (multi-person authorization) for destructive operations
-    cues: [soft delete, soft-delete, multi-person, multi-party, four-eyes, four eyes, second approver, dual authoriz, dual approv, quorum, delete protection, deletion protection]
+    cues: [soft delete, soft-delete, multi-person, multi-party, four-eyes, four eyes, second approver, dual authoriz, dual approv, quorum, delete protection, deletion protection, two person, two party]
     dimensions: [security.soft_delete_of_backups, security.multi_person_authorization]
   - id: encryption
     name: Backup encryption
     query: encryption of backup data at rest and in transit, client-side encryption, customer-managed keys
-    cues: [encryption, encrypt backup, encrypting backup, encrypted backup, customer-managed key, kms]
+    cues: [encryption, encrypt backup, encrypting backup, encrypted backup, customer-managed key, kms, encrypt data, encrypts data, at rest, in transit, aes]
     dimensions: [security.encryption_at_rest, security.encryption_in_transit, security.client_side_encryption, security.customer_managed_keys]

@@ -65,6 +65,16 @@ def test_naming_an_aspect_keeps_todays_behaviour(T, question):
     "Does Rubrik offer an isolated recovery environment for ransomware?",
     "Does Dell use retention lock against ransomware?",
     "Does NetApp keep offline copies against ransomware?",
+    "Does Veeam require two-person approval to delete backups after ransomware?",
+    "Does Veeam encrypt data in transit and at rest to protect against ransomware?",
+    "Does Veeam support AES-256 against ransomware?",
+    "Can Rubrik restore to the last known good snapshot after ransomware?",
+    "Can Commvault use machine learning to detect ransomware?",
+    "Does Veeam forward ransomware alerts to Splunk?",
+    "Does Veeam send ransomware events to Microsoft Sentinel?",
+    "Does Cohesity DataLock stop ransomware from deleting backups?",
+    "Does NetApp SnapLock protect backups from ransomware?",
+    "Does Pure Storage Safe Mode protect against ransomware?",
 ])
 def test_aspect_specific_questions_do_not_expand(T, question):
     assert detect_topic(question, T) is None
