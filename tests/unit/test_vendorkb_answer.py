@@ -871,6 +871,7 @@ async def test_which_vendors_topic_question_gets_the_grid(monkeypatch, topic):
         ["Veeam", "Commvault"], ["Commvault", "Veeam"])  # the vendors with a row
     assert (r["lines_dropped"], r["second_pass_listed"]) == (0, 0)
     assert r["uncited"] is False and r["error"] is None and r["truncated"] is False
+    assert r["summary_error"] is None and r["catch_up_ok"] is True
     assert r["unknown_markers"] == 0 and r["usage"]["completion_tokens"] == 5
     # the summary: the brief's rules, then a line per aspect with the vendors whose cell is a
     # fact (the page not yet analysed is not a fact), at most 2000 tokens
@@ -890,7 +891,7 @@ async def test_a_grid_summary_carries_no_markers_of_its_own(monkeypatch, topic):
     r = await _run_topic(FakeClient(["Veeam leads [2] and Commvault trails [1, 3]."]),
                          WHICH_VENDORS_Q, INDEX_VC)
     assert r["answer"].startswith("Veeam leads and Commvault trails.\n\n| Vendor |")
-    assert r["unknown_markers"] == 2 and len(r["citations"]) == 4
+    assert r["unknown_markers"] == 3 and len(r["citations"]) == 4  # [2], [1, 3]: three numbers
 
 
 @pytest.mark.asyncio
@@ -902,8 +903,30 @@ async def test_a_failed_summary_leaves_the_grid_alone(monkeypatch, topic):
     r = await _run_topic(client, WHICH_VENDORS_Q, INDEX_VC)
     table, hits = topics_mod.render_grid(grid, topic)
     assert len(client.calls) == 2 and r["answer"] == table
-    assert len(r["citations"]) == len(hits) == 4 and r["error"] is None
-    assert r["truncated"] is False
+    assert len(r["citations"]) == len(hits) == 4 and r["truncated"] is False
+    # the failure is reported, but `error` stays None: mcp_server turns `error` into a ToolError
+    assert r["error"] is None and r["summary_error"] == "RuntimeError: boom"
+
+
+@pytest.mark.parametrize("replies", [["", "  \n"], ["[1]", "[2, 3]"]])
+@pytest.mark.asyncio
+async def test_an_empty_summary_is_a_failed_summary(monkeypatch, topic, replies):
+    grid = _grid_of(topic)
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    r = await _run_topic(FakeClient(replies), WHICH_VENDORS_Q, INDEX_VC)
+    assert r["answer"] == topics_mod.render_grid(grid, topic)[0]
+    assert r["error"] is None and r["summary_error"] == "empty reply"
+
+
+@pytest.mark.asyncio
+async def test_a_grid_without_its_catch_up_says_so(monkeypatch, topic):
+    grid = _grid_of(topic)
+    grid.catch_up_ok = False
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    r = await _run_topic(FakeClient(["Veeam covers most aspects."]), WHICH_VENDORS_Q, INDEX_VC)
+    assert r["catch_up_ok"] is False and r["answer"].startswith("Veeam covers")
 
 
 @pytest.mark.parametrize("finish, flagged", [("length", True), ("stop", False)])
@@ -929,6 +952,7 @@ async def test_a_grid_with_no_marks_answers_without_the_model(monkeypatch, topic
     assert "No fact found for: Commvault, Veeam." in r["answer"] and "| Vendor" not in r["answer"]
     assert r["citations"] == [] and r["retrieved"] == 0 and r["uncited"] is False
     assert r["topic"] == topic.id and r["truncated"] is False and r["usage"] is None
+    assert r["summary_error"] is None and r["catch_up_ok"] is True
 
 
 @pytest.mark.parametrize("question", [

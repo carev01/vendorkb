@@ -21,22 +21,26 @@ extraction has reached yet, when the reranker finds it on point. ``render_grid``
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Literal, cast
 
+import httpx
 import psycopg
 
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.modes import ENUMERATION_MIN_SCORE, _distinct
 from vendorkb.search import (
-    _COLS, Hit, _hit, facet_candidates, hybrid_candidates, unextracted_candidates,
+    _COLS, VEC_LIMIT, Hit, _hit, facet_candidates, hybrid_candidates, unextracted_candidates,
     vector_candidates)
 from vendorkb.shape import Facet
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Aspect, Topic, current_version
+
+log = logging.getLogger(__name__)
 
 # Documents one topic question sends to the reranker in all, its own passages' reranks included:
 # the hard cap on the main cost (rerank tokens).
@@ -267,6 +271,7 @@ class Grid:
     no_fact: list[str]  # the vendors asked about with no cell, by name
     rerank_ok: bool = True  # the catch-up reranker judged every list it needed to
     reranked_docs: int = 0  # documents the catch-up's reranker scored (calls that succeeded)
+    catch_up_ok: bool = True  # False: the embedder failed and the catch-up was skipped
 
 
 async def _best_facts(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[str],
@@ -276,11 +281,15 @@ async def _best_facts(conn: psycopg.AsyncConnection, topic: Topic, vendors: list
     taxonomy ``version`` on the aspects' dimensions (a dimension two aspects list counts for
     both). Best is: supported over partial, then a fact on a current chunk over one on an
     earlier version of its page (``chunks.superseded_at``, read now), then ``is_current``, the
-    newest page, the chunk. The vendor is the page's, as the citation shows it."""
+    newest page, the chunk. The vendor is the page's, as the citation shows it.
+
+    The pick sorts narrow rows (ids, flags, dates: ``c.text`` in them made three 11 MB sorts
+    for 239 cells); the chunk columns are read only for the rows picked."""
     pairs = [(a.id, dimension) for a in topic.aspects for dimension in a.dimensions]
     cur = await conn.execute(
-        "SELECT DISTINCT ON (d.vendor, a.aspect_id) d.vendor, a.aspect_id, cap.support,"
-        f" c.superseded_at IS NOT NULL, cap.doc_version, {_COLS}"
+        "SELECT p.vendor, p.aspect_id, p.support, p.superseded, p.doc_version, " + _COLS +
+        " FROM (SELECT DISTINCT ON (d.vendor, a.aspect_id) d.vendor, a.aspect_id, cap.support,"
+        " c.superseded_at IS NOT NULL AS superseded, cap.doc_version, c.chunk_id"
         " FROM capabilities cap JOIN raw_claims r ON r.claim_id = cap.claim_id"
         " JOIN chunks c ON c.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
         " JOIN unnest(%s::text[], %s::text[]) AS a(aspect_id, dimension_id)"
@@ -289,7 +298,9 @@ async def _best_facts(conn: psycopg.AsyncConnection, topic: Topic, vendors: list
         " AND cap.support IN ('supported', 'partial')"
         " ORDER BY d.vendor, a.aspect_id, (cap.support = 'supported') DESC,"
         " (c.superseded_at IS NULL) DESC, cap.is_current DESC, cap.doc_version DESC,"
-        " c.chunk_id, cap.claim_id",
+        " c.chunk_id, cap.claim_id) p"
+        " JOIN chunks c ON c.chunk_id = p.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
+        " ORDER BY p.vendor, p.aspect_id",
         [[aspect for aspect, _ in pairs], [dimension for _, dimension in pairs], vendors,
          version])
     return [(vendor, aspect, support, superseded, doc_version, _hit(tuple(row)))
@@ -298,21 +309,33 @@ async def _best_facts(conn: psycopg.AsyncConnection, topic: Topic, vendors: list
 
 async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[str],
                     cells: dict[tuple[str, str], Cell], *, embedder: Embedder,
-                    reranker: Reranker | None) -> tuple[bool, int]:
+                    reranker: Reranker | None) -> tuple[bool, bool, int]:
     """Fill the empty cells of ``cells`` (in place) from the chunks no extraction has reached
-    (``search.unextracted_candidates``): per aspect, the best ``CATCH_UP_CANDIDATES`` for the
-    aspect's query, of the vendors whose cell is still empty, reranked with that query. The
-    best passage of a vendor that scores at least ``ENUMERATION_MIN_SCORE`` becomes its
-    ``recent`` cell. A list whose rerank fails (or no reranker) marks nothing: a page nobody
-    verified never fills a cell unscored. Returns (every list judged, documents scored); an
-    embedder failure propagates, as in ``topic_hits``."""
+    (``search.unextracted_candidates``): per aspect, the best candidates for the aspect's query
+    (``VEC_LIMIT`` of them), minus those of vendors not asked about and of vendors whose cell is
+    already filled (a vendor with facts must not crowd the others out of the cut), the first
+    ``CATCH_UP_CANDIDATES`` of what is left reranked with that query. The best passage of a
+    vendor that scores at least ``ENUMERATION_MIN_SCORE`` becomes its ``recent`` cell. A list
+    whose rerank fails (or no reranker) marks nothing: a page nobody verified never fills a
+    cell unscored.
+
+    Returns (the embedder answered, every list judged, documents scored). An embedder that
+    fails over HTTP (``httpx.HTTPError``) skips the catch-up with a warning: the grid is the
+    facts alone. Any other embedder error, a wrong count or dimension, is a defect and
+    propagates."""
     aspects = topic.aspects
     limit = max(1, min(CATCH_UP_CANDIDATES, TOPIC_RERANK_DOCS // len(aspects)))
     queries = [a.query for a in aspects]
-    lists = await unextracted_candidates(
-        conn, queries, await embedder.embed(queries, input_type="query"), limit=limit)
+    try:
+        qvecs = await embedder.embed(queries, input_type="query")
+    except httpx.HTTPError as exc:
+        log.warning("vendorkb grid catch-up skipped, the embedder failed: %s: %s",
+                    type(exc).__name__, exc)
+        return False, True, 0
+    lists = await unextracted_candidates(conn, queries, qvecs, limit=VEC_LIMIT)
     asked = set(vendors)
-    jobs = [(a.query, [h for h in found if h.vendor in asked and (h.vendor, a.id) not in cells])
+    jobs = [(a.query, [h for h in found
+                       if h.vendor in asked and (h.vendor, a.id) not in cells][:limit])
             for a, found in zip(aspects, lists)]
     results = await _rerank_lists(reranker, jobs)
     docs = 0
@@ -324,7 +347,7 @@ async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[s
             if ((hit.rerank_score or 0.0) >= ENUMERATION_MIN_SCORE
                     and (hit.vendor, aspect.id) not in cells):
                 cells[(hit.vendor, aspect.id)] = Cell("recent", hit, False)
-    return reranker is not None and all(judged for _, judged in results), docs
+    return True, reranker is not None and all(judged for _, judged in results), docs
 
 
 async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: list[str],
@@ -333,7 +356,8 @@ async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: li
     """The grid of ``vendors`` by the aspects of ``topic``: each cell the best capability fact
     (``_best_facts``), then, with ``catch_up``, the ``recent`` cells (``_catch_up``) for the
     cells no fact fills. A fact never gives way to a recent page. ``facts_as_of`` is the newest
-    ``doc_version`` of the fact cells; no taxonomy loaded means no fact cells."""
+    ``doc_version`` of the fact cells; no taxonomy loaded means no fact cells. An embedder that
+    is down costs the catch-up only (``catch_up_ok`` False), never the facts."""
     vendors = list(dict.fromkeys(vendors))
     version = await current_version(conn) if vendors else None
     cells: dict[tuple[str, str], Cell] = {}
@@ -345,14 +369,14 @@ async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: li
                 cast(Mark, support), replace(hit, superseded=True) if superseded else hit,
                 superseded)
             as_of = doc_version if as_of is None else max(as_of, doc_version)
-    rerank_ok, docs = True, 0
+    catch_up_ok, rerank_ok, docs = True, True, 0
     if catch_up and vendors:
-        rerank_ok, docs = await _catch_up(conn, topic, vendors, cells, embedder=embedder,
-                                          reranker=reranker)
+        catch_up_ok, rerank_ok, docs = await _catch_up(
+            conn, topic, vendors, cells, embedder=embedder, reranker=reranker)
     rows = sorted({vendor for vendor, _ in cells})
     return Grid(vendors=rows, cells=cells, facts_as_of=as_of,
                 no_fact=sorted(v for v in vendors if v not in rows), rerank_ok=rerank_ok,
-                reranked_docs=docs)
+                reranked_docs=docs, catch_up_ok=catch_up_ok)
 
 
 _MARKS = {"supported": "✓", "partial": "◐", "recent": "○"}

@@ -408,7 +408,8 @@ async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder,
         "aspects": [a.name for a in topic.aspects],
         "scope": {"vendors": [], "products": [], "relaxed": False},
         "rerank_ok": grid.rerank_ok, "retrieved": len(hits),
-        "reranked_docs": grid.reranked_docs, "truncated": False, "usage": None, "error": None,
+        "reranked_docs": grid.reranked_docs, "catch_up_ok": grid.catch_up_ok,
+        "truncated": False, "usage": None, "error": None, "summary_error": None,
         "vendors_checked": checked, "vendors_listed": list(grid.vendors), "lines_dropped": 0,
         "lines_naming_other_vendors": 0, "second_pass_listed": 0}
     if not hits:  # nothing to summarise
@@ -421,13 +422,25 @@ async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder,
     if out["truncated"]:
         log.warning("vendorkb grid summary truncated at %d tokens", GRID_SUMMARY_MAX_TOKENS)
     if content is None:
+        # `error` stays None: the grid is an answer, and mcp_server turns `error` into a ToolError
         log.warning("vendorkb grid summary failed: %s", error)
+        out["summary_error"] = error
         return out
-    # a marker in the summary would cite a cell of the table by accident
-    summary, stripped = _GROUP.subn("", content)
+    stripped = 0
+
+    def drop(m: re.Match[str]) -> str:
+        nonlocal stripped
+        stripped += len(re.split(r"\s*,\s*", m.group(2)))
+        return ""
+
+    # a marker in the summary would cite a cell of the table by accident; counted by number,
+    # as resolve_markers counts the ones it drops
+    summary = _GROUP.sub(drop, content).strip()
     out["unknown_markers"] = stripped
-    if summary.strip():
-        out["answer"] = f"{summary.strip()}\n\n{table}"
+    if summary:
+        out["answer"] = f"{summary}\n\n{table}"
+    else:
+        out["summary_error"] = "empty reply"
     return out
 
 

@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from itertools import groupby
 from pathlib import Path
 
+import httpx
 import pytest
 import yaml
 from pgvector import Vector
@@ -698,7 +699,7 @@ async def test_grid_cells_take_the_best_fact(kb):
     # facts the grid shows (not Alpha's day-12 partial, nor Beta's day-20 earlier version)
     assert grid.vendors == ["Alpha", "Beta"] and grid.no_fact == ["Gamma"]
     assert grid.facts_as_of == _day(10)
-    assert grid.reranked_docs == 0 and grid.rerank_ok is True
+    assert grid.reranked_docs == 0 and grid.rerank_ok is True and grid.catch_up_ok is True
 
 
 async def test_a_grid_of_no_vendors_has_no_rows(kb):
@@ -812,6 +813,7 @@ async def test_no_catch_up_means_no_search(kb):
                             catch_up=False)
     assert emb.calls == [] and rr.calls == []
     assert list(grid.cells) == [("Alpha", "keeping")] and grid.rerank_ok is True
+    assert grid.catch_up_ok is True  # not asked for is not failed
 
 
 @pytest.mark.parametrize("aspects, per_list", [(8, 20), (13, 18)])
@@ -832,6 +834,109 @@ async def test_the_catch_up_rerank_spend_is_capped(kb, aspects, per_list):
     assert grid.reranked_docs == aspects * per_list <= TOPIC_RERANK_DOCS
     assert gauge.most == 4  # the shared limit on rerank calls in flight
     assert grid.cells == {} and grid.no_fact == ["Alpha", "Beta"]  # the filler scores nothing
+
+
+class _DownEmbedder:
+    """An embedder that fails with ``error``."""
+
+    def __init__(self, error):
+        self.error = error
+        self.calls = 0
+
+    async def embed(self, texts, *, input_type="document"):
+        self.calls += 1
+        raise self.error
+
+
+async def test_an_embedder_outage_leaves_the_grid_of_facts(kb, caplog):
+    conn, v = kb
+    fact, _ = await _catch_up_corpus(conn, v)
+    rr = _Reranker()
+    down = _DownEmbedder(httpx.ConnectError("embedder is down"))
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta", "Gamma"], embedder=down,
+                            reranker=rr)
+    # the facts alone, no search: no recent cell, no rerank, and the flag says why
+    assert {k: (c.mark, c.hit.chunk_id) for k, c in grid.cells.items()} == {
+        ("Alpha", "keeping"): ("supported", await _chunk_of(conn, fact))}
+    assert (grid.vendors, grid.no_fact) == (["Alpha"], ["Beta", "Gamma"])
+    assert grid.catch_up_ok is False and grid.facts_as_of == T0
+    assert down.calls == 1 and rr.calls == [] and grid.reranked_docs == 0
+    assert grid.rerank_ok is True  # the reranker was not at fault
+    assert "catch-up skipped" in caplog.text and "embedder is down" in caplog.text
+    # an answer that is no outage (a wrong count or dimension) is a defect: it still raises
+    with pytest.raises(RuntimeError, match="dimension"):
+        await topic_grid(conn, TOPIC, vendors=["Alpha"], reranker=rr,
+                         embedder=_DownEmbedder(RuntimeError("embedding has dimension 3")))
+
+
+async def test_catch_up_looks_past_the_pages_of_vendors_with_a_fact(kb):
+    conn, v = kb
+    await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
+                 mapped_version=v)
+    await capabilities.build(conn)
+    alpha = await _doc(conn, "Alpha", "Alpha Product")
+    beta = await _doc(conn, "Beta", "Beta Product")
+    # 25 waiting pages of Alpha (whose keeping cell a fact fills) lead both rankings for the
+    # keeping query; the one page of Beta is farther in the vectors and ranks below them in text
+    for n in range(25):
+        await _waiting(conn, alpha, f"retention period for kept copies {n}", 1)
+    wanted = await _chunk(conn, beta, "retention period of one week",
+                          [0.0, 0.6, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0])
+    rr = _Reranker()
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=rr)
+    recent = {k: c.hit.chunk_id for k, c in grid.cells.items() if c.mark == "recent"}
+    assert recent == {("Beta", "keeping"): wanted}
+    assert grid.cells[("Alpha", "keeping")].mark == "supported"
+    # Alpha's pages are dropped before the cut to 20, not after: only Beta's page is reranked
+    # for keeping, and no call sends more than 20 documents
+    (keeping,) = [docs for q, docs, _ in rr.calls if q == KEEPING.query]
+    assert keeping == ["retention period of one week"]
+    assert max(len(docs) for _, docs, _ in rr.calls) == 20
+    assert grid.reranked_docs == sum(len(docs) for _, docs, _ in rr.calls)
+
+
+async def test_catch_up_with_nothing_waiting_changes_nothing(kb):
+    conn, v = kb
+    await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
+                 mapped_version=v)
+    await _claim(conn, "coverage.restore", vendor="Beta", product="Beta Vault", mapped_version=v,
+                 support="partial")
+    await capabilities.build(conn)  # every chunk is extracted: the pool is empty
+    rr = _Reranker()
+    plain = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=None,
+                             reranker=None, catch_up=False)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=rr)
+    assert rr.calls == [] and grid.reranked_docs == 0
+    assert grid.rerank_ok is True and grid.catch_up_ok is True
+    assert grid.cells == plain.cells and grid.vendors == plain.vendors
+    assert (grid.no_fact, grid.facts_as_of) == (plain.no_fact, plain.facts_as_of)
+
+
+async def test_a_dimension_two_aspects_list_fills_both_cells(kb):
+    conn, v = kb
+    overlap = Topic("overlap", "Overlap", ("overlap",), (
+        Aspect("first", "First", "q one", (), ("retention.maximum_period",)),
+        Aspect("second", "Second", "q two", (), ("coverage.restore", "retention.maximum_period"))))
+    both = await _claim(conn, "retention.maximum_period", vendor="Alpha", product="P1",
+                        mapped_version=v)
+    await _claim(conn, "coverage.restore", vendor="Alpha", product="P1", mapped_version=v,
+                 support="partial")
+    await _claim(conn, "coverage.restore", vendor="Beta", product="Q1", mapped_version=v,
+                 support="partial")
+    await capabilities.build(conn)
+    grid = await topic_grid(conn, overlap, vendors=["Alpha", "Beta"], embedder=None,
+                            reranker=None, catch_up=False)
+    chunk = await _chunk_of(conn, both)
+    # one fact fills the cell of each aspect that lists its dimension (and, supported, it beats
+    # the second aspect's partial fact on its other dimension)
+    assert {k: (c.mark, c.hit.chunk_id) for k, c in grid.cells.items()} == {
+        ("Alpha", "first"): ("supported", chunk), ("Alpha", "second"): ("supported", chunk),
+        ("Beta", "second"): ("partial", grid.cells[("Beta", "second")].hit.chunk_id)}
+    text, hits = render_grid(grid, overlap)
+    assert "| Alpha | ✓ [1] | ✓ [2] |" in text.splitlines()  # a number for each cell
+    assert [h.chunk_id for h in hits[:2]] == [chunk, chunk]
 
 
 def _hit(n: int, vendor: str = "Alpha") -> Hit:
