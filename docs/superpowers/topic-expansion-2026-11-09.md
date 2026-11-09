@@ -85,3 +85,36 @@ The code-built vendor × aspect grid works: it is cited, dated, uses a catch-up 
 - **Helm 4 and `kubectl patch`.** Helm 4 uses server-side apply. A `kubectl patch` on a field helm manages makes every later helm change to that field conflict (revs 23 and 25 failed). Suspend sync through `helm upgrade --set sync.suspend=true`. Clear a stale owner with `--force-conflicts`, as rev 26 did.
 - **Full-text search over 227k chunks.** An OR'd full-text query costs about 2 s per text. Batching nine texts into one statement re-parses each tsquery per row unless the tsqueries are materialised, which took 69 s. Even materialised, nine texts took 10–14 s, so aspect retrieval became vector-only.
 - **Ties in the grid's fact order.** Every page has the same fetch date, so "newest page first" ties and falls to chunk id. A small top-N per cell is then effectively random.
+
+## Follow-up: mapping precision (BACKLOG 34) and the grid turned on (2026-11-09)
+
+### Mapping change
+- **Baseline.** A blind sample of 540 facts (20 per kit dimension, graded by Opus) put 81.8% on the right dimension, weighted by fact count; the 16 weakest dimensions averaged 76%. The causes:
+  - generic detection forced into a specific method;
+  - data-security features of production data, such as file quarantine, classification rules and workload activity logs, read as backup features;
+  - near neighbours.
+- **Change (PR #35, taxonomy `2-48ffb013`):**
+  - Opus-curated definitions saying what each dimension covers and what it excludes;
+  - ambiguous aliases removed;
+  - a new `cyber.threat_detection`.
+- **Rehearsal before production:**
+  - blind Fable check: keeps 98% of right facts, rejects 98% of wrong ones;
+  - Haiku replay (`eval/map_replay.py --taxonomy`): rejects 73% of wrong facts, against 35% before.
+- **Production re-map:** `map --all --reask` on 15 dimensions (RBAC left out), 24,089 Haiku calls, $2.63.
+- **Measured afterwards on a fresh sample:**
+  - the re-asked dimensions: right dimension 74% → 79%, quote supports the claim 86% → 91%;
+  - all 27 dimensions: flat. Two Opus instances agreed on only 77% of the claims both graded, so single-grader per-dimension samples swing ±15–20 points.
+  - Use two graders for a before/after.
+
+### The grid passes and is on
+- **Grid cells supported by their cited text** (same grid configuration, before → after the re-map): Opus 86.7% → 96.7%, Fable → 91.7%, **adjudicated 95.0%**.
+- **Pass check with the grid on:**
+  - coverage 67.0% → 98.9%;
+  - pooled unsupported rate 2.39% → 2.85% (+0.46 points; the bar is +2): **pass**.
+- **"Which vendors" answers:** about 374 supported vendor-aspect pairs from the grid, against about 126 from today's prose, at 95% precision instead of 98%.
+- **Enabled in production:** `TOPIC_GRID=true`, helm rev 28.
+  - The MCP smoke test: the grid in 12.6 s, 11.8k characters, the Sources section capped at 8k with a pointer to `query_capabilities(topic=)`, 60 of 197 structured citations.
+  - Workload-qualified and non-topic "which vendors" questions keep today's path.
+
+### What is left: claims whose quote does not show the vendor has the capability
+On the 1,100 graded facts, the quote did not establish the claim for the vendor in **15.6%** of the 1,041 facts extracted by the distilled 9B, against 5.1% of the 59 extracted by Opus. The evidence gate checks only that the quote is verbatim in the chunk, not that it asserts the claim for that vendor. This is now the main residual error in grid cells (BACKLOG 36).
