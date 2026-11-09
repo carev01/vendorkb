@@ -280,6 +280,7 @@ async def test_answer_question_lists_its_sources():
                                  "[1] Page 1 — https://docs.example/1")
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
+    assert "citations_total" not in r.structured_content  # a grid answer's key only
 
 
 def _grid_answer(topic: load.Topic) -> dict:
@@ -323,8 +324,9 @@ async def test_a_grid_answer_lists_each_page_once_within_a_cap(ransomware):
     assert more == (f"… {len(expected) - len(lines)} more sources: query_capabilities("
                     f"topic=\"ransomware_protection\") lists the cited facts.")
     assert len(expected) - len(lines) > 0
-    # the structured content keeps every citation
-    assert len(r.structured_content["citations"]) == 239
+    # the structured content: the first 60 citations, and how many there are
+    assert [c["marker"] for c in r.structured_content["citations"]] == list(range(1, 61))
+    assert r.structured_content["citations_total"] == 239
 
 
 async def test_a_short_grid_answer_lists_every_page(ransomware):

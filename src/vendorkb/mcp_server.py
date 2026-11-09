@@ -42,6 +42,8 @@ EARLIER_VERSION = " (from an earlier version of the page)"
 # The Sources section of a grid answer (a "which vendors" topic question), in characters: a grid
 # of 239 cells listed one title and URL per cell came to 36k characters, past client limits.
 GRID_SOURCES_CHARS = 8000
+# Citations of a grid answer in the structured content (``citations_total`` counts them all).
+GRID_CITATIONS_SHOWN = 60
 
 INSTRUCTIONS = """\
 vendorkb answers questions about backup vendors' technical documentation, precisely and with
@@ -419,9 +421,14 @@ def build_server(backend: Backend) -> MCPServer:
         sources = format_sources(out)
         text = (out.get("answer") or "No answer.") + (f"\n\n{sources}" if sources else "")
         structured = {k: out.get(k) for k in ("answer", "shape", "scope", "uncited")}
+        citations = out.get("citations") or []
+        grid = bool(out.get("topic")) and out.get("shape") == "enumeration"
         structured["citations"] = [{k: c.get(k) for k in ("marker", "chunk_id", "url", "title",
                                                           "section_path")}
-                                   for c in out.get("citations") or []]
+                                   for c in (citations[:GRID_CITATIONS_SHOWN] if grid
+                                             else citations)]
+        if grid:
+            structured["citations_total"] = len(citations)
         return _result(text, structured)
 
     return server

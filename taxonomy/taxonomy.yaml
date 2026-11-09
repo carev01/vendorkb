@@ -4547,7 +4547,7 @@ topics:
   - id: air_gap
     name: Air gap / isolated copies
     query: air-gapped or logically isolated backup copies and isolated vaults
-    cues: [air gap, air-gap, airgap, isolated cop, isolated vault, cyber vault, offline cop, logically isolated, physically isolated]
+    cues: [air gap, air-gap, airgap, isolated cop, isolated vault, cyber vault, offline cop, logically isolated, physically isolated, resilience vault]
     dimensions: [security.air_gap]
   - id: deletion_safeguards
     name: Deletion safeguards

@@ -964,7 +964,8 @@ async def test_an_empty_summary_is_a_failed_summary(monkeypatch, topic, replies)
     "These vendors do not offer anomaly detection.", "Rubrik doesn't list it.",
     "Vendors don't list it.", "Anomaly detection is not supported by Commvault.",
     "Encryption is unsupported for Commvault.", "Veeam leads; Commvault lack the rest.",
-    "veeam ONLY."])
+    "veeam ONLY.", "No vendors offer a clean room.", "Rubrik doesn\u2019t list it.",
+    "Vendors don\u2019t list it."])
 @pytest.mark.asyncio
 async def test_a_summary_that_states_absence_is_dropped(monkeypatch, topic, reply):
     grid = _grid_of(topic)
@@ -1096,6 +1097,36 @@ async def test_a_workload_qualified_topic_question_keeps_todays_path(monkeypatch
     assert r["topic"] is None and "aspects" not in r and "truncated" not in r
     assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
     assert client.calls[0]["max_tokens"] == 4000
+
+
+@pytest.mark.asyncio
+async def test_a_workload_vendor_dropped_from_a_weak_comparison_keeps_todays_path(
+        monkeypatch, topic):
+    # detect_shape leaves Microsoft out of the sides ("better" is weak wording), but it was named
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    facets = []
+
+    async def fake(conn, query, **kw):
+        facets.append(kw["facets"])
+        return ComparisonResult([_hit(1)], [], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    client = FakeClient(["Veeam does X [1]."])
+    r = await _run_topic(client, "Is Veeam or Commvault better at protecting Microsoft 365"
+                                 " against ransomware?", INDEX_W)
+    assert seen.hits == [] and facets == [[("vendor", "Veeam"), ("vendor", "Commvault")]]
+    assert r["shape"] == "comparison" and r["topic"] is None and "aspects" not in r
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
+
+
+@pytest.mark.asyncio
+async def test_a_workload_vendors_own_product_is_no_workload(monkeypatch, topic):
+    # the vendor of a named product is that product's side, not a workload beside it
+    seen = _patch_topics(monkeypatch, topic, [_hit(1, "Microsoft")])
+    r = await _run_topic(FakeClient(["Soft delete [1]."]),
+                         "How does Microsoft Azure Backup protect backups against ransomware?",
+                         INDEX_W)
+    assert r["topic"] == topic.id and seen.hits[0]["facets"] == [("product", "Azure Backup")]
 
 
 @pytest.mark.asyncio

@@ -94,6 +94,16 @@ def test_product_names_never_trigger_the_topic(T, question):
     assert detect_topic(question, T, exclude=PRODUCT_NAMES) is None
 
 
+def test_a_cyber_resilience_vault_names_the_air_gap_aspect(T):
+    # production's product name is just "Zerto": the cue "resilience vault" keeps it narrow
+    assert "resilience vault" in next(a for a in T[0].aspects if a.id == "air_gap").cues
+    assert detect_topic("How do I set up the Zerto Cyber Resilience Vault?", T,
+                        exclude=["Zerto"]) is None
+    topic = detect_topic("How do Druva and Cohesity compare for cyber resilience?", T,
+                         exclude=["Zerto"])
+    assert topic is not None and topic.id == "ransomware_protection"
+
+
 def test_cyber_recovery_is_no_trigger(T):
     # a Dell product's name, too ambiguous to stand for the topic
     assert "cyber recovery" not in T[0].triggers

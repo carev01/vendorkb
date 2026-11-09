@@ -10,7 +10,7 @@ from openai import AsyncOpenAI
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, find_facets, product_surfaces
 from vendorkb.search import Hit, SearchResult, search_docs
-from vendorkb.shape import WORKLOAD_VENDORS, Facet, Shape, detect_shape
+from vendorkb.shape import WORKLOAD_VENDORS, Facet, Shape, detect_shape, named_facets
 
 if TYPE_CHECKING:
     import psycopg
@@ -36,8 +36,8 @@ GRID_SUMMARY_RULES = (
     "\"only\".")
 # A summary saying this is dropped (the grid stands alone): the table records facts found, and
 # a vendor with none may still offer the capability.
-_ABSENCE = re.compile(r"\b(only|no vendor|none of|lacks?|lacking|does not offer|do not offer"
-                      r"|doesn't|don't|not supported|unsupported)\b", re.IGNORECASE)
+_ABSENCE = re.compile(r"\b(only|no vendors?|none of|lacks?|lacking|does not offer|do not offer"
+                      r"|doesn['\u2019]t|don['\u2019]t|not supported|unsupported)\b", re.IGNORECASE)
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -99,15 +99,17 @@ def is_broad(question: str, topic: Topic) -> bool:
     return broad(question, topic)
 
 
-def topic_applies(question: str, shape: Shape, topic: Topic) -> bool:
+def topic_applies(question: str, shape: Shape, topic: Topic, named: list[Facet]) -> bool:
     """Whether a question that triggers ``topic`` gets the topic's answer. A "which vendors"
     question gets the grid only with no facet and nothing but broad words (``is_broad``); a
     single or comparison question keeps today's path when it names a workload vendor beside
-    another facet ("How does Veeam protect Microsoft 365 against ransomware?")."""
+    another facet ("How does Veeam protect Microsoft 365 against ransomware?"). ``named`` are
+    the facets as the question names them (``shape.named_facets``), before ``detect_shape``
+    drops a workload vendor from the sides of a weak comparison."""
     if shape.kind == "enumeration":
         return not shape.facets and is_broad(question, topic)
-    workload = [f for f in shape.facets if f[0] == "vendor" and f[1] in WORKLOAD_VENDORS]
-    return not (workload and len(workload) < len(shape.facets))
+    workload = [f for f in named if f[0] == "vendor" and f[1] in WORKLOAD_VENDORS]
+    return not (workload and len(workload) < len(named))
 
 
 async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic, *,
@@ -491,7 +493,8 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         # offerings (taxonomy) are not in the scope index, so they are not excluded here
         topic = detect_topic(question, await load_topics(conn),
                              exclude=product_surfaces(scope_index))
-        if topic is not None and not topic_applies(question, shape, topic):
+        if topic is not None and not topic_applies(question, shape, topic,
+                                                   named_facets(question, scope_index)):
             topic = None  # a qualified question: today's answer
     if shape.kind == "enumeration" and topic is not None:
         return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
