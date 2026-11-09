@@ -96,9 +96,10 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
     (each: `dimensions`, search `query`, `cues`); `topics.detect_topic` fires on a trigger when no
     aspect cue is named (product names are masked first). Used by `answer` (per-aspect
     retrieval, unless a workload vendor qualifies it; a broad "which vendors" question gets a
-    cited grid) and MCP (`query_capabilities(topic=)` by aspect; `list_dimensions` shows the
-    topic). The taxonomy version hash leaves the `topics:` section out: a topic edit needs a
-    `taxonomy load` only, no re-map or build.
+    cited grid whose cells are cue-gated: a cell's chunk must name the aspect, else the next of
+    5 candidate facts, else empty, counted in `gated_out`) and MCP (`query_capabilities(topic=)`
+    by aspect; `list_dimensions` shows the topic). The taxonomy version hash leaves the
+    `topics:` section out: a topic edit needs a `taxonomy load` only, no re-map or build.
 
   New entries from `taxonomy propose` carry `proposed: true` until reviewed. v1 of the
   reviewed taxonomy, with its decision log, is in `taxonomy/review-2026-11-06.tsv`.

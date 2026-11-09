@@ -437,6 +437,7 @@ async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder,
         "scope": {"vendors": [], "products": [], "relaxed": False},
         "rerank_ok": grid.rerank_ok, "retrieved": len(hits),
         "reranked_docs": grid.reranked_docs, "catch_up_ok": grid.catch_up_ok,
+        "gated_out": grid.gated_out,
         "truncated": False, "usage": None, "error": None, "summary_error": None,
         "vendors_checked": checked, "vendors_listed": list(grid.vendors), "lines_dropped": 0,
         "lines_naming_other_vendors": 0, "second_pass_listed": 0}

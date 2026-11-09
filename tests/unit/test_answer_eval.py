@@ -224,8 +224,8 @@ def test_topic_keys_are_recorded_when_the_answer_has_them(tmp_path):
     emb, rr = Tok(), Tok()
     replies = [{"answer": "a", "shape": "enumeration", "topic": "ransomware_protection",
                 "aspects": ["A", "B"], "truncated": True, "catch_up_ok": False,
-                "summary_error": "absence wording", "citations": [], "usage": {"cost": 0.0},
-                "error": None},
+                "summary_error": "absence wording", "gated_out": 4, "citations": [],
+                "usage": {"cost": 0.0}, "error": None},
                {"answer": "a", "shape": "single", "topic": None, "citations": [],
                 "usage": {"cost": 0.0}, "error": None}]
 
@@ -236,8 +236,8 @@ def test_topic_keys_are_recorded_when_the_answer_has_them(tmp_path):
                               vendor_lookup=_vendors, log=lambda s: None))
     grid, plain = _rows(out)
     assert {k: grid[k] for k in ("topic", "aspects", "truncated", "catch_up_ok",
-                                 "summary_error")} == {
+                                 "summary_error", "gated_out")} == {
         "topic": "ransomware_protection", "aspects": ["A", "B"], "truncated": True,
-        "catch_up_ok": False, "summary_error": "absence wording"}
+        "catch_up_ok": False, "summary_error": "absence wording", "gated_out": 4}
     assert plain["topic"] is None
-    assert not {"aspects", "truncated", "catch_up_ok", "summary_error"} & set(plain)
+    assert not {"aspects", "truncated", "catch_up_ok", "summary_error", "gated_out"} & set(plain)

@@ -12,7 +12,8 @@ reaches --max-usd or cumulative rerank tokens reach --max-rerank-tokens. Charge 
 else $3/M prompt + $12/M completion tokens; else $0.05 (3 such questions stop the run, exit 1).
 An exception row is charged at least $0.05. Each citation line carries the cited chunk text, url and vendor (looked up by
 doc_id, one query per question) so graders need no DB access. A row also records the answer's
-``topic``, ``aspects``, ``truncated``, ``catch_up_ok`` and ``summary_error`` when it has them.
+``topic``, ``aspects``, ``truncated``, ``catch_up_ok``, ``summary_error`` and ``gated_out``
+when it has them.
 Settings come from .env.
 
 Grades JSONL (written by the grading step), one object per question::
@@ -54,7 +55,7 @@ from vendorkb.scope import scope_index_from_db
 _ENUM_KEYS = ("vendors_listed", "vendors_checked", "facets_empty", "lines_dropped",
               "lines_naming_other_vendors")
 # Recorded only when the answer has them (topic answers): eval/topic_eval.py reads them.
-_TOPIC_KEYS = ("topic", "aspects", "truncated", "catch_up_ok", "summary_error")
+_TOPIC_KEYS = ("topic", "aspects", "truncated", "catch_up_ok", "summary_error", "gated_out")
 
 
 PROMPT_USD_PER_TOKEN = 3 / 1_000_000

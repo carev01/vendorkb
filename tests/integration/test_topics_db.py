@@ -90,12 +90,12 @@ async def test_load_topics_is_empty_for_a_taxonomy_without_topics(conn, tmp_path
 
 # --- topic_hits: evidence per aspect within a rerank budget (dim-8 vectors, fakes only) ---
 
-KEEPING = Aspect("keeping", "Keeping copies", "retention period for kept copies", (),
-                 ("retention.maximum_period",))
+KEEPING = Aspect("keeping", "Keeping copies", "retention period for kept copies",
+                 ("retention", "kept", "keep"), ("retention.maximum_period",))
 GETTING_BACK = Aspect("getting_back", "Getting data back", "restoring objects from a backup",
-                      (), ("coverage.restore", "coverage.export"))
-SCHEDULING = Aspect("scheduling", "Scheduling", "backup frequency and schedule", (),
-                    ("schedule.backup_frequency",))
+                      ("restor", "export"), ("coverage.restore", "coverage.export"))
+SCHEDULING = Aspect("scheduling", "Scheduling", "backup frequency and schedule",
+                    ("schedul", "frequen"), ("schedule.backup_frequency",))
 TOPIC = Topic("data_loss", "Data loss", ("data loss",), (KEEPING, GETTING_BACK, SCHEDULING))
 QUESTION = "How does Alpha Backup handle data loss?"
 ALPHA = ("vendor", "Alpha")
@@ -639,6 +639,18 @@ def _day(n: int) -> datetime:
     return T0 + timedelta(days=n)
 
 
+async def _name_the_aspects(conn) -> None:
+    """Give every claim chunk still holding ``_claim``'s fixed text words that name its
+    dimension's aspect: the grid shows a cell only when its chunk names the aspect."""
+    await conn.execute(
+        "UPDATE chunks c SET text = CASE r.dimension_id"
+        " WHEN 'retention.maximum_period' THEN 'retention of copies'"
+        " WHEN 'coverage.restore' THEN 'restoring objects' WHEN 'coverage.export'"
+        " THEN 'export of objects' WHEN 'schedule.backup_frequency' THEN 'backup schedule'"
+        " ELSE c.text END FROM raw_claims r WHERE r.chunk_id = c.chunk_id"
+        " AND c.text = 'synthetic text'")
+
+
 async def _chunk_of(conn, claim_id: uuid.UUID) -> str:
     cur = await conn.execute("SELECT chunk_id::text FROM raw_claims WHERE claim_id = %s",
                              (claim_id,))
@@ -697,6 +709,7 @@ async def test_grid_cells_take_the_best_fact(kb):
     await capabilities.build(conn)
     await conn.execute("UPDATE capabilities SET taxonomy_version = '2-old' WHERE claim_id = %s",
                        (stale,))
+    await _name_the_aspects(conn)
 
     rec = _Recorder(conn)
     grid = await topic_grid(rec, TOPIC, vendors=["Gamma", "Beta", "Alpha"], embedder=None,
@@ -711,13 +724,62 @@ async def test_grid_cells_take_the_best_fact(kb):
     # the hit is the chunk as a search returns it; one on a superseded chunk says so
     hit = grid.cells[("Beta", "scheduling")].hit
     assert hit.superseded and (hit.vendor, hit.product) == ("Beta", "Q1")
-    assert (hit.title, hit.url, hit.text) == ("Doc", "http://docs/x", "synthetic text")
+    assert (hit.title, hit.url, hit.text) == ("Doc", "http://docs/x", "backup schedule")
     assert not grid.cells[("Alpha", "keeping")].hit.superseded
     # a row for each vendor with a fact, the others listed; the date is the newest page of the
     # facts the grid shows (not Alpha's day-12 partial, nor Beta's day-20 earlier version)
     assert grid.vendors == ["Alpha", "Beta"] and grid.no_fact == ["Gamma"]
     assert grid.facts_as_of == _day(10)
     assert grid.reranked_docs == 0 and grid.rerank_ok is True and grid.catch_up_ok is True
+    assert grid.gated_out == 0  # every fact shown names its aspect
+
+
+async def test_a_cell_takes_the_next_fact_when_the_best_does_not_name_its_aspect(kb):
+    conn, v = kb
+    alpha = {"vendor": "Alpha", "product": "P1", "mapped_version": v}
+    best = await _claim(conn, "retention.maximum_period", capability="k1", fetched_at=_day(9),
+                        **alpha)
+    second = await _claim(conn, "retention.maximum_period", capability="k2",
+                          fetched_at=_day(5), **alpha)
+    # four more facts on the best fact's chunk: the chunk is one candidate, not five
+    for n in range(4):
+        await conn.execute(
+            "INSERT INTO raw_claims SELECT (jsonb_populate_record(r, jsonb_build_object("
+            "'claim_id', gen_random_uuid(), 'capability_raw', %s::text))).* FROM raw_claims r"
+            " WHERE claim_id = %s", (f"k1-{n}", best))
+    await capabilities.build(conn)
+    await _name_the_aspects(conn)
+    # a mis-mapped fact: its chunk says nothing about keeping copies
+    await _retext(conn, best, "Inactive files are listed in the report", FAR)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=None, reranker=None,
+                            catch_up=False)
+    cell = grid.cells[("Alpha", "keeping")]
+    assert (cell.mark, cell.hit.chunk_id) == ("supported", await _chunk_of(conn, second))
+    assert grid.gated_out == 0 and grid.facts_as_of == _day(5)  # the date of the fact shown
+
+
+async def test_a_cell_whose_five_candidates_name_no_aspect_is_empty_and_counted(kb):
+    conn, v = kb
+    claims = [await _claim(conn, "retention.maximum_period", capability=f"k{n}",
+                           fetched_at=_day(10 - n), vendor="Alpha", product="P1",
+                           mapped_version=v) for n in range(6)]
+    await capabilities.build(conn)
+    await _name_the_aspects(conn)
+    for n, claim in enumerate(claims[:5]):
+        await _retext(conn, claim, f"Dedicated backup networks, part {n}", FAR)
+    # the sixth names the aspect, but a cell reads its five best candidates only
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=None, reranker=None,
+                            catch_up=False)
+    assert (grid.cells, grid.vendors, grid.no_fact) == ({}, [], ["Alpha"])
+    assert grid.gated_out == 1 and grid.facts_as_of is None
+    # an emptied cell is still open to the catch-up
+    page = await _waiting(conn, await _doc(conn, "Alpha", "Alpha Product"),
+                          "retention period of one week", 1)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=_Embedder(),
+                            reranker=_Reranker())
+    assert {k: (c.mark, c.hit.chunk_id) for k, c in grid.cells.items()} == {
+        ("Alpha", "keeping"): ("recent", page)}
+    assert grid.gated_out == 1
 
 
 async def test_a_grid_of_no_vendors_has_no_rows(kb):
@@ -746,6 +808,7 @@ async def _catch_up_corpus(conn, v):
     fact = await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
                         mapped_version=v)
     await capabilities.build(conn)
+    await _name_the_aspects(conn)
     alpha = await _doc(conn, "Alpha", "Alpha Product")
     beta = await _doc(conn, "Beta", "Beta Product")
     gamma = await _doc(conn, "Gamma", "Gamma Product")
@@ -755,7 +818,9 @@ async def _catch_up_corpus(conn, v):
         "alpha_restore": await _waiting(conn, alpha, "restoring objects from one week", 2),
         "beta_schedule": await _waiting(conn, beta, "frequency schedule hourly", 3),
         # shares no word with any aspect query
-        "gamma_noise": await _waiting(conn, gamma, "zzz yyy", OTHER_AXIS)}
+        "gamma_noise": await _waiting(conn, gamma, "zzz yyy", OTHER_AXIS),
+        # names keeping ("keep"), yet shares no word with its query: reranked, scores nothing
+        "gamma_keep": await _waiting(conn, gamma, "keep nothing here", OTHER_AXIS)}
     # a perfect page for getting_back, but extracted (no claim): the catch-up does not look
     analysed = await _waiting(conn, beta, "restoring objects from the analysed page", 2)
     await conn.execute(
@@ -787,6 +852,25 @@ async def test_catch_up_fills_only_empty_cells(kb):
     assert "retention period of one week" not in keeping  # Alpha's cell is filled
     assert not any("analysed" in d for _, docs, _ in rr.calls for d in docs)
     assert grid.reranked_docs == sum(len(docs) for _, docs, _ in rr.calls) > 0
+
+
+async def test_a_catch_up_page_that_names_no_aspect_is_never_reranked(kb):
+    conn, v = kb
+    _, waiting = await _catch_up_corpus(conn, v)
+    # the nearest page of all to the keeping query, but it names no aspect
+    await _waiting(conn, await _doc(conn, "Beta", "Beta Product"),
+                   "a week of copies on the target", 1)
+    rr = _Reranker()
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta", "Gamma"],
+                            embedder=_Embedder(), reranker=rr)
+    sent = {q: docs for q, docs, _ in rr.calls}
+    assert sent[KEEPING.query] == ["keep nothing here"]
+    assert not any(d in docs for docs in sent.values()
+                   for d in ("a week of copies on the target", "zzz yyy"))
+    # each list holds only the pages that name its aspect
+    assert sent[GETTING_BACK.query] == ["restoring objects from one week"]
+    assert sent[SCHEDULING.query] == ["frequency schedule hourly"]
+    assert grid.reranked_docs == 3 and ("Beta", "keeping") not in grid.cells
 
 
 async def test_catch_up_marks_need_the_enumeration_floor(kb, monkeypatch):
@@ -843,7 +927,7 @@ async def test_the_catch_up_rerank_spend_is_capped(kb, aspects, per_list):
         for n in range(15):
             await _waiting(conn, doc, f"plain filler words {n}", OTHER_AXIS)
     topic = Topic("big", "Big", ("big",), tuple(
-        Aspect(f"a{n}", f"Aspect {n}", KEEPING.query, (), ("retention.maximum_period",))
+        Aspect(f"a{n}", f"Aspect {n}", KEEPING.query, ("filler",), ("retention.maximum_period",))
         for n in range(aspects)))
     gauge = _Gauge()
     grid = await topic_grid(conn, topic, vendors=["Alpha", "Beta"], embedder=_Embedder(),
@@ -892,12 +976,14 @@ async def test_catch_up_looks_past_the_pages_of_vendors_with_a_fact(kb):
     await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
                  mapped_version=v)
     await capabilities.build(conn)
+    await _name_the_aspects(conn)
     alpha = await _doc(conn, "Alpha", "Alpha Product")
     beta = await _doc(conn, "Beta", "Beta Product")
     # 25 waiting pages of Alpha (whose keeping cell a fact fills) lead both rankings for the
-    # keeping query; the one page of Beta is farther in the vectors and ranks below them in text
+    # keeping query; the one page of Beta is farther in the vectors and ranks below them in text.
+    # "scheduled" names scheduling (Alpha's empty cell there) but is no word of its query
     for n in range(25):
-        await _waiting(conn, alpha, f"retention period for kept copies {n}", 1)
+        await _waiting(conn, alpha, f"retention period for kept copies {n}, scheduled", 1)
     wanted = await _chunk(conn, beta, "retention period of one week",
                           [0.0, 0.6, 0.0, 0.0, 0.8, 0.0, 0.0, 0.0])
     rr = _Reranker()
@@ -921,6 +1007,7 @@ async def test_catch_up_with_nothing_waiting_changes_nothing(kb):
     await _claim(conn, "coverage.restore", vendor="Beta", product="Beta Vault", mapped_version=v,
                  support="partial")
     await capabilities.build(conn)  # every chunk is extracted: the pool is empty
+    await _name_the_aspects(conn)
     rr = _Reranker()
     plain = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=None,
                              reranker=None, catch_up=False)
@@ -928,15 +1015,16 @@ async def test_catch_up_with_nothing_waiting_changes_nothing(kb):
                             reranker=rr)
     assert rr.calls == [] and grid.reranked_docs == 0
     assert grid.rerank_ok is True and grid.catch_up_ok is True
-    assert grid.cells == plain.cells and grid.vendors == plain.vendors
+    assert grid.cells == plain.cells and grid.vendors == plain.vendors == ["Alpha", "Beta"]
     assert (grid.no_fact, grid.facts_as_of) == (plain.no_fact, plain.facts_as_of)
 
 
 async def test_a_dimension_two_aspects_list_fills_both_cells(kb):
     conn, v = kb
     overlap = Topic("overlap", "Overlap", ("overlap",), (
-        Aspect("first", "First", "q one", (), ("retention.maximum_period",)),
-        Aspect("second", "Second", "q two", (), ("coverage.restore", "retention.maximum_period"))))
+        Aspect("first", "First", "q one", ("retention",), ("retention.maximum_period",)),
+        Aspect("second", "Second", "q two", ("restor", "retention"),
+               ("coverage.restore", "retention.maximum_period"))))
     both = await _claim(conn, "retention.maximum_period", vendor="Alpha", product="P1",
                         mapped_version=v)
     await _claim(conn, "coverage.restore", vendor="Alpha", product="P1", mapped_version=v,
@@ -944,6 +1032,7 @@ async def test_a_dimension_two_aspects_list_fills_both_cells(kb):
     await _claim(conn, "coverage.restore", vendor="Beta", product="Q1", mapped_version=v,
                  support="partial")
     await capabilities.build(conn)
+    await _name_the_aspects(conn)
     grid = await topic_grid(conn, overlap, vendors=["Alpha", "Beta"], embedder=None,
                             reranker=None, catch_up=False)
     chunk = await _chunk_of(conn, both)

@@ -923,6 +923,16 @@ async def test_which_vendors_topic_question_gets_the_grid(monkeypatch, topic):
 
 
 @pytest.mark.asyncio
+async def test_a_grid_answer_counts_the_cells_the_cue_gate_emptied(monkeypatch, topic):
+    grid = _grid_of(topic)
+    grid.gated_out = 3
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    r = await _run_topic(FakeClient(["Veeam covers most aspects."]), WHICH_VENDORS_Q, INDEX_VC)
+    assert r["gated_out"] == 3
+
+
+@pytest.mark.asyncio
 async def test_a_grid_summary_carries_no_markers_of_its_own(monkeypatch, topic):
     _patch_grid(monkeypatch, _grid_of(topic))
     _patch_topics(monkeypatch, topic, [])
