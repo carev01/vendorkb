@@ -758,20 +758,23 @@ async def test_a_cell_takes_the_next_fact_when_the_best_does_not_name_its_aspect
     assert grid.gated_out == 0 and grid.facts_as_of == _day(5)  # the date of the fact shown
 
 
-async def test_a_cell_whose_five_candidates_name_no_aspect_is_empty_and_counted(kb):
+async def test_a_cell_whose_facts_all_name_no_aspect_is_empty_and_counted(kb):
     conn, v = kb
     claims = [await _claim(conn, "retention.maximum_period", capability=f"k{n}",
                            fetched_at=_day(10 - n), vendor="Alpha", product="P1",
                            mapped_version=v) for n in range(6)]
+    # Beta's keeping cell is filled: it is no gated-out cell
+    await _claim(conn, "retention.maximum_period", vendor="Beta", product="Q1", mapped_version=v)
     await capabilities.build(conn)
     await _name_the_aspects(conn)
-    for n, claim in enumerate(claims[:5]):
+    for n, claim in enumerate(claims):
         await _retext(conn, claim, f"Dedicated backup networks, part {n}", FAR)
-    # the sixth names the aspect, but a cell reads its five best candidates only
-    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=None, reranker=None,
+    rec = _Recorder(conn)
+    grid = await topic_grid(rec, TOPIC, vendors=["Alpha", "Beta"], embedder=None, reranker=None,
                             catch_up=False)
-    assert (grid.cells, grid.vendors, grid.no_fact) == ({}, [], ["Alpha"])
-    assert grid.gated_out == 1 and grid.facts_as_of is None
+    assert list(grid.cells) == [("Beta", "keeping")] and grid.no_fact == ["Alpha"]
+    assert grid.gated_out == 1 and grid.facts_as_of == T0
+    assert len([s for s in rec.statements if "FROM capabilities" in s]) == 1  # count included
     # an emptied cell is still open to the catch-up
     page = await _waiting(conn, await _doc(conn, "Alpha", "Alpha Product"),
                           "retention period of one week", 1)
@@ -780,6 +783,81 @@ async def test_a_cell_whose_five_candidates_name_no_aspect_is_empty_and_counted(
     assert {k: (c.mark, c.hit.chunk_id) for k, c in grid.cells.items()} == {
         ("Alpha", "keeping"): ("recent", page)}
     assert grid.gated_out == 1
+
+
+async def test_a_cell_finds_its_best_cue_bearing_fact_among_all_its_facts(kb):
+    conn, v = kb
+    claims = [await _claim(conn, "retention.maximum_period", capability=f"k{n}",
+                           fetched_at=_day(30 - n), vendor="Alpha", product="P1",
+                           mapped_version=v) for n in range(20)]
+    await capabilities.build(conn)
+    for n, claim in enumerate(claims):
+        # only the 15th ranked chunk (newest page first) names keeping; the 16th does too
+        text = (f"copies are kept for {n} days" if n in (14, 15) else
+                f"Dedicated backup networks, part {n}")
+        await _retext(conn, claim, text, FAR)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=None, reranker=None,
+                            catch_up=False)
+    cell = grid.cells[("Alpha", "keeping")]
+    assert cell.hit.chunk_id == await _chunk_of(conn, claims[14])
+    assert grid.gated_out == 0 and grid.facts_as_of == _day(16)
+
+
+# the grid's cue filter on one text: (text, CUE_SEPARATORS, pattern); a NULL pattern is false
+MATCH_SQL = ("SELECT coalesce(" + topics_mod.CUE_MATCH.format(text="%s::text", pattern="%s::text")
+             + ", false)")
+# (cues, text, names it): hyphens and dashes, stems, word starts, an underscore, punctuation in
+# a cue, whitespace runs
+CUE_CASES = [
+    (("air gap",), "An Air-gapped vault", True),
+    (("air gap",), "air\u2013gap copies", True),
+    (("air gap",), "air \u2014 gap", True),
+    (("air gap",), "air\u00a0gap", True),
+    (("air-gap",), "airgap", False),
+    (("anti-virus",), "Anti-Virus scanning", True),
+    (("anti-virus",), "antivirus scanning", False),
+    (("antivirus",), "anti-virus scanning", False),
+    (("immutab",), "Immutable backups", True),
+    (("immutab",), "immutability settings", True),
+    (("immutab",), "nonimmutable copies", False),
+    (("immutab",), "x_immutable copies", False),
+    (("immutab",), "_immutable", False),
+    (("immutab",), "(immutable) copies", True),
+    (("immutab",), "copies\n\nimmutable", True),
+    (("multi-person",), "multi\u2011person approval", True),
+    (("object lock",), "object \t\n lock", True),
+    (("object lock",), "objectlock", False),
+    (("rbac", "sso"), "SSO login", True),
+    (("rbac",), "role_rbac", False),
+    (("2fa",), "2FA codes", True),
+    (("2fa",), "x2fa", False),
+    (("c++ attack",), "a C++ attack", True),
+    (("a.b",), "axb", False),
+    (("a.b",), "a.b here", True),
+    ((), "anything", False),
+    (("", " - "), "anything", False),
+]
+
+
+@pytest.mark.parametrize("cues, text, named", CUE_CASES)
+async def test_the_sql_cue_gate_agrees_with_names_aspect(kb, cues, text, named):
+    conn, _ = kb
+    aspect = Aspect("x", "X", "q", cues, ("retention.maximum_period",))
+    assert topics_mod.names_aspect(text, aspect) is named
+    cur = await conn.execute(MATCH_SQL, [text, topics_mod.CUE_SEPARATORS,
+                                         topics_mod.cue_pattern(cues)])
+    assert (await cur.fetchone())[0] is named
+
+
+async def test_every_shipped_cue_compiles_and_agrees_in_sql(kb):
+    conn, _ = kb
+    shipped = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
+    for aspect in load.validate(load.read_doc(shipped)).topics[0].aspects:
+        pattern = topics_mod.cue_pattern(aspect.cues)
+        for cue in aspect.cues:
+            for text in (f"See {cue.upper()}s here.", f"x{cue}", f"{cue}"):
+                cur = await conn.execute(MATCH_SQL, [text, topics_mod.CUE_SEPARATORS, pattern])
+                assert (await cur.fetchone())[0] is topics_mod.names_aspect(text, aspect), text
 
 
 async def test_a_grid_of_no_vendors_has_no_rows(kb):

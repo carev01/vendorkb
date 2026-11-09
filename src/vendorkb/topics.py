@@ -58,8 +58,6 @@ TOPIC_RERANKS_IN_FLIGHT = 4
 # Candidates per aspect the grid's catch-up search sends to the reranker: at most 8 aspects x 20
 # = 160 documents, inside TOPIC_RERANK_DOCS (``topic_grid`` shrinks it for a longer topic).
 CATCH_UP_CANDIDATES = 20
-# Facts a grid cell tries, best first, for one whose text names the aspect (``names_aspect``).
-CELL_CANDIDATES = 5
 
 # The words a "which vendors" question may hold, besides the topic's trigger words, and still be
 # broad enough for the grid (``is_broad``), compared as ``_norm`` text.
@@ -72,7 +70,8 @@ BROAD_WORDS = frozenset((
     " best good data attack attacks do does can could have has is are that there any all"
 ).split())
 
-_HYPHENS = re.compile("[-\u2010\u2011\u2013\u2014]")  # hyphen-minus, hyphens, en/em dash
+_DASHES = "-\u2010\u2011\u2013\u2014"  # hyphen-minus, hyphens, en/em dash
+_HYPHENS = re.compile(f"[{_DASHES}]")
 _APOSTROPHES = re.compile("['\u2019]")
 _PUNCTUATION = re.compile(r"[^\w\s]")
 
@@ -129,9 +128,30 @@ def detect_topic(question: str, topics: list[Topic],
 
 def names_aspect(text: str, aspect: Aspect) -> bool:
     """Whether ``text`` holds one of the aspect's cues, read as ``detect_topic`` reads a
-    question (``_norm``, a cue at a word start). An aspect with no cue is named by nothing."""
+    question (``_norm``, a cue at a word start). An aspect with no cue is named by nothing.
+    ``CUE_MATCH`` with ``cue_pattern`` is the same test in SQL."""
     norm = _norm(text)
     return any(_found(_cue(c), norm) for c in aspect.cues)
+
+
+# ``names_aspect`` in SQL, the grid's facts statement filtering on it: the text lowercased, each
+# run of dashes and whitespace one space (every character Python's split takes for whitespace,
+# so the database's locale does not decide), then ``{pattern}`` (``cue_pattern``); one
+# parameter, ``CUE_SEPARATORS``. A NULL pattern (no cue) matches nothing.
+CUE_SEPARATORS = ("[" + _DASHES + "".join(ch for ch in map(chr, range(0x3001)) if ch.isspace())
+                  + "]+")
+CUE_MATCH = "regexp_replace(lower({text}), %s, ' ', 'g') ~ {pattern}"
+_REGEX_SPECIAL = re.compile(r"[^\w\s]")  # escaped with a backslash: a literal in a Postgres ARE
+
+
+def cue_pattern(cues: Iterable[str]) -> str | None:
+    """A Postgres regex: one of ``cues`` (normalised like a question) at a word start, for text
+    normalised as ``CUE_MATCH`` does; None when no cue is left."""
+    texts = sorted({t for t in map(_norm, cues) if t}, key=len, reverse=True)
+    if not texts:
+        return None
+    return ("(^|[^[:alnum:]_])("
+            + "|".join(_REGEX_SPECIAL.sub(lambda m: "\\" + m.group(), t) for t in texts) + ")")
 
 
 def is_broad(question: str, topic: Topic) -> bool:
@@ -374,48 +394,66 @@ class Grid:
     rerank_ok: bool = True  # the catch-up reranker judged every list it needed to
     reranked_docs: int = 0  # documents the catch-up's reranker scored (calls that succeeded)
     catch_up_ok: bool = True  # False: the embedder failed and the catch-up was skipped
-    gated_out: int = 0  # cells with facts none of whose chunks names the aspect (cue gate)
+    gated_out: int = 0  # cells with facts, none of them on a chunk naming the aspect (cue gate)
 
 
-# Ruling 18's order of a cell's facts
-_FACT_ORDER = ("(cap.support = 'supported') DESC, (c.superseded_at IS NULL) DESC,"
-               " cap.is_current DESC, cap.doc_version DESC, c.chunk_id, cap.claim_id")
+# Ruling 18's order of a cell's facts (rows of ``_best_facts``' ``f``)
+_FACT_ORDER = ("(f.support = 'supported') DESC, f.superseded, f.is_current DESC,"
+               " f.doc_version DESC, f.chunk_id, f.claim_id")
 
 
 async def _best_facts(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[str],
-                      version: str) -> list[tuple[str, str, str, bool, datetime, Hit]]:
-    """(vendor, aspect id, support, superseded, doc_version, hit) for the ``CELL_CANDIDATES``
-    best chunks of supported or partial facts of each vendor and aspect, best first, in one
-    statement over the ``capabilities`` rows of taxonomy ``version`` on the aspects' dimensions
-    (a dimension two aspects list counts for both). Best is: supported over partial, then a fact
-    on a current chunk over one on an earlier version of its page (``chunks.superseded_at``,
-    read now), then ``is_current``, the newest page, the chunk. A chunk is one candidate, with
-    its best fact: the cue gate reads its text, which is the same for all its facts. The vendor
-    is the page's, as the citation shows it.
+                      version: str
+                      ) -> tuple[list[tuple[str, str, str, bool, datetime, Hit]], int]:
+    """(vendor, aspect id, support, superseded, doc_version, hit) for the best supported or
+    partial fact of each vendor and aspect whose chunk names the aspect (``CUE_MATCH``), and
+    the number of (vendor, aspect) cells with facts none of which does. One statement over the
+    ``capabilities`` rows of taxonomy ``version`` on the aspects' dimensions (a dimension two
+    aspects list counts for both). Best is: supported over partial, then a fact on a current
+    chunk over one on an earlier version of its page (``chunks.superseded_at``, read now), then
+    ``is_current``, the newest page, the chunk. The vendor is the page's, as the citation shows
+    it.
 
-    The pick sorts narrow rows (ids, flags, dates: ``c.text`` in them made three 11 MB sorts
-    for 239 cells); the chunk columns are read only for the rows picked."""
+    The cue filter runs before the pick, once per (chunk, aspect), so a cell finds its best
+    cue-bearing fact among all its facts. The pick sorts narrow rows (ids, flags, dates:
+    ``c.text`` in them made three 11 MB sorts for 239 cells); the text is read only by the
+    filter, and the chunk columns only for the rows picked."""
     pairs = [(a.id, dimension) for a in topic.aspects for dimension in a.dimensions]
+    patterns = [(a.id, cue_pattern(a.cues)) for a in topic.aspects]
     cur = await conn.execute(
-        "SELECT p.vendor, p.aspect_id, p.support, p.superseded, p.doc_version, " + _COLS +
-        " FROM (SELECT f.*, row_number() OVER (PARTITION BY f.vendor, f.aspect_id ORDER BY"
-        " f.supported DESC, f.superseded, f.is_current DESC, f.doc_version DESC, f.chunk_id,"
-        " f.claim_id) AS rank FROM (SELECT d.vendor, a.aspect_id, cap.support,"
-        " cap.support = 'supported' AS supported, c.superseded_at IS NOT NULL AS superseded,"
-        " cap.is_current, cap.doc_version, c.chunk_id, cap.claim_id, row_number() OVER"
-        f" (PARTITION BY d.vendor, a.aspect_id, c.chunk_id ORDER BY {_FACT_ORDER}) AS in_chunk"
+        "WITH f AS MATERIALIZED (SELECT d.vendor, a.aspect_id, cap.support,"
+        " c.superseded_at IS NOT NULL AS superseded, cap.is_current, cap.doc_version,"
+        " c.chunk_id, cap.claim_id"
         " FROM capabilities cap JOIN raw_claims r ON r.claim_id = cap.claim_id"
         " JOIN chunks c ON c.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
         " JOIN unnest(%s::text[], %s::text[]) AS a(aspect_id, dimension_id)"
         " ON a.dimension_id = cap.dimension_id"
         " WHERE d.vendor = ANY(%s) AND cap.taxonomy_version = %s"
-        " AND cap.support IN ('supported', 'partial')) f WHERE f.in_chunk = 1) p"
-        " JOIN chunks c ON c.chunk_id = p.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
-        " WHERE p.rank <= %s ORDER BY p.vendor, p.aspect_id, p.rank",
+        " AND cap.support IN ('supported', 'partial')),"
+        " named AS MATERIALIZED (SELECT x.chunk_id, x.aspect_id"
+        " FROM (SELECT DISTINCT chunk_id, aspect_id FROM f) x"
+        " JOIN unnest(%s::text[], %s::text[]) AS pat(aspect_id, pattern) USING (aspect_id)"
+        " JOIN chunks c ON c.chunk_id = x.chunk_id"
+        f" WHERE {CUE_MATCH.format(text='c.text', pattern='pat.pattern')})"
+        " SELECT g.vendor, g.aspect_id, p.support, p.superseded, p.doc_version, " + _COLS +
+        " FROM (SELECT DISTINCT vendor, aspect_id FROM f) g"
+        " LEFT JOIN (SELECT DISTINCT ON (f.vendor, f.aspect_id) f.* FROM f"
+        f" JOIN named USING (chunk_id, aspect_id) ORDER BY f.vendor, f.aspect_id, {_FACT_ORDER})"
+        " p ON p.vendor = g.vendor AND p.aspect_id = g.aspect_id"
+        " LEFT JOIN chunks c ON c.chunk_id = p.chunk_id"
+        " LEFT JOIN documents d ON d.doc_id = c.doc_id"
+        " ORDER BY g.vendor, g.aspect_id",
         [[aspect for aspect, _ in pairs], [dimension for _, dimension in pairs], vendors,
-         version, CELL_CANDIDATES])
-    return [(vendor, aspect, support, superseded, doc_version, _hit(tuple(row)))
-            for vendor, aspect, support, superseded, doc_version, *row in await cur.fetchall()]
+         version, [aspect for aspect, _ in patterns], [pattern for _, pattern in patterns],
+         CUE_SEPARATORS])
+    picked = []
+    gated_out = 0
+    for vendor, aspect, support, superseded, doc_version, *row in await cur.fetchall():
+        if support is None:  # facts, but none on a chunk that names the aspect
+            gated_out += 1
+        else:
+            picked.append((vendor, aspect, support, superseded, doc_version, _hit(tuple(row))))
+    return picked, gated_out
 
 
 async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[str],
@@ -467,30 +505,31 @@ async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: li
                      catch_up: bool = True) -> Grid:
     """The grid of ``vendors`` by the aspects of ``topic``, every cell cue-gated: its chunk's
     text names the aspect (``names_aspect``). Each cell is the best capability fact whose chunk
-    passes the gate, of the ``CELL_CANDIDATES`` best (``_best_facts``): a fact mapped to the
-    aspect by mistake gives way to the next. A cell whose candidates all fail stays empty and is
-    counted (``gated_out``). Then, with ``catch_up``, the ``recent`` cells (``_catch_up``, its
-    candidates gated too) for the cells no fact fills, the gated-out ones included. A fact never
-    gives way to a recent page. ``facts_as_of`` is the newest ``doc_version`` of the fact cells
-    shown; no taxonomy loaded means no fact cells. An embedder that is down costs the catch-up
-    only (``catch_up_ok`` False), never the facts."""
+    names the aspect, among all the cell's facts (``_best_facts``, the gate in its SQL): a fact
+    mapped to the aspect by mistake gives way to the next. A cell with facts none of which
+    passes stays empty and is counted (``gated_out``). Then, with ``catch_up``, the ``recent``
+    cells (``_catch_up``, its candidates gated too) for the cells no fact fills, the gated-out
+    ones included. A fact never gives way to a recent page. ``facts_as_of`` is the newest
+    ``doc_version`` of the fact cells shown; no taxonomy loaded means no fact cells. An
+    embedder that is down costs the catch-up only (``catch_up_ok`` False), never the facts."""
     vendors = list(dict.fromkeys(vendors))
     version = await current_version(conn) if vendors else None
     named = {a.id: a for a in topic.aspects}
     cells: dict[tuple[str, str], Cell] = {}
-    tried: set[tuple[str, str]] = set()
+    gated_out = 0
     as_of: datetime | None = None
     if version is not None:
-        for vendor, aspect, support, superseded, doc_version, hit in await _best_facts(
-                conn, topic, vendors, version):
-            tried.add((vendor, aspect))
-            if (vendor, aspect) in cells or not names_aspect(hit.text, named[aspect]):
+        picked, gated_out = await _best_facts(conn, topic, vendors, version)
+        for vendor, aspect, support, superseded, doc_version, hit in picked:
+            if not names_aspect(hit.text, named[aspect]):  # the SQL gate disagrees: a defect
+                log.warning("vendorkb grid: the fact on chunk %s does not name aspect %s;"
+                            " cell left empty", hit.chunk_id, aspect)
+                gated_out += 1
                 continue
             cells[(vendor, aspect)] = Cell(
                 cast(Mark, support), replace(hit, superseded=True) if superseded else hit,
                 superseded)
             as_of = doc_version if as_of is None else max(as_of, doc_version)
-    gated_out = len(tried - cells.keys())
     catch_up_ok, rerank_ok, docs = True, True, 0
     if catch_up and vendors:
         catch_up_ok, rerank_ok, docs = await _catch_up(
