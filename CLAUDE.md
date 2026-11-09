@@ -57,7 +57,7 @@ stack.
   - `vendorkb mcp` (`mcp_app.py` HTTP + bearer gate, `mcp_server.py` tools, `mcp_backend.py`
     data access): the agent interface of DESIGN §6 over streamable HTTP at `/mcp`
     (`MCP_BEARER_TOKEN` required; Helm `mcp.enabled`, docs/deploy/k3s.md §7b).
-  - `vendorkb refresh` (`claims/refresh.py`, hourly CronJob `vendorkb-claims-refresh`): acts
+  - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
     MAP_API_KEY, else the EXTRACT_ ones), support-checks and rebuilds capabilities.

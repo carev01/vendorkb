@@ -39,14 +39,8 @@ Results: `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`.
 
 ## Claims (M3)
 
-1. **$ `claims-v2` prompt and re-measure precision.** The pilot spot-check found 86/100 claims
-   correct, against a 95% target. The errors were 7 wrong_support (mostly "partial" used too
-   loosely) and 5 not_a_capability (procedures and known issues extracted as capabilities). None
-   was hallucinated.
-   - Narrow "partial", and exclude procedures and known issues.
-   - Re-extract the pilot under the new prompt version, then repeat the 100-claim Opus
-     spot-check.
-   - Done when precision is ≥95%. About $10 on OpenRouter.
+1. **Closed 2026-11-09 (stale):** the claims-v2 pilot prompt was superseded by claims-v3 and the
+   distilled 9B; claim quality is now tracked by item 36.
 2. **Closed 2026-11-08 (superseded):** the 335 pilot chunks that hit the output limit were
    re-extracted with the rest of the corpus under claims-v3 (item 18).
    Fold into item 1.
@@ -224,7 +218,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     target scope) to the key, or report conflicts only within one document set. Done when
     conflict groups are rare enough to read.
 25. **Deploy the Azure extractor and enable `claimsRefresh`** (`deploy/azure`, docs/deploy/k3s.md
-    §7a). This needs the user's Azure login and serverless A100 quota.
+    §7a). This needs the user's Azure login and serverless A100 quota. Weekly is enough (user,
+    2026-11-09): the CronJob now runs Sundays 03:45. With item 37's batch pipeline, only the
+    extraction should stay weekly; the batch stages need a frequent, cheap collect run, or a
+    new page would take four weeks to reach capabilities.
 26. **Copilot exposure of the MCP server:** a public HTTPS route with OAuth in front of `/mcp`,
     then Copilot Studio onboarding. DocExtractor's public route (traefik with a Cloudflare
     origin certificate) is a ready pattern. The LAN DNS record for `vendorkb-mcp.k3s.home.lan`

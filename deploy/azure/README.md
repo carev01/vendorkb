@@ -1,6 +1,6 @@
 # The distilled extractor on Azure Container Apps
 
-`vendorkb refresh` (hourly CronJob, `docs/deploy/k3s.md` §7a) extracts claims for new chunks
+`vendorkb refresh` (weekly CronJob, `docs/deploy/k3s.md` §7a) extracts claims for new chunks
 with the Opus-distilled Qwen3.5-9B. This directory serves that model on a **serverless A100
 that scales to zero**: nothing runs or bills between DocExtractor refreshes (about monthly),
 and the first request after a quiet period wakes it.
