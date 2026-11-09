@@ -47,6 +47,50 @@ def test_naming_an_aspect_keeps_todays_behaviour(T, question):
     assert detect_topic(question, T) is None
 
 
+@pytest.mark.parametrize("question", [
+    "Does Veeam support Linux hardened repositories against ransomware?",
+    "Which vendors offer isolated copies of backups against ransomware?",
+    "Does Rubrik use indicators of compromise to find ransomware?",
+    "Does Veeam send alerts to our SIEM during a ransomware attack?",
+    "Does Cohesity have audit logging against ransomware?",
+    "Does Veeam detect abnormal deletions for ransomware?",
+    "Can Commvault spot unusual file changes indicating ransomware?",
+    "Can Cohesity scan backups for malware after ransomware?",
+    "Does Veeam detect malware in backups to protect against ransomware?",
+    "Does Veeam scan restore points before recovery from ransomware?",
+    "Does Veeam support Secure Restore for ransomware?",
+    "Does Commvault require multi-party approval to delete backups after ransomware?",
+    "Does Commvault encrypt backups against ransomware?",
+    "Does Veeam support encryption to protect against ransomware?",
+    "Does Rubrik offer an isolated recovery environment for ransomware?",
+    "Does Dell use retention lock against ransomware?",
+    "Does NetApp keep offline copies against ransomware?",
+])
+def test_aspect_specific_questions_do_not_expand(T, question):
+    assert detect_topic(question, T) is None
+
+
+@pytest.mark.parametrize("question", [
+    "How does Veeam protect backups against ransomware?",
+    "How does Commvault protect backups against ransomware?",
+    "What ransomware protection does Rubrik offer?",
+    "How does Cohesity help me recover from a ransomware attack?",
+    "How do Veeam Backup & Replication and Azure Backup each protect backups against"
+    " ransomware?",
+    "Compare Commvault and Rubrik on ransomware protection.",
+    "How do Druva and Cohesity compare for cyber resilience?",
+    "How can I protect my backups against ransomware?",
+    "Which vendors protect backups against ransomware?",
+    "Which backup vendors offer ransomware protection?",
+    "How do I recover after ransomware encrypted my files?",
+    "How does Rubrik handle cyber threats?",
+    "Which products help after cyberattacks?",
+])
+def test_broad_questions_expand(T, question):
+    topic = detect_topic(question, T)
+    assert topic is not None and topic.id == "ransomware_protection"
+
+
 def test_incidental_words_do_not_count_as_naming_an_aspect(T):
     assert detect_topic("How do I recover after ransomware encrypted my files?", T) is not None
     assert detect_topic("Is my ransomware backup copy safe?", T) is not None
@@ -92,3 +136,16 @@ def test_the_first_topic_that_matches_wins():
 def test_no_topics_or_an_empty_question_detects_nothing(T):
     assert detect_topic("How does Veeam protect against ransomware?", []) is None
     assert detect_topic("", T) is None
+
+
+def test_a_phrase_that_normalises_to_nothing_never_matches():
+    topics = [_topic("t", ("ransomware", "-", " "), ("-", "  ", "\u2013"))]
+    assert detect_topic("ransomware backups", topics) is topics[0]  # an empty cue blocks nothing
+    assert detect_topic("backups", [_topic("t", ("-", ""), ())]) is None  # nor fires on anything
+
+
+@pytest.mark.parametrize("dash", ["\u2010", "\u2011", "\u2013", "\u2014"])
+def test_typographic_dashes_count_as_hyphens(dash):
+    topics = [_topic("t", ("cyber resilience",), ("anti virus",))]
+    assert detect_topic(f"Which products give cyber{dash}resilience?", topics) is not None
+    assert detect_topic(f"Which products give cyber resilience, anti{dash}virus?", topics) is None

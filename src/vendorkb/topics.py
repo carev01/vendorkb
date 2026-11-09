@@ -2,9 +2,10 @@
 
 A topic fires only on a broad question: one of its triggers is in the question and the question
 names none of its aspects (no aspect cue). Triggers and cues are compared with the question after
-the same normalising: lowercase, hyphens as spaces, whitespace collapsed. A trigger matches as a
-whole phrase, with an optional plural suffix; a cue matches at a word start, so a stem such as
-``immutab`` covers every form of the word.
+the same normalising: lowercase, hyphens and dashes as spaces, whitespace collapsed. A trigger
+matches as a whole phrase, with an optional plural suffix; a cue matches at a word start, so a
+stem such as ``immutab`` covers every form of the word. A phrase that normalises to nothing is
+skipped.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import psycopg
 from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Aspect, Topic
 
-_HYPHENS = re.compile("[-‐‑]")  # hyphen-minus, hyphen, non-breaking hyphen
+_HYPHENS = re.compile("[-\u2010\u2011\u2013\u2014]")  # hyphen-minus, hyphens, en/em dash
 
 
 def _norm(text: str) -> str:
@@ -24,13 +25,20 @@ def _norm(text: str) -> str:
 
 
 @lru_cache(maxsize=512)
-def _trigger(phrase: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<!\w){re.escape(_norm(phrase))}(?:s|es)?(?!\w)")
+def _trigger(phrase: str) -> re.Pattern[str] | None:
+    """None for a phrase that normalises to nothing: it must never match everything."""
+    text = _norm(phrase)
+    return re.compile(rf"(?<!\w){re.escape(text)}(?:s|es)?(?!\w)") if text else None
 
 
 @lru_cache(maxsize=512)
-def _cue(phrase: str) -> re.Pattern[str]:
-    return re.compile(rf"(?<!\w){re.escape(_norm(phrase))}")
+def _cue(phrase: str) -> re.Pattern[str] | None:
+    text = _norm(phrase)
+    return re.compile(rf"(?<!\w){re.escape(text)}") if text else None
+
+
+def _found(pattern: re.Pattern[str] | None, text: str) -> bool:
+    return pattern is not None and pattern.search(text) is not None
 
 
 def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
@@ -38,9 +46,9 @@ def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
     names, else None (the question is handled as it is without topics)."""
     text = _norm(question)
     for topic in topics:
-        if not any(_trigger(t).search(text) for t in topic.triggers):
+        if not any(_found(_trigger(t), text) for t in topic.triggers):
             continue
-        if not any(_cue(c).search(text) for a in topic.aspects for c in a.cues):
+        if not any(_found(_cue(c), text) for a in topic.aspects for c in a.cues):
             return topic
     return None
 
