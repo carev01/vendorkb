@@ -192,6 +192,17 @@ def _map_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncO
         "extract_api_key": settings.map_api_key or settings.extract_api_key}))
 
 
+def _support_client(settings: VendorkbSettings) -> anthropic.AsyncAnthropic | AsyncOpenAI:
+    """The support-check client for SUPPORT_BACKEND (anthropic: ANTHROPIC_API_KEY; openai:
+    SUPPORT_BASE_URL / SUPPORT_API_KEY, else the MAP_ ones, else the EXTRACT_ ones)."""
+    return _extract_client(settings.model_copy(update={
+        "extract_backend": settings.support_backend,
+        "extract_base_url": (settings.support_base_url or settings.map_base_url
+                             or settings.extract_base_url),
+        "extract_api_key": (settings.support_api_key or settings.map_api_key
+                            or settings.extract_api_key)}))
+
+
 def _read_ids(path: str, limit: int | None) -> list[str]:
     with open(path, encoding="utf-8") as f:
         ids = [line.strip() for line in f if line.strip() and not line.startswith("#")]
@@ -237,15 +248,19 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 
     conn = await connect(settings.vendorkb_dsn)
     extract_client, map_client = _extract_client(settings), _map_client(settings)
+    support_client = _support_client(settings)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
         async with Embedder(settings) as embedder:
             report = await refresh.refresh(
                 conn, settings=settings, extract_client=extract_client, map_client=map_client,
+                support_client=support_client,
                 embedder=embedder, ready=ready, settle_minutes=args.settle_minutes,
-                extract_limit=args.extract_limit, map_max_usd=args.map_max_usd)
+                extract_limit=args.extract_limit, map_max_usd=args.map_max_usd,
+                support_max_usd=args.support_max_usd,
+                support_review_max_usd=args.support_review_max_usd)
     finally:
-        for client in (extract_client, map_client):
+        for client in (extract_client, map_client, support_client):
             close = getattr(client, "close", None)
             if close is not None:
                 await close()
@@ -253,7 +268,10 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     print(json.dumps(dataclasses.asdict(report)))
     # Errored chunks and failed adjudications are retried by the next due run, but they are
     # worth a failed Job; nothing to do is a clean exit.
-    failed = (report.extract or {}).get("errored", 0) or (report.map or {}).get("llm_invalid", 0)
+    support = report.support or {}
+    failed = ((report.extract or {}).get("errored", 0) or (report.map or {}).get("llm_invalid", 0)
+              or support.get("check", {}).get("invalid", 0)
+              or support.get("review", {}).get("invalid", 0) or "error" in support)
     return 1 if failed else 0
 
 
@@ -269,13 +287,24 @@ async def _mcp(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 
 
 async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
-    from vendorkb.claims import regate
+    from vendorkb.claims import regate, support
 
     conn = await connect(settings.vendorkb_dsn)
+    client = _support_client(settings) if args.claims_cmd == "support" else None
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
+        if args.claims_cmd == "support":
+            checked = await support.run(conn, client=client, settings=settings,
+                                        check_max_usd=args.check_max_usd,
+                                        review_max_usd=args.review_max_usd, limit=args.limit)
+            print(json.dumps(dataclasses.asdict(checked)))
+            # failed calls are asked again by the next run, but they are worth a non-zero exit
+            return 1 if checked.check.invalid or checked.review.invalid else 0
         report = await regate.regate(conn, batch_size=args.batch_size, dry_run=args.dry_run)
     finally:
+        close = getattr(client, "close", None)
+        if close is not None:
+            await close()
         await conn.close()
     print(json.dumps(dataclasses.asdict(report)))
     return 0
@@ -356,6 +385,7 @@ async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) ->
             await init_schema(conn, embed_dim=settings.embed_dim)
             built = await capabilities.build(conn)
             print(json.dumps({"rows": built.rows, "retired": built.retired,
+                              "support_excluded": built.support_excluded,
                               "taxonomy_version": await load.current_version(conn)}))
             return 0
         found = await capabilities.query(conn, capabilities.CapFilter(
@@ -416,14 +446,19 @@ def _parser() -> argparse.ArgumentParser:
                    help="first reset the chunks (of these ids) whose last error was a "
                         "max_tokens truncation, so they run again (raise EXTRACT_MAX_TOKENS)")
     s = sub.add_parser("refresh", help="when the sync brought new chunks: wake the extraction"
-                                       " endpoint, extract them, map their claims and rebuild"
-                                       " capabilities (otherwise contact nothing)")
+                                       " endpoint, extract them, map and support-check their"
+                                       " claims and rebuild capabilities (otherwise contact"
+                                       " nothing)")
     s.add_argument("--settle-minutes", type=float, default=60.0,
                    help="wait until no new document arrived for this long (default 60)")
     s.add_argument("--extract-limit", type=int, default=20000,
                    help="chunks per run; a backlog this large runs without settling")
     s.add_argument("--map-max-usd", type=float, default=1.0,
                    help="adjudication budget per run (default 1.0)")
+    s.add_argument("--support-max-usd", type=float, default=1.0,
+                   help="support-check budget per run (default 1.0)")
+    s.add_argument("--support-review-max-usd", type=float, default=1.0,
+                   help="support-review budget per run (default 1.0)")
     s.add_argument("--warmup-seconds", type=float, default=1500.0,
                    help="how long to wait for a scaled-to-zero endpoint (default 1500)")
     s = sub.add_parser("mcp", help="serve the MCP tools over streamable HTTP at /mcp"
@@ -436,6 +471,15 @@ def _parser() -> argparse.ArgumentParser:
                                      "claims that now fail move to rejected_claims")
     c.add_argument("--batch-size", type=int, default=1000)
     c.add_argument("--dry-run", action="store_true", help="count only; change nothing")
+    c = cl.add_parser("support", help="check whether the quotes of topic-dimension claims show the"
+                                      " vendor has the capability, then review every flagged"
+                                      " claim (claims.support)")
+    c.add_argument("--check-max-usd", type=float, default=1.0,
+                   help="checker budget for this run (default 1.0)")
+    c.add_argument("--review-max-usd", type=float, default=1.0,
+                   help="reviewer budget for this run (default 1.0)")
+    c.add_argument("--limit", type=int, default=None,
+                   help="at most this many claims per step (a smoke test)")
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
     t = tax.add_parser("propose", help="cluster the v3 claim strings of one section and merge "

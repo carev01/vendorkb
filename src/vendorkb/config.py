@@ -51,7 +51,8 @@ class VendorkbSettings(BaseSettings):
     # of each run's --max-usd.
     propose_budget_usd: float = 20.0
     # "openai": any OpenAI-compatible endpoint (e.g. OpenRouter, extract_model
-    # "anthropic/claude-haiku-5.5:batch"), sync mode only, extract_concurrency calls at once.
+    # "anthropic/claude-haiku-5.5"), sync mode only, extract_concurrency calls at once.
+    # OpenRouter's ":batch" ids answer 404 on chat completions (checked 2026-11-09).
     extract_backend: Literal["anthropic", "openai"] = "anthropic"
     extract_base_url: str = ""
     extract_api_key: str = ""
@@ -74,6 +75,19 @@ class VendorkbSettings(BaseSettings):
     map_backend: Literal["anthropic", "openai"] = "anthropic"
     map_base_url: str = ""
     map_api_key: str = ""
+    # Claim support check (claims.support): the checker asks whether each in-scope claim's quote
+    # shows the vendor's product has the capability; the reviewer re-asks every claim the checker
+    # flags. SUPPORT_BACKEND "anthropic" uses ANTHROPIC_API_KEY; "openai" an OpenAI-compatible
+    # endpoint (SUPPORT_BASE_URL / SUPPORT_API_KEY, else the MAP_ ones; on OpenRouter set the
+    # models to anthropic/claude-haiku-5.5 and anthropic/claude-opus-5.5).
+    support_backend: Literal["anthropic", "openai"] = "anthropic"
+    support_base_url: str = ""
+    support_api_key: str = ""
+    support_model: str = "claude-haiku-5-5"
+    support_effort: str = "high"
+    support_review_model: str = "claude-opus-5-5"
+    support_review_effort: str = "low"
+    support_concurrency: int = 8  # calls in flight per step
     # MCP server (`vendorkb mcp`): the bearer token every request must carry (required), and
     # the Host headers it answers (comma-separated; "host:*" allows any port).
     mcp_bearer_token: str = ""

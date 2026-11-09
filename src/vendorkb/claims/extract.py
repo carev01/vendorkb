@@ -26,7 +26,8 @@ with zero claims. A result for a chunk that sync has since deleted or superseded
 
 ``settings.extract_backend`` picks the client. "anthropic": an ``anthropic.AsyncAnthropic``
 (sync or batch mode). "openai": an ``openai.AsyncOpenAI`` on any OpenAI-compatible endpoint
-(OpenRouter's ``anthropic/claude-haiku-5.5:batch``, say), sync mode only, with strict
+(OpenRouter's ``anthropic/claude-haiku-5.5``, say; its ``:batch`` ids answer 404 on chat
+completions), sync mode only, with strict
 ``json_schema`` output and the cost the provider reports (``usage.cost``; the token price as
 fallback). Sync mode runs ``extract_concurrency`` calls at once and writes each result as it
 completes; the budget check counts the estimates of the calls in flight.
@@ -963,7 +964,7 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         raise ValueError(f"unknown mode {mode!r}")
     if mode == "batch" and settings.extract_backend != "anthropic":
         raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
-                         " sync mode (OpenRouter's ':batch' model is already half price)")
+                         " sync mode")
     price_per_mtok(settings.extract_model, settings)  # refuse a model whose spend can't be capped
     ids = list(dict.fromkeys(str(uuid.UUID(str(i))) for i in chunk_ids))
     report = ExtractReport(chunks=len(ids))

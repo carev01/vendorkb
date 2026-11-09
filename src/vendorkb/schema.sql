@@ -486,6 +486,22 @@ CREATE INDEX IF NOT EXISTS capabilities_vendor_idx ON capabilities (lower(vendor
 CREATE INDEX IF NOT EXISTS capabilities_conflict_idx ON capabilities (conflict_group)
     WHERE conflict_group IS NOT NULL;
 
+-- The claim support check (claims.support, BACKLOG 36): does the claim's evidence quote show
+-- that the vendor's product has the capability? ``supported`` and ``checker`` are the checker's
+-- verdict and id (model@effort/prompt version); ``review_supported`` and ``reviewer`` the
+-- reviewer's, NULL until a review. ``cost_usd`` sums both calls. ``capabilities build`` leaves
+-- out the claims the reviewer rejected, and the flagged ones no vendor's "yes" rests on.
+CREATE TABLE IF NOT EXISTS claim_support (
+    claim_id uuid PRIMARY KEY REFERENCES raw_claims ON DELETE CASCADE,
+    supported boolean NOT NULL,
+    checker text NOT NULL,
+    checked_at timestamptz NOT NULL DEFAULT now(),
+    review_supported boolean,
+    reviewer text,
+    reviewed_at timestamptz,
+    cost_usd double precision NOT NULL DEFAULT 0
+);
+
 -- Taxonomy-map adjudication decisions (BACKLOG 23), reused whenever the same question comes up
 -- again: the same prompt rules, model family, kind, phrase, workload class and candidates
 -- (``key`` hashes them). A later run, a re-map after a taxonomy change, or a run on another

@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+import yaml
 from pgvector import Vector
 
 from vendorkb.claims import extract, refresh
@@ -26,8 +27,8 @@ CLAIM = {"kind": "capability", "capability": "backed up objects", "target": "Okt
          "evidence_quote": "Nightly Okta jobs keep backed up objects such as users"}
 
 
-def _settings() -> VendorkbSettings:
-    return VendorkbSettings(_env_file=None, extract_backend="openai",
+def _settings(**overrides) -> VendorkbSettings:
+    return VendorkbSettings(_env_file=None, **overrides, extract_backend="openai",
                             extract_model="vendorkb-test", extract_price_in_per_mtok=1e-6,
                             extract_price_out_per_mtok=1e-6, map_backend="openai",
                             map_model="anthropic/claude-haiku-5.5")
@@ -95,7 +96,8 @@ async def _chunk(conn, *, fetched_at=NOW - timedelta(hours=3), text=TEXT) -> str
 async def _run(conn, client=None, ready=None, *, settle=60, limit=100):
     return await refresh.refresh(
         conn, settings=_settings(), extract_client=client or FakeExtract(),
-        map_client=NoCalls(), embedder=NoCalls(), ready=ready or Ready(),
+        map_client=NoCalls(), support_client=NoCalls(), embedder=NoCalls(),
+        ready=ready or Ready(),
         settle_minutes=settle, extract_limit=limit, map_max_usd=1.0, now=NOW)
 
 
@@ -221,6 +223,78 @@ async def test_a_due_run_extracts_maps_and_rebuilds_capabilities(vkb_dsn):
 
         again = await _run(conn, client, ready)  # nothing new: the endpoint is left alone
         assert (again.due, ready.calls, len(client.calls)) == (False, 1, 2)
+    finally:
+        await conn.close()
+
+
+class SupportVerdicts:
+    """OpenAI-shaped support checker: every claim is supported. Taxonomy-map adjudications
+    must not reach it (the claims map through aliases)."""
+
+    def __init__(self):
+        self.calls: list[dict] = []
+        self.chat = SimpleNamespace(completions=self)
+
+    async def create(self, **params):
+        assert params["response_format"]["json_schema"]["name"] == "support_verdict"
+        self.calls.append(params)
+        message = SimpleNamespace(content=json.dumps({"supported": True}), refusal=None)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="stop", message=message)],
+            usage=SimpleNamespace(prompt_tokens=300, completion_tokens=20, cost=0.0002))
+
+
+async def test_a_due_run_support_checks_the_new_claims_of_topic_dimensions(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
+        doc["topics"] = [{"id": "everything", "name": "Everything", "triggers": ["everything"],
+                          "aspects": [{"id": "all", "name": "All", "query": "All",
+                                       "dimensions": [d["id"] for d in doc["dimensions"]]}]}]
+        path = tmp_path / "taxonomy.yaml"
+        path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        await load.load_taxonomy(conn, path)
+        await _chunk(conn)
+        checker = SupportVerdicts()
+        report = await refresh.refresh(
+            conn, settings=_settings(support_backend="openai"), extract_client=FakeExtract(),
+            map_client=NoCalls(), support_client=checker, embedder=NoCalls(), ready=Ready(), settle_minutes=60, extract_limit=100,
+            map_max_usd=1.0, support_max_usd=1.0, support_review_max_usd=1.0, now=NOW)
+        assert report.map["claims"] == 1 and report.map["llm_calls"] == 0
+        assert report.support["check"]["calls"] == 1 and len(checker.calls) == 1
+        assert report.support["review"]["claims"] == 0
+        assert await _count(conn, "SELECT count(*) FROM claim_support WHERE supported") == 1
+        assert report.capabilities_rows == 1
+    finally:
+        await conn.close()
+
+
+async def test_a_failed_support_step_still_builds_what_was_mapped(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        doc = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
+        doc["topics"] = [{"id": "everything", "name": "Everything", "triggers": ["everything"],
+                          "aspects": [{"id": "all", "name": "All", "query": "All",
+                                       "dimensions": [d["id"] for d in doc["dimensions"]]}]}]
+        path = tmp_path / "taxonomy.yaml"
+        path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+        await load.load_taxonomy(conn, path)
+        await _chunk(conn)
+
+        class Unknown(SupportVerdicts):
+            async def create(self, **params):
+                error = RuntimeError("model not found")
+                error.status_code = 404  # type: ignore[attr-defined]
+                raise error
+
+        report = await refresh.refresh(
+            conn, settings=_settings(support_backend="openai"), extract_client=FakeExtract(),
+            map_client=NoCalls(), support_client=Unknown(), embedder=NoCalls(), ready=Ready(), settle_minutes=60, extract_limit=100,
+            map_max_usd=1.0, support_max_usd=1.0, support_review_max_usd=1.0, now=NOW)
+        assert report.support == {"error": "RuntimeError: model not found"}
+        assert report.capabilities_rows == 1
     finally:
         await conn.close()
 

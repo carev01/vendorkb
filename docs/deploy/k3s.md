@@ -241,8 +241,10 @@ contacts nothing. When such chunks exist and no new document has arrived for
 `claimsRefresh.settleMinutes` (or the backlog fills a run), it wakes the distilled extractor
 (`deploy/azure`, scaled to zero), extracts every chunk with no finished extraction, maps the
 claims not yet mapped under the current taxonomy version (`claimsRefresh.map.maxUsd` per run),
-and rebuilds capabilities. Chunks that only errored never trigger a run; they ride along with
-the next one.
+support-checks the new claims of topic dimensions (`claimsRefresh.support`: the checker, then
+the reviewer for every flagged claim, each with its own `maxUsd` per run; backend anthropic
+needs `ANTHROPIC_API_KEY` in the secret), and rebuilds capabilities. Chunks that only errored never trigger a
+run; they ride along with the next one.
 
 Add the two keys to the secret, then enable it with the endpoint's URL:
 
@@ -255,9 +257,13 @@ helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values
 kubectl -n vendorkb create job --from=cronjob/vendorkb-claims-refresh refresh-check  # one run now
 ```
 
-A run prints a JSON report (`new_chunks`, `due`, `reason`, and the extract and map reports of a
-due run). By hand, through the port-forward: `vendorkb extract --unextracted [--vendor V]`
-extracts what is missing, and `vendorkb taxonomy map` maps only claims not yet mapped.
+A run prints a JSON report (`new_chunks`, `due`, `reason`, and the extract, map and support
+reports of a due run). By hand, through the port-forward: `vendorkb extract --unextracted
+[--vendor V]` extracts what is missing, `vendorkb taxonomy map` maps only claims not yet mapped,
+and `vendorkb claims support --check-max-usd N --review-max-usd M [--limit K]` checks the claims
+of topic dimensions not yet checked and reviews the flagged ones (Anthropic API by default; with
+`SUPPORT_BACKEND=openai` set `SUPPORT_MODEL` / `SUPPORT_REVIEW_MODEL` to the OpenRouter ids);
+`vendorkb capabilities build` then leaves out the rejected claims.
 
 ## 7b. MCP server
 

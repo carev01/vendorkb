@@ -85,8 +85,9 @@ bootstrap:
 # couple of queries until the sync brings chunks no extraction has touched; then, once the feed
 # has been quiet for settleMinutes, it wakes the distilled extractor (deploy/azure, scaled to
 # zero), extracts, maps the new claims and rebuilds capabilities.
-# Secret keys it needs: EXTRACT_API_KEY (the endpoint's key) and MAP_API_KEY (map.backend
-# openai: OpenRouter) or ANTHROPIC_API_KEY (map.backend anthropic).
+# Secret keys it needs: EXTRACT_API_KEY (the endpoint's key), MAP_API_KEY (map.backend
+# openai: OpenRouter) or ANTHROPIC_API_KEY (map.backend anthropic), and ANTHROPIC_API_KEY for
+# support.backend anthropic.
 claimsRefresh:
   enabled: false
   schedule: "45 * * * *"   # hourly, between sync runs
@@ -107,6 +108,19 @@ claimsRefresh:
     baseUrl: https://openrouter.ai/api/v1
     model: anthropic/claude-haiku-5.5
     maxUsd: 1.0            # per due run; claims left over wait for the next one
+  # The claim support check (src/vendorkb/claims/support.py): the checker asks each new claim
+  # of a topic dimension, the reviewer re-asks every claim it flags; capabilities leave out
+  # only the claims the reviewer rejects. backend anthropic needs ANTHROPIC_API_KEY in the
+  # secret; openai uses MAP_BASE_URL / MAP_API_KEY (then use the OpenRouter model ids).
+  # Calibration: docs/superpowers/specs/2026-11-09-claim-support-check-design.md.
+  support:
+    backend: anthropic
+    model: claude-haiku-5-5
+    effort: high
+    reviewModel: claude-opus-5-5
+    reviewEffort: low
+    maxUsd: 1.0            # checker, per due run
+    reviewMaxUsd: 1.0      # reviewer, per due run
   resources:
     requests: {cpu: 250m, memory: 1Gi}
     limits: {cpu: "2", memory: 4Gi}

@@ -36,7 +36,7 @@ def object_schema(properties: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_request(*, backend: Backend, model: str, max_tokens: int, system: str, user: str,
-                  schema: dict[str, Any], name: str) -> dict[str, Any]:
+                  schema: dict[str, Any], name: str, effort: str = "low") -> dict[str, Any]:
     """The request for one strict-JSON call; ``name`` names the schema (openai only)."""
     if backend == "openai":
         return {
@@ -45,13 +45,13 @@ def build_request(*, backend: Backend, model: str, max_tokens: int, system: str,
                          {"role": "user", "content": user}],
             "response_format": {"type": "json_schema", "json_schema": {
                 "name": name, "strict": True, "schema": schema}},
-            "extra_body": {"usage": {"include": True}, "reasoning": {"effort": "low"}},
+            "extra_body": {"usage": {"include": True}, "reasoning": {"effort": effort}},
         }
     return {
         "model": model, "max_tokens": max_tokens,
         "system": system,
         "messages": [{"role": "user", "content": user}],
-        "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": schema}},
+        "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": schema}},
     }
 
 
