@@ -298,10 +298,12 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     are unsupported, vs 0/57 of Opus's (the earlier 15.6% used a brief that counted
     requirements and limits as unsupported). **Done 2026-11-09 (`claims/support.py`, spec
     `specs/2026-11-09-claim-support-check-design.md`):**
-    - The checker is Haiku 5.5 at effort high: it flags 41% of the unsupported facts and 2.6%
+    - The checker is Haiku 5.5 at effort high: it flags 41% of the unsupported facts and 3.3%
       of the supported ones.
-    - Opus 5.5 at effort low reviews every flagged claim. It kept 26/26 wrongly flagged facts
-      and confirmed 34/41.
+    - Opus 5.5 at effort low reviews every flagged claim. On the Anthropic API it kept 32/32
+      wrongly flagged facts and confirmed 32/41.
+    - End to end: 32% of the unsupported facts are removed, and none of the 978 supported
+      ones.
     - Only rejected claims leave capabilities.
     - Scope: the topic dimensions, also in `vendorkb refresh`, on the Anthropic API.
 

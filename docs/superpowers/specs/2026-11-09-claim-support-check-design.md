@@ -49,6 +49,16 @@ unsupported, 26 supported.
 OpenRouter's `:batch` model ids cannot be used through chat completions (404), so the plain ids
 are used.
 
+**Production path (Anthropic API, `support.CHECK_SYSTEM` / `REVIEW_SYSTEM` through
+`llm.build_request` and `llm.call`).** Run on the same 1,078 gold facts on 2026-11-09:
+
+- **Checker, Haiku at effort high:** it flags 41/100 unsupported facts and 32/978 supported ones
+  (3.3%). Cost: $0.128.
+- **Reviewer, Opus at effort low,** on the 73 flagged facts: it keeps 32/32 of the wrongly flagged
+  facts and confirms 32/41 of the unsupported ones. Cost: $0.0037 per fact. On this path Opus
+  answers without a thinking block at effort low.
+- **End to end:** 32% of the unsupported facts are removed, and 0 of the 978 supported ones.
+
 ## Design
 
 The first version was approved in chat. It sent only the flagged claims a vendor's "yes" rested
@@ -120,12 +130,13 @@ The rows cascade with their claim.
   - a non-rate-limit 400;
   - a 401, 402, 403 or 404 (a bad key, no credit, an unknown model).
 
-**Expected effect on the 31,476 ransomware-dimension facts.** From the calibration:
+**Expected effect on the 31,476 ransomware-dimension facts.** From the production-path
+calibration:
 
-- about 1,250 unsupported facts removed, about a third of the roughly 3,100 unsupported ones;
+- about 1,000 of the roughly 3,100 unsupported facts removed;
 - about 0 good facts lost.
 
-The cost is about $3.70 for the checker and about $7.40 for the reviewer, on about 2,000 flagged
+The cost is about $3.75 for the checker and about $7.90 for the reviewer, on about 2,100 flagged
 facts.
 
 ## Not in scope
