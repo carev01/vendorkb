@@ -1,5 +1,6 @@
-"""The MCP server over streamable HTTP (``vendorkb mcp``): POST /mcp behind a bearer token,
-GET /healthz for probes. Stateless: every request stands alone, so replicas need no affinity.
+"""The MCP server over streamable HTTP (``vendorkb mcp``): POST /mcp behind one secret (a bearer
+token, or the same value as ``X-API-Key``), GET /healthz for probes. Stateless: every request
+stands alone, so replicas need no affinity.
 
 The token is required (the app refuses to start without one). ``mcp_allowed_hosts`` is the
 Host-header allow-list that guards against DNS rebinding; ``host:*`` allows any port.
@@ -23,18 +24,21 @@ from vendorkb.mcp_server import build_server
 
 
 class BearerTokenGate:
-    """401 (``WWW-Authenticate: Bearer``) unless the request carries exactly
-    ``Authorization: Bearer <token>``; constant-time comparison."""
+    """401 (``WWW-Authenticate: Bearer``) unless the request carries the one secret, exactly, as
+    ``Authorization: Bearer <token>`` or as ``X-API-Key: <token>`` (Copilot Studio's API-key
+    authentication); either header matching is enough. Constant-time comparisons."""
 
     def __init__(self, app: ASGIApp, token: str) -> None:
         if not token:
             raise ValueError("BearerTokenGate needs a non-empty token")
-        self.app, self._expected = app, f"Bearer {token}".encode()
+        self.app, self._bearer, self._key = app, f"Bearer {token}".encode(), token.encode()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
-            got = dict(scope.get("headers") or []).get(b"authorization", b"")
-            if not hmac.compare_digest(got, self._expected):
+            headers = dict(scope.get("headers") or [])
+            bearer = hmac.compare_digest(headers.get(b"authorization", b""), self._bearer)
+            key = hmac.compare_digest(headers.get(b"x-api-key", b""), self._key)
+            if not (bearer or key):
                 await send({"type": "http.response.start", "status": 401,
                             "headers": [(b"www-authenticate", b"Bearer"),
                                         (b"content-type", b"text/plain")]})
