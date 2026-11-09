@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from vendorkb.clients import Embedder, Reranker
     from vendorkb.taxonomy.load import Topic
-    from vendorkb.topics import TopicHits
+    from vendorkb.topics import Grid, TopicHits
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +26,11 @@ ENUMERATION_MAX_TOKENS = 16000
 # A topic question with more sides than this keeps the plain comparison path: the per-aspect
 # searches and rerank scale with the sides (4 sides x 8 aspects).
 TOPIC_MAX_SIDES = 4
+# The summary above a topic grid: a short call, its reasoning included.
+GRID_SUMMARY_MAX_TOKENS = 2000
+GRID_SUMMARY_RULES = (
+    "Summarise this coverage table of backup vendors in at most four sentences, using only the "
+    "counts and names given; no citations, no claims beyond the table.")
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -91,6 +96,21 @@ async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic,
                 if v is not None}
     return await hits(conn, question, topic, facets=facets, embedder=embedder,
                       reranker=reranker, **tunables)
+
+
+async def topic_grid(conn: psycopg.AsyncConnection, topic: Topic, *, vendors: list[str],
+                     embedder: Embedder, reranker: Reranker | None,
+                     catch_up: bool | None = None) -> Grid:
+    """``topics.topic_grid``; ``catch_up`` left None keeps that function's own default."""
+    from vendorkb.topics import topic_grid as grid
+    extra = {} if catch_up is None else {"catch_up": catch_up}
+    return await grid(conn, topic, vendors=vendors, embedder=embedder, reranker=reranker,
+                      **extra)
+
+
+def render_grid(grid: Grid, topic: Topic) -> tuple[str, list[Hit]]:
+    from vendorkb.topics import render_grid as render
+    return render(grid, topic)
 
 
 _GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
@@ -240,6 +260,15 @@ def count_lines_naming_other_vendors(text: str, corpus_vendors: list[str]) -> in
     return count
 
 
+def citation(n: int, hit: Hit) -> dict:
+    """The citation of marker ``n``: the chunk and its page."""
+    return {"marker": n, "chunk_id": hit.chunk_id, "doc_id": hit.doc_id,
+            "url": hit.url, "title": hit.title, "section_path": hit.section_path,
+            # the evidence as the model saw it: judging never depends on a
+            # later DB state (a re-ingest may replace the chunk)
+            "text": hit.text}
+
+
 def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
     valid = len(hits)
     order: list[int] = []
@@ -260,15 +289,7 @@ def resolve_markers(raw: str, hits: list[Hit]) -> tuple[str, list[dict], int]:
         return f"{m.group(1)}[{', '.join(str(n) for n in keep)}]" if keep else ""
 
     text = _GROUP.sub(repl, raw)
-    citations = []
-    for n in order:
-        h = hits[n - 1]
-        citations.append({"marker": n, "chunk_id": h.chunk_id, "doc_id": h.doc_id,
-                          "url": h.url, "title": h.title, "section_path": h.section_path,
-                          # the evidence as the model saw it: judging never depends on a
-                          # later DB state (a re-ingest may replace the chunk)
-                          "text": h.text})
-    return text, citations, unknown
+    return text, [citation(n, hits[n - 1]) for n in order], unknown
 
 
 def _renumber(text: str, sub: list[Hit], hits: list[Hit]) -> str:
@@ -360,6 +381,56 @@ async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SY
     return None, totals, error, None
 
 
+def _summary_prompt(grid: Grid, topic: Topic) -> str:
+    """One line per aspect: how many vendors have a capability fact for it, and which. A page
+    not yet analysed is no fact (the summary must not state what nothing verified)."""
+    lines = []
+    for aspect in topic.aspects:
+        names = sorted(v for (v, a), cell in grid.cells.items()
+                       if a == aspect.id and cell.mark != "recent")
+        lines.append(f"{aspect.name}: {len(names)} vendors: {', '.join(names) or 'none'}")
+    return "\n".join(lines)
+
+
+async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder, reranker,
+                       scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
+    """A "which vendors" question on ``topic``: the grid of every vendor with documents by the
+    topic's aspects, built from the capability table in code (``topic_grid``), under a short
+    model summary of its counts. The model writes no cell and no citation: ``[n]`` is the
+    n-th cell of the table. A failed summary leaves the grid alone."""
+    checked = list(scope_index.vendors)
+    grid = await topic_grid(conn, topic, vendors=checked, embedder=embedder, reranker=reranker)
+    table, hits = render_grid(grid, topic)
+    out: dict = {
+        "query": question, "answer": table,
+        "citations": [citation(n, h) for n, h in enumerate(hits, start=1)],
+        "unknown_markers": 0, "uncited": False, "shape": "enumeration", "topic": topic.id,
+        "aspects": [a.name for a in topic.aspects],
+        "scope": {"vendors": [], "products": [], "relaxed": False},
+        "rerank_ok": grid.rerank_ok, "retrieved": len(hits),
+        "reranked_docs": grid.reranked_docs, "truncated": False, "usage": None, "error": None,
+        "vendors_checked": checked, "vendors_listed": list(grid.vendors), "lines_dropped": 0,
+        "lines_naming_other_vendors": 0, "second_pass_listed": 0}
+    if not hits:  # nothing to summarise
+        return out
+    content, usage, error, finish_reason = await _call_model(
+        client, settings, _summary_prompt(grid, topic), GRID_SUMMARY_RULES,
+        max_tokens=GRID_SUMMARY_MAX_TOKENS)
+    out["usage"] = usage
+    out["truncated"] = finish_reason == "length"
+    if out["truncated"]:
+        log.warning("vendorkb grid summary truncated at %d tokens", GRID_SUMMARY_MAX_TOKENS)
+    if content is None:
+        log.warning("vendorkb grid summary failed: %s", error)
+        return out
+    # a marker in the summary would cite a cell of the table by accident
+    summary, stripped = _GROUP.subn("", content)
+    out["unknown_markers"] = stripped
+    if summary.strip():
+        out["answer"] = f"{summary.strip()}\n\n{table}"
+    return out
+
+
 async def answer(conn, question: str, *, settings, embedder, reranker,
                  scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
     shape = detect_shape(question, scope_index)
@@ -372,8 +443,11 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     kept: list[str] = []
     system = SYSTEM_RULES
     topic = None
-    if shape.kind != "enumeration" and len(shape.facets) <= TOPIC_MAX_SIDES:
+    if shape.kind == "enumeration" or len(shape.facets) <= TOPIC_MAX_SIDES:
         topic = detect_topic(question, await load_topics(conn))
+    if shape.kind == "enumeration" and topic is not None:
+        return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
+                                  reranker=reranker, scope_index=scope_index, client=client)
     if shape.kind == "enumeration":
         checked = list(scope_index.vendors)
         er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,

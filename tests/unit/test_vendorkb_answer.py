@@ -11,7 +11,7 @@ from vendorkb.modes import ComparisonResult
 from vendorkb.scope import ScopeIndex
 from vendorkb.search import Hit, SearchResult
 from vendorkb.taxonomy import load
-from vendorkb.topics import TopicHits
+from vendorkb.topics import Cell, Grid, TopicHits
 
 
 def _hit(n, vendor="Veeam"):
@@ -815,14 +815,145 @@ async def test_a_five_side_comparison_keeps_todays_path(monkeypatch, topic):
     assert client.calls[0]["max_tokens"] == 4000
 
 
+WHICH_VENDORS_Q = "Which vendors protect backups against ransomware?"
+SUMMARY_SYSTEM = ("Summarise this coverage table of backup vendors in at most four sentences, "
+                  "using only the counts and names given; no citations, no claims beyond the "
+                  "table.")
+
+
+def _patch_grid(monkeypatch, grid):
+    """Answer every ``topic_grid`` with ``grid``; the returned list holds its kwargs."""
+    calls = []
+
+    async def fake(conn, topic, **kw):
+        calls.append({"topic": topic, **kw})
+        return grid
+
+    monkeypatch.setattr(ans, "topic_grid", fake)
+    _never(monkeypatch, "enumerate_vendors")
+    _never(monkeypatch, "search_docs")
+    return calls
+
+
+def _grid_of(topic) -> Grid:
+    """Veeam has three marks (the last of an earlier version of its page), Commvault one."""
+    a = [x.id for x in topic.aspects]
+    cells = {("Commvault", a[0]): Cell("supported", _hit(1, "Commvault"), False),
+             ("Veeam", a[0]): Cell("partial", _hit(2), False),
+             ("Veeam", a[1]): Cell("recent", _hit(3), False),
+             ("Veeam", a[2]): Cell("supported", _hit(4), True)}
+    return Grid(vendors=["Commvault", "Veeam"], cells=cells, facts_as_of=None,
+                no_fact=["Rubrik"], rerank_ok=False, reranked_docs=123)
+
+
 @pytest.mark.asyncio
-async def test_an_enumeration_question_is_not_expanded_yet(monkeypatch, topic):
+async def test_which_vendors_topic_question_gets_the_grid(monkeypatch, topic):
+    grid = _grid_of(topic)
     seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    calls = _patch_grid(monkeypatch, grid)
+    client = FakeClient(["Veeam covers most aspects."])
+    r = await _run_topic(client, WHICH_VENDORS_Q, INDEX_VC)
+    # every vendor with documents, and nothing else of the retrieval path
+    assert calls == [{"topic": topic, "vendors": ["Veeam", "Commvault"], "embedder": None,
+                      "reranker": None}]
+    assert seen.hits == [] and len(seen.loads) == 1
+    table, hits = topics_mod.render_grid(grid, topic)
+    assert r["answer"] == f"Veeam covers most aspects.\n\n{table}"
+    # [n] numbers the table row by row: Veeam's three cells, then Commvault's
+    assert [h.chunk_id for h in hits] == ["c2", "c3", "c4", "c1"]
+    assert r["citations"] == [ans.citation(n, h) for n, h in enumerate(hits, start=1)]
+    assert [c["marker"] for c in r["citations"]] == [1, 2, 3, 4]
+    assert (r["shape"], r["topic"]) == ("enumeration", topic.id)
+    assert r["aspects"] == [a.name for a in topic.aspects]
+    assert r["scope"] == {"vendors": [], "products": [], "relaxed": False}
+    assert (r["retrieved"], r["rerank_ok"], r["reranked_docs"]) == (4, False, 123)
+    assert (r["vendors_checked"], r["vendors_listed"]) == (
+        ["Veeam", "Commvault"], ["Commvault", "Veeam"])  # the vendors with a row
+    assert (r["lines_dropped"], r["second_pass_listed"]) == (0, 0)
+    assert r["uncited"] is False and r["error"] is None and r["truncated"] is False
+    assert r["unknown_markers"] == 0 and r["usage"]["completion_tokens"] == 5
+    # the summary: the brief's rules, then a line per aspect with the vendors whose cell is a
+    # fact (the page not yet analysed is not a fact), at most 2000 tokens
+    (call,) = client.calls
+    names = [a.name for a in topic.aspects]
+    assert call["messages"][0]["content"] == SUMMARY_SYSTEM
+    assert call["messages"][1]["content"] == "\n".join(
+        [f"{names[0]}: 2 vendors: Commvault, Veeam", f"{names[1]}: 0 vendors: none",
+         f"{names[2]}: 1 vendors: Veeam", *(f"{n}: 0 vendors: none" for n in names[3:])])
+    assert call["max_tokens"] == 2000
+
+
+@pytest.mark.asyncio
+async def test_a_grid_summary_carries_no_markers_of_its_own(monkeypatch, topic):
+    _patch_grid(monkeypatch, _grid_of(topic))
+    _patch_topics(monkeypatch, topic, [])
+    r = await _run_topic(FakeClient(["Veeam leads [2] and Commvault trails [1, 3]."]),
+                         WHICH_VENDORS_Q, INDEX_VC)
+    assert r["answer"].startswith("Veeam leads and Commvault trails.\n\n| Vendor |")
+    assert r["unknown_markers"] == 2 and len(r["citations"]) == 4
+
+
+@pytest.mark.asyncio
+async def test_a_failed_summary_leaves_the_grid_alone(monkeypatch, topic):
+    grid = _grid_of(topic)
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    client = FakeClient([RuntimeError("boom"), RuntimeError("boom")])  # one retry, then none
+    r = await _run_topic(client, WHICH_VENDORS_Q, INDEX_VC)
+    table, hits = topics_mod.render_grid(grid, topic)
+    assert len(client.calls) == 2 and r["answer"] == table
+    assert len(r["citations"]) == len(hits) == 4 and r["error"] is None
+    assert r["truncated"] is False
+
+
+@pytest.mark.parametrize("finish, flagged", [("length", True), ("stop", False)])
+@pytest.mark.asyncio
+async def test_a_truncated_grid_summary_is_flagged(monkeypatch, caplog, topic, finish, flagged):
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, _grid_of(topic))
+    r = await _run_topic(FinishClient(["Veeam covers"], finish), WHICH_VENDORS_Q, INDEX_VC)
+    assert r["truncated"] is flagged and ("truncated" in caplog.text) is flagged
+    assert r["answer"].startswith("Veeam covers\n\n| Vendor |")
+
+
+@pytest.mark.asyncio
+async def test_a_grid_with_no_marks_answers_without_the_model(monkeypatch, topic):
+    grid = Grid(vendors=[], cells={}, facts_as_of=None, no_fact=["Commvault", "Veeam"])
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    client = FakeClient([])
+    r = await _run_topic(client, WHICH_VENDORS_Q, INDEX_VC)
+    table, hits = topics_mod.render_grid(grid, topic)
+    assert client.calls == [] and hits == [] and r["answer"] == table
+    assert r["answer"].startswith("No fact was found for ")
+    assert "No fact found for: Commvault, Veeam." in r["answer"] and "| Vendor" not in r["answer"]
+    assert r["citations"] == [] and r["retrieved"] == 0 and r["uncited"] is False
+    assert r["topic"] == topic.id and r["truncated"] is False and r["usage"] is None
+
+
+@pytest.mark.parametrize("question", [
+    "Which vendors support immutable backups?",  # no trigger
+    "Which vendors support YARA rules for ransomware?",  # names an aspect
+])
+@pytest.mark.asyncio
+async def test_other_enumeration_questions_keep_todays_path(monkeypatch, topic, question):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    _never(monkeypatch, "topic_grid")
     _patch_enum(monkeypatch, [_hit(1)], ["Veeam"])
-    r = await _run_topic(FakeClient(["Veeam (VBR): does X [1]"]),
-                         "Which vendors protect backups against ransomware?", INDEX_VC)
+    client = FakeClient(["Veeam (VBR): does X [1]"])
+    r = await _run_topic(client, question, INDEX_VC)
     assert r["shape"] == "enumeration" and r["topic"] is None and "aspects" not in r
-    assert seen.hits == [] and seen.loads == []  # not even the topic query
+    assert seen.hits == [] and len(seen.loads) == 1  # the topic query, nothing else
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
+    assert r["vendors_listed"] == ["Veeam"] and r["truncated"] is False
+
+
+def test_citation_is_what_resolve_markers_builds():
+    hits = [_hit(1), _hit(2)]
+    _, built, _ = resolve_markers("A [2].", hits)
+    assert ans.citation(2, hits[1]) == built[0] == {
+        "marker": 2, "chunk_id": "c2", "doc_id": "d2", "url": "https://docs.example/2",
+        "title": "Title 2", "section_path": ["A", "B"], "text": hits[1].text}
 
 
 @pytest.mark.asyncio
@@ -839,9 +970,15 @@ async def test_the_topic_functions_import_lazily_and_delegate_to_topics(monkeypa
         calls.append(("hits", conn, question, topic, kw))
         return "hits"
 
+    async def fake_grid(conn, topic, **kw):
+        calls.append(("grid", conn, topic, kw))
+        return "grid"
+
     monkeypatch.setattr(ans, "load_topics", _LOAD_TOPICS)
     monkeypatch.setattr(topics_mod, "load_topics", fake_load)
     monkeypatch.setattr(topics_mod, "topic_hits", fake_hits)
+    monkeypatch.setattr(topics_mod, "topic_grid", fake_grid)
+    monkeypatch.setattr(topics_mod, "render_grid", lambda grid, topic: ("table", [grid, topic]))
     assert await ans.load_topics("conn") == [topic]
     assert ans.detect_topic(TOPIC_Q, [topic]) is topic
     facets = [("vendor", "Veeam")]
@@ -849,12 +986,20 @@ async def test_the_topic_functions_import_lazily_and_delegate_to_topics(monkeypa
                                 reranker="r") == "hits"
     assert await ans.topic_hits("conn", "q", topic, facets=facets, embedder="e", reranker="r",
                                 budget=60, per_aspect=1, own=2) == "hits"
+    assert await ans.topic_grid("conn", topic, vendors=["V"], embedder="e",
+                                reranker="r") == "grid"
+    assert await ans.topic_grid("conn", topic, vendors=["V"], embedder="e", reranker="r",
+                                catch_up=False) == "grid"
+    assert ans.render_grid("g", topic) == ("table", ["g", topic])
     assert calls == [
         ("load", "conn"),
         # a tunable left out is not passed on: topics' own default applies
         ("hits", "conn", "q", topic, {"facets": facets, "embedder": "e", "reranker": "r"}),
         ("hits", "conn", "q", topic, {"facets": facets, "embedder": "e", "reranker": "r",
-                                      "budget": 60, "per_aspect": 1, "own": 2})]
+                                      "budget": 60, "per_aspect": 1, "own": 2}),
+        ("grid", "conn", topic, {"vendors": ["V"], "embedder": "e", "reranker": "r"}),
+        ("grid", "conn", topic, {"vendors": ["V"], "embedder": "e", "reranker": "r",
+                                 "catch_up": False})]
 
 
 @pytest.mark.parametrize("finish, flagged", [("length", True), ("stop", False)])

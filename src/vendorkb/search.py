@@ -39,7 +39,8 @@ class Hit:
     url: str | None
     rrf_rank: int
     rerank_score: float | None
-    superseded: bool = False  # an earlier version of its page (only ``read_section`` returns one)
+    # an earlier version of its page (only ``read_section`` and the topic grid return one)
+    superseded: bool = False
 
 
 @dataclass
@@ -231,6 +232,60 @@ async def vector_candidates(conn: psycopg.AsyncConnection, qvecs: Sequence[list[
     rows = iter(await _vector_rows_many(conn, queries) if queries else [])
     return [[[_hit(r, n) for n, r in enumerate(next(rows), start=1)] for _ in sides]
             for _ in qvecs]
+
+
+async def unextracted_candidates(conn: psycopg.AsyncConnection, queries: list[str],
+                                 qvecs: list[list[float]], *, limit: int) -> list[list[Hit]]:
+    """For each query, the ``limit`` best current chunks among those with no final extraction
+    of the claims-v3 family ('done' or 'failed', by any model): pages synced since their last
+    extraction, whose facts the capability table does not hold yet. In RRF order (``rrf_rank``
+    set, no rerank score), ``out[i]`` for ``queries[i]`` and ``qvecs[i]``.
+
+    ONE statement for every query. The unextracted chunks are materialised once (the anti-join
+    is the main cost: 1.2 s for 622 chunks of the full corpus), and each query is ranked within
+    that small set by vector distance (an exact sort: an HNSW scan filtered to so few rows
+    starves) and by full-text rank (each tsquery parsed once, not per chunk), top
+    ``VEC_LIMIT`` and ``FTS_LIMIT``; a corpus-wide full-text scan per query would cost ~2 s
+    each. The fusion is ``hybrid_candidates``', in Python."""
+    if not queries:
+        return []
+    # Imported here, not at the top: this module must stay free of the claims stack
+    # (anthropic), as store.retire_superseded's import (tests/unit/test_vendorkb_cli_imports.py).
+    from vendorkb.claims.extract import PROMPT_FAMILY
+    asked = " UNION ALL ".join(
+        f"SELECT {n} AS idx, %s::vector AS qvec, {_TSQUERY} AS tsq"
+        for n in range(1, len(queries) + 1))
+    sql = ("WITH pool AS MATERIALIZED (SELECT c.chunk_id, c.tsv, c.embedding FROM chunks c"
+           f" WHERE true{_CURRENT} AND NOT EXISTS (SELECT 1 FROM extractions e"
+           " WHERE e.chunk_id = c.chunk_id AND e.status IN ('done', 'failed')"
+           " AND e.prompt_version LIKE %s)),"
+           f" qs AS MATERIALIZED ({asked}),"
+           " ranked AS (SELECT 'v' AS kind, q.idx, p.chunk_id, row_number() OVER (PARTITION BY"
+           " q.idx ORDER BY p.embedding <=> q.qvec, p.chunk_id::text) AS rn FROM qs q, pool p"
+           " UNION ALL SELECT 'f', q.idx, p.chunk_id, row_number() OVER (PARTITION BY q.idx"
+           " ORDER BY ts_rank_cd(p.tsv, q.tsq) DESC, p.chunk_id::text) FROM qs q, pool p"
+           " WHERE p.tsv @@ q.tsq)"
+           f" SELECT {_COLS}, jsonb_agg(jsonb_build_array(r.kind, r.idx, r.rn)) FROM ranked r"
+           " JOIN chunks c ON c.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
+           " WHERE (r.kind = 'v' AND r.rn <= %s) OR (r.kind = 'f' AND r.rn <= %s)"
+           " GROUP BY c.chunk_id, d.doc_id")
+    params: list = [PROMPT_FAMILY]
+    for query, qvec in zip(queries, qvecs, strict=True):
+        params += [Vector(qvec), query]
+    cur = await conn.execute(sql, [*params, VEC_LIMIT, FTS_LIMIT])
+    rows: dict[str, tuple] = {}
+    ranks: dict[str, list[list[tuple[int, str]]]] = {"v": [[] for _ in queries],
+                                                     "f": [[] for _ in queries]}
+    for *cols, found in await cur.fetchall():
+        rows[cols[0]] = tuple(cols)
+        for kind, idx, rn in found:
+            ranks[kind][idx - 1].append((rn, cols[0]))
+    out = []
+    for fts, vec in zip(ranks["f"], ranks["v"]):
+        order = rrf([[c for _, c in sorted(fts)], [c for _, c in sorted(vec)]],
+                    weights=[FTS_WEIGHT, 1.0])
+        out.append([_hit(rows[c], n) for n, c in enumerate(order[:limit], start=1)])
+    return out
 
 
 async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],

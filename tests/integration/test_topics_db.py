@@ -1,7 +1,7 @@
 import asyncio
 import re
 import uuid
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from itertools import groupby
 from pathlib import Path
 
@@ -11,12 +11,14 @@ from pgvector import Vector
 
 from tests.integration.test_capabilities_v2 import T0, _claim, _doc_of, _fresh, _tail_chunk
 from vendorkb import search
+from vendorkb import topics as topics_mod
 from vendorkb.db import connect, init_schema
-from vendorkb.search import hybrid_candidates
+from vendorkb.search import Hit, hybrid_candidates
 from vendorkb.taxonomy import capabilities, load
 from vendorkb.taxonomy.load import Aspect, Topic
 from vendorkb.topics import (
-    TOPIC_RERANK_DOCS, detect_topic, fact_chunks, load_topics, topic_hits)
+    TOPIC_RERANK_DOCS, Cell, Grid, detect_topic, fact_chunks, load_topics, render_grid,
+    topic_grid, topic_hits)
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 V2_TABLES = ("dimensions", "classes", "object_types", "targets", "variants", "offerings",
@@ -610,3 +612,283 @@ async def test_fact_chunks_take_at_most_half_of_a_list(kb):
     assert all(not any("ninety" in d for d in docs) for query, docs, _ in rr.calls
                if query.startswith("Alpha: ") and "retention" not in query)
     assert res.reranked_docs == 27
+
+
+# --- the vendor-by-aspect grid ------------------------------------------------------------------
+
+def _day(n: int) -> datetime:
+    return T0 + timedelta(days=n)
+
+
+async def _chunk_of(conn, claim_id: uuid.UUID) -> str:
+    cur = await conn.execute("SELECT chunk_id::text FROM raw_claims WHERE claim_id = %s",
+                             (claim_id,))
+    return (await cur.fetchone())[0]
+
+
+async def test_grid_cells_take_the_best_fact(kb):
+    conn, v = kb
+    alpha = {"vendor": "Alpha", "product": "P1", "mapped_version": v}
+    beta = {"vendor": "Beta", "product": "Q1", "mapped_version": v}
+    # Alpha keeping: supported beats partial however new the partial's page; of the supported
+    # facts (each its own key, so each current) the newest page wins
+    await _claim(conn, "retention.maximum_period", capability="a1", support="partial",
+                 fetched_at=_day(12), **alpha)
+    days = {}
+    for day in (7, 3, 10, 1, 5, 2, 8, 4, 6, 9):  # ten, so chunk order cannot pass for date
+        days[day] = await _claim(conn, "retention.maximum_period", capability=f"a-{day}",
+                                 fetched_at=_day(day), **alpha)
+    keeping = days[10]
+    # Alpha getting_back: b2 is supported on a newer page than b3, but a newer page of its own
+    # key (b1, the same capability) makes it the key's old row: the current row of another
+    # dimension (b3) wins
+    await _claim(conn, "coverage.restore", capability="restoring", support="partial",
+                 fetched_at=_day(9), **alpha)
+    await _claim(conn, "coverage.restore", capability="restoring", fetched_at=_day(8), **alpha)
+    getting_back = await _claim(conn, "coverage.export", capability="b3",
+                                fetched_at=_day(1), **alpha)
+    # Alpha scheduling: a partial fact is a partial mark
+    scheduling = await _claim(conn, "schedule.backup_frequency", capability="a4",
+                              support="partial", fetched_at=_day(4), **alpha)
+    # Beta getting_back: a current chunk beats a superseded one (an earlier version of its
+    # page) whatever the is_current flag and the page date say: c1 is supported on a current
+    # chunk but is its key's old row (c3 is newer), c2 is on a superseded chunk of a newer page
+    # and the only row of its key
+    current_chunk = await _claim(conn, "coverage.restore", capability="restoring",
+                                 fetched_at=_day(0), **beta)
+    await _claim(conn, "coverage.restore", capability="restoring", support="partial",
+                 fetched_at=_day(5), **beta)
+    earlier = await _claim(conn, "coverage.export", capability="c2", fetched_at=_day(20),
+                           superseded=True, **beta)
+    await _tail_chunk(conn, await _doc_of(conn, earlier))  # its page is not retired
+    # Beta scheduling: only a fact on a superseded chunk: shown, as from an earlier version
+    only_earlier = await _claim(conn, "schedule.backup_frequency", capability="c4",
+                                fetched_at=_day(2), superseded=True, **beta)
+    await _tail_chunk(conn, await _doc_of(conn, only_earlier))
+    # Beta keeping: a fact of another taxonomy version is no fact
+    stale = await _claim(conn, "retention.maximum_period", capability="c5", **beta)
+    # Gamma has nothing on the topic: a fact that says no, and a dimension the topic lacks
+    await _claim(conn, "retention.maximum_period", capability="g1", support="not_supported",
+                 vendor="Gamma", product="R1", mapped_version=v)
+    await _claim(conn, "coverage.backup", capability="g2", vendor="Gamma", product="R1",
+                 mapped_version=v)
+    # Delta has facts but is not among the vendors asked for
+    await _claim(conn, "retention.maximum_period", capability="d1", vendor="Delta",
+                 product="S1", mapped_version=v)
+    await capabilities.build(conn)
+    await conn.execute("UPDATE capabilities SET taxonomy_version = '2-old' WHERE claim_id = %s",
+                       (stale,))
+
+    rec = _Recorder(conn)
+    grid = await topic_grid(rec, TOPIC, vendors=["Gamma", "Beta", "Alpha"], embedder=None,
+                            reranker=None, catch_up=False)
+    assert len([s for s in rec.statements if "FROM capabilities" in s]) == 1  # the facts: one SQL
+    assert {k: (c.mark, c.hit.chunk_id, c.superseded) for k, c in grid.cells.items()} == {
+        ("Alpha", "keeping"): ("supported", await _chunk_of(conn, keeping), False),
+        ("Alpha", "getting_back"): ("supported", await _chunk_of(conn, getting_back), False),
+        ("Alpha", "scheduling"): ("partial", await _chunk_of(conn, scheduling), False),
+        ("Beta", "getting_back"): ("supported", await _chunk_of(conn, current_chunk), False),
+        ("Beta", "scheduling"): ("supported", await _chunk_of(conn, only_earlier), True)}
+    # the hit is the chunk as a search returns it; one on a superseded chunk says so
+    hit = grid.cells[("Beta", "scheduling")].hit
+    assert hit.superseded and (hit.vendor, hit.product) == ("Beta", "Q1")
+    assert (hit.title, hit.url, hit.text) == ("Doc", "http://docs/x", "synthetic text")
+    assert not grid.cells[("Alpha", "keeping")].hit.superseded
+    # a row for each vendor with a fact, the others listed; the date is the newest page of the
+    # facts the grid shows (not Alpha's day-12 partial, nor Beta's day-20 earlier version)
+    assert grid.vendors == ["Alpha", "Beta"] and grid.no_fact == ["Gamma"]
+    assert grid.facts_as_of == _day(10)
+    assert grid.reranked_docs == 0 and grid.rerank_ok is True
+
+
+async def test_a_grid_of_no_vendors_has_no_rows(kb):
+    conn, v = kb
+    await _claim(conn, "retention.maximum_period", vendor="Alpha", product="P1", mapped_version=v)
+    await capabilities.build(conn)
+    for vendors in ([], ["Nobody"]):
+        grid = await topic_grid(conn, TOPIC, vendors=vendors, embedder=None, reranker=None,
+                                catch_up=False)
+        assert (grid.vendors, grid.cells, grid.facts_as_of) == ([], {}, None)
+        assert grid.no_fact == vendors
+    await conn.execute("DELETE FROM taxonomy_meta")  # no taxonomy loaded: no fact, no error
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha"], embedder=None, reranker=None,
+                            catch_up=False)
+    assert (grid.vendors, grid.no_fact) == ([], ["Alpha"])
+
+
+async def _waiting(conn, doc_id: uuid.UUID, text: str, axis: int) -> str:
+    """A chunk no extraction has reached."""
+    return await _chunk(conn, doc_id, text, _unit(axis))
+
+
+async def _catch_up_corpus(conn, v):
+    """Alpha has a fact for keeping; four unanalysed chunks and one analysed chunk, each a
+    theme of its own. Returns the doc ids and the waiting chunk ids by name."""
+    fact = await _claim(conn, "retention.maximum_period", vendor="Alpha", product="Alpha Backup",
+                        mapped_version=v)
+    await capabilities.build(conn)
+    alpha = await _doc(conn, "Alpha", "Alpha Product")
+    beta = await _doc(conn, "Beta", "Beta Product")
+    gamma = await _doc(conn, "Gamma", "Gamma Product")
+    waiting = {
+        # scores on keeping, but Alpha's keeping cell is a fact: never replaced
+        "alpha_keeping": await _waiting(conn, alpha, "retention period of one week", 1),
+        "alpha_restore": await _waiting(conn, alpha, "restoring objects from one week", 2),
+        "beta_schedule": await _waiting(conn, beta, "frequency schedule hourly", 3),
+        # shares no word with any aspect query
+        "gamma_noise": await _waiting(conn, gamma, "zzz yyy", OTHER_AXIS)}
+    # a perfect page for getting_back, but extracted (no claim): the catch-up does not look
+    analysed = await _waiting(conn, beta, "restoring objects from the analysed page", 2)
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status) VALUES (%s,%s,'m','claims-v3.1','done')", (uuid.uuid4(), analysed))
+    return fact, waiting
+
+
+async def test_catch_up_fills_only_empty_cells(kb):
+    conn, v = kb
+    fact, waiting = await _catch_up_corpus(conn, v)
+    emb, rr = _Embedder(), _Reranker()
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta", "Gamma"], embedder=emb,
+                            reranker=rr)
+    assert {k: (c.mark, c.hit.chunk_id, c.superseded) for k, c in grid.cells.items()} == {
+        ("Alpha", "keeping"): ("supported", await _chunk_of(conn, fact), False),
+        ("Alpha", "getting_back"): ("recent", waiting["alpha_restore"], False),
+        ("Beta", "scheduling"): ("recent", waiting["beta_schedule"], False)}
+    # a recent mark keeps the score that earned it; the date is of facts only
+    recent = grid.cells[("Alpha", "getting_back")].hit
+    assert recent.rerank_score == 3 and recent.vendor == "Alpha"
+    assert grid.vendors == ["Alpha", "Beta"] and grid.no_fact == ["Gamma"]
+    assert grid.facts_as_of == T0 and grid.rerank_ok is True
+    # one embedding call for the aspect queries; reranked with the aspect query as it is, over
+    # the empty cells' candidates only
+    assert emb.calls == [([a.query for a in TOPIC.aspects], "query")]
+    assert {q for q, _, _ in rr.calls} == {a.query for a in TOPIC.aspects}
+    (keeping,) = [docs for q, docs, _ in rr.calls if q == KEEPING.query]
+    assert "retention period of one week" not in keeping  # Alpha's cell is filled
+    assert not any("analysed" in d for _, docs, _ in rr.calls for d in docs)
+    assert grid.reranked_docs == sum(len(docs) for _, docs, _ in rr.calls) > 0
+
+
+async def test_catch_up_marks_need_the_enumeration_floor(kb, monkeypatch):
+    conn, v = kb
+    _, waiting = await _catch_up_corpus(conn, v)
+    # scores here are counts of shared words: the schedule page scores 2, the restore page 3
+    monkeypatch.setattr(topics_mod, "ENUMERATION_MIN_SCORE", 2.5)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=_Reranker())
+    assert {k: c.hit.chunk_id for k, c in grid.cells.items() if c.mark == "recent"} == {
+        ("Alpha", "getting_back"): waiting["alpha_restore"]}
+    monkeypatch.setattr(topics_mod, "ENUMERATION_MIN_SCORE", 2.0)  # at the floor counts
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=_Reranker())
+    assert ("Beta", "scheduling") in grid.cells
+
+
+async def test_a_failed_catch_up_rerank_marks_nothing_for_that_aspect(kb):
+    conn, v = kb
+    _, waiting = await _catch_up_corpus(conn, v)
+    rr = _Reranker(fail=lambda query: query == GETTING_BACK.query)
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=rr)
+    # an unscored page never fills a cell; the other aspect is unharmed
+    assert {k for k, c in grid.cells.items() if c.mark == "recent"} == {("Beta", "scheduling")}
+    assert grid.rerank_ok is False
+    # the failed call is not counted: nothing was scored
+    assert grid.reranked_docs == sum(len(docs) for q, docs, _ in rr.calls
+                                     if q != GETTING_BACK.query)
+    # no reranker at all: no catch-up marks
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=None)
+    assert [k for k, c in grid.cells.items() if c.mark == "recent"] == []
+    assert grid.rerank_ok is False and grid.reranked_docs == 0
+
+
+async def test_no_catch_up_means_no_search(kb):
+    conn, v = kb
+    await _catch_up_corpus(conn, v)
+    emb, rr = _Embedder(), _Reranker()
+    grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=emb, reranker=rr,
+                            catch_up=False)
+    assert emb.calls == [] and rr.calls == []
+    assert list(grid.cells) == [("Alpha", "keeping")] and grid.rerank_ok is True
+
+
+@pytest.mark.parametrize("aspects, per_list", [(8, 20), (13, 18)])
+async def test_the_catch_up_rerank_spend_is_capped(kb, aspects, per_list):
+    conn, _ = kb
+    # two vendors with 15 waiting chunks each: every aspect has more candidates than it may send
+    for vendor in ("Alpha", "Beta"):
+        doc = await _doc(conn, vendor, f"{vendor} Product")
+        for n in range(15):
+            await _waiting(conn, doc, f"plain filler words {n}", OTHER_AXIS)
+    topic = Topic("big", "Big", ("big",), tuple(
+        Aspect(f"a{n}", f"Aspect {n}", KEEPING.query, (), ("retention.maximum_period",))
+        for n in range(aspects)))
+    gauge = _Gauge()
+    grid = await topic_grid(conn, topic, vendors=["Alpha", "Beta"], embedder=_Embedder(),
+                            reranker=gauge)
+    assert [len(docs) for _, docs, _ in gauge.calls] == [per_list] * aspects
+    assert grid.reranked_docs == aspects * per_list <= TOPIC_RERANK_DOCS
+    assert gauge.most == 4  # the shared limit on rerank calls in flight
+    assert grid.cells == {} and grid.no_fact == ["Alpha", "Beta"]  # the filler scores nothing
+
+
+def _hit(n: int, vendor: str = "Alpha") -> Hit:
+    return Hit(chunk_id=f"c{n}", doc_id=f"d{n}", text=f"text {n}", section_path=["A"],
+               vendor=vendor, product="P", title=f"Title {n}", url=f"http://docs/{n}",
+               rrf_rank=0, rerank_score=None)
+
+
+LEGEND = ("✓ supported · ◐ partial · ○ found in a page not yet "
+          "analysed (not verified) · † from an earlier version of the page.")
+BLANK_NOTE = "A blank cell means no fact was found, not that the product lacks the capability."
+
+
+def test_render_grid():
+    cells = {
+        ("Alpha", "keeping"): Cell("supported", _hit(1), False),
+        ("Alpha", "getting_back"): Cell("partial", _hit(2), False),
+        ("Zed", "keeping"): Cell("supported", _hit(3, "Zed"), True),
+        ("Zed", "scheduling"): Cell("recent", _hit(4, "Zed"), False),
+        ("Beta", "getting_back"): Cell("recent", _hit(5, "Beta"), False)}
+    # rows go by marks, then name; the vendors come in no order of their own
+    grid = Grid(vendors=["Beta", "Zed", "Alpha"], cells=cells,
+                facts_as_of=datetime(2026, 11, 5, 13, 30, tzinfo=UTC), no_fact=["Delta", "Gamma"])
+    text, hits = render_grid(grid, TOPIC)
+    assert text == "\n".join([
+        "| Vendor | Keeping copies | Getting data back | Scheduling |",
+        "| --- | --- | --- | --- |",
+        "| Alpha | ✓ [1] | ◐ [2] |  |",
+        "| Zed | ✓ [3]† |  | ○ [4] |",
+        "| Beta |  | ○ [5] |  |",
+        "",
+        LEGEND,
+        f"Facts current to 2026-11-05. {BLANK_NOTE}",
+        "No fact found for: Delta, Gamma."])
+    # [n] is hits[n - 1]: row by row, aspect by aspect
+    assert [h.chunk_id for h in hits] == ["c1", "c2", "c3", "c4", "c5"]
+    # no vendor left out: no such line; no fact cell: no date
+    only_recent = Grid(vendors=["Beta"], cells={("Beta", "getting_back"): cells[
+        ("Beta", "getting_back")]}, facts_as_of=None, no_fact=[])
+    text, hits = render_grid(only_recent, TOPIC)
+    assert text.splitlines()[-2:] == [LEGEND, f"Facts current to: no facts found. {BLANK_NOTE}"]
+    assert "No fact found for" not in text and [h.chunk_id for h in hits] == ["c5"]
+
+
+def test_render_grid_escapes_pipes_in_names():
+    grid = Grid(vendors=["A|B"], cells={("A|B", "keeping"): Cell("partial", _hit(1), False)},
+                facts_as_of=T0, no_fact=[])
+    topic = Topic("t", "T", (), (Aspect("keeping", "Keep | copy", "q", (), ()),))
+    text, _ = render_grid(grid, topic)
+    assert text.splitlines()[:3] == ["| Vendor | Keep \\| copy |", "| --- | --- |",
+                                     "| A\\|B | ◐ [1] |"]
+
+
+def test_a_grid_with_no_marks_is_a_refusal_not_an_empty_table():
+    grid = Grid(vendors=[], cells={}, facts_as_of=None, no_fact=["Alpha", "Beta"])
+    text, hits = render_grid(grid, TOPIC)
+    assert hits == [] and "| Vendor" not in text
+    assert text.splitlines() == [
+        "No fact was found for data loss in the documented vendors' pages.", "", LEGEND,
+        f"Facts current to: no facts found. {BLANK_NOTE}", "No fact found for: Alpha, Beta."]

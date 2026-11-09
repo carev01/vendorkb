@@ -993,3 +993,61 @@ async def test_superseded_chunks_are_never_retrieved(vkb_dsn):
         assert [h.chunk_id for h in await read_section(conn, old[1])] == [old[1]]
     finally:
         await conn.close()
+
+
+async def _extraction(conn, chunk, status, prompt_version="claims-v3.1", model="m"):
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status) VALUES (%s,%s,%s,%s,%s)", (uuid.uuid4(), chunk, model, prompt_version, status))
+
+
+async def test_unextracted_candidates(vkb_dsn):
+    """Only current chunks with no final extraction of the v3 prompt family are candidates:
+    ranked per query by vector distance and full text (RRF), in one statement."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d1, d2 = await _doc(conn, "V1", "P1"), await _doc(conn, "V2", "P2")
+        # the nearest chunks to the first query, every one of them out of the running
+        done = await _raw_chunk(conn, d1, 0, "stripes extracted", _fine(0))
+        await _extraction(conn, done, "done")
+        failed = await _raw_chunk(conn, d1, 1, "stripes given up", _fine(0))
+        await _extraction(conn, failed, "failed", "claims-v3")
+        by_another_model = await _raw_chunk(conn, d2, 0, "stripes by the teacher", _fine(0))
+        await _extraction(conn, by_another_model, "done", "claims-v3.1", "teacher")
+        old = await _raw_chunk(conn, d2, 4, "stripes of an earlier version", _fine(0))
+        await conn.execute("UPDATE chunks SET superseded_at = now() WHERE chunk_id = %s", (old,))
+        # still waiting to be extracted: never analysed, not final, or not of the v3 family
+        fresh = await _raw_chunk(conn, d2, 1, "zebra stripes never analysed", _fine(1))
+        errored = await _raw_chunk(conn, d1, 2, "to retry", _fine(2))
+        await _extraction(conn, errored, "errored")
+        older_prompt = await _raw_chunk(conn, d1, 3, "once read by v2", _fine(3))
+        await _extraction(conn, older_prompt, "done", "claims-v2")
+        vec_only = await _raw_chunk(conn, d2, 3, "other words entirely", _fine(4))
+        fts_only = await _raw_chunk(conn, d2, 2, "zebra elsewhere", _fine(20))
+
+        queries, qvecs = ["zebra", "quokka"], [_fine(0), _fine(20)]
+        cc = CountingConn(conn)
+        got = await search.unextracted_candidates(cc, queries, qvecs, limit=20)
+        assert cc.executes == 1  # one statement for every query
+        # the first query fuses a full-text match (fresh, fts_only) with the vector order; the
+        # second matches no text, so it is the vector order alone
+        by_query = [[fresh, fts_only, errored, older_prompt, vec_only],
+                    [fts_only, vec_only, older_prompt, errored, fresh]]
+        assert [[h.chunk_id for h in hits] for hits in got] == by_query
+        for hits in got:
+            assert [h.rrf_rank for h in hits] == [1, 2, 3, 4, 5]
+            assert all(h.rerank_score is None and not h.superseded for h in hits)
+        top = got[0][0]
+        assert (top.vendor, top.product, top.title) == ("V2", "P2", "T")
+        assert top.url.startswith("http://u/V2/") and top.text == "zebra stripes never analysed"
+        short = await search.unextracted_candidates(conn, queries, qvecs, limit=2)
+        assert [[h.chunk_id for h in hits] for hits in short] == [q[:2] for q in by_query]
+        # a query of stopwords has no full-text side, and an empty batch no statement
+        [stop] = await search.unextracted_candidates(conn, ["the of and"], [_fine(0)], limit=20)
+        assert [h.chunk_id for h in stop] == [fresh, errored, older_prompt, vec_only, fts_only]
+        nothing = CountingConn(conn)
+        assert await search.unextracted_candidates(nothing, [], [], limit=20) == []
+        assert nothing.executes == 0
+    finally:
+        await conn.close()
