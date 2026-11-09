@@ -39,12 +39,18 @@ kubectl -n docextractor get secret cloudflare-origin-ca -o json \
 --set mcp.publicIngress.tlsSecret=cloudflare-origin-ca
 ```
 
-**No Cloudflare rules.** Cloudflare's free plan, as configured for this zone, offers no WAF
-custom rules or rate limiting. The secret is the only guard:
-- a request without it gets a 401 before anything is spent;
-- the model and rerank spend is reachable only with the secret.
+**Rate limits** (Traefik `RateLimit` middlewares, `mcp.publicIngress.rateLimit`; Cloudflare's free
+plan, as configured for this zone, offers no WAF or rate-limiting rules). An over-limit request
+gets a 429.
 
-An app-level rate limit is in the backlog (BACKLOG 26).
+| bucket | keyed on | limit |
+|---|---|---|
+| per client | Cloudflare's `CF-Connecting-IP` | 30 requests a minute, bursts of 20 |
+| global | the host (one bucket) | 120 requests a minute, bursts of 60 |
+
+The global bucket bounds total spend even if a client reaches the origin directly and forges
+the header. The secret still guards everything: a request without it gets a 401 before anything
+is spent.
 
 ## 3. The secret
 

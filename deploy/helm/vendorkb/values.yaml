@@ -149,6 +149,15 @@ mcp:
     host: ""               # vendorkb.area51.pp.ua
     tlsSecret: ""          # cloudflare-origin-ca
     annotations: {traefik.ingress.kubernetes.io/router.entrypoints: websecure}
+    # Traefik rate limits (requests per period; burst = extra requests allowed at once):
+    # - client: per Cloudflare client IP (CF-Connecting-IP);
+    # - global: one bucket for the host, which bounds total spend.
+    # Copilot Studio calls come from a few Microsoft addresses, so `client` mostly acts on
+    # anything else.
+    rateLimit:
+      enabled: true
+      client: {average: 30, period: 1m, burst: 20}
+      global: {average: 120, period: 1m, burst: 60}
   resources:   # queries are bounded in SQL; 2Gi leaves room for concurrent tool calls
     requests: {cpu: 100m, memory: 512Mi}
     limits: {cpu: "2", memory: 2Gi}

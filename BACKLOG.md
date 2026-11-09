@@ -232,7 +232,8 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 
     Veeam's tenant accepted the connection. Open:
     - the Competitive Intelligence team's feedback;
-    - an app-level rate limit (Cloudflare's free plan has no WAF rules here);
+    - ~~an app-level rate limit~~ done 2026-11-09: Traefik RateLimit middlewares, per client
+      (`CF-Connecting-IP`) and global;
     - Authenticated Origin Pulls, so only Cloudflare can reach the origin;
     - `PART_CHARS` against Copilot's real limit;
     - hiding `search_docs` and `query_capabilities` if Copilot composes its own answers from
