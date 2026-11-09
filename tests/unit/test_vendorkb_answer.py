@@ -678,6 +678,7 @@ async def test_a_topic_question_is_answered_per_aspect(monkeypatch, topic):
     assert [c["chunk_id"] for c in r["citations"]] == ["c2", "c3", "c1"]
     assert r["scope"] == {"vendors": ["Veeam"], "products": [], "relaxed": False}
     assert r["retrieved"] == 3 and r["rerank_ok"] is True and r["uncited"] is False
+    assert "facets_empty" not in r and r["truncated"] is False
 
 
 @pytest.mark.asyncio
@@ -808,7 +809,7 @@ async def test_a_five_side_comparison_keeps_todays_path(monkeypatch, topic):
     r = await _run_topic(
         client, "Compare Veeam, Commvault, Rubrik, Cohesity and Druva on ransomware protection.",
         index)
-    assert seen.hits == [] and len(facets[0]) == 5
+    assert seen.hits == [] and seen.loads == [] and len(facets[0]) == 5
     assert r["shape"] == "comparison" and r["topic"] is None and "aspects" not in r
     assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
     assert client.calls[0]["max_tokens"] == 4000
@@ -846,5 +847,48 @@ async def test_the_topic_functions_import_lazily_and_delegate_to_topics(monkeypa
     facets = [("vendor", "Veeam")]
     assert await ans.topic_hits("conn", "q", topic, facets=facets, embedder="e",
                                 reranker="r") == "hits"
-    assert calls == [("load", "conn"), ("hits", "conn", "q", topic, {
-        "facets": facets, "embedder": "e", "reranker": "r"})]
+    assert await ans.topic_hits("conn", "q", topic, facets=facets, embedder="e", reranker="r",
+                                budget=60, per_aspect=1, own=2) == "hits"
+    assert calls == [
+        ("load", "conn"),
+        # a tunable left out is not passed on: topics' own default applies
+        ("hits", "conn", "q", topic, {"facets": facets, "embedder": "e", "reranker": "r"}),
+        ("hits", "conn", "q", topic, {"facets": facets, "embedder": "e", "reranker": "r",
+                                      "budget": 60, "per_aspect": 1, "own": 2})]
+
+
+@pytest.mark.parametrize("finish, flagged", [("length", True), ("stop", False)])
+@pytest.mark.asyncio
+async def test_a_truncated_topic_answer_is_flagged(monkeypatch, caplog, topic, finish, flagged):
+    _patch_topics(monkeypatch, topic, [_hit(1)])
+    r = await _run_topic(FinishClient(["Immutable copies [1]."], finish), TOPIC_Q)
+    assert r["truncated"] is flagged
+    assert ("topic answer truncated" in caplog.text) is flagged
+    assert r["answer"] == "Immutable copies [1]."
+
+
+@pytest.mark.asyncio
+async def test_plain_single_and_comparison_answers_carry_no_truncated_flag(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    r = await _run(FinishClient(["Fact [1]."], "length"))
+    assert r["shape"] == "single" and "truncated" not in r
+
+    async def fake(conn, query, **kw):
+        return ComparisonResult([_hit(1)], [], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    r = await _run_topic(FinishClient(["Fact [1]."], "length"), "Compare Veeam vs Commvault",
+                         INDEX_VC)
+    assert r["shape"] == "comparison" and "truncated" not in r
+
+
+@pytest.mark.asyncio
+async def test_a_single_question_with_several_sides_names_a_side_with_no_passages(
+        monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(1, "Veeam")])
+    r = await _run_topic(FakeClient(["Veeam does X [1]."]),
+                         "How does Veeam protect Commvault backups against ransomware?", INDEX_VC)
+    assert r["shape"] == "single" and r["topic"] == topic.id
+    assert seen.hits[0]["facets"] == [("vendor", "Veeam"), ("vendor", "Commvault")]
+    assert r["facets_empty"] == ["Commvault"]
+    assert r["answer"].endswith("No supporting passage found for: Commvault.")

@@ -12,6 +12,9 @@ from vendorkb.search import Hit, SearchResult, search_docs
 from vendorkb.shape import WORKLOAD_VENDORS, Facet, detect_shape
 
 if TYPE_CHECKING:
+    import psycopg
+
+    from vendorkb.clients import Embedder, Reranker
     from vendorkb.taxonomy.load import Topic
     from vendorkb.topics import TopicHits
 
@@ -68,7 +71,7 @@ def topic_rules(topic: Topic, *, products_named: bool) -> str:
 
 # `vendorkb sync` runs in a 1 Gi pod and imports this module through the CLI, and the topics code
 # pulls in the taxonomy stack (numpy, scikit-learn): these import it on first use.
-async def load_topics(conn) -> list[Topic]:
+async def load_topics(conn: psycopg.AsyncConnection) -> list[Topic]:
     from vendorkb.topics import load_topics as load
     return await load(conn)
 
@@ -78,10 +81,16 @@ def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
     return detect(question, topics)
 
 
-async def topic_hits(conn, question: str, topic: Topic, *, facets: list[Facet], embedder,
-                     reranker) -> TopicHits:
+async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic, *,
+                     facets: list[Facet], embedder: Embedder, reranker: Reranker | None,
+                     budget: int | None = None, per_aspect: int | None = None,
+                     own: int | None = None) -> TopicHits:
+    """``topics.topic_hits``; a tunable left None keeps that function's own default."""
     from vendorkb.topics import topic_hits as hits
-    return await hits(conn, question, topic, facets=facets, embedder=embedder, reranker=reranker)
+    tunables = {k: v for k, v in (("budget", budget), ("per_aspect", per_aspect), ("own", own))
+                if v is not None}
+    return await hits(conn, question, topic, facets=facets, embedder=embedder,
+                      reranker=reranker, **tunables)
 
 
 _GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
@@ -384,7 +393,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets))
         vendors = [n for k, n in shape.facets if k == "vendor"]
         products = [n for k, n in shape.facets if k == "product"]
-        if shape.kind == "comparison":
+        if len(shape.facets) >= 2:  # a single question may name several sides too
             facets_empty = _facets_without_hits(shape.facets, th.hits)
     elif shape.kind == "comparison":
         cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
@@ -408,7 +417,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
                  "usage": None, "error": None}
     if topic is not None:
         out["aspects"] = [a.name for a in topic.aspects]
-    if shape.kind == "comparison":
+    if shape.kind == "comparison" or (topic is not None and len(shape.facets) >= 2):
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":
         out.update(vendors_checked=checked, vendors_listed=[], lines_dropped=0, lines_naming_other_vendors=0,
@@ -436,11 +445,13 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     content, usage, error, finish_reason = await _call_model(
         client, settings, prompt, system, max_tokens=ENUMERATION_MAX_TOKENS if wide else 4000)
     out["usage"] = usage
-    if shape.kind == "enumeration":
-        # a cut-off reply loses its trailing vendor lines, which the closing line then lists
+    if wide:
+        # a cut-off reply loses its tail: an enumeration's trailing vendor lines, which the
+        # closing line then lists, or a topic answer's last aspects
         out["truncated"] = finish_reason == "length"
         if out["truncated"]:
-            log.warning("vendorkb enumeration answer truncated at %d tokens",
+            log.warning("vendorkb %s answer truncated at %d tokens",
+                        "enumeration" if shape.kind == "enumeration" else "topic",
                         ENUMERATION_MAX_TOKENS)
     if content is None:
         out["error"] = error
