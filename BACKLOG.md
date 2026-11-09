@@ -222,10 +222,21 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     2026-11-09): the CronJob now runs Sundays 03:45. With item 37's batch pipeline, only the
     extraction should stay weekly; the batch stages need a frequent, cheap collect run, or a
     new page would take four weeks to reach capabilities.
-26. **Copilot exposure of the MCP server:** a public HTTPS route with OAuth in front of `/mcp`,
-    then Copilot Studio onboarding. DocExtractor's public route (traefik with a Cloudflare
-    origin certificate) is a ready pattern. The LAN DNS record for `vendorkb-mcp.k3s.home.lan`
-    exists since 2026-11-08.
+26. **Done 2026-11-09: the MCP server in Copilot Studio** (spec
+    `specs/2026-11-09-copilot-mcp-design.md`, setup docs/deploy/copilot-studio.md):
+    - the public route `https://vendorkb.area51.pp.ua/mcp`, only `/mcp`, through Cloudflare;
+    - one shared secret, rotated, accepted as `X-API-Key`; access is controlled by sharing the
+      agent;
+    - `read_document` for a cited page's full text;
+    - agent instructions that relay vendorkb's cited answers.
+
+    Veeam's tenant accepted the connection. Open:
+    - the Competitive Intelligence team's feedback;
+    - an app-level rate limit (Cloudflare's free plan has no WAF rules here);
+    - Authenticated Origin Pulls, so only Cloudflare can reach the origin;
+    - `PART_CHARS` against Copilot's real limit;
+    - hiding `search_docs` and `query_capabilities` if Copilot composes its own answers from
+      them.
 27. **Done 2026-11-08:** `embedding_cache` keeps each (model@dimension, input type, text)
     vector as raw float32 bytes, read back bit for bit, so a re-map embeds only strings it has
     never seen (`embeddings_cached` / `embeddings_new` in the map report). Strings over 1,000
