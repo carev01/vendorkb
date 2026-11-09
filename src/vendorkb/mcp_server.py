@@ -39,6 +39,10 @@ QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content h
 PASSAGE_CHARS = 1200
 # Said of a fact, or of a read_section result, whose text is no longer on its page.
 EARLIER_VERSION = " (from an earlier version of the page)"
+# One part of a read_document reply (characters of chunk text). Whole chunks are packed in order;
+# a chunk longer than this is a part by itself. A starting size, to be lowered to what Copilot
+# Studio shows uncut (docs/deploy/copilot-studio.md).
+PART_CHARS = 20_000
 # The Sources section of a grid answer (a "which vendors" topic question), in characters: a grid
 # of 239 cells listed one title and URL per cell came to 36k characters, past client limits.
 GRID_SOURCES_CHARS = 8000
@@ -64,6 +68,26 @@ citations. Rules:
   sources yourself."""
 
 _RO = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+
+
+def _page_head(h: Hit) -> str:
+    """The first lines of a page's text: vendor, product, title and source."""
+    return (f"{h.vendor} · {h.product or 'unknown product'} — {h.title}\n"
+            f"source: {h.url or 'no url'}{EARLIER_VERSION if h.superseded else ''}")
+
+
+def _parts(hits: list[Hit]) -> list[list[Hit]]:
+    """Whole chunks, in order, packed into parts of at most PART_CHARS characters of text (a
+    longer chunk alone)."""
+    parts: list[list[Hit]] = [[]]
+    size = 0
+    for h in hits:
+        if parts[-1] and size + len(h.text) > PART_CHARS:
+            parts.append([])
+            size = 0
+        parts[-1].append(h)
+        size += len(h.text)
+    return parts
 
 
 def _result(text: str, structured: dict[str, Any]) -> CallToolResult:
@@ -214,20 +238,23 @@ def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
 
 
 def format_sources(out: dict[str, Any]) -> str:
-    """The Sources section of an answer: ``[n] title — url`` per citation; for a grid answer
-    (``topic`` set, shape enumeration), each page once with all its markers, ``[3, 17] url``,
-    cut at ``GRID_SOURCES_CHARS`` with a pointer to the topic's facts. Empty with no citation."""
+    """The Sources section of an answer: ``[n] title — url (chunk id)`` per citation; for a grid
+    answer (``topic`` set, shape enumeration), each page once with all its markers and its first
+    cited chunk, ``[3, 17] url (chunk id)``, cut at ``GRID_SOURCES_CHARS`` with a pointer to the
+    topic's facts. The chunk id is in the text so an agent can ``read_document`` a cited page.
+    Empty with no citation."""
     citations = out.get("citations") or []
     if not citations:
         return ""
     if not (out.get("topic") and out.get("shape") == "enumeration"):
         return "Sources:\n" + "\n".join(
             f"[{c['marker']}] {c.get('title') or 'untitled'} — {c.get('url') or 'no url'}"
-            for c in citations)
-    pages: dict[str, list[str]] = {}
+            f" (chunk {c.get('chunk_id')})" for c in citations)
+    pages: dict[str, list[dict[str, Any]]] = {}
     for c in citations:
-        pages.setdefault(c.get("url") or "no url", []).append(str(c["marker"]))
-    lines = [f"[{', '.join(markers)}] {url}" for url, markers in pages.items()]
+        pages.setdefault(c.get("url") or "no url", []).append(c)
+    lines = [f"[{', '.join(str(c['marker']) for c in cs)}] {url} (chunk {cs[0].get('chunk_id')})"
+             for url, cs in pages.items()]
     text = "Sources:\n" + "\n".join(lines)
     shown = len(lines)
     while len(text) > GRID_SOURCES_CHARS and shown > 0:
@@ -396,13 +423,31 @@ def build_server(backend: Backend) -> MCPServer:
         if not hits:
             raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
                             " search again)")
-        h = hits[0]
-        text = (f"{h.vendor} · {h.product or 'unknown product'} — {h.title}\n"
-                f"source: {h.url or 'no url'}{EARLIER_VERSION if h.superseded else ''}\n\n"
-                + "\n\n".join(x.text for x in hits))
+        text = _page_head(hits[0]) + "\n\n" + "\n\n".join(x.text for x in hits)
         chunks = [{**row, "superseded": x.superseded}
                   for row, x in zip(format_hits(hits)[1], hits, strict=True)]
         return _result(text, {"chunks": chunks})
+
+    @server.tool(name="read_document", annotations=_RO, description=(
+        "The full text of the page a passage comes from (any chunk_id from search_docs, "
+        "read_section or answer_question's sources), in parts: start at part 1; the reply "
+        "says how many parts there are. Use it when the user asks for the source document."))
+    async def read_document(chunk_id: str, part: int = 1) -> CallToolResult:
+        try:
+            hits = await backend.section(chunk_id, "page")
+        except Exception as e:
+            raise _fail("read_document", e) from e
+        if not hits:
+            raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
+                            " search again)")
+        parts = _parts(hits)
+        if not 1 <= part <= len(parts):
+            raise ToolError(f"part {part} does not exist: this page has parts 1-{len(parts)}")
+        chosen = parts[part - 1]
+        text = (_page_head(hits[0]) + f"\npart {part} of {len(parts)}\n\n"
+                + "\n\n".join(x.text for x in chosen))
+        return _result(text, {"chunk_ids": [x.chunk_id for x in chosen], "part": part,
+                              "parts": len(parts), "url": hits[0].url})
 
     @server.tool(name="answer_question", annotations=_RO, description=(
         "Answer a question from the documentation in one call: vendorkb retrieves, checks every "

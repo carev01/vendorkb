@@ -94,6 +94,12 @@ class FakeBackend:
 
     async def section(self, chunk_id, expand):
         self.calls.append(("section", chunk_id, expand))
+        if expand == "page":
+            if chunk_id == "old":
+                return [_hit(1, "Old one.", True), _hit(2, "Old two.", True)]
+            return [_hit(n, c * size) for n, c, size in
+                    ((1, "a", 9_000), (2, "b", 9_000), (3, "c", 25_000), (4, "d", 100))] \
+                if chunk_id == "k2" else []
         if chunk_id == "old":  # a chunk of an earlier version of its page
             return [_hit(1, "Before.", True), _hit(2, "The chunk.", True)]
         return [_hit(1, "Before."), _hit(2, "The chunk."), _hit(3, "After.")] \
@@ -109,7 +115,7 @@ async def test_the_tools_are_listed_read_only():
         tools = {t.name: t for t in (await c.list_tools()).tools}
     assert set(tools) == {"list_vendors", "list_dimensions", "list_targets",
                           "query_capabilities", "search_docs", "read_section",
-                          "answer_question"}
+                          "read_document", "answer_question"}
     assert all(t.annotations.read_only_hint for t in tools.values())
     caps = tools["query_capabilities"]
     assert "topic" in caps.input_schema["properties"]
@@ -276,8 +282,9 @@ async def test_answer_question_lists_its_sources():
                           "title": "Page 1", "section_path": ["Guide"], "text": "..."}]}
     async with Client(ms.build_server(FakeBackend(answer=out))) as c:
         r = await c.call_tool("answer_question", {"question": "Is RDS immutable?"})
+    # the chunk id is in the text: the agent's way to read_document a cited page
     assert r.content[0].text == ("Snapshots are immutable [1].\n\nSources:\n"
-                                 "[1] Page 1 — https://docs.example/1")
+                                 "[1] Page 1 — https://docs.example/1 (chunk k1)")
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
     assert "citations_total" not in r.structured_content  # a grid answer's key only
@@ -315,10 +322,12 @@ async def test_a_grid_answer_lists_each_page_once_within_a_cap(ransomware):
     assert len("Sources:\n" + sources) <= ms.GRID_SOURCES_CHARS == 8000
     *lines, more = sources.split("\n")
     # one line per page, all its markers, no title
-    by_url: dict[str, list[int]] = {}
+    by_url: dict[str, list[dict]] = {}
     for c in out["citations"]:
-        by_url.setdefault(c["url"], []).append(c["marker"])
-    expected = [f"[{', '.join(map(str, m))}] {url}" for url, m in by_url.items()]
+        by_url.setdefault(c["url"], []).append(c)
+    # each page with its first cited chunk, for read_document
+    expected = [f"[{', '.join(str(c['marker']) for c in cs)}] {url} (chunk {cs[0]['chunk_id']})"
+                for url, cs in by_url.items()]
     assert lines == expected[:len(lines)] and lines[0].startswith("[1, 2] https://")
     assert not any("page title" in line for line in lines)
     assert more == (f"… {len(expected) - len(lines)} more sources: query_capabilities("
@@ -336,7 +345,8 @@ async def test_a_short_grid_answer_lists_every_page(ransomware):
         r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
     sources = r.content[0].text.split("\n\nSources:\n")[1].split("\n")
     # under the cap: every page, and no pointer line
-    assert [line.rsplit(" ", 1)[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
+    assert [line.split(" https://")[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
+    assert all(line.endswith(")") and "(chunk k" in line for line in sources)
 
 
 @pytest.mark.parametrize("tool, args", [("list_dimensions", {"query": "immutable"}),
@@ -532,3 +542,37 @@ async def test_a_topic_fact_on_an_earlier_page_version_is_marked(ransomware):
 def test_the_instructions_name_the_topic_route():
     assert "query_capabilities(topic=...)" in ms.INSTRUCTIONS
     assert "list_dimensions with the subject shows the topic's aspects" in ms.INSTRUCTIONS
+
+
+async def test_read_document_parts_whole_chunks():
+    async with Client(ms.build_server(FakeBackend())) as c:
+        parts = [await c.call_tool("read_document", {"chunk_id": "k2", "part": n})
+                 for n in (1, 2, 3)]
+    assert [p.structured_content["parts"] for p in parts] == [3, 3, 3]
+    assert [p.structured_content["chunk_ids"] for p in parts] == [["k1", "k2"], ["k3"], ["k4"]]
+    first, second, third = (p.content[0].text for p in parts)
+    assert "part 1 of 3" in first and "a" * 9_000 + "\n\n" + "b" * 9_000 in first
+    assert "part 2 of 3" in second and "c" * 25_000 in second and "b" * 10 not in second
+    assert "part 3 of 3" in third and third.endswith("d" * 100)
+    assert first.startswith("Examplevendor · Example Backup — Page 1\nsource: https://docs.example/1")
+    assert parts[0].structured_content["url"] == "https://docs.example/1"
+
+
+@pytest.mark.parametrize("part", [0, 4])
+async def test_read_document_out_of_range_part_names_the_range(part):
+    async with Client(ms.build_server(FakeBackend())) as c:
+        r = await c.call_tool("read_document", {"chunk_id": "k2", "part": part})
+    assert r.is_error and "1-3" in r.content[0].text
+
+
+async def test_read_document_marks_an_earlier_version():
+    async with Client(ms.build_server(FakeBackend())) as c:
+        r = await c.call_tool("read_document", {"chunk_id": "old"})
+    assert not r.is_error and ms.EARLIER_VERSION in r.content[0].text
+    assert "Old one.\n\nOld two." in r.content[0].text
+
+
+async def test_read_document_unknown_chunk_is_an_error():
+    async with Client(ms.build_server(FakeBackend())) as c:
+        r = await c.call_tool("read_document", {"chunk_id": "gone"})
+    assert r.is_error and "search again" in r.content[0].text

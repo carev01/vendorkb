@@ -778,3 +778,33 @@ async def test_removing_a_page_does_not_scan_chunks(vkb_dsn):
         assert "Seq Scan on chunks" not in plan, plan
     finally:
         await conn.close()
+
+
+async def test_read_section_page_returns_the_whole_version_of_the_page(vkb_dsn):
+    """"page" is every chunk of the anchor's version, across sections, by ordinal; an earlier
+    version's chunk gets that version's chunks only, marked."""
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn)
+        meta = _meta(uuid.uuid4())
+        old = [Chunk(section_path=("A",), ordinal=0, text="old one", token_count=3),
+               Chunk(section_path=("B",), ordinal=1, text="old two", token_count=3)]
+        await write_document(conn, meta, "hash-old", old, [VEC] * 2)
+        v1 = await _current(conn, meta.doc_id)
+        for chunk_id in v1:
+            await _extract(conn, chunk_id, claim_mapped=version)
+        new = [Chunk(section_path=(s,), ordinal=i, text=f"new {i}", token_count=3)
+               for i, s in enumerate(("A", "B", "C"))]
+        await write_document(conn, meta, "hash-new", new, [VEC] * 3)
+        v2 = await _current(conn, meta.doc_id)
+        assert set(await _superseded(conn, meta.doc_id)) == set(v1)
+
+        current = await read_section(conn, str(v2[1]), "page")
+        assert [h.chunk_id for h in current] == [str(c) for c in v2]
+        assert not any(h.superseded for h in current)
+        earlier = await read_section(conn, str(v1[1]), "page")
+        assert [h.chunk_id for h in earlier] == [str(c) for c in v1]
+        assert all(h.superseded for h in earlier)
+        assert await read_section(conn, str(uuid.uuid4()), "page") == []
+    finally:
+        await conn.close()

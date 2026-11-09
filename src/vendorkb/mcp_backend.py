@@ -24,7 +24,7 @@ from vendorkb.taxonomy.cluster import normalize
 from vendorkb.taxonomy.load import Topic
 from vendorkb.topics import load_topics
 
-Expand = Literal["0", "1", "full"]
+Expand = Literal["0", "1", "full", "page"]
 
 
 class Backend(Protocol):

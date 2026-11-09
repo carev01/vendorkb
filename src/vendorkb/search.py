@@ -380,8 +380,9 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
 
 
 async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
-                       expand: Literal["0", "1", "full"] = "0") -> list[Hit]:
-    """The chunk, its neighbours or its section, all of the anchor's own version of the page:
+                       expand: Literal["0", "1", "full", "page"] = "0") -> list[Hit]:
+    """The chunk, its neighbours, its section or (``"page"``) the whole page, all of the anchor's
+    own version of the page:
     the current chunks around a current anchor; around a superseded one, the chunks superseded
     in the same write (one ``write_document`` call sets one ``superseded_at``), never those of
     another earlier version; those hits carry ``superseded=True``."""
@@ -405,8 +406,10 @@ async def read_section(conn: psycopg.AsyncConnection, chunk_id: str,
         sql, params = base + " AND c.chunk_id = %s", [*args, chunk_id]
     elif expand == "1":
         sql, params = base + " AND c.ordinal BETWEEN %s AND %s", [*args, ordinal - 1, ordinal + 1]
-    else:
+    elif expand == "full":
         sql, params = base + " AND c.section_path = %s", [*args, list(path)]
+    else:  # "page": every chunk of the anchor's version
+        sql, params = base, args
     cur = await conn.execute(sql + " ORDER BY c.ordinal", params)
     hits = [_hit(r) for r in await cur.fetchall()]
     # every chunk returned is of the anchor's version: the text may be gone from the page

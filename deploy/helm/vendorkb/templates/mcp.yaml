@@ -84,7 +84,7 @@ spec:
 {{- if $m.publicIngress.enabled }}
 ---
 # The public route for Copilot Studio (docs/deploy/copilot-studio.md): only /mcp, TLS from the
-# Cloudflare Origin CA certificate; Cloudflare proxies the host and rate-limits it.
+# Cloudflare Origin CA certificate; Cloudflare proxies the host (no WAF rules on the free plan).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
