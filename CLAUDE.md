@@ -146,6 +146,8 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   `eval/map_replay.py run|score|recall` replays the dimension adjudication on the labelled
   sample (`eval/labels/dimension-sample-2026-11-08.json`) under variants, storing nothing, for
   about $0.03 a variant: measure a mapper change there before paying for a re-map.
+  `--taxonomy EDITED.yaml` (run, recall) rehearses sharpened dimension definitions or aliases
+  without loading them, `--labels PATH` (run, score, recall) swaps the labelled sample.
 
 **Not built yet:**
 - capabilities in `answer()`;
