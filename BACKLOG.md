@@ -266,3 +266,26 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 28. **Done 2026-11-08:** `eval/agent_eval.py prepare|call|score` with `eval/agent_baseline.json`
     (23 questions, recall 96.0%, precision 94.9%; a mean dropping more than 5 points fails).
     Report: `docs/superpowers/agent-eval-gate-2026-11-08.md`.
+
+## Topic expansion (2026-11-09)
+
+32. **Done 2026-11-09:** facts survive page updates (PR #32: superseded chunks, chunk reuse; 46%
+    of updated chunk tokens need no re-extraction) and the ransomware protection topic (PR #33:
+    eight aspects, per-aspect retrieval and answers, MCP `query_capabilities(topic=)`). Blind
+    eval PASS: aspect coverage 67.0% -> 98.9%, unsupported-claim rate 2.39% -> 0.72%; agent gate
+    PASS (recall 97%, precision 96%). Report: `docs/superpowers/topic-expansion-2026-11-09.md`.
+33. **The "which vendors" grid is off (`TOPIC_GRID`).** Its precision is the capability facts'
+    (blind-graded 87-95% of sampled cells supported with cue gating) against 98-100% for today's
+    prose enumeration. Path to enable: a cheap model check of each cell ("does this passage state
+    that <vendor> has <aspect>?"; ~200 short calls per grid question), then re-run the topic eval
+    with `--expect-topic` and the grid sampling already in `eval/topic_eval.py`.
+34. **Capability precision on the cyber/security dimensions.** The grid grading found facts
+    mapped to the wrong dimension ("Inactive files" -> anomaly detection, "Dedicated backup
+    networks" -> air gap, AI-agent session details -> deletion safeguards); they also reach
+    `query_capabilities`. A blind sample per security/cyber dimension would size it.
+35. **Topic residuals (parked in review):** offerings are not masked from triggers (products and
+    their aliases are); single-vendor questions narrowed by a word ("…for NAS backups?") still get
+    the full kit (Ruling 12: a missed cue costs length, not a wrong claim); topic answers take
+    27-80 s and 109-148k rerank tokens (vs 8-23 s, 12-23k); `vendorkb stats` counts superseded
+    chunks; MCP does not surface `catch_up_ok`/`summary_error`; the grid's catch-up has no
+    per-vendor cap.
