@@ -1,12 +1,17 @@
 import types
+from pathlib import Path
 
 import pytest
 
 from vendorkb import answer as ans
+from vendorkb import topics as topics_mod
 from vendorkb.answer import REFUSAL, build_prompt, resolve_markers
 from vendorkb.config import VendorkbSettings
+from vendorkb.modes import ComparisonResult
 from vendorkb.scope import ScopeIndex
 from vendorkb.search import Hit, SearchResult
+from vendorkb.taxonomy import load
+from vendorkb.topics import TopicHits
 
 
 def _hit(n, vendor="Veeam"):
@@ -33,6 +38,18 @@ class FakeClient:
 
 def _settings():
     return VendorkbSettings(_env_file=None)
+
+
+_LOAD_TOPICS = ans.load_topics  # the fixture below replaces it in every test
+
+
+@pytest.fixture(autouse=True)
+def _no_topics(monkeypatch):
+    """No topic is loaded unless a test says so: these tests pass conn=None."""
+    async def none(conn):
+        return []
+
+    monkeypatch.setattr(ans, "load_topics", none)
 
 
 def _patch_search(monkeypatch, results):
@@ -596,3 +613,238 @@ async def test_enumeration_uses_a_larger_budget_and_flags_truncation(monkeypatch
     _patch_enum(monkeypatch, [_hit(1, "A")], ["A"])
     r = await _run_enum(FinishClient(["A: x [1]"], "stop"), idx)
     assert r["truncated"] is False
+
+
+# --- topic answers ---------------------------------------------------------------------------
+
+SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
+TOPIC_Q = "How does Veeam protect backups against ransomware?"
+INDEX_VC = ScopeIndex(vendors=["Veeam", "Commvault"], products=[], aliases={})
+
+
+@pytest.fixture(scope="module")
+def topic() -> load.Topic:
+    """The shipped taxonomy's ransomware protection topic."""
+    return load.validate(load.read_doc(SHIPPED)).topics[0]
+
+
+def _patch_topics(monkeypatch, topic, hits, rerank_ok=True):
+    """Load ``topic`` and answer every ``topic_hits`` with ``hits``; the returned namespace
+    holds the ``load_topics`` calls (``loads``) and the ``topic_hits`` kwargs (``hits``)."""
+    seen = types.SimpleNamespace(loads=[], hits=[])
+
+    async def fake_load(conn):
+        seen.loads.append(conn)
+        return [topic]
+
+    async def fake_hits(conn, question, topic, **kw):
+        seen.hits.append({"question": question, "topic": topic, **kw})
+        return TopicHits(list(hits), {}, rerank_ok, 40)
+
+    monkeypatch.setattr(ans, "load_topics", fake_load)
+    monkeypatch.setattr(ans, "topic_hits", fake_hits)
+    return seen
+
+
+def _never(monkeypatch, name):
+    async def fail(*args, **kw):
+        raise AssertionError(f"{name} must not be called")
+
+    monkeypatch.setattr(ans, name, fail)
+
+
+async def _run_topic(client, question, index=INDEX):
+    return await ans.answer(None, question, settings=_settings(), embedder=None,
+                            reranker=None, scope_index=index, client=client)
+
+
+@pytest.mark.asyncio
+async def test_a_topic_question_is_answered_per_aspect(monkeypatch, topic):
+    hits = [_hit(1), _hit(2), _hit(3)]
+    seen = _patch_topics(monkeypatch, topic, hits)
+    _never(monkeypatch, "search_docs")
+    client = FakeClient(["Immutable copies [2]. Malware scans [3][1]."])
+    r = await _run_topic(client, TOPIC_Q)
+    assert len(seen.hits) == 1
+    assert seen.hits[0]["question"] == TOPIC_Q and seen.hits[0]["topic"] is topic
+    assert seen.hits[0]["facets"] == [("vendor", "Veeam")]
+    kw = client.calls[0]
+    assert kw["messages"][0]["content"] == (
+        ans.SYSTEM_RULES + ans.topic_rules(topic, products_named=True))
+    assert kw["messages"][1]["content"] == build_prompt(TOPIC_Q, hits)  # no aspect labels
+    assert kw["max_tokens"] == ans.ENUMERATION_MAX_TOKENS
+    assert r["shape"] == "single" and r["topic"] == "ransomware_protection"
+    assert r["aspects"] == [a.name for a in topic.aspects]
+    assert [c["chunk_id"] for c in r["citations"]] == ["c2", "c3", "c1"]
+    assert r["scope"] == {"vendors": ["Veeam"], "products": [], "relaxed": False}
+    assert r["retrieved"] == 3 and r["rerank_ok"] is True and r["uncited"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_topic_answer_reports_the_retrieval_facts_of_topic_hits(monkeypatch, topic):
+    _patch_topics(monkeypatch, topic, [_hit(1)], rerank_ok=False)
+    r = await _run_topic(FakeClient(["Fact [1]."]), TOPIC_Q)
+    assert r["rerank_ok"] is False and r["retrieved"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_topic_question_with_no_passages_refuses_without_the_model(monkeypatch, topic):
+    _patch_topics(monkeypatch, topic, [])
+    client = FakeClient([])
+    r = await _run_topic(client, TOPIC_Q)
+    assert r["answer"] == REFUSAL and client.calls == [] and r["topic"] == topic.id
+
+
+@pytest.mark.asyncio
+async def test_a_comparison_topic_question_uses_both_sides(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(1, "Veeam"), _hit(2, "Commvault")])
+    _never(monkeypatch, "compare_facets")
+    client = FakeClient(["Veeam does X [1]. Commvault does Y [2]."])
+    r = await _run_topic(client, "Compare Veeam and Commvault ransomware protection.", INDEX_VC)
+    assert seen.hits[0]["facets"] == [("vendor", "Veeam"), ("vendor", "Commvault")]
+    assert client.calls[0]["messages"][0]["content"] == (
+        ans.SYSTEM_RULES + ans.topic_rules(topic, products_named=True))
+    assert client.calls[0]["max_tokens"] == ans.ENUMERATION_MAX_TOKENS
+    assert r["shape"] == "comparison" and r["topic"] == topic.id
+    assert r["aspects"] == [a.name for a in topic.aspects]
+    assert r["facets_empty"] == [] and r["scope"]["vendors"] == ["Veeam", "Commvault"]
+    assert [c["chunk_id"] for c in r["citations"]] == ["c1", "c2"]
+
+
+@pytest.mark.asyncio
+async def test_a_comparison_topic_question_names_a_side_with_no_passages(monkeypatch, topic):
+    _patch_topics(monkeypatch, topic, [_hit(1, "Veeam")])
+    r = await _run_topic(FakeClient(["Veeam does X [1]."]),
+                         "Compare Veeam and Commvault ransomware protection.", INDEX_VC)
+    assert r["facets_empty"] == ["Commvault"]
+    assert r["answer"].endswith("No supporting passage found for: Commvault.")
+
+
+@pytest.mark.asyncio
+async def test_a_vendor_and_its_own_product_are_one_side(monkeypatch, topic):
+    index = ScopeIndex(vendors=["Veeam"], products=["Backup Exchange"], aliases={},
+                       product_vendors={"Backup Exchange": "Veeam"})
+    seen = _patch_topics(monkeypatch, topic, [_hit(1)])
+    r = await _run_topic(FakeClient(["Fact [1]."]),
+                         "How does Veeam Backup Exchange protect against ransomware?", index)
+    assert seen.hits[0]["facets"] == [("product", "Backup Exchange")]
+    assert r["shape"] == "single" and r["topic"] == topic.id
+    assert r["scope"]["vendors"] == [] and r["scope"]["products"] == ["Backup Exchange"]
+
+
+@pytest.mark.asyncio
+async def test_a_vendor_neutral_topic_question(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(1), _hit(2, "Commvault")])
+    _never(monkeypatch, "search_docs")
+    client = FakeClient(["Veeam does X [1]. Commvault does Y [2]."])
+    r = await _run_topic(client, "How can I protect my backups against ransomware?")
+    assert seen.hits[0]["facets"] == []
+    assert client.calls[0]["messages"][0]["content"] == (
+        ans.SYSTEM_RULES + ans.topic_rules(topic, products_named=False))
+    assert client.calls[0]["max_tokens"] == ans.ENUMERATION_MAX_TOKENS
+    assert r["shape"] == "single" and r["topic"] == topic.id
+    assert r["scope"] == {"vendors": [], "products": [], "relaxed": False}
+    assert r["answer"] == "Veeam does X [1]. Commvault does Y [2]."
+
+
+@pytest.mark.parametrize("question", [
+    "Does Veeam support YARA rules for ransomware?",  # names an aspect
+    "How does Veeam work?",  # no trigger
+])
+@pytest.mark.asyncio
+async def test_an_aspect_question_is_not_expanded(monkeypatch, topic, question):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    client = FakeClient(["Yes [1]."])
+    r = await _run_topic(client, question)
+    assert seen.hits == [] and len(seen.loads) == 1 and len(calls) == 1
+    assert r["topic"] is None and "aspects" not in r
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
+    assert client.calls[0]["max_tokens"] == 4000
+    assert r["answer"] == "Yes [1]."
+
+
+def test_topic_rules_copy():
+    aspects = (load.Aspect("a", "Alpha", "q", (), ()), load.Aspect("b", "Beta", "q", (), ()))
+    t = load.Topic("t", "Ransomware protection", ("ransomware",), aspects)
+    head = ("\n- The question asks about ransomware protection in general. Organise the answer by "
+            "these aspects, in this order: Alpha; Beta.\n")
+    assert ans.topic_rules(t, products_named=True) == head + (
+        "- For each product in the question, state what its sources show for each aspect, with "
+        "citations, and name the product each statement is about (a vendor may have several); "
+        "for an aspect its sources do not cover, write \"the retrieved sources do not cover "
+        "this\", never that the product lacks it.")
+    assert ans.topic_rules(t, products_named=False) == head + (
+        "- The question names no product: for each aspect, describe what the sources show, with "
+        "citations, naming the vendor and product each statement comes from; do not present "
+        "the vendors named as a complete list.")
+
+
+@pytest.mark.asyncio
+async def test_four_sides_still_take_the_topic_path(monkeypatch, topic):
+    vendors = ["Veeam", "Commvault", "Rubrik", "Cohesity"]
+    index = ScopeIndex(vendors=vendors, products=[], aliases={})
+    seen = _patch_topics(monkeypatch, topic, [_hit(1)])
+    r = await _run_topic(FakeClient(["Fact [1]."]),
+                         "Compare Veeam, Commvault, Rubrik and Cohesity on ransomware protection.",
+                         index)
+    assert ans.TOPIC_MAX_SIDES == 4
+    assert [n for _, n in seen.hits[0]["facets"]] == vendors and r["topic"] == topic.id
+
+
+@pytest.mark.asyncio
+async def test_a_five_side_comparison_keeps_todays_path(monkeypatch, topic):
+    vendors = ["Veeam", "Commvault", "Rubrik", "Cohesity", "Druva"]
+    index = ScopeIndex(vendors=vendors, products=[], aliases={})
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    facets = []
+
+    async def fake(conn, query, **kw):
+        facets.append(kw["facets"])
+        return ComparisonResult([_hit(1)], [], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    client = FakeClient(["Veeam does X [1]."])
+    r = await _run_topic(
+        client, "Compare Veeam, Commvault, Rubrik, Cohesity and Druva on ransomware protection.",
+        index)
+    assert seen.hits == [] and len(facets[0]) == 5
+    assert r["shape"] == "comparison" and r["topic"] is None and "aspects" not in r
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
+    assert client.calls[0]["max_tokens"] == 4000
+
+
+@pytest.mark.asyncio
+async def test_an_enumeration_question_is_not_expanded_yet(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    _patch_enum(monkeypatch, [_hit(1)], ["Veeam"])
+    r = await _run_topic(FakeClient(["Veeam (VBR): does X [1]"]),
+                         "Which vendors protect backups against ransomware?", INDEX_VC)
+    assert r["shape"] == "enumeration" and r["topic"] is None and "aspects" not in r
+    assert seen.hits == [] and seen.loads == []  # not even the topic query
+
+
+@pytest.mark.asyncio
+async def test_the_topic_functions_import_lazily_and_delegate_to_topics(monkeypatch, topic):
+    # answer.py must not import the topics stack at the top: the CLI imports answer, and
+    # `vendorkb sync` must not load the taxonomy stack (tests/unit/test_vendorkb_cli_imports.py)
+    calls = []
+
+    async def fake_load(conn):
+        calls.append(("load", conn))
+        return [topic]
+
+    async def fake_hits(conn, question, topic, **kw):
+        calls.append(("hits", conn, question, topic, kw))
+        return "hits"
+
+    monkeypatch.setattr(ans, "load_topics", _LOAD_TOPICS)
+    monkeypatch.setattr(topics_mod, "load_topics", fake_load)
+    monkeypatch.setattr(topics_mod, "topic_hits", fake_hits)
+    assert await ans.load_topics("conn") == [topic]
+    assert ans.detect_topic(TOPIC_Q, [topic]) is topic
+    facets = [("vendor", "Veeam")]
+    assert await ans.topic_hits("conn", "q", topic, facets=facets, embedder="e",
+                                reranker="r") == "hits"
+    assert calls == [("load", "conn"), ("hits", "conn", "q", topic, {
+        "facets": facets, "embedder": "e", "reranker": "r"})]

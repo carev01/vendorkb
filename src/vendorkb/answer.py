@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
 
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
 from vendorkb.scope import ScopeIndex, find_facets
 from vendorkb.search import Hit, SearchResult, search_docs
-from vendorkb.shape import WORKLOAD_VENDORS, detect_shape
+from vendorkb.shape import WORKLOAD_VENDORS, Facet, detect_shape
+
+if TYPE_CHECKING:
+    from vendorkb.taxonomy.load import Topic
+    from vendorkb.topics import TopicHits
 
 log = logging.getLogger(__name__)
 
 # up to ~40 vendor lines over 60 chunks, with reasoning on
 # The model's reasoning uses most of it (5.8k-8k tokens for a 20-30 line answer, 2026-11-08).
 ENUMERATION_MAX_TOKENS = 16000
+# A topic question with more sides than this keeps the plain comparison path: the per-aspect
+# searches and rerank scale with the sides (4 sides x 8 aspects).
+TOPIC_MAX_SIDES = 4
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -42,6 +50,40 @@ ENUMERATION_RULES = (
     "- Add nothing after the lines."
 )
 
+
+def topic_rules(topic: Topic, *, products_named: bool) -> str:
+    """Rules for a broad question on ``topic``: one part of the answer per aspect, in order."""
+    head = (f"\n- The question asks about {topic.name.lower()} in general. Organise the answer by "
+            f"these aspects, in this order: {'; '.join(a.name for a in topic.aspects)}.\n")
+    if products_named:
+        return head + ("- For each product in the question, state what its sources show for each "
+                       "aspect, with citations, and name the product each statement is about (a "
+                       "vendor may have several); for an aspect its sources do not cover, write "
+                       "\"the retrieved sources do not cover this\", never that the product "
+                       "lacks it.")
+    return head + ("- The question names no product: for each aspect, describe what the sources "
+                   "show, with citations, naming the vendor and product each statement comes "
+                   "from; do not present the vendors named as a complete list.")
+
+
+# `vendorkb sync` runs in a 1 Gi pod and imports this module through the CLI, and the topics code
+# pulls in the taxonomy stack (numpy, scikit-learn): these import it on first use.
+async def load_topics(conn) -> list[Topic]:
+    from vendorkb.topics import load_topics as load
+    return await load(conn)
+
+
+def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
+    from vendorkb.topics import detect_topic as detect
+    return detect(question, topics)
+
+
+async def topic_hits(conn, question: str, topic: Topic, *, facets: list[Facet], embedder,
+                     reranker) -> TopicHits:
+    from vendorkb.topics import topic_hits as hits
+    return await hits(conn, question, topic, facets=facets, embedder=embedder, reranker=reranker)
+
+
 _GROUP = re.compile(r"([ ]?)\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]")
 
 
@@ -60,6 +102,12 @@ def build_enumeration_prompt(question: str, hits: list[Hit], vendors: list[str])
         products = list(dict.fromkeys(h.product for h in hits if h.vendor == v and h.product))
         items.append(f"{v} ({', '.join(products)})" if products else v)
     return build_prompt(question, hits) + "Vendors: " + "; ".join(items) + "\n"
+
+
+def _facets_without_hits(facets: list[Facet], hits: list[Hit]) -> list[str]:
+    """Names of the facets none of ``hits`` belongs to."""
+    return [name for kind, name in facets
+            if not any((h.vendor if kind == "vendor" else h.product) == name for h in hits)]
 
 
 def closing_line(names: list[str]) -> str:
@@ -314,6 +362,9 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     checked: list[str] = []
     kept: list[str] = []
     system = SYSTEM_RULES
+    topic = None
+    if shape.kind != "enumeration" and len(shape.facets) <= TOPIC_MAX_SIDES:
+        topic = detect_topic(question, await load_topics(conn))
     if shape.kind == "enumeration":
         checked = list(scope_index.vendors)
         er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
@@ -324,6 +375,17 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         kept = er.kept
         system = SYSTEM_RULES + ENUMERATION_RULES
         vendors, products = [], []
+    elif topic is not None:
+        # the sides are the question's facets (a vendor and its own product count once, see
+        # detect_shape); none for an unscoped question, searched across the whole corpus
+        th = await topic_hits(conn, question, topic, facets=shape.facets, embedder=embedder,
+                              reranker=reranker)
+        result = SearchResult(th.hits, th.rerank_ok)
+        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets))
+        vendors = [n for k, n in shape.facets if k == "vendor"]
+        products = [n for k, n in shape.facets if k == "product"]
+        if shape.kind == "comparison":
+            facets_empty = _facets_without_hits(shape.facets, th.hits)
     elif shape.kind == "comparison":
         cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                   facets=shape.facets)
@@ -340,9 +402,12 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
             result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
     out: dict = {"query": question, "answer": None, "citations": [], "unknown_markers": 0,
                  "uncited": False, "shape": shape.kind,
+                 "topic": None if topic is None else topic.id,
                  "scope": {"vendors": vendors, "products": products, "relaxed": relaxed},
                  "rerank_ok": result.rerank_ok, "retrieved": len(result.hits),
                  "usage": None, "error": None}
+    if topic is not None:
+        out["aspects"] = [a.name for a in topic.aspects]
     if shape.kind == "comparison":
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":
@@ -367,9 +432,9 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         return finish(REFUSAL)
     prompt = (build_enumeration_prompt(question, result.hits, kept)
               if shape.kind == "enumeration" else build_prompt(question, result.hits))
+    wide = shape.kind == "enumeration" or topic is not None  # a long, structured answer
     content, usage, error, finish_reason = await _call_model(
-        client, settings, prompt, system,
-        max_tokens=ENUMERATION_MAX_TOKENS if shape.kind == "enumeration" else 4000)
+        client, settings, prompt, system, max_tokens=ENUMERATION_MAX_TOKENS if wide else 4000)
     out["usage"] = usage
     if shape.kind == "enumeration":
         # a cut-off reply loses its trailing vendor lines, which the closing line then lists
