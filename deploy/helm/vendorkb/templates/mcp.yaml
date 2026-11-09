@@ -30,7 +30,11 @@ spec:
             - {name: http, containerPort: 8080}
           {{- include "vendorkb.env" . | nindent 10 }}
             - name: MCP_ALLOWED_HOSTS
+              {{- if $m.publicIngress.enabled }}
+              value: {{ printf "%s,%s" $m.allowedHosts (required "mcp.publicIngress.host is required when the public ingress is enabled" $m.publicIngress.host) | quote }}
+              {{- else }}
               value: {{ $m.allowedHosts | quote }}
+              {{- end }}
           {{- include "vendorkb.envFrom" . | nindent 10 }}
           {{- include "vendorkb.containerSecurity" . | nindent 10 }}
           readinessProbe:
@@ -76,5 +80,31 @@ spec:
     - hosts: [{{ $m.ingress.host | quote }}]
       secretName: {{ . }}
   {{- end }}
+{{- end }}
+{{- if $m.publicIngress.enabled }}
+---
+# The public route for Copilot Studio (docs/deploy/copilot-studio.md): only /mcp, TLS from the
+# Cloudflare Origin CA certificate; Cloudflare proxies the host and rate-limits it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vendorkb-mcp-public
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+  {{- with $m.publicIngress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $m.publicIngress.className }}
+  rules:
+    - host: {{ $m.publicIngress.host | quote }}
+      http:
+        paths:
+          - path: /mcp
+            pathType: Exact
+            backend:
+              service: {name: vendorkb-mcp, port: {number: 8080}}
+  tls:
+    - hosts: [{{ $m.publicIngress.host | quote }}]
+      secretName: {{ required "mcp.publicIngress.tlsSecret is required when the public ingress is enabled" $m.publicIngress.tlsSecret }}
 {{- end }}
 {{- end }}

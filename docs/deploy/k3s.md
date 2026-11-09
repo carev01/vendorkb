@@ -294,6 +294,15 @@ curl -s http://vendorkb-mcp.k3s.home.lan/mcp -H "Authorization: Bearer $MCP_TOKE
 The LAN ingress is plain HTTP like the cluster's other `*.k3s.home.lan` services. Exposing it
 to Microsoft Copilot needs a public HTTPS route and OAuth in front (not built yet).
 
+**Public route (Copilot Studio).** `mcp.publicIngress` adds a second Ingress,
+`vendorkb-mcp-public`, that carries only `/mcp`:
+- host `vendorkb.area51.pp.ua`, proxied by Cloudflare;
+- TLS from `cloudflare-origin-ca`, a copy of DocExtractor's secret in this namespace;
+- the host is appended to `MCP_ALLOWED_HOSTS`.
+
+The server accepts its secret as `Authorization: Bearer <token>` or as `X-API-Key: <token>`.
+Setup and the agent's instructions: `docs/deploy/copilot-studio.md`.
+
 ## 8. Verify
 
 Through the port-forward, with `VENDORKB_DSN` set as in step 4:
