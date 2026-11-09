@@ -131,9 +131,8 @@ def detect_scope(question: str, index: ScopeIndex) -> tuple[list[str], list[str]
     return find_facets(question, index)
 
 
-def find_facets(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
-    """(vendors, products) the question names, in question order; ignores cross-vendor wording."""
-    # surface text -> list of target names (direct names target themselves)
+def _surface_targets(index: ScopeIndex) -> dict[str, list[str]]:
+    """Surface text -> the names it targets (a direct name targets itself)."""
     surfaces: dict[str, list[str]] = {}
     for name in index.vendors:
         surfaces.setdefault(name, [name])
@@ -149,6 +148,19 @@ def find_facets(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]
             surfaces.setdefault(source, [source])
     for alias, targets in index.aliases.items():
         surfaces[alias] = targets
+    return surfaces
+
+
+def product_surfaces(index: ScopeIndex) -> list[str]:
+    """The texts ``find_facets`` reads as naming a product: product names (a generic one only
+    after its vendor's name), aliases of products and distinctive source names."""
+    return [surface for surface, targets in _surface_targets(index).items()
+            if any(_resolve(t, index)[1] for t in targets)]
+
+
+def find_facets(question: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
+    """(vendors, products) the question names, in question order; ignores cross-vendor wording."""
+    surfaces = _surface_targets(index)
     taken: list[tuple[int, int]] = []
     hits: list[tuple[int, str]] = []
     for surface in sorted(surfaces, key=len, reverse=True):

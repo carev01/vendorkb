@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from vendorkb.taxonomy import load
-from vendorkb.topics import detect_topic, match_topics
+from vendorkb.topics import BROAD_WORDS, detect_topic, is_broad, match_topics
 
 SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
 
@@ -80,6 +80,44 @@ def test_aspect_specific_questions_do_not_expand(T, question):
     assert detect_topic(question, T) is None
 
 
+# Product names as the scope index holds them: none may make a question fire (R25).
+PRODUCT_NAMES = ["PowerProtect Cyber Recovery", "Cyber Resilience Vault", "Azure Backup",
+                 "Veeam Backup & Replication", "Veeam Data Cloud", "FortKnox", "VBR"]
+
+
+@pytest.mark.parametrize("question", [
+    "How do I configure a sync policy in PowerProtect Cyber Recovery?",
+    "What are the system requirements for Dell PowerProtect Cyber Recovery 19.18?",
+    "How do I set up the Zerto Cyber Resilience Vault?",
+])
+def test_product_names_never_trigger_the_topic(T, question):
+    assert detect_topic(question, T, exclude=PRODUCT_NAMES) is None
+
+
+def test_cyber_recovery_is_no_trigger(T):
+    # a Dell product's name, too ambiguous to stand for the topic
+    assert "cyber recovery" not in T[0].triggers
+    assert detect_topic("How do I configure a sync policy in PowerProtect Cyber Recovery?",
+                        T) is None
+
+
+def test_an_excluded_name_hides_triggers_not_cues():
+    topics = [_topic("t", ("ransomware", "cyber resilience"), ("immutab",))]
+    names = ["Cyber Resilience Vault", "Immutable Vault", "", " - "]
+    assert detect_topic("Does the Cyber Resilience Vault help?", topics, exclude=names) is None
+    assert detect_topic("Set up the CYBER-RESILIENCE  vault", topics, exclude=names) is None
+    # a trigger outside the name still fires
+    assert detect_topic("Does the Cyber Resilience Vault help against ransomware?", topics,
+                        exclude=names) is topics[0]
+    assert detect_topic("Which vault gives cyber resilience?", topics, exclude=names) \
+        is topics[0]
+    # cues read the whole question: a name holding a cue still names the aspect
+    assert detect_topic("Does Immutable Vault stop ransomware?", topics, exclude=names) is None
+    # a name masks whole phrases only, and an empty name masks nothing
+    assert detect_topic("cyber resilience vaulting", topics, exclude=names) is topics[0]
+    assert detect_topic("cyber resilience", topics, exclude=["", "-"]) is topics[0]
+
+
 @pytest.mark.parametrize("question", [
     "How does Veeam protect backups against ransomware?",
     "How does Commvault protect backups against ransomware?",
@@ -101,6 +139,8 @@ def test_aspect_specific_questions_do_not_expand(T, question):
 def test_broad_questions_expand(T, question):
     topic = detect_topic(question, T)
     assert topic is not None and topic.id == "ransomware_protection"
+    # and so they do with the product names masked (tp-07 names no product)
+    assert detect_topic(question, T, exclude=PRODUCT_NAMES) is topic
 
 
 def test_incidental_words_do_not_count_as_naming_an_aspect(T):
@@ -166,7 +206,7 @@ def test_typographic_dashes_count_as_hyphens(dash):
 @pytest.mark.parametrize("term", [
     "ransomware_protection", "ransomware protection", "Ransomware Protection",  # id, name
     "ransomware-protection", " RANSOMWARE\t_ protection ", "ransomware",  # a trigger
-    "Cyber-Attack", "cyber  recovery", "cyber\u2013resilience",
+    "Cyber-Attack", "cyber  threat", "cyber\u2013resilience",
     "protection", "cyber"])  # a whole word of the name, of a trigger
 def test_a_topic_resolves_by_id_name_trigger_and_separators(T, term):
     assert [t.id for t in match_topics(term, T)] == ["ransomware_protection"]
@@ -191,3 +231,31 @@ def test_an_exact_match_beats_a_whole_word_and_ties_keep_the_order():
     assert [t.id for t in match_topics("b topic", [a, b])] == ["b_topic"]  # the id, normalised
     only_aspect = _topic("d_topic", ("zzz",), ())  # its aspect is named "One"
     assert match_topics("one", [only_aspect]) == []
+
+
+@pytest.mark.parametrize("question", [
+    "Which vendors protect backups against ransomware?",
+    "Which backup vendors offer ransomware protection?",
+    "Which vendors offer the best ransomware protection?",
+    "Which vendors' products help defend our data from cyber-attacks?",  # punctuation, plural
+    "WHICH SOLUTIONS PROTECT AGAINST CYBER THREATS?",
+])
+def test_a_question_of_trigger_and_broad_words_is_broad(T, question):
+    assert is_broad(question, T[0])
+
+
+@pytest.mark.parametrize("question", [
+    "Which vendors protect Microsoft 365 against ransomware?",
+    "Which backup vendors offer ransomware protection for Kubernetes?",
+    "Which vendors offer a ransomware recovery warranty?",
+    "Which vendors support instant recovery after a ransomware attack?",
+    "Which vendors protect backups against ransomware on tape?",
+])
+def test_a_content_word_makes_a_question_qualified(T, question):
+    assert not is_broad(question, T[0])
+
+
+def test_the_broad_words_are_lowercase_single_words():
+    assert all(w == w.lower() and w.isalpha() for w in BROAD_WORDS)
+    assert {"which", "vendors", "protection", "against", "best", "any"} <= BROAD_WORDS
+    assert not {"ransomware", "recovery", "restore", "immutable"} & BROAD_WORDS

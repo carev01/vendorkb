@@ -5,9 +5,11 @@ import pytest
 from mcp import Client
 
 from vendorkb import mcp_server as ms
+from vendorkb.answer import citation
 from vendorkb.search import Hit, SearchResult
 from vendorkb.taxonomy import load
 from vendorkb.taxonomy.capabilities import CapResult, Conflict, Fact
+from vendorkb.topics import Cell, Grid, render_grid
 
 SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
 
@@ -278,6 +280,61 @@ async def test_answer_question_lists_its_sources():
                                  "[1] Page 1 — https://docs.example/1")
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
+
+
+def _grid_answer(topic: load.Topic) -> dict:
+    """An answer_question envelope for a grid of 30 vendors by the topic's aspects, one cell
+    short of full (239 cells), its pages long URLs, two cells to a page."""
+    vendors = [f"Vendor {n:02d}" for n in range(30)]
+    cells = {}
+    for n, (vendor, aspect) in enumerate((v, a) for v in vendors for a in topic.aspects):
+        url = (f"https://help.example-vendor-documentation.com/en-us/{vendor.replace(' ', '-')}"
+               f"/backup/security/topic-{n // 2}.html")
+        hit = Hit(chunk_id=f"k{n}", doc_id=f"d{n}", text="t", section_path=[], vendor=vendor,
+                  product="P", title=f"A rather long page title, number {n}", url=url,
+                  rrf_rank=0, rerank_score=None)
+        cells[(vendor, aspect.id)] = Cell("supported", hit, False)
+    del cells[(vendors[-1], topic.aspects[-1].id)]
+    grid = Grid(vendors=vendors, cells=cells, facts_as_of=None, no_fact=[])
+    table, hits = render_grid(grid, topic)
+    return {"answer": f"Thirty vendors have facts for every aspect.\n\n{table}",
+            "shape": "enumeration", "topic": topic.id, "scope": {}, "uncited": False,
+            "error": None, "citations": [citation(n, h) for n, h in enumerate(hits, 1)]}
+
+
+async def test_a_grid_answer_lists_each_page_once_within_a_cap(ransomware):
+    out = _grid_answer(ransomware)
+    assert len(out["citations"]) == 239
+    async with Client(ms.build_server(FakeBackend(answer=out))) as c:
+        r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
+    text = r.content[0].text
+    assert len(text) <= 14_000
+    answer, sources = text.split("\n\nSources:\n")
+    assert answer == out["answer"]
+    assert len("Sources:\n" + sources) <= ms.GRID_SOURCES_CHARS == 8000
+    *lines, more = sources.split("\n")
+    # one line per page, all its markers, no title
+    by_url: dict[str, list[int]] = {}
+    for c in out["citations"]:
+        by_url.setdefault(c["url"], []).append(c["marker"])
+    expected = [f"[{', '.join(map(str, m))}] {url}" for url, m in by_url.items()]
+    assert lines == expected[:len(lines)] and lines[0].startswith("[1, 2] https://")
+    assert not any("page title" in line for line in lines)
+    assert more == (f"… {len(expected) - len(lines)} more sources: query_capabilities("
+                    f"topic=\"ransomware_protection\") lists the cited facts.")
+    assert len(expected) - len(lines) > 0
+    # the structured content keeps every citation
+    assert len(r.structured_content["citations"]) == 239
+
+
+async def test_a_short_grid_answer_lists_every_page(ransomware):
+    out = _grid_answer(ransomware)
+    out["citations"] = out["citations"][:5]
+    async with Client(ms.build_server(FakeBackend(answer=out))) as c:
+        r = await c.call_tool("answer_question", {"question": "Which vendors protect backups?"})
+    sources = r.content[0].text.split("\n\nSources:\n")[1].split("\n")
+    # under the cap: every page, and no pointer line
+    assert [line.rsplit(" ", 1)[0] for line in sources] == ["[1, 2]", "[3, 4]", "[5]"]
 
 
 @pytest.mark.parametrize("tool, args", [("list_dimensions", {"query": "immutable"}),

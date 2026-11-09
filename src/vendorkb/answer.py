@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
 
 from vendorkb.modes import ENUM_PER_VENDOR, ENUM_PER_VENDOR_MULTI, compare_facets, enumerate_vendors
-from vendorkb.scope import ScopeIndex, find_facets
+from vendorkb.scope import ScopeIndex, find_facets, product_surfaces
 from vendorkb.search import Hit, SearchResult, search_docs
-from vendorkb.shape import WORKLOAD_VENDORS, Facet, detect_shape
+from vendorkb.shape import WORKLOAD_VENDORS, Facet, Shape, detect_shape
 
 if TYPE_CHECKING:
     import psycopg
@@ -30,7 +31,13 @@ TOPIC_MAX_SIDES = 4
 GRID_SUMMARY_MAX_TOKENS = 2000
 GRID_SUMMARY_RULES = (
     "Summarise this coverage table of backup vendors in at most four sentences, using only the "
-    "counts and names given; no citations, no claims beyond the table.")
+    "counts and names given; no citations, no claims beyond the table. A vendor not listed may "
+    "still offer a capability: never state or imply that a vendor lacks one, and never write "
+    "\"only\".")
+# A summary saying this is dropped (the grid stands alone): the table records facts found, and
+# a vendor with none may still offer the capability.
+_ABSENCE = re.compile(r"\b(only|no vendor|none of|lacks?|lacking|does not offer|do not offer"
+                      r"|doesn't|don't|not supported|unsupported)\b", re.IGNORECASE)
 REFUSAL = "I don't have enough information to answer that from the available sources."
 
 SYSTEM_RULES = (
@@ -81,9 +88,26 @@ async def load_topics(conn: psycopg.AsyncConnection) -> list[Topic]:
     return await load(conn)
 
 
-def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
+def detect_topic(question: str, topics: list[Topic],
+                 exclude: Iterable[str] = ()) -> Topic | None:
     from vendorkb.topics import detect_topic as detect
-    return detect(question, topics)
+    return detect(question, topics, exclude)
+
+
+def is_broad(question: str, topic: Topic) -> bool:
+    from vendorkb.topics import is_broad as broad
+    return broad(question, topic)
+
+
+def topic_applies(question: str, shape: Shape, topic: Topic) -> bool:
+    """Whether a question that triggers ``topic`` gets the topic's answer. A "which vendors"
+    question gets the grid only with no facet and nothing but broad words (``is_broad``); a
+    single or comparison question keeps today's path when it names a workload vendor beside
+    another facet ("How does Veeam protect Microsoft 365 against ransomware?")."""
+    if shape.kind == "enumeration":
+        return not shape.facets and is_broad(question, topic)
+    workload = [f for f in shape.facets if f[0] == "vendor" and f[1] in WORKLOAD_VENDORS]
+    return not (workload and len(workload) < len(shape.facets))
 
 
 async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic, *,
@@ -383,12 +407,14 @@ async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SY
 
 def _summary_prompt(grid: Grid, topic: Topic) -> str:
     """One line per aspect: how many vendors have a capability fact for it, and which. A page
-    not yet analysed is no fact (the summary must not state what nothing verified)."""
+    not yet analysed is no fact (the summary must not state what nothing verified). Worded as
+    facts found, never as vendors lacking the aspect."""
     lines = []
     for aspect in topic.aspects:
         names = sorted(v for (v, a), cell in grid.cells.items()
                        if a == aspect.id and cell.mark != "recent")
-        lines.append(f"{aspect.name}: {len(names)} vendors: {', '.join(names) or 'none'}")
+        lines.append(f"{aspect.name}: facts found for {len(names)} vendors: {', '.join(names)}"
+                     if names else f"{aspect.name}: no facts found")
     return "\n".join(lines)
 
 
@@ -437,10 +463,13 @@ async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder,
     # as resolve_markers counts the ones it drops
     summary = _GROUP.sub(drop, content).strip()
     out["unknown_markers"] = stripped
-    if summary:
-        out["answer"] = f"{summary}\n\n{table}"
-    else:
+    if not summary:
         out["summary_error"] = "empty reply"
+    elif _ABSENCE.search(summary):
+        log.warning("vendorkb grid summary dropped: it states or implies absence")
+        out["summary_error"] = "absence wording"
+    else:
+        out["answer"] = f"{summary}\n\n{table}"
     return out
 
 
@@ -456,8 +485,14 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     kept: list[str] = []
     system = SYSTEM_RULES
     topic = None
+    reranked_docs = 0  # the topic path's (TopicHits.reranked_docs)
     if shape.kind == "enumeration" or len(shape.facets) <= TOPIC_MAX_SIDES:
-        topic = detect_topic(question, await load_topics(conn))
+        # a product's name ("PowerProtect Cyber Recovery") never stands for the topic; the
+        # offerings (taxonomy) are not in the scope index, so they are not excluded here
+        topic = detect_topic(question, await load_topics(conn),
+                             exclude=product_surfaces(scope_index))
+        if topic is not None and not topic_applies(question, shape, topic):
+            topic = None  # a qualified question: today's answer
     if shape.kind == "enumeration" and topic is not None:
         return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
                                   reranker=reranker, scope_index=scope_index, client=client)
@@ -477,6 +512,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
         th = await topic_hits(conn, question, topic, facets=shape.facets, embedder=embedder,
                               reranker=reranker)
         result = SearchResult(th.hits, th.rerank_ok)
+        reranked_docs = th.reranked_docs
         system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets))
         vendors = [n for k, n in shape.facets if k == "vendor"]
         products = [n for k, n in shape.facets if k == "product"]
@@ -504,6 +540,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
                  "usage": None, "error": None}
     if topic is not None:
         out["aspects"] = [a.name for a in topic.aspects]
+        out["reranked_docs"] = reranked_docs
     if shape.kind == "comparison" or (topic is not None and len(shape.facets) >= 2):
         out["facets_empty"] = facets_empty
     if shape.kind == "enumeration":

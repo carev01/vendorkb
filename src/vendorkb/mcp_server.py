@@ -39,6 +39,9 @@ QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content h
 PASSAGE_CHARS = 1200
 # Said of a fact, or of a read_section result, whose text is no longer on its page.
 EARLIER_VERSION = " (from an earlier version of the page)"
+# The Sources section of a grid answer (a "which vendors" topic question), in characters: a grid
+# of 239 cells listed one title and URL per cell came to 36k characters, past client limits.
+GRID_SOURCES_CHARS = 8000
 
 INSTRUCTIONS = """\
 vendorkb answers questions about backup vendors' technical documentation, precisely and with
@@ -206,6 +209,31 @@ def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
                      "product": h.product, "title": h.title, "section_path": h.section_path,
                      "url": h.url, "rerank_score": h.rerank_score, "text": h.text})
     return "\n\n".join(parts), rows
+
+
+def format_sources(out: dict[str, Any]) -> str:
+    """The Sources section of an answer: ``[n] title — url`` per citation; for a grid answer
+    (``topic`` set, shape enumeration), each page once with all its markers, ``[3, 17] url``,
+    cut at ``GRID_SOURCES_CHARS`` with a pointer to the topic's facts. Empty with no citation."""
+    citations = out.get("citations") or []
+    if not citations:
+        return ""
+    if not (out.get("topic") and out.get("shape") == "enumeration"):
+        return "Sources:\n" + "\n".join(
+            f"[{c['marker']}] {c.get('title') or 'untitled'} — {c.get('url') or 'no url'}"
+            for c in citations)
+    pages: dict[str, list[str]] = {}
+    for c in citations:
+        pages.setdefault(c.get("url") or "no url", []).append(str(c["marker"]))
+    lines = [f"[{', '.join(markers)}] {url}" for url, markers in pages.items()]
+    text = "Sources:\n" + "\n".join(lines)
+    shown = len(lines)
+    while len(text) > GRID_SOURCES_CHARS and shown > 0:
+        shown -= 1
+        text = "\n".join(["Sources:", *lines[:shown],
+                          f"… {len(lines) - shown} more sources: query_capabilities("
+                          f"topic=\"{out['topic']}\") lists the cited facts."])
+    return text
 
 
 def build_server(backend: Backend) -> MCPServer:
@@ -388,10 +416,8 @@ def build_server(backend: Backend) -> MCPServer:
             raise _fail("answer_question", e) from e
         if out.get("error"):
             raise ToolError(f"answer_question failed: {out['error']}")
-        sources = [f"[{c['marker']}] {c.get('title') or 'untitled'} — {c.get('url') or 'no url'}"
-                   for c in out.get("citations") or []]
-        text = (out.get("answer") or "No answer.") + (
-            "\n\nSources:\n" + "\n".join(sources) if sources else "")
+        sources = format_sources(out)
+        text = (out.get("answer") or "No answer.") + (f"\n\n{sources}" if sources else "")
         structured = {k: out.get(k) for k in ("answer", "shape", "scope", "uncited")}
         structured["citations"] = [{k: c.get(k) for k in ("marker", "chunk_id", "url", "title",
                                                           "section_path")}

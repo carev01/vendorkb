@@ -4517,7 +4517,7 @@ offerings:
 topics:
 - id: ransomware_protection
   name: Ransomware protection
-  triggers: [ransomware, cyber attack, cyberattack, cyber resilience, cyber recovery, cyber threat]
+  triggers: [ransomware, cyber attack, cyberattack, cyber resilience, cyber threat]
   aspects:
   - id: built_in_security
     name: Built-in security (RBAC, MFA, SSO)

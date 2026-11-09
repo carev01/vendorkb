@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import weakref
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -22,6 +23,11 @@ FTS_WEIGHT = 0.25  # 2026-11-06: single recall@10 0.833 -> 0.933, multi 0.737 ->
 ENUM_VEC_POOL = 2000
 # The live column, and the candidate column `vendorkb reembed` fills for an embedding A/B.
 VECTOR_COLUMNS = ("embedding", "embedding_next")
+# Unextracted chunks a grid's catch-up ranks at most, the most recently fetched pages first: an
+# extraction backlog must not make the one catch-up statement sort without bound.
+UNEXTRACTED_POOL = 2000
+
+log = logging.getLogger(__name__)
 
 _COLS = ("c.chunk_id::text, c.doc_id::text, c.text, c.section_path, d.vendor, d.product, "
          "d.title, d.url")
@@ -241,12 +247,13 @@ async def unextracted_candidates(conn: psycopg.AsyncConnection, queries: list[st
     extraction, whose facts the capability table does not hold yet. In RRF order (``rrf_rank``
     set, no rerank score), ``out[i]`` for ``queries[i]`` and ``qvecs[i]``.
 
-    ONE statement for every query. The unextracted chunks are materialised once (the anti-join
-    is the main cost: 1.2 s for 622 chunks of the full corpus), and each query is ranked within
-    that small set by vector distance (an exact sort: an HNSW scan filtered to so few rows
-    starves) and by full-text rank (each tsquery parsed once, not per chunk), top
-    ``VEC_LIMIT`` and ``FTS_LIMIT``; a corpus-wide full-text scan per query would cost ~2 s
-    each. The fusion is ``hybrid_candidates``', in Python."""
+    ONE statement for every query. The unextracted chunks are materialised once, at most
+    ``UNEXTRACTED_POOL`` of them, those of the most recently fetched pages (the anti-join is
+    the main cost: 1.2 s for 622 chunks of the full corpus; the pool size is logged at DEBUG),
+    and each query is ranked within that small set by vector distance (an exact sort: an HNSW
+    scan filtered to so few rows starves) and by full-text rank (each tsquery parsed once, not
+    per chunk), top ``VEC_LIMIT`` and ``FTS_LIMIT``; a corpus-wide full-text scan per query
+    would cost ~2 s each. The fusion is ``hybrid_candidates``', in Python."""
     if not queries:
         return []
     # Imported here, not at the top: this module must stay free of the claims stack
@@ -256,30 +263,34 @@ async def unextracted_candidates(conn: psycopg.AsyncConnection, queries: list[st
         f"SELECT {n} AS idx, %s::vector AS qvec, {_TSQUERY} AS tsq"
         for n in range(1, len(queries) + 1))
     sql = ("WITH pool AS MATERIALIZED (SELECT c.chunk_id, c.tsv, c.embedding FROM chunks c"
+           " JOIN documents d ON d.doc_id = c.doc_id"
            f" WHERE true{_CURRENT} AND NOT EXISTS (SELECT 1 FROM extractions e"
            " WHERE e.chunk_id = c.chunk_id AND e.status IN ('done', 'failed')"
-           " AND e.prompt_version LIKE %s)),"
+           " AND e.prompt_version LIKE %s) ORDER BY d.fetched_at DESC, c.chunk_id LIMIT %s),"
            f" qs AS MATERIALIZED ({asked}),"
            " ranked AS (SELECT 'v' AS kind, q.idx, p.chunk_id, row_number() OVER (PARTITION BY"
            " q.idx ORDER BY p.embedding <=> q.qvec, p.chunk_id::text) AS rn FROM qs q, pool p"
            " UNION ALL SELECT 'f', q.idx, p.chunk_id, row_number() OVER (PARTITION BY q.idx"
            " ORDER BY ts_rank_cd(p.tsv, q.tsq) DESC, p.chunk_id::text) FROM qs q, pool p"
            " WHERE p.tsv @@ q.tsq)"
-           f" SELECT {_COLS}, jsonb_agg(jsonb_build_array(r.kind, r.idx, r.rn)) FROM ranked r"
+           f" SELECT {_COLS}, jsonb_agg(jsonb_build_array(r.kind, r.idx, r.rn)),"
+           " (SELECT count(*) FROM pool) FROM ranked r"
            " JOIN chunks c ON c.chunk_id = r.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
            " WHERE (r.kind = 'v' AND r.rn <= %s) OR (r.kind = 'f' AND r.rn <= %s)"
            " GROUP BY c.chunk_id, d.doc_id")
-    params: list = [PROMPT_FAMILY]
+    params: list = [PROMPT_FAMILY, UNEXTRACTED_POOL]
     for query, qvec in zip(queries, qvecs, strict=True):
         params += [Vector(qvec), query]
     cur = await conn.execute(sql, [*params, VEC_LIMIT, FTS_LIMIT])
     rows: dict[str, tuple] = {}
     ranks: dict[str, list[list[tuple[int, str]]]] = {"v": [[] for _ in queries],
                                                      "f": [[] for _ in queries]}
-    for *cols, found in await cur.fetchall():
+    pool = 0  # every pool chunk has a vector rank, so no row means an empty pool
+    for *cols, found, pool in await cur.fetchall():
         rows[cols[0]] = tuple(cols)
         for kind, idx, rn in found:
             ranks[kind][idx - 1].append((rn, cols[0]))
+    log.debug("vendorkb catch-up: a pool of %d unextracted chunks", pool)
     out = []
     for fts, vec in zip(ranks["f"], ranks["v"]):
         order = rrf([[c for _, c in sorted(fts)], [c for _, c in sorted(vec)]],

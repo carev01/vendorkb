@@ -18,8 +18,8 @@ from vendorkb.search import Hit, hybrid_candidates
 from vendorkb.taxonomy import capabilities, load
 from vendorkb.taxonomy.load import Aspect, Topic
 from vendorkb.topics import (
-    TOPIC_RERANK_DOCS, Cell, Grid, detect_topic, fact_chunks, load_topics, render_grid,
-    topic_grid, topic_hits)
+    TOPIC_RERANK_DOCS, Cell, Grid, detect_topic, fact_chunks, fact_chunks_many, load_topics,
+    render_grid, topic_grid, topic_hits)
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "taxonomy_v2_small.yaml"
 V2_TABLES = ("dimensions", "classes", "object_types", "targets", "variants", "offerings",
@@ -100,6 +100,8 @@ TOPIC = Topic("data_loss", "Data loss", ("data loss",), (KEEPING, GETTING_BACK, 
 QUESTION = "How does Alpha Backup handle data loss?"
 ALPHA = ("vendor", "Alpha")
 BETA = ("vendor", "Beta")
+GAMMA = ("vendor", "Gamma")
+DELTA = ("vendor", "Delta")
 
 # a theme is a vector axis and the words of its chunks; a text with a keyword embeds on its axis
 THEMES = {"loss": (0, "data loss plan"), "retention": (1, "retention period"),
@@ -366,6 +368,19 @@ async def test_fact_chunks_select_and_order(kb):
     assert await got(KEEPING, ("product", "P1"), version="2-stale000") == []
     hit = (await fact_chunks(conn, KEEPING, ("product", "P1"), v, 1))[0]
     assert (hit.vendor, hit.product, hit.title, hit.url) == ("Alpha", "P1", "Doc", "http://docs/x")
+    # one statement for several (aspect, facet) jobs gives each job what a call of its own does
+    jobs = [(KEEPING, ("product", "P1")), (GETTING_BACK, ("vendor", "Alpha")),
+            (KEEPING, ("vendor", "Alpha")), (KEEPING, ("vendor", "alpha")),  # exact names
+            (KEEPING, ("product", "P2")), (GETTING_BACK, ("vendor", "Beta"))]
+    rec = _Recorder(conn)
+    batched = await fact_chunks_many(rec, jobs, v, 4)
+    assert len(rec.statements) == 1
+    assert [[h.chunk_id for h in hits] for hits in batched] == [
+        await got(aspect, facet, limit=4) for aspect, facet in jobs]
+    assert [[h.rrf_rank for h in hits] for hits in batched][2] == [1, 2, 3, 4]
+    assert batched[3] == batched[5] == [] and len(batched[4]) == 1
+    assert await fact_chunks_many(conn, [], v, 4) == []
+    assert await fact_chunks_many(conn, jobs[:2], v, 0) == [[], []]
 
 
 async def test_the_rerank_budget_holds(kb):
@@ -393,14 +408,15 @@ async def test_the_rerank_budget_holds(kb):
     ([], 9 + 8 * 28),  # one side: its 9 own candidates, (240 - 9) // 8 = 28 per aspect
     ([ALPHA], 9 + 8 * 28),
     ([ALPHA, BETA], 18 + 16 * 13),  # (240 - 18) // 16 = 13 per (side, aspect)
+    ([ALPHA, BETA, GAMMA, DELTA], 36 + 32 * 6),  # the most sides: (240 - 36) // 32 = 6
 ])
 async def test_the_default_budget_holds(kb, facets, spent):
     conn, _ = kb
     eight = Topic("t", "T", ("data loss",), tuple(
         Aspect(f"a{n}", f"Aspect {n}", f"aspect {n} words", (), ("retention.maximum_period",))
         for n in range(8)))
-    await _vendor_corpus(conn, "Alpha", "Alpha Backup", loss=10, per_theme=10)
-    await _vendor_corpus(conn, "Beta", "Beta Vault", loss=10, per_theme=10)
+    for vendor in ("Alpha", "Beta", "Gamma", "Delta"):
+        await _vendor_corpus(conn, vendor, f"{vendor} Backup", loss=10, per_theme=10)
     assert TOPIC_RERANK_DOCS == 240
     rr = _Reranker()
     res = await topic_hits(conn, QUESTION, eight, facets=facets, embedder=_Embedder(),
@@ -426,6 +442,8 @@ async def test_a_two_facet_question_scans_the_text_once(kb):
     assert sum("ts_rank_cd" in sql for sql in rec.statements) == 1
     assert sum("<=>" in sql for sql in rec.statements) == 2 + 6  # own passages, then aspects
     assert rec.transactions == 2
+    # and the fact chunks of every (side, aspect) list come from one statement
+    assert sum("capabilities cap" in sql for sql in rec.statements) == 1
 
 
 async def test_aspect_candidates_come_from_vector_search_alone(kb, monkeypatch):
@@ -994,6 +1012,7 @@ def test_a_grid_with_no_marks_is_a_refusal_not_an_empty_table():
     grid = Grid(vendors=[], cells={}, facts_as_of=None, no_fact=["Alpha", "Beta"])
     text, hits = render_grid(grid, TOPIC)
     assert hits == [] and "| Vendor" not in text
+    # no legend, no blank-cell note and no vendor list: there is no table to explain
     assert text.splitlines() == [
-        "No fact was found for data loss in the documented vendors' pages.", "", LEGEND,
-        f"Facts current to: no facts found. {BLANK_NOTE}", "No fact found for: Alpha, Beta."]
+        "No fact about data loss was found in the capability table for the vendors checked."
+        " This is not evidence that they lack it.", "", "Facts current to: no facts found."]

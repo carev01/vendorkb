@@ -5,7 +5,12 @@ names none of its aspects (no aspect cue). Triggers and cues are compared with t
 the same normalising: lowercase, hyphens and dashes as spaces, whitespace collapsed. A trigger
 matches as a whole phrase, with an optional plural suffix; a cue matches at a word start, so a
 stem such as ``immutab`` covers every form of the word. A phrase that normalises to nothing is
-skipped.
+skipped. Product names are hidden from the triggers (not from the cues): "PowerProtect Cyber
+Recovery" names a product, not the topic.
+
+A "which vendors" question gets the grid only when it is broad (``is_broad``): nothing is left
+of it but the topic's trigger words and ``BROAD_WORDS``. "Which vendors protect Microsoft 365
+against ransomware?" asks about one workload, and keeps today's answer.
 
 ``topic_hits`` retrieves a topic question's evidence: the question's own passages for each side
 (a named vendor or product, or the whole corpus when none is named), then a small quota of
@@ -23,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -51,7 +57,20 @@ TOPIC_RERANKS_IN_FLIGHT = 4
 # = 160 documents, inside TOPIC_RERANK_DOCS (``topic_grid`` shrinks it for a longer topic).
 CATCH_UP_CANDIDATES = 20
 
+# The words a "which vendors" question may hold, besides the topic's trigger words, and still be
+# broad enough for the grid (``is_broad``), compared as ``_norm`` text.
+BROAD_WORDS = frozenset((
+    "which what who whom vendors vendor tools tool products product solutions solution software"
+    " platforms platform companies company providers provider"
+    " backup backups protect protects protecting protection protected offer offers offering"
+    " provide provides support supports help helps defend defends against from for with my our"
+    " your the a an of and or to in on"
+    " best good data attack attacks do does can could have has is are that there any all"
+).split())
+
 _HYPHENS = re.compile("[-\u2010\u2011\u2013\u2014]")  # hyphen-minus, hyphens, en/em dash
+_APOSTROPHES = re.compile("['\u2019]")
+_PUNCTUATION = re.compile(r"[^\w\s]")
 
 
 def _norm(text: str) -> str:
@@ -80,16 +99,38 @@ def _found(pattern: re.Pattern[str] | None, text: str) -> bool:
     return pattern is not None and pattern.search(text) is not None
 
 
-def detect_topic(question: str, topics: list[Topic]) -> Topic | None:
+@lru_cache(maxsize=16)
+def _names(phrases: tuple[str, ...]) -> re.Pattern[str] | None:
+    """One pattern for every phrase, each a whole phrase, the longest first; None for none."""
+    texts = sorted({t for t in map(_norm, phrases) if t}, key=len, reverse=True)
+    return re.compile(rf"(?<!\w)(?:{'|'.join(map(re.escape, texts))})(?!\w)") if texts else None
+
+
+def detect_topic(question: str, topics: list[Topic],
+                 exclude: Iterable[str] = ()) -> Topic | None:
     """The first of ``topics`` whose trigger the question holds and none of whose aspects it
-    names, else None (the question is handled as it is without topics)."""
+    names, else None (the question is handled as it is without topics). The ``exclude``
+    phrases (product and offering names) are cut out of the question before the triggers are
+    looked for, as whole phrases; the cues are looked for in the whole question."""
     text = _norm(question)
+    names = _names(tuple(exclude))
+    rest = text if names is None else names.sub("\0", text)  # NUL: no word, no space
     for topic in topics:
-        if not any(_found(_trigger(t), text) for t in topic.triggers):
+        if not any(_found(_trigger(t), rest) for t in topic.triggers):
             continue
         if not any(_found(_cue(c), text) for a in topic.aspects for c in a.cues):
             return topic
     return None
+
+
+def is_broad(question: str, topic: Topic) -> bool:
+    """True when every word of ``question`` is a word of one of ``topic``'s triggers (or that
+    word with a plural suffix) or one of ``BROAD_WORDS``: no workload, feature or other content
+    word qualifies it. Punctuation is dropped (an apostrophe joins its word: "vendors'")."""
+    triggers = {w for t in topic.triggers for w in _norm(t).split()}
+    words = _PUNCTUATION.sub(" ", _APOSTROPHES.sub("", _norm(question))).split()
+    return all(w in BROAD_WORDS or w in triggers or w.removesuffix("s") in triggers
+               or w.removesuffix("es") in triggers for w in words)
 
 
 def match_topics(term: str, topics: list[Topic]) -> list[Topic]:
@@ -136,27 +177,48 @@ class TopicHits:
     reranked_docs: int  # documents the reranker scored, over every call that succeeded
 
 
+async def fact_chunks_many(conn: psycopg.AsyncConnection, jobs: list[tuple[Aspect, Facet]],
+                           version: str, limit: int) -> list[list[Hit]]:
+    """``fact_chunks`` of each (aspect, facet) job, ``out[i]`` for ``jobs[i]``, in ONE
+    statement: a topic question has up to 4 sides x 8 aspects of them. A vendor facet matches
+    ``capabilities.vendor`` exactly, compared through ``lower(vendor)`` as well, which the
+    vendor index covers."""
+    if limit <= 0 or not jobs:
+        return [[] for _ in jobs]
+    rows = [(n, dimension, name if kind == "vendor" else None,
+             name if kind == "product" else None)
+            for n, (aspect, (kind, name)) in enumerate(jobs) for dimension in aspect.dimensions]
+    cur = await conn.execute(
+        f"SELECT p.idx, {_COLS} FROM (SELECT f.idx, f.chunk_id, row_number() OVER"
+        " (PARTITION BY f.idx ORDER BY f.sup DESC, f.cur DESC, f.ver DESC, f.chunk_id) AS rn"
+        " FROM (SELECT j.idx, r.chunk_id, bool_or(cap.support = 'supported') AS sup,"
+        " bool_or(cap.is_current) AS cur, max(cap.doc_version) AS ver"
+        " FROM unnest(%s::int[], %s::text[], %s::text[], %s::text[])"
+        " AS j(idx, dimension_id, vendor, product)"
+        " JOIN capabilities cap ON cap.dimension_id = j.dimension_id"
+        " AND (j.vendor IS NULL OR (lower(cap.vendor) = lower(j.vendor) AND cap.vendor = j.vendor))"
+        " AND (j.product IS NULL OR cap.product = j.product)"
+        " JOIN raw_claims r ON r.claim_id = cap.claim_id"
+        " WHERE cap.support IN ('supported', 'partial') AND cap.taxonomy_version = %s"
+        " GROUP BY j.idx, r.chunk_id) f"
+        " JOIN chunks c ON c.chunk_id = f.chunk_id WHERE c.superseded_at IS NULL) p"
+        " JOIN chunks c ON c.chunk_id = p.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
+        " WHERE p.rn <= %s ORDER BY p.idx, p.rn",
+        [[r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows], [r[3] for r in rows],
+         version, limit])
+    out: list[list[Hit]] = [[] for _ in jobs]
+    for idx, *row in await cur.fetchall():
+        out[idx].append(_hit(tuple(row), len(out[idx]) + 1))
+    return out
+
+
 async def fact_chunks(conn: psycopg.AsyncConnection, aspect: Aspect, facet: Facet,
                       version: str, limit: int) -> list[Hit]:
     """The current chunks behind the facet's supported or partial facts on the aspect's
     dimensions (``capabilities`` rows of taxonomy ``version``), best first: supported over
     partial, then current over superseded facts, then the newest page. A chunk is listed once
     however many facts it carries; a chunk that is an earlier version of its page never is."""
-    if limit <= 0:
-        return []
-    kind, name = facet
-    column = "cap.vendor" if kind == "vendor" else "cap.product"
-    cur = await conn.execute(
-        f"SELECT {_COLS} FROM (SELECT r.chunk_id, bool_or(cap.support = 'supported') AS sup,"
-        " bool_or(cap.is_current) AS cur, max(cap.doc_version) AS ver"
-        " FROM capabilities cap JOIN raw_claims r USING (claim_id)"
-        " WHERE cap.dimension_id = ANY(%s) AND cap.support IN ('supported', 'partial')"
-        f" AND cap.taxonomy_version = %s AND {column} = %s GROUP BY r.chunk_id) f"
-        " JOIN chunks c ON c.chunk_id = f.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
-        " WHERE c.superseded_at IS NULL"
-        " ORDER BY f.sup DESC, f.cur DESC, f.ver DESC, c.chunk_id LIMIT %s",
-        [list(aspect.dimensions), version, name, limit])
-    return [_hit(row, n) for n, row in enumerate(await cur.fetchall(), start=1)]
+    return (await fact_chunks_many(conn, [(aspect, facet)], version, limit))[0]
 
 
 def _key(text: str) -> str:
@@ -209,10 +271,11 @@ async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic,
     Every rerank counts against ``budget`` documents: the own passages' candidates first, the
     rest shared out equally over the (side, aspect) lists, at least 2 each (so a small budget
     can be exceeded). A list's candidates are the side's fact chunks (``fact_chunks``, up to
-    half the list, for a side only) and the aspect's nearest chunks, in that order. The lists
-    are reranked concurrently, at most ``TOPIC_RERANKS_IN_FLIGHT`` calls at a time, none
-    retried: one whose rerank fails keeps its order (``rrf_rank``, the list position),
-    unscored, and clears ``rerank_ok``; ``reranked_docs`` counts the calls that succeeded.
+    half the list, for a side only; one statement for every list) and the aspect's nearest
+    chunks, in that order. The lists are reranked concurrently, at most
+    ``TOPIC_RERANKS_IN_FLIGHT`` calls at a time, none retried: one whose rerank fails keeps its
+    order (``rrf_rank``, the list position), unscored, and clears ``rerank_ok``;
+    ``reranked_docs`` counts the calls that succeeded.
 
     Hits are the own passages (side order), then the aspect passages in aspect order (side order
     within an aspect), a text repeated anywhere kept once at its first place. An aspect passes
@@ -236,11 +299,15 @@ async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic,
     own_docs = sum(len(c) for _, c, _ in jobs)
     allowance = max(2, (budget - own_docs) // (len(sides) * len(topic.aspects)))
     nearest = await vector_candidates(conn, vecs[1:], sides, limit=allowance)
+    pairs = [(a, side) for a in topic.aspects for side in facets]  # no facts for no side
+    found = [] if version is None else await fact_chunks_many(conn, pairs, version,
+                                                              allowance // 2)
+    by_pair: dict[tuple[str, Facet | None], list[Hit]] = {
+        (a.id, side): hits for (a, side), hits in zip(pairs, found)}
     for aspect, by_side in zip(topic.aspects, nearest):
         for side, near in zip(sides, by_side):
             query = aspect.query if side is None else f"{side[1]}: {aspect.query}"
-            facts = ([] if side is None or version is None else
-                     await fact_chunks(conn, aspect, side, version, allowance // 2))
+            facts = by_pair.get((aspect.id, side), [])
             seen = {h.chunk_id for h in facts}
             merged = (facts + [h for h in near if h.chunk_id not in seen])[:allowance]
             jobs.append((query, [replace(h, rrf_rank=n) for n, h in enumerate(merged, start=1)],
@@ -420,7 +487,8 @@ def render_grid(grid: Grid, topic: Topic) -> tuple[str, list[Hit]]:
     or ``○ [n]``, with a ``†`` after the marker for a fact of an earlier version of its page,
     numbered row by row and aspect by aspect (one number for each cell); blank when no fact
     was found. Then the legend, the date the facts are current to and the vendors with no
-    fact. A grid with no cell at all is a short answer saying so, not an empty table."""
+    fact. A grid with no cell at all is a short answer saying so (not an empty table) and the
+    date line, with no legend."""
     aspects = topic.aspects
     rows = sorted(grid.vendors, key=lambda v: (-sum((v, a.id) in grid.cells for a in aspects), v))
     hits: list[Hit] = []
@@ -446,5 +514,7 @@ def render_grid(grid: Grid, topic: Topic) -> tuple[str, list[Hit]]:
     if grid.no_fact:
         footer.append(f"No fact found for: {', '.join(sorted(grid.no_fact))}.")
     if not hits:
-        lines = [f"No fact was found for {topic.name.lower()} in the documented vendors' pages."]
+        lines = [f"No fact about {topic.name.lower()} was found in the capability table for the "
+                 "vendors checked. This is not evidence that they lack it."]
+        footer = [current]
     return "\n".join([*lines, "", *footer]), hits

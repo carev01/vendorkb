@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import pytest
@@ -1049,5 +1050,34 @@ async def test_unextracted_candidates(vkb_dsn):
         nothing = CountingConn(conn)
         assert await search.unextracted_candidates(nothing, [], [], limit=20) == []
         assert nothing.executes == 0
+    finally:
+        await conn.close()
+
+
+async def test_unextracted_candidates_come_from_the_newest_pages(vkb_dsn, monkeypatch, caplog):
+    """The pool is the UNEXTRACTED_POOL most recently fetched unextracted chunks: a backlog of
+    old pages cannot make the catch-up statement scan without bound."""
+    assert search.UNEXTRACTED_POOL == 2000
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        monkeypatch.setattr(search, "UNEXTRACTED_POOL", 2)
+        chunks = []
+        for days, vec in ((3, _fine(0)), (2, _fine(1)), (1, _fine(2))):  # oldest is nearest
+            doc = await _doc(conn, "V1", "P1")
+            await conn.execute("UPDATE documents SET fetched_at = now() - make_interval(days => %s)"
+                               " WHERE doc_id = %s", (days, doc))
+            chunks.append(await _raw_chunk(conn, doc, 0, "zebra stripes", vec))
+        with caplog.at_level(logging.DEBUG, logger="vendorkb.search"):
+            [got] = await search.unextracted_candidates(conn, ["zebra"], [_fine(0)], limit=20)
+        # the oldest page's chunk, the nearest of all, is not in the pool
+        assert {h.chunk_id for h in got} == {chunks[1], chunks[2]}
+        assert "pool of 2 unextracted chunks" in caplog.text
+        caplog.clear()
+        await conn.execute("DELETE FROM documents")
+        with caplog.at_level(logging.DEBUG, logger="vendorkb.search"):
+            assert await search.unextracted_candidates(conn, ["zebra"], [_fine(0)],
+                                                       limit=20) == [[]]
+        assert "pool of 0 unextracted chunks" in caplog.text
     finally:
         await conn.close()

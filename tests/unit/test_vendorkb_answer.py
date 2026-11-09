@@ -679,6 +679,7 @@ async def test_a_topic_question_is_answered_per_aspect(monkeypatch, topic):
     assert r["scope"] == {"vendors": ["Veeam"], "products": [], "relaxed": False}
     assert r["retrieved"] == 3 and r["rerank_ok"] is True and r["uncited"] is False
     assert "facets_empty" not in r and r["truncated"] is False
+    assert r["reranked_docs"] == 40  # TopicHits.reranked_docs
 
 
 @pytest.mark.asyncio
@@ -765,6 +766,40 @@ async def test_an_aspect_question_is_not_expanded(monkeypatch, topic, question):
     assert r["answer"] == "Yes [1]."
 
 
+# Product names the scope index holds: they never make a question fire (R25).
+INDEX_NAMES = ScopeIndex(vendors=["Dell", "Zerto"],
+                         products=["PowerProtect Cyber Recovery", "Cyber Resilience Vault"],
+                         aliases={}, product_vendors={"PowerProtect Cyber Recovery": "Dell",
+                                                      "Cyber Resilience Vault": "Zerto"})
+
+
+@pytest.mark.parametrize("question", [
+    "How do I configure a sync policy in PowerProtect Cyber Recovery?",
+    "What are the system requirements for Dell PowerProtect Cyber Recovery 19.18?",
+    "How do I set up the Zerto Cyber Resilience Vault?",
+])
+@pytest.mark.asyncio
+async def test_a_product_name_never_triggers_the_topic(monkeypatch, topic, question):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    client = FakeClient(["Configure it so [1]."])
+    r = await _run_topic(client, question, INDEX_NAMES)
+    assert seen.hits == [] and len(seen.loads) == 1 and len(calls) == 1
+    assert r["topic"] is None and "aspects" not in r
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
+    assert client.calls[0]["max_tokens"] == 4000
+
+
+@pytest.mark.asyncio
+async def test_a_topic_question_beside_a_product_name_still_expands(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(1)])
+    r = await _run_topic(FakeClient(["Fact [1]."]),
+                         "How does PowerProtect Cyber Recovery protect against ransomware?",
+                         INDEX_NAMES)
+    assert r["topic"] == topic.id
+    assert seen.hits[0]["facets"] == [("product", "PowerProtect Cyber Recovery")]
+
+
 def test_topic_rules_copy():
     aspects = (load.Aspect("a", "Alpha", "q", (), ()), load.Aspect("b", "Beta", "q", (), ()))
     t = load.Topic("t", "Ransomware protection", ("ransomware",), aspects)
@@ -816,9 +851,11 @@ async def test_a_five_side_comparison_keeps_todays_path(monkeypatch, topic):
 
 
 WHICH_VENDORS_Q = "Which vendors protect backups against ransomware?"
-SUMMARY_SYSTEM = ("Summarise this coverage table of backup vendors in at most four sentences, "
-                  "using only the counts and names given; no citations, no claims beyond the "
-                  "table.")
+SUMMARY_SYSTEM = (
+    "Summarise this coverage table of backup vendors in at most four sentences, using only the "
+    "counts and names given; no citations, no claims beyond the table. A vendor not listed may "
+    "still offer a capability: never state or imply that a vendor lacks one, and never write "
+    "\"only\".")
 
 
 def _patch_grid(monkeypatch, grid):
@@ -877,10 +914,11 @@ async def test_which_vendors_topic_question_gets_the_grid(monkeypatch, topic):
     # fact (the page not yet analysed is not a fact), at most 2000 tokens
     (call,) = client.calls
     names = [a.name for a in topic.aspects]
-    assert call["messages"][0]["content"] == SUMMARY_SYSTEM
+    assert call["messages"][0]["content"] == SUMMARY_SYSTEM == ans.GRID_SUMMARY_RULES
     assert call["messages"][1]["content"] == "\n".join(
-        [f"{names[0]}: 2 vendors: Commvault, Veeam", f"{names[1]}: 0 vendors: none",
-         f"{names[2]}: 1 vendors: Veeam", *(f"{n}: 0 vendors: none" for n in names[3:])])
+        [f"{names[0]}: facts found for 2 vendors: Commvault, Veeam",
+         f"{names[1]}: no facts found", f"{names[2]}: facts found for 1 vendors: Veeam",
+         *(f"{n}: no facts found" for n in names[3:])])
     assert call["max_tokens"] == 2000
 
 
@@ -919,6 +957,35 @@ async def test_an_empty_summary_is_a_failed_summary(monkeypatch, topic, replies)
     assert r["error"] is None and r["summary_error"] == "empty reply"
 
 
+@pytest.mark.parametrize("reply", [
+    "Only Veeam documents immutability.", "No vendor documents clean recovery.",
+    "None of the vendors lists an air gap.", "Commvault lacks encryption.",
+    "Veeam has facts, lacking a clean room.", "Rubrik does not offer a clean room.",
+    "These vendors do not offer anomaly detection.", "Rubrik doesn't list it.",
+    "Vendors don't list it.", "Anomaly detection is not supported by Commvault.",
+    "Encryption is unsupported for Commvault.", "Veeam leads; Commvault lack the rest.",
+    "veeam ONLY."])
+@pytest.mark.asyncio
+async def test_a_summary_that_states_absence_is_dropped(monkeypatch, topic, reply):
+    grid = _grid_of(topic)
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, grid)
+    r = await _run_topic(FakeClient([reply]), WHICH_VENDORS_Q, INDEX_VC)
+    table, hits = topics_mod.render_grid(grid, topic)
+    assert r["answer"] == table and len(r["citations"]) == len(hits)
+    assert r["summary_error"] == "absence wording" and r["error"] is None
+    assert r["usage"]["completion_tokens"] == 5  # the call was made and is accounted for
+
+
+@pytest.mark.asyncio
+async def test_a_summary_without_absence_wording_is_kept(monkeypatch, topic):
+    _patch_topics(monkeypatch, topic, [])
+    _patch_grid(monkeypatch, _grid_of(topic))
+    reply = "Veeam commonly has facts for three aspects; Commvault for one, a supported one."
+    r = await _run_topic(FakeClient([reply]), WHICH_VENDORS_Q, INDEX_VC)
+    assert r["answer"].startswith(reply + "\n\n| Vendor |") and r["summary_error"] is None
+
+
 @pytest.mark.asyncio
 async def test_a_grid_without_its_catch_up_says_so(monkeypatch, topic):
     grid = _grid_of(topic)
@@ -948,8 +1015,9 @@ async def test_a_grid_with_no_marks_answers_without_the_model(monkeypatch, topic
     r = await _run_topic(client, WHICH_VENDORS_Q, INDEX_VC)
     table, hits = topics_mod.render_grid(grid, topic)
     assert client.calls == [] and hits == [] and r["answer"] == table
-    assert r["answer"].startswith("No fact was found for ")
-    assert "No fact found for: Commvault, Veeam." in r["answer"] and "| Vendor" not in r["answer"]
+    assert r["answer"] == (
+        "No fact about ransomware protection was found in the capability table for the vendors "
+        "checked. This is not evidence that they lack it.\n\nFacts current to: no facts found.")
     assert r["citations"] == [] and r["retrieved"] == 0 and r["uncited"] is False
     assert r["topic"] == topic.id and r["truncated"] is False and r["usage"] is None
     assert r["summary_error"] is None and r["catch_up_ok"] is True
@@ -970,6 +1038,73 @@ async def test_other_enumeration_questions_keep_todays_path(monkeypatch, topic, 
     assert seen.hits == [] and len(seen.loads) == 1  # the topic query, nothing else
     assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
     assert r["vendors_listed"] == ["Veeam"] and r["truncated"] is False
+
+
+# Workload vendors (shape.WORKLOAD_VENDORS) beside the vendors that protect them.
+INDEX_W = ScopeIndex(vendors=["Veeam", "Druva", "Commvault", "Microsoft", "Google",
+                              "Salesforce"], products=["Azure Backup"],
+                     aliases={"Azure": ["Microsoft"]},
+                     product_vendors={"Azure Backup": "Microsoft"})
+
+
+@pytest.mark.parametrize("question", [
+    "Which vendors protect Microsoft 365 against ransomware?",
+    "Which tools protect our Google Workspace against ransomware?",
+    "Which backup vendors offer ransomware protection for Kubernetes?",
+    "Which vendors offer a ransomware recovery warranty?",
+    "Which vendors support instant recovery after a ransomware attack?",
+])
+@pytest.mark.asyncio
+async def test_a_qualified_which_vendors_question_keeps_todays_path(monkeypatch, topic,
+                                                                   question):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    _never(monkeypatch, "topic_grid")
+    _patch_enum(monkeypatch, [_hit(1)], ["Veeam"])
+    client = FakeClient(["Veeam (VBR): does X [1]"])
+    r = await _run_topic(client, question, INDEX_W)
+    assert r["shape"] == "enumeration" and r["topic"] is None and "aspects" not in r
+    assert seen.hits == []
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES + ans.ENUMERATION_RULES
+    assert r["vendors_listed"] == ["Veeam"]
+
+
+@pytest.mark.parametrize("question", [
+    "Which vendors protect backups against ransomware?",  # tp-09
+    "Which backup vendors offer ransomware protection?",  # tp-10
+    "Which vendors offer the best ransomware protection?",
+])
+@pytest.mark.asyncio
+async def test_a_broad_which_vendors_question_gets_the_grid(monkeypatch, topic, question):
+    _patch_topics(monkeypatch, topic, [])
+    calls = _patch_grid(monkeypatch, _grid_of(topic))
+    r = await _run_topic(FakeClient(["Veeam covers most aspects."]), question, INDEX_W)
+    assert len(calls) == 1 and (r["shape"], r["topic"]) == ("enumeration", topic.id)
+
+
+@pytest.mark.parametrize("question", [
+    "How does Veeam protect Microsoft 365 against ransomware?",
+    "How does Druva protect Salesforce against ransomware?",
+])
+@pytest.mark.asyncio
+async def test_a_workload_qualified_topic_question_keeps_todays_path(monkeypatch, topic,
+                                                                    question):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    calls = _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    client = FakeClient(["It does [1]."])
+    r = await _run_topic(client, question, INDEX_W)
+    assert seen.hits == [] and len(calls) == 1
+    assert r["topic"] is None and "aspects" not in r and "truncated" not in r
+    assert client.calls[0]["messages"][0]["content"] == ans.SYSTEM_RULES
+    assert client.calls[0]["max_tokens"] == 4000
+
+
+@pytest.mark.asyncio
+async def test_a_workload_vendor_alone_takes_the_topic_path(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(1, "Microsoft")])
+    r = await _run_topic(FakeClient(["Soft delete [1]."]),
+                         "How does Microsoft protect Azure backups against ransomware?", INDEX_W)
+    assert r["topic"] == topic.id and r["shape"] == "single"
+    assert seen.hits[0]["facets"] == [("vendor", "Microsoft")]
 
 
 def test_citation_is_what_resolve_markers_builds():
@@ -1040,7 +1175,7 @@ async def test_a_truncated_topic_answer_is_flagged(monkeypatch, caplog, topic, f
 async def test_plain_single_and_comparison_answers_carry_no_truncated_flag(monkeypatch):
     _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
     r = await _run(FinishClient(["Fact [1]."], "length"))
-    assert r["shape"] == "single" and "truncated" not in r
+    assert r["shape"] == "single" and "truncated" not in r and "reranked_docs" not in r
 
     async def fake(conn, query, **kw):
         return ComparisonResult([_hit(1)], [], True)
