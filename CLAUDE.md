@@ -34,10 +34,11 @@ stack.
   such as "Own" or "Slide" match case-sensitively);
 - question shape (`shape.py`): single / comparison / enumeration, deterministic. Two named
   facets never enumerate; a one-vendor "which tools…" question enumerates only for a workload
-  vendor (`WORKLOAD_VENDORS`);
+  vendor (`WORKLOAD_VENDORS`), and a "which vendors…" question naming a workload vendor's
+  product ("Entra ID backup") enumerates too;
 - cross-vendor retrieval (`modes.py`): `enumerate_vendors` (all vendors at once via the
   batched `search.vendor_candidates`, 2/3 chunks per vendor, one rerank, floor
-  `ENUMERATION_MIN_SCORE` 0.46 calibrated 2026-11-06) and `compare_facets` (per-facet quotas
+  `ENUMERATION_MIN_SCORE` 0.54 calibrated 2026-11-06) and `compare_facets` (per-facet quotas
   that survive the rerank);
 - a cite-or-abstain answer step (`answer.py`). Enumeration answers are one line per vendor; a
   line survives only if it cites a chunk of its own vendor, and the closing line "No
@@ -110,7 +111,9 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   - offerings with editions;
   - topics (`topics:` key; tables `topics`, `topic_aspects`): a broad subject as a kit of aspects
     (each: `dimensions`, search `query`, `cues`); `topics.detect_topic` fires on a trigger when no
-    aspect cue is named (product names are masked first). Used by `answer` (per-aspect
+    aspect cue is named (product names are masked first); a single or comparison question
+    that names two or more aspects keeps the topic path for those aspects
+    (`topics.detect_named_aspects`). Used by `answer` (per-aspect
     retrieval, unless a workload vendor qualifies it; a broad "which vendors" question gets a
     cited grid whose cells are cue-gated: a cell shows its best fact on a chunk that names the
     aspect (a cue, matched in the facts SQL), else stays empty, counted in `gated_out`) and MCP

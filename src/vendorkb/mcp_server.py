@@ -15,12 +15,14 @@ passage carries its source URL and chunk id from the database; nothing here writ
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from pydantic import Field
 
 from vendorkb.mcp_backend import Backend
 from vendorkb.search import Hit
@@ -65,7 +67,13 @@ citations. Rules:
 - For one vendor's details (limits, versions, prerequisites), search_docs with the vendor
   filter, then read_section for the surrounding text.
 - answer_question returns a complete cited answer in one call when you do not need to combine
-  sources yourself."""
+  sources yourself. Pass it the user's question word for word."""
+
+# The ``question`` of answer_question. An agent that appended "List all vendors documented,
+# distinguishing supported versus partial support…" lowered every rerank score: a vendor fell
+# under the enumeration floor (BACKLOG 39).
+VERBATIM = ("The user's question, word for word. Add no instructions, detail, examples or "
+            "formatting requests: every added word changes which passages are retrieved.")
 
 _RO = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 
@@ -453,14 +461,21 @@ def build_server(backend: Backend) -> MCPServer:
         "Answer a question from the documentation in one call: vendorkb retrieves, checks every "
         "vendor for 'which vendors' questions, compares named vendors, and writes an answer "
         "that cites its sources as [N] (the Sources list follows; always show it). It refuses "
-        "when the documentation does not support an answer. Slower than search_docs."))
-    async def answer_question(question: str) -> CallToolResult:
+        "when the documentation does not support an answer. Pass the user's question word for "
+        "word. Slower than search_docs."))
+    async def answer_question(
+            question: Annotated[str, Field(description=VERBATIM)]) -> CallToolResult:
         if not question.strip():
             raise ToolError("answer_question needs a question")
         try:
             out = await backend.answer(question)
         except Exception as e:
             raise _fail("answer_question", e) from e
+        # the question as the agent sent it (agents rewrite the user's), on one line
+        log.info("answer_question %s", json.dumps(
+            {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
+             "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or [])},
+            ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"answer_question failed: {out['error']}")
         sources = format_sources(out)

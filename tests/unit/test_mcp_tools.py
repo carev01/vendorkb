@@ -122,6 +122,11 @@ async def test_the_tools_are_listed_read_only():
     assert "`topic`" in caps.description and "grouped by aspect" in caps.description
     assert "exclusive with `dimension`" in caps.description
     assert "topic" in tools["list_dimensions"].description
+    # BACKLOG 39: an agent's added instructions change what is retrieved
+    ask = tools["answer_question"]
+    assert ask.input_schema["properties"]["question"]["description"] == ms.VERBATIM
+    assert "word for word" in ms.VERBATIM and "word for word" in ask.description
+    assert "word for word" in ms.INSTRUCTIONS
 
 
 async def test_query_capabilities_cites_every_fact():
@@ -288,6 +293,21 @@ async def test_answer_question_lists_its_sources():
     assert r.structured_content["citations"][0]["chunk_id"] == "k1"
     assert "text" not in r.structured_content["citations"][0]
     assert "citations_total" not in r.structured_content  # a grid answer's key only
+
+
+async def test_answer_question_logs_the_question_as_sent(caplog):
+    """BACKLOG 39: the agent rewrites the user's question; the log is the only record of it."""
+    out = {"answer": "Yes [1].", "shape": "comparison", "topic": "ransomware_protection",
+           "retrieved": 7, "scope": {}, "uncited": False, "error": None,
+           "citations": [{"marker": 1, "chunk_id": "k1", "url": None, "title": "P",
+                          "section_path": [], "text": "..."}]}
+    with caplog.at_level("INFO", logger="vendorkb.mcp_server"):
+        async with Client(ms.build_server(FakeBackend(answer=out))) as c:
+            await c.call_tool("answer_question", {"question": "Compare A and B\nplease"})
+    line = next(r.getMessage() for r in caplog.records if "answer_question" in r.getMessage())
+    assert line == ('answer_question {"question": "Compare A and B\\nplease", "shape": '
+                    '"comparison", "topic": "ransomware_protection", "retrieved": 7, '
+                    '"citations": 1}')
 
 
 def _grid_answer(topic: load.Topic) -> dict:

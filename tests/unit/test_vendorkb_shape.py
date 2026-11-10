@@ -228,3 +228,19 @@ def test_or_pair_of_two_workload_vendors_keeps_both_facets():
     s = detect_shape("Can I back up to AWS or Google?", INDEX)
     assert s.kind == "single"
     assert sorted(s.facets) == [("vendor", "AWS"), ("vendor", "Google")]
+
+
+def test_vendors_wording_with_a_workload_vendors_product_enumerates():
+    """BACKLOG 39: "Entra ID backup" is also the name of Microsoft's product; the question
+    asks which vendors protect the workload, and was answered from Microsoft's pages only."""
+    for q in ("Which vendors support Entra ID backup?",
+              "What vendors offer Microsoft 365 backup?"):
+        assert detect_shape(q, INDEX).kind == "enumeration", q
+    assert detect_shape("Which vendors support Entra ID backup?", INDEX).facets == [
+        ("product", "Entra ID Backup")]
+    # the product is what is asked about: single
+    q = "Which vendors does Azure Backup integrate with?"
+    assert detect_shape(q, INDEX) == Shape("single", [("product", "Azure Backup")])
+    # another vendor's product is no workload: single, as before
+    q = "Which vendors integrate with FortKnox?"
+    assert detect_shape(q, INDEX) == Shape("single", [("product", "FortKnox")])

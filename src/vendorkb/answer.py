@@ -66,19 +66,28 @@ ENUMERATION_RULES = (
 )
 
 
-def topic_rules(topic: Topic, *, products_named: bool) -> str:
-    """Rules for a broad question on ``topic``: one part of the answer per aspect, in order."""
-    head = (f"\n- The question asks about {topic.name.lower()} in general. Organise the answer by "
-            f"these aspects, in this order: {'; '.join(a.name for a in topic.aspects)}.\n")
+def topic_rules(topic: Topic, *, products_named: bool, narrowed: bool = False) -> str:
+    """Rules for a broad question on ``topic``: one part of the answer per aspect, in order.
+    ``narrowed``: the question named these aspects itself (``detect_named_aspects``), and may
+    ask about more than the kit holds."""
+    names = "; ".join(a.name for a in topic.aspects)
+    if narrowed:
+        head = (f"\n- The question asks about these aspects of {topic.name.lower()}. Organise "
+                f"the answer by them, in this order: {names}.\n")
+    else:
+        head = (f"\n- The question asks about {topic.name.lower()} in general. Organise the "
+                f"answer by these aspects, in this order: {names}.\n")
+    tail = ("\n- After the aspects, cover anything else the question asks about that the sources "
+            "show, with citations." if narrowed else "")
     if products_named:
         return head + ("- For each product in the question, state what its sources show for each "
                        "aspect, with citations, and name the product each statement is about (a "
                        "vendor may have several); for an aspect its sources do not cover, write "
                        "\"the retrieved sources do not cover this\", never that the product "
-                       "lacks it.")
+                       "lacks it.") + tail
     return head + ("- The question names no product: for each aspect, describe what the sources "
                    "show, with citations, naming the vendor and product each statement comes "
-                   "from; do not present the vendors named as a complete list.")
+                   "from; do not present the vendors named as a complete list.") + tail
 
 
 # `vendorkb sync` runs in a 1 Gi pod and imports this module through the CLI, and the topics code
@@ -91,6 +100,12 @@ async def load_topics(conn: psycopg.AsyncConnection) -> list[Topic]:
 def detect_topic(question: str, topics: list[Topic],
                  exclude: Iterable[str] = ()) -> Topic | None:
     from vendorkb.topics import detect_topic as detect
+    return detect(question, topics, exclude)
+
+
+def detect_named_aspects(question: str, topics: list[Topic],
+                         exclude: Iterable[str] = ()) -> Topic | None:
+    from vendorkb.topics import detect_named_aspects as detect
     return detect(question, topics, exclude)
 
 
@@ -488,6 +503,7 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
     kept: list[str] = []
     system = SYSTEM_RULES
     topic = None
+    narrowed = False  # the question named the topic's aspects (detect_named_aspects)
     reranked_docs = 0  # the topic path's (TopicHits.reranked_docs)
     # a "which vendors" topic question gets the grid only with TOPIC_GRID on; off, it is any
     # other enumeration (no topic lookup at all)
@@ -495,8 +511,14 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
             else len(shape.facets) <= TOPIC_MAX_SIDES):
         # a product's name ("PowerProtect Cyber Recovery") never stands for the topic; the
         # offerings (taxonomy) are not in the scope index, so they are not excluded here
-        topic = detect_topic(question, await load_topics(conn),
-                             exclude=product_surfaces(scope_index))
+        topics = await load_topics(conn)
+        topic = detect_topic(question, topics, exclude=product_surfaces(scope_index))
+        if topic is None and shape.kind != "enumeration":
+            # several aspects named: the topic's path for those aspects, not five passages a
+            # side for all of them
+            topic = detect_named_aspects(question, topics,
+                                         exclude=product_surfaces(scope_index))
+            narrowed = topic is not None
         if topic is not None and not topic_applies(question, shape, topic,
                                                    named_facets(question, scope_index)):
             topic = None  # a qualified question: today's answer
@@ -520,7 +542,8 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
                               reranker=reranker)
         result = SearchResult(th.hits, th.rerank_ok)
         reranked_docs = th.reranked_docs
-        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets))
+        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets),
+                                            narrowed=narrowed)
         vendors = [n for k, n in shape.facets if k == "vendor"]
         products = [n for k, n in shape.facets if k == "product"]
         if len(shape.facets) >= 2:  # a single question may name several sides too

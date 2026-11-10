@@ -3,7 +3,9 @@ from pathlib import Path
 import pytest
 
 from vendorkb.taxonomy import load
-from vendorkb.topics import BROAD_WORDS, detect_topic, is_broad, match_topics
+from vendorkb.topics import (
+    BROAD_WORDS, detect_named_aspects, detect_topic, is_broad, match_topics,
+)
 
 SHIPPED = Path(__file__).parent.parent.parent / "taxonomy" / "taxonomy.yaml"
 
@@ -269,3 +271,36 @@ def test_the_broad_words_are_lowercase_single_words():
     assert all(w == w.lower() and w.isalpha() for w in BROAD_WORDS)
     assert {"which", "vendors", "protection", "against", "best", "any"} <= BROAD_WORDS
     assert not {"ransomware", "recovery", "restore", "immutable"} & BROAD_WORDS
+
+
+# --- a question that names several aspects of a topic (BACKLOG 40) -----------------------------
+
+def test_naming_several_aspects_narrows_the_topic_to_them(T):
+    topic = detect_named_aspects(
+        "Compare ransomware protection capabilities between Veeam and Commvault: immutability, "
+        "air gap, anomaly detection, malware scanning, MFA, encryption, RBAC, cyber recovery "
+        "testing", T)
+    assert topic is not None and topic.id == "ransomware_protection"
+    # the kit's order, not the question's; MFA and RBAC are one aspect
+    assert [a.id for a in topic.aspects] == [
+        "built_in_security", "immutability", "anomaly_detection", "malware_detection", "air_gap",
+        "encryption"]
+    assert topic.name == T[0].name and topic.triggers == T[0].triggers
+
+
+@pytest.mark.parametrize("question", [
+    "How does immutability protect against ransomware?",  # one aspect: a specific question
+    "Does Veeam support MFA and RBAC against ransomware?",  # two cues of one aspect
+    "How does Veeam protect backups against ransomware?",  # none: detect_topic's question
+    "Compare immutability and encryption in Veeam and Commvault",  # no trigger
+])
+def test_fewer_than_two_named_aspects_narrow_nothing(T, question):
+    assert detect_named_aspects(question, T) is None
+
+
+def test_named_aspects_need_a_trigger_outside_product_names():
+    aspects = tuple(load.Aspect(i, i, i, (i,), ("security.rbac",)) for i in ("alpha", "beta"))
+    topic = load.Topic("t", "t", ("cyber resilience",), aspects)
+    q = "alpha and beta in the Cyber Resilience Vault"
+    assert detect_named_aspects(q, [topic], exclude=["Cyber Resilience Vault"]) is None
+    assert detect_named_aspects(q, [topic]) is not None
