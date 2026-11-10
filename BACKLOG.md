@@ -320,12 +320,36 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     only by iterating (5-11 s, and other passages), and item 43's floor and depth were
     calibrated on the exact order. `answer_question` and `gather_evidence` log their seconds.
 
+    **Deployed 2026-11-10 (image `sha-ba3d50e`, helm rev 35), measured on the live server:**
+    the Veeam-Commvault topic question's retrieval 4.8 s alone (46 s before); four topic
+    questions at once 6-9 s each (120-210 s in the pilot); two "which vendors" and two topic
+    questions at once 9-14 s.
+
+    **The full-text statement, profiled 2026-11-10.** It is now the largest part of every
+    retrieval: 2.9 s for an unscoped question, 1.1 s scoped to one vendor, 3.9 s for the
+    "which vendors" statement. The question's terms are ORed, so "backup" (45% of chunks) and
+    "support" (23%) make it match 60% of the corpus, and the time is `ts_rank_cd` over every
+    match (134k rows), after a sequential read of every chunk's `tsv`. Leaving out the lexemes
+    in more than a share of the chunks when rarer ones remain (read from `pg_stats`, no scan)
+    lets the GIN index serve it: 1.1 s, 0.2 s and 0.4 s for the three statements. Prototype on
+    branch `fts-common-words` (`search.fts_query`, `FTS_COMMON_FREQ`). The free eval on the
+    labelled questions (no rerank), rule off / over 20% / over 10%:
+
+    | | off | 20% | 10% |
+    |---|---|---|---|
+    | single-vendor pool recall (60) | 0.950 | 0.950 | 0.950 |
+    | single-vendor recall@10 before the rerank | 0.917 | 0.900 | 0.900 |
+    | multi-article pool recall / recall@10 (19) | 1.000 / 0.895 | 1.000 / 0.895 | 1.000 / 0.947 |
+    | comparison facet recall (9) | 0.833 | 0.889 | 0.889 |
+    | single question, p50 / p90 seconds | 3.0 / 8.9 | 1.6 / 4.7 | 1.2 / 2.5 |
+    | "which vendors", p50 seconds (calibration / holdout) | 9.5 / 6.3 | 7.0 / 4.0 | 4.7 / 3.5 |
+
+    Not adopted yet: the free mode keeps every vendor, so it does not show what the change does
+    to the reranked "which vendors" result that item 43's floor was calibrated on. That needs
+    the 23 labelled questions with the rerank, before and after (about 7M rerank tokens).
+
     Left:
-    - the "which vendors" retrieval stays at about 8 s, most of it the one full-text statement
-      (not profiled further); single questions spend their 2-3 s there too;
-    - under load: to be re-measured after the deploy with four topic questions at once (the
-      pilot's 120-210 s were sixteen-fold sorts queueing on the database's cores);
-    - the dropped connections of the pilot: cause not found.
+    - the dropped connections of the pilot: cause not found (not seen since the fix).
 
     *2026-11-10, from the item 42 pilot:* with four to six agents at once, a topic
     `answer_question` or `gather_evidence` took 120-210 s (45-60 s alone), past the public
@@ -591,8 +615,12 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     it twice, also with an exact vector sort. The embedding provider returns a slightly
     different vector for the same text now and then (1 of 4 calls: largest component
     difference 7.7e-4, cosine 0.99997), which moves a candidate across the six-per-vendor cut.
-    A cache of query embeddings (the `embedding_cache` table, input type "query") would make a
-    repeated question retrieve the same passages, and save the embedding call.
+    **Fixed 2026-11-10 (branch `query-embedding-cache`):** `search.embed_queries` reads a
+    query's vector from `embedding_cache` (input type "query") and stores a new one as float32,
+    returning the stored value on the first call too; `search_docs`, the enumeration,
+    comparisons and the topic paths use it. On production, inside a rolled-back transaction,
+    five identical calls kept the same 20 vendors and the same 45 passages with one embedding
+    call. A question worded differently is another text, and still moves the borderline vendors.
 
     **Answer level (2026-11-10):** the 23 labelled questions through the full answer, the
     deployed code and the branch side by side, one run each: expected vendors listed 385 ->
