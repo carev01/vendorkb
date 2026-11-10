@@ -15,6 +15,7 @@ passage carries its source URL and chunk id from the database; nothing here writ
 from __future__ import annotations
 
 import dataclasses
+import json
 import logging
 from typing import Any, Literal
 
@@ -461,6 +462,11 @@ def build_server(backend: Backend) -> MCPServer:
             out = await backend.answer(question)
         except Exception as e:
             raise _fail("answer_question", e) from e
+        # the question as the agent sent it (agents rewrite the user's), on one line
+        log.info("answer_question %s", json.dumps(
+            {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
+             "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or [])},
+            ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"answer_question failed: {out['error']}")
         sources = format_sources(out)

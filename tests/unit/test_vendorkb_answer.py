@@ -1,3 +1,4 @@
+import dataclasses
 import types
 from pathlib import Path
 
@@ -747,6 +748,51 @@ async def test_a_vendor_neutral_topic_question(monkeypatch, topic):
     assert r["shape"] == "single" and r["topic"] == topic.id
     assert r["scope"] == {"vendors": [], "products": [], "relaxed": False}
     assert r["answer"] == "Veeam does X [1]. Commvault does Y [2]."
+
+
+NAMED_Q = ("Compare ransomware protection between Veeam and Commvault: immutability, MFA and "
+           "encryption")
+
+
+@pytest.mark.asyncio
+async def test_a_question_naming_several_aspects_keeps_the_topic_path(monkeypatch, topic):
+    """BACKLOG 40: it used to fall back to the plain comparison, five passages a side."""
+    seen = _patch_topics(monkeypatch, topic, [_hit(1, "Veeam"), _hit(2, "Commvault")])
+    _never(monkeypatch, "compare_facets")
+    client = FakeClient(["Veeam does X [1]. Commvault does Y [2]."])
+    r = await _run_topic(client, NAMED_Q, INDEX_VC)
+    narrowed = seen.hits[0]["topic"]
+    assert [a.id for a in narrowed.aspects] == ["built_in_security", "immutability", "encryption"]
+    assert seen.hits[0]["facets"] == [("vendor", "Veeam"), ("vendor", "Commvault")]
+    assert client.calls[0]["messages"][0]["content"] == (
+        ans.SYSTEM_RULES + ans.topic_rules(narrowed, products_named=True, narrowed=True))
+    assert client.calls[0]["max_tokens"] == ans.ENUMERATION_MAX_TOKENS
+    assert r["shape"] == "comparison" and r["topic"] == topic.id
+    assert r["aspects"] == [a.name for a in narrowed.aspects]
+    assert [c["chunk_id"] for c in r["citations"]] == ["c1", "c2"]
+
+
+@pytest.mark.asyncio
+async def test_a_which_vendors_question_naming_aspects_stays_an_enumeration(monkeypatch, topic):
+    seen = _patch_topics(monkeypatch, topic, [_hit(9)])
+    _patch_enum(monkeypatch, [_hit(1, "Veeam")], ["Veeam"])
+    r = await ans.answer(None, "Which vendors offer immutability and encryption against "
+                         "ransomware?", settings=VendorkbSettings(_env_file=None, topic_grid=True),
+                         embedder=None,
+                         reranker=None, scope_index=INDEX_VC,
+                         client=FakeClient(["Veeam: x [1]", ""]))
+    assert seen.hits == [] and r["shape"] == "enumeration" and r["topic"] is None
+
+
+def test_topic_rules_for_named_aspects(topic):
+    two = dataclasses.replace(topic, aspects=topic.aspects[:2])
+    rules = ans.topic_rules(two, products_named=True, narrowed=True)
+    assert rules.startswith(
+        "\n- The question asks about these aspects of ransomware protection. Organise the "
+        f"answer by them, in this order: {two.aspects[0].name}; {two.aspects[1].name}.\n")
+    assert "in general" not in rules
+    assert rules.endswith("\n- After the aspects, cover anything else the question asks about "
+                          "that the sources show, with citations.")
 
 
 @pytest.mark.parametrize("question", [

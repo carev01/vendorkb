@@ -126,6 +126,26 @@ def detect_topic(question: str, topics: list[Topic],
     return None
 
 
+def detect_named_aspects(question: str, topics: list[Topic],
+                         exclude: Iterable[str] = ()) -> Topic | None:
+    """The first of ``topics`` whose trigger the question holds and two or more of whose
+    aspects it names, narrowed to those aspects (in the topic's order); else None. Triggers,
+    ``exclude`` and cues are read as in ``detect_topic``, which takes the question naming no
+    aspect. One named aspect is a specific question, handled as it is without topics; several
+    need per-aspect retrieval (BACKLOG 40: "Compare ransomware protection of A and B:
+    immutability, MFA, encryption" got five passages a side for all of them)."""
+    text = _norm(question)
+    names = _names(tuple(exclude))
+    rest = text if names is None else names.sub("\0", text)
+    for topic in topics:
+        if not any(_found(_trigger(t), rest) for t in topic.triggers):
+            continue
+        named = tuple(a for a in topic.aspects if any(_found(_cue(c), text) for c in a.cues))
+        if len(named) >= 2:
+            return replace(topic, aspects=named)
+    return None
+
+
 def names_aspect(text: str, aspect: Aspect) -> bool:
     """Whether ``text`` holds one of the aspect's cues, read as ``detect_topic`` reads a
     question (``_norm``, a cue at a word start). An aspect with no cue is named by nothing.

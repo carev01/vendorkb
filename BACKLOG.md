@@ -349,7 +349,25 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     So the "which vendors" answer missed Datto's own facts. It then credited a Spanning page's
     mention of the Kaseya sister product to Spanning.
 
-    To investigate:
+    **Diagnosed 2026-11-09 (Copilot transcript replayed):** the agent (GPT then) did not send
+    the user's question. It sent "Which vendors support backing up Microsoft Entra ID? List all
+    vendors documented, distinguishing supported versus partial support and specifying any
+    conditions or product names, with sources." The appended instructions are part of the
+    rerank query and lower every score: Datto's best passage 0.624 -> 0.515, under the floor
+    (0.54), so Datto went to "No supporting passage found for" (Eon and Synology too).
+    Spanning's "IT Complete modules" page, a list of Kaseya help links naming "Datto Backup for
+    Microsoft Entra ID", scored 0.586 and was kept; the model wrote a Spanning line from it,
+    and the line check only counts a line that names another vendor (`_names_other`). The
+    user's own wording lists Datto and not Spanning. `answer_question` now logs the question
+    as sent. Open:
+    - the question as the user asked it: the tool description and the agent's instructions
+      ("pass the question unchanged"), or retrieval on the question's first sentence;
+    - drop an enumeration line whose text names another vendor's product, checked on the
+      labelled questions first (workload vendors are named legitimately);
+    - "Which vendors support Entra ID backup?" reads as a single question on Microsoft's
+      product "Entra ID Backup" and is answered from Microsoft's pages only.
+
+    Was, to investigate:
     - why the enumeration's per-vendor retrieval and relevance floor (`enumeration_min_score`)
       found no passage for Datto;
     - whether the answer should credit a product named in the text to its own vendor
@@ -365,7 +383,19 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     - Two vendors × eight aspects got only 10 sources, the Veeam side mostly from one Vault
       Security page.
 
-    Investigate the comparison path for a topic question (`shape` comparison with a topic):
+    **Fixed 2026-11-09 (branch `fix-topic-named-aspects`):** the question as asked takes the
+    topic path and is answered well (37 passages, all cited, eight aspects for both vendors).
+    The Copilot agent had sent a rewording that names the aspects ("…: immutability, air gap,
+    anomaly detection, malware scanning, MFA, encryption, RBAC, cyber recovery testing"). A
+    named aspect cue turned the topic off, so the plain comparison answered eight subjects from
+    five passages a side (10 sources; reproduced, with the reported gaps). Now a single or
+    comparison question that names two or more aspects of a triggered topic keeps the topic
+    path for those aspects (`topics.detect_named_aspects`): the same wording gets 27 passages,
+    all cited, with Commvault's MFA and encryption. No labelled eval question changes path.
+    Left: a subject outside the kit ("cyber recovery testing") has no retrieval of its own, so
+    Veeam's SureBackup is still not found for it.
+
+    Was: Investigate the comparison path for a topic question (`shape` comparison with a topic):
     - per-vendor, per-aspect retrieval quotas;
     - whether the grid/fact chunks (`fact_chunks_many`) feed it;
     - the rerank budget;
