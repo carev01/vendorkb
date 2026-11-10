@@ -296,7 +296,13 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     mapped to the wrong dimension ("Inactive files" -> anomaly detection, "Dedicated backup
     networks" -> air gap, AI-agent session details -> deletion safeguards); they also reach
     `query_capabilities`. A blind sample per security/cyber dimension would size it.
-35. **Topic residuals (parked in review):** offerings are not masked from triggers (products and
+35. *2026-11-10, from the item 42 pilot:* with four to six agents at once, a topic
+    `answer_question` or `gather_evidence` took 120-210 s (45-60 s alone), past the public
+    route's 100 s. The database was busy with the vendor-filtered vector searches of the
+    per-aspect retrieval (about 1.2 cores); four calls also lost their connection mid-reply
+    with nothing in the server log. Topic retrieval time is the next thing to fix here.
+
+    **Topic residuals (parked in review):** offerings are not masked from triggers (products and
     their aliases are); single-vendor questions narrowed by a word ("…for NAS backups?") still get
     the full kit (Ruling 12: a missed cue costs length, not a wrong claim); topic answers take
     27-80 s and 109-148k rerank tokens (vs 8-23 s, 12-23k); `vendorkb stats` counts superseded
@@ -360,6 +366,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     and the line check only counts a line that names another vendor (`_names_other`). The
     user's own wording lists Datto and not Spanning. `answer_question` now logs the question
     as sent.
+
+    *2026-11-10:* with the rule in place, all 24 relay and evidence agents of the item 42 pilot
+    (Haiku) passed the question word for word. Copilot's own compliance is still to be read
+    from the question log.
 
     **Done 2026-11-09 (branch `enum-workload-product-and-verbatim`):**
     - "Pass the user's question word for word" is in the `question` parameter's description,
@@ -431,6 +441,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       `citation_style` option of `answer_question`.
 
     Done when an agent reply keeps a marker on every cited statement.
+
+    *2026-11-10:* in the item 42 pilot, Haiku agents relaying `answer_question` kept every
+    marker (320 of 320 over 12 answers), and the transcript of item 39 shows GPT kept them too,
+    adding its own footnote numbers. So the loss is not Claude Haiku's: re-test in Copilot
+    Studio with the agent on Haiku before changing the marker form.
 42. **Do we need vendorkb's answer model?** (user, 2026-11-09; take with items 40 and 41,
     which touch the same answer path).
 
@@ -481,8 +496,23 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     Measured on production: a two-vendor ransomware comparison is 37 passages in 3 parts (56k
     characters, 46 s); "which vendors support backing up Entra ID" 45 passages in 4 parts (66k,
     9 s). So for a topic the time is the retrieval (18 rerank lists), not the writing: the
-    bypass saves little there. Left: the three-arm eval, and the alternative rules 1 and 3 in
-    docs/deploy/copilot-studio.md §5 in a Copilot agent.
+    bypass saves little there.
+
+    **Decided by the pilot, 2026-11-10: keep the answer model**
+    (`docs/superpowers/bypass-eval-2026-11-10.md`; `eval/bypass_eval.py`). Twelve questions,
+    three arms, Haiku agents, blind Opus 5.5 and Fable 5.2 graders (275 of 278 checks agreed):
+
+    | | relay | evidence | raw |
+    |---|---|---|---|
+    | vendor recall / precision | 85.5% / 88.8% | 82.8% / 94.7% | 64.9% / 92.0% |
+    | checks unsupported | 0% | 0% | 4.3% |
+    | claims without a marker | 0% | 3-6% | under 1% |
+    | claims in the 12 replies | 691-807 | 484-546 | 345-354 |
+
+    The evidence arm matches on accuracy, cites less completely, says about 30% less and is no
+    faster end to end. `gather_evidence` stays as an optional tool. Not run: the full 35
+    questions (the pilot cannot tell differences under about 5 points; the citation and speed
+    results do not depend on that), and a Copilot Studio agent on the alternative rules.
 43. **Vendors listed for a "which vendors" question moved with its wording** (user,
     2026-11-10). "Which vendors support Entra ID backup?" left Rubrik and Commvault under "No
     supporting passage found for"; "…backing up Entra ID?" listed Rubrik.
