@@ -469,3 +469,55 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     Score each blind on unsupported claims, vendor recall and kept citations. Drop the answer
     model if arm 2 matches or beats arm 1. For reference, the 2026-11-08 raw-tool agent eval
     with Sonnet reached vendor recall 93% and precision 98%.
+
+    **Built 2026-11-10 (branch `enum-depth-and-evidence`), not yet measured:** the MCP tool
+    `gather_evidence(question, part)` is arm 2's tool. `answer.gather` is the deterministic
+    half of `answer` (shape, topic, every vendor / each side / each aspect retrieved);
+    `answer.evidence` returns it, numbered as the answer numbers its sources, and the tool
+    shows it grouped by vendor or aspect, in parts of 20,000 characters, ending with what was
+    found nothing for and the writing rules. A grid question returns the table and its sources.
+    `answer_question` is unchanged. Passages are cut at 1,200 characters (`read_section` has
+    the rest), which the answer model's whole passages are not.
+    Measured on production: a two-vendor ransomware comparison is 37 passages in 3 parts (56k
+    characters, 46 s); "which vendors support backing up Entra ID" 45 passages in 4 parts (66k,
+    9 s). So for a topic the time is the retrieval (18 rerank lists), not the writing: the
+    bypass saves little there. Left: the three-arm eval, and the alternative rules 1 and 3 in
+    docs/deploy/copilot-studio.md §5 in a Copilot agent.
+43. **Vendors listed for a "which vendors" question moved with its wording** (user,
+    2026-11-10). "Which vendors support Entra ID backup?" left Rubrik and Commvault under "No
+    supporting passage found for"; "…backing up Entra ID?" listed Rubrik.
+
+    **Cause.** Only each vendor's first 2-3 candidates (hybrid search order, which follows the
+    wording) reached the reranker, and the vendor's best passage was often further down:
+    Rubrik's Entra ID page was fourth and scores 0.74, Datto's product page sixth for the
+    Copilot agent's padded wording (0.72; item 39).
+
+    **Fixed 2026-11-10 (branch `enum-depth-and-evidence`):** the reranker judges six candidates
+    per vendor (`modes.ENUM_RERANK_DEPTH`, calls of 100 passages run together) and the answer
+    gets each vendor's best 2-3 by score. The floor was recalibrated to 0.56 on the 23 labelled
+    questions (one run, 12 judged per vendor, 6.95M rerank tokens; shallower depths read from
+    the same scores):
+
+    | judged per vendor | floor | recall | noise vendors a question |
+    |---|---|---|---|
+    | 2-3 (before) | 0.54 | 0.956 | 2.4 |
+    | 6 | 0.56 | 0.971 | 2.5 |
+    | 8 | 0.56 | 0.971 | 2.7 |
+    | 12 | 0.58 | 0.959 | 2.3 |
+
+    On four wordings of the Entra ID question (17 vendors with `coverage.backup` facts for
+    `entra_id`): kept in all four 12 -> 14, Rubrik and Datto among them. About 170K rerank
+    tokens a question (70K before), 8-13 s for the retrieval. The grid's catch-up keeps its own
+    floor (`topics.CATCH_UP_MIN_SCORE`, 0.54).
+
+    Left:
+    - Commvault (best passage 0.50-0.58: its page says "Azure Active Directory") and Eon (in
+      the padded wording) still move with the wording; Bacula (2 facts) is never kept. A score
+      floor cannot make this exact. The capability facts would (a vendor with facts for the
+      question's target is kept whatever its score), which item 8 tried and did not adopt for
+      precision; with the target read from the question by exact alias it may be worth a
+      second look.
+    - The kept vendors without evidence grow on some wordings (Storware, Unitrends, Synology:
+      1-3 -> 2-5 on the Entra wordings); the answer model declines most ("Passages found but
+      not judged to show it"). The answer-level vendor recall and precision on the 23 labelled
+      questions were not re-measured.

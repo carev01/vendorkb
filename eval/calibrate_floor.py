@@ -6,9 +6,10 @@ Reads each enumeration row's ``vendor_best_scores`` (every scored vendor, those 
 run's --min-score included) and prints, per floor, mean vendor recall, noise vendors and
 precision on the calibration and holdout splits. It prints two rules: the plan's (highest
 floor with calibration recall >= 0.8) and the adopted one (highest floor with calibration
-recall >= 0.95). ENUMERATION_MIN_SCORE = 0.46 was adopted by ruling on 2026-11-06 (spec §9.2:
-the floor is recall-first; the answer's line check owns precision) from the committed run,
-where its calibration recall is 0.949, read as 0.95; the strict >= 0.95 rule gives 0.42 there.
+recall >= 0.95). The floor is recall-first (ruling of 2026-11-06, spec §9.2: the answer's line
+check owns precision). It was 0.46 (FTS weight 1.0), then 0.54 (FTS weight 0.25, 2026-11-06),
+and is 0.56 since 2026-11-10, when the reranker began to judge six candidates per vendor
+(``modes.ENUM_RERANK_DEPTH``): calibration recall 0.964, holdout 0.977 there.
 """
 from __future__ import annotations
 
@@ -18,7 +19,7 @@ import sys
 
 import yaml
 
-ADOPTED_FLOOR = 0.46
+ADOPTED_FLOOR = 0.56
 
 
 def at(floor: float, rows: list[dict], questions: dict[str, dict]) -> tuple[float, float, float]:
@@ -61,9 +62,8 @@ def main(argv: list[str] | None = None) -> dict[str, float | None]:
     print("plan rule (highest floor with calibration recall >= 0.8):", best80)
     print("adopted rule (highest floor with calibration recall >= 0.95):", best95)
     c, h = at(ADOPTED_FLOOR, cal, questions), at(ADOPTED_FLOOR, hold, questions)
-    print(f"shipped ENUMERATION_MIN_SCORE = {ADOPTED_FLOOR}, adopted by ruling 2026-11-06 "
-          f"(recall-first floor, spec §9.2): calibration recall {c[0]:.3f}, holdout "
-          f"{h[0]:.3f} (the ruling read 0.949 as 0.95; the strict rule above can be lower)")
+    print(f"shipped ENUMERATION_MIN_SCORE = {ADOPTED_FLOOR} (recall-first floor, spec §9.2): "
+          f"calibration recall {c[0]:.3f}, holdout {h[0]:.3f} in this run")
     return {"recall_0.8": best80, "recall_0.95": best95}
 
 

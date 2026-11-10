@@ -37,10 +37,13 @@ stack.
   vendor (`WORKLOAD_VENDORS`), and a "which vendors…" question naming a workload vendor's
   product ("Entra ID backup") enumerates too;
 - cross-vendor retrieval (`modes.py`): `enumerate_vendors` (all vendors at once via the
-  batched `search.vendor_candidates`, 2/3 chunks per vendor, one rerank, floor
-  `ENUMERATION_MIN_SCORE` 0.54 calibrated 2026-11-06) and `compare_facets` (per-facet quotas
+  batched `search.vendor_candidates`; the reranker judges six candidates per vendor,
+  `ENUM_RERANK_DEPTH`, and the answer gets each vendor's best 2/3; floor
+  `ENUMERATION_MIN_SCORE` 0.56 calibrated 2026-11-10 at that depth, BACKLOG 43) and `compare_facets` (per-facet quotas
   that survive the rerank);
-- a cite-or-abstain answer step (`answer.py`). Enumeration answers are one line per vendor; a
+- a cite-or-abstain answer step (`answer.py`): `gather` retrieves (shape, topic, every vendor /
+  each side / each aspect; no model), `answer` writes from it, and `evidence` returns it
+  unwritten (MCP `gather_evidence`, BACKLOG 42). Enumeration answers are one line per vendor; a
   line survives only if it cites a chunk of its own vendor, and the closing line "No
   supporting passage found for: …" is built in code, never by the model;
 - cross-vendor eval (`eval/cross_vendor.py`, `eval/answer_eval.py`, labels in `eval/labels/`;
@@ -62,6 +65,8 @@ stack.
     - Public route for Copilot Studio: `https://vendorkb.area51.pp.ua/mcp` (Helm
       `mcp.publicIngress`, only `/mcp`, Cloudflare free plan with no WAF rules).
     - `read_document` returns a cited page's full stored text in parts of `PART_CHARS`.
+    - `gather_evidence` returns `answer_question`'s evidence without the written answer, in
+      parts, for an agent that writes itself (optional; not measured yet).
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
   - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes

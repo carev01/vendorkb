@@ -79,7 +79,7 @@ kubectl -n vendorkb delete pod -l app.kubernetes.io/name=vendorkb-mcp
 2. Server URL: `https://vendorkb.area51.pp.ua/mcp`.
 3. Authentication: API key, in a header named `X-API-Key`. Paste the secret when you create the
    connection.
-4. The agent should list eight tools:
+4. The agent should list nine tools:
 
 | tool | |
 |---|---|
@@ -91,6 +91,7 @@ kubectl -n vendorkb delete pod -l app.kubernetes.io/name=vendorkb-mcp
 | `read_section` | |
 | `read_document` | |
 | `answer_question` | |
+| `gather_evidence` | |
 
 **Agent model.** Use Claude Haiku. The default GPT model refused to relay a full page as
 copyrighted content; Haiku relays it (user, 2026-11-09).
@@ -123,6 +124,29 @@ appended "List all vendors documented, distinguishing supported versus partial s
 server logs each question as it arrived (`answer_question {"question": …}` in the
 `vendorkb-mcp` pod's log), so a rewritten question can be seen there.
 
+### Writing from the evidence instead (BACKLOG 42, to be measured)
+
+`gather_evidence` returns what `answer_question` writes from, without the written answer: the
+numbered passages by vendor or aspect, and what was found nothing for. The agent then writes the
+answer itself, so one model stands between the evidence and the reader instead of two. To try
+it, replace rules 1 and 3 with:
+
+```
+1. Answer every product or vendor question with gather_evidence. Pass it the user's question
+   word for word: add no instructions, detail, examples or formatting requests. When the reply
+   says "Part 1 of N", call it again with part=2 … N (same question) before you answer.
+   Write the answer from the numbered passages only. Put the [N] of the passage after every
+   statement it supports, and end with a Sources list: [N] title — link, for each [N] used.
+   State for a vendor only what its own passages show.
+3. When gather_evidence finds no passage, or none for a vendor or aspect, say that it is not
+   found in the documentation vendorkb covers; never say the product lacks it. Do not guess.
+```
+
+vendorkb cannot check the agent's text: a statement without a marker, or a marker on the wrong
+statement, is no longer caught in code. Measure before adopting (BACKLOG 42's three arms).
+Sizes on 2026-11-10: a two-vendor ransomware comparison is 37 passages in 3 parts (56k
+characters); a "which vendors" question is about 45 passages in 4 parts (66k).
+
 Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what rule 4
 passes to `read_document`.
 
@@ -134,6 +158,7 @@ Measured on 2026-11-09 through Cloudflare:
 |---|---|
 | a single-vendor `answer_question` | about 25 s, 2.6k characters |
 | "which vendors" topic answers | 27–80 s (BACKLOG 35); Cloudflare's proxy timeout is 100 s |
+| `gather_evidence` | 6–9 s single or "which vendors", about 45 s for a topic comparison; parts of 20,000 characters |
 | `read_document` part size | 20,000 characters (`mcp_server.PART_CHARS`) |
 
 Lower `PART_CHARS` if Copilot Studio shows a part cut off.

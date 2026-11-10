@@ -40,7 +40,7 @@ import httpx
 import psycopg
 
 from vendorkb.clients import Embedder, Reranker
-from vendorkb.modes import ENUMERATION_MIN_SCORE, _distinct
+from vendorkb.modes import _distinct
 from vendorkb.search import (
     _COLS, VEC_LIMIT, Hit, _hit, facet_candidates, hybrid_candidates, unextracted_candidates,
     vector_candidates)
@@ -58,6 +58,11 @@ TOPIC_RERANKS_IN_FLIGHT = 4
 # Candidates per aspect the grid's catch-up search sends to the reranker: at most 8 aspects x 20
 # = 160 documents, inside TOPIC_RERANK_DOCS (``topic_grid`` shrinks it for a longer topic).
 CATCH_UP_CANDIDATES = 20
+# A catch-up passage at or over this rerank score becomes a ``recent`` cell. The enumeration
+# floor as it was when the grid was graded (2026-11-09); that floor has since moved with the
+# number of passages judged per vendor (modes.ENUMERATION_MIN_SCORE), which the catch-up does
+# not share.
+CATCH_UP_MIN_SCORE = 0.54
 
 # The words a "which vendors" question may hold, besides the topic's trigger words, and still be
 # broad enough for the grid (``is_broad``), compared as ``_norm`` text.
@@ -485,7 +490,7 @@ async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[s
     already filled (a vendor with facts must not crowd the others out of the cut) and those whose
     text does not name the aspect (``names_aspect``: no rerank spend on them), the first
     ``CATCH_UP_CANDIDATES`` of what is left reranked with that query. The best passage of a
-    vendor that scores at least ``ENUMERATION_MIN_SCORE`` becomes its ``recent`` cell. A list
+    vendor that scores at least ``CATCH_UP_MIN_SCORE`` becomes its ``recent`` cell. A list
     whose rerank fails (or no reranker) marks nothing: a page nobody verified never fills a
     cell unscored.
 
@@ -514,7 +519,7 @@ async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[s
             continue
         docs += len(candidates)
         for hit in sorted(ranked, key=lambda h: -(h.rerank_score or 0.0)):
-            if ((hit.rerank_score or 0.0) >= ENUMERATION_MIN_SCORE
+            if ((hit.rerank_score or 0.0) >= CATCH_UP_MIN_SCORE
                     and (hit.vendor, aspect.id) not in cells):
                 cells[(hit.vendor, aspect.id)] = Cell("recent", hit, False)
     return True, reranker is not None and all(judged for _, judged in results), docs
