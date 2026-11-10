@@ -955,12 +955,12 @@ async def test_catch_up_marks_need_the_enumeration_floor(kb, monkeypatch):
     conn, v = kb
     _, waiting = await _catch_up_corpus(conn, v)
     # scores here are counts of shared words: the schedule page scores 2, the restore page 3
-    monkeypatch.setattr(topics_mod, "ENUMERATION_MIN_SCORE", 2.5)
+    monkeypatch.setattr(topics_mod, "CATCH_UP_MIN_SCORE", 2.5)
     grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
                             reranker=_Reranker())
     assert {k: c.hit.chunk_id for k, c in grid.cells.items() if c.mark == "recent"} == {
         ("Alpha", "getting_back"): waiting["alpha_restore"]}
-    monkeypatch.setattr(topics_mod, "ENUMERATION_MIN_SCORE", 2.0)  # at the floor counts
+    monkeypatch.setattr(topics_mod, "CATCH_UP_MIN_SCORE", 2.0)  # at the floor counts
     grid = await topic_grid(conn, TOPIC, vendors=["Alpha", "Beta"], embedder=_Embedder(),
                             reranker=_Reranker())
     assert ("Beta", "scheduling") in grid.cells

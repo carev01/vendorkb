@@ -18,7 +18,19 @@ from vendorkb.shape import Facet
 # 100K trigger (§9.5), so callers shrink it to 2/3.
 ENUM_PER_VENDOR = 2
 ENUM_PER_VENDOR_MULTI = 3
-ENUMERATION_MIN_SCORE = 0.54  # calibrated at FTS_WEIGHT 0.25 (2026-11-06): vendor recall 0.952 cal and holdout
+# Candidates per vendor the reranker judges. The answer still gets each vendor's best 2/3 of
+# them. At 2/3 judged (the vendor's first candidates), a vendor's best passage was often never
+# scored and the vendors listed moved with the question's wording: Rubrik's Entra ID page,
+# fourth for "Which vendors support Entra ID backup?", scores 0.74 (BACKLOG 43). Measured
+# 2026-11-10 on the 23 labelled questions, 12 judged per vendor, shallower depths read from the
+# same scores: at about 2.5 noise vendors a question, recall 0.956 (2/3 at floor 0.54), 0.971
+# (6 at 0.56), 0.971 (8 at 0.56), 0.959 (12 at 0.58). About 170K rerank tokens a question, 70K
+# before.
+ENUM_RERANK_DEPTH = 6
+ENUM_RERANK_BATCH = 100  # passages per rerank call; the calls of a question run together
+# calibrated at ENUM_RERANK_DEPTH 6 (2026-11-10): the highest floor with calibration recall
+# >= 0.95 (0.964; holdout 0.977). Was 0.54 at 2/3 judged (2026-11-06).
+ENUMERATION_MIN_SCORE = 0.56
 
 
 @dataclass
@@ -65,32 +77,59 @@ def _truncate(groups: list[list[Hit]], max_hits: int) -> list[list[Hit]]:
     return groups
 
 
+async def _rerank_batched(reranker: Reranker, query: str,
+                          texts: list[str]) -> list[tuple[int, float]] | None:
+    """``reranker.rerank`` over ``texts`` in calls of ``ENUM_RERANK_BATCH``, run together;
+    (index into ``texts``, score) pairs. A passage's score does not depend on the others in
+    its call. None when any call fails or returns nothing: half the vendors judged would drop
+    the other half's."""
+    starts = range(0, len(texts), ENUM_RERANK_BATCH)
+    replies = await asyncio.gather(*(
+        reranker.rerank(query, texts[i:i + ENUM_RERANK_BATCH], len(texts[i:i + ENUM_RERANK_BATCH]))
+        for i in starts))
+    if not all(replies):
+        return None
+    return [(start + i, score) for start, reply in zip(starts, replies, strict=True)
+            for i, score in reply or []]
+
+
 async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                             reranker: Reranker | None, vendors: list[str],
                             per_vendor: int = 3, per_vendor_multi: int = 5,
                             min_score: float = ENUMERATION_MIN_SCORE, max_hits: int = 60,
-                            use_rerank: bool = True) -> EnumerationResult:
+                            use_rerank: bool = True,
+                            depth: int = ENUM_RERANK_DEPTH) -> EnumerationResult:
     """Search every vendor (one batched candidate step, ``search.vendor_candidates``), rerank
-    all their chunks in one call and keep the vendors whose best score reaches
-    ``min_score``. On a reranker failure (or with ``use_rerank=False``, the free eval mode)
-    every vendor with candidates is kept, in the order given, and ``rerank_ok`` is False. A
-    vendor the reranker left wholly unscored is kept too, after the scored survivors, and
-    also clears ``rerank_ok``: it was never judged, so it is not ``dropped``."""
+    each vendor's first ``depth`` candidates (and its best chunk per product beyond them, the
+    ``_pick`` of its candidates) and keep the vendors whose best score reaches ``min_score``.
+    A kept vendor's hits are its best ``per_vendor`` passages by score (``per_vendor_multi``,
+    the best of each product first, for a vendor with several products among them). On a
+    reranker failure (or with ``use_rerank=False``, the free eval mode) every vendor with
+    candidates is kept with the ``_pick`` of its candidates, in the order given, and
+    ``rerank_ok`` is False. A vendor the reranker left wholly unscored is kept too, after the
+    scored survivors, and also clears ``rerank_ok``: it was never judged, so it is not
+    ``dropped``."""
     vendors = list(dict.fromkeys(vendors))
     # An embedder failure propagates: the caller records it.
     qvec = (await embedder.embed([query], input_type="query"))[0]
-    cands = await vendor_candidates(conn, query, qvec, vendors, limit=per_vendor_multi * 2)
-    picked = {v: _pick(cands[v], per_vendor, per_vendor_multi) for v in vendors if v in cands}
+    cands = await vendor_candidates(conn, query, qvec, vendors,
+                                    limit=max(depth, per_vendor_multi * 2))
+    picked = {v: _pick(cands[v][:per_vendor_multi * 2], per_vendor, per_vendor_multi)
+              for v in vendors if v in cands}
     empty = [v for v in vendors if v not in cands]
 
-    flat = [h for hs in picked.values() for h in hs]
+    def judged(v: str) -> list[Hit]:
+        ids = {h.chunk_id for h in [*cands[v][:depth], *picked[v]]}
+        return [h for h in cands[v] if h.chunk_id in ids]
+
+    flat = [h for v in picked for h in judged(v)]
     can_rerank = use_rerank and reranker is not None
     if not flat:  # nothing needed reranking: not a reranker failure
         return EnumerationResult(hits=[], kept=[], dropped=[], empty=empty,
                                  rerank_ok=can_rerank)
     ranked = None
     if can_rerank and reranker is not None:
-        ranked = await reranker.rerank(query, [h.text for h in flat], len(flat))
+        ranked = await _rerank_batched(reranker, query, [h.text for h in flat])
     if not ranked:  # None (outage) and [] for non-empty input are both failures
         kept = list(picked)
         groups = _truncate([picked[v] for v in kept], max_hits)
@@ -105,8 +144,13 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     best = {v: max(h.rerank_score or 0.0 for h in hs) for v, hs in scored.items() if hs}
     survivors = sorted((v for v in best if best[v] >= min_score), key=lambda v: -best[v])
     dropped = [v for v in best if v not in survivors]
-    groups = _truncate([sorted(scored[v], key=lambda h: -(h.rerank_score or 0.0))
-                        for v in survivors] + [picked[v] for v in unscored], max_hits)
+
+    def chosen(v: str) -> list[Hit]:
+        by_score = sorted(scored[v], key=lambda h: (-(h.rerank_score or 0.0), h.rrf_rank))
+        return sorted(_pick(by_score, per_vendor, per_vendor_multi),
+                      key=lambda h: -(h.rerank_score or 0.0))
+
+    groups = _truncate([chosen(v) for v in survivors] + [picked[v] for v in unscored], max_hits)
     return EnumerationResult(hits=[h for g in groups for h in g], kept=survivors + unscored,
                              dropped=dropped, empty=empty, rerank_ok=not unscored,
                              best_scores=best)

@@ -8,11 +8,12 @@ connection and HTTP clients, so one slow or failed call never affects another.
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Literal, Protocol
 
 from openai import AsyncOpenAI
 
-from vendorkb.answer import answer
+from vendorkb.answer import answer, evidence
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect
@@ -25,6 +26,8 @@ from vendorkb.taxonomy.load import Topic
 from vendorkb.topics import load_topics
 
 Expand = Literal["0", "1", "full", "page"]
+EVIDENCE_TTL = 600.0  # seconds a question's evidence is kept for its later parts
+EVIDENCE_KEPT = 32  # questions kept at most
 
 
 class Backend(Protocol):
@@ -41,6 +44,7 @@ class Backend(Protocol):
                      k: int) -> SearchResult: ...
     async def section(self, chunk_id: str, expand: Expand) -> list[Hit]: ...
     async def answer(self, question: str) -> dict[str, Any]: ...
+    async def evidence(self, question: str) -> dict[str, Any]: ...
 
 
 # A taxonomy entry matches a query when the query is its id or an exact (normalized) alias
@@ -101,6 +105,9 @@ def _query_params(query: str | None, limit: int) -> dict[str, Any]:
 class DbBackend:
     def __init__(self, settings: VendorkbSettings) -> None:
         self.settings = settings
+        # gather_evidence is read in parts, one call each: the evidence of a question is kept
+        # for EVIDENCE_TTL seconds so the parts are of one retrieval (and it is paid for once)
+        self._evidence: dict[str, tuple[float, dict[str, Any]]] = {}
 
     async def vendors(self) -> list[dict[str, Any]]:
         conn = await connect(self.settings.vendorkb_dsn)
@@ -192,6 +199,26 @@ class DbBackend:
             return await read_section(conn, chunk_id, expand)
         finally:
             await conn.close()
+
+    async def evidence(self, question: str) -> dict[str, Any]:
+        now = time.monotonic()
+        for key in [k for k, (t, _) in self._evidence.items() if now - t > EVIDENCE_TTL]:
+            del self._evidence[key]
+        if question in self._evidence:
+            return self._evidence[question][1]
+        conn = await connect(self.settings.vendorkb_dsn)
+        try:
+            scope_index = await scope_index_from_db(conn)
+            async with Embedder(self.settings) as embedder, Reranker(self.settings) as reranker:
+                out = await evidence(conn, question, settings=self.settings, embedder=embedder,
+                                     reranker=reranker, scope_index=scope_index)
+        finally:
+            await conn.close()
+        if not out.get("error"):
+            while len(self._evidence) >= EVIDENCE_KEPT:
+                del self._evidence[next(iter(self._evidence))]  # the oldest
+            self._evidence[question] = (now, out)
+        return out
 
     async def answer(self, question: str) -> dict[str, Any]:
         conn = await connect(self.settings.vendorkb_dsn)

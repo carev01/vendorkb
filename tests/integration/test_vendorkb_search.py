@@ -7,6 +7,7 @@ from pgvector import Vector
 
 from vendorkb.db import connect, init_schema
 from vendorkb import search
+from vendorkb import modes
 from vendorkb.modes import compare_facets, enumerate_vendors
 from vendorkb.search import hybrid_candidates, read_section, search_docs, vendor_candidates
 
@@ -410,7 +411,60 @@ async def test_enumeration_per_vendor_cap(vkb_dsn):
         assert len(by["VM3"]) == 5 and {h.product for h in by["VM3"]} == {"P1", "P2", "P3"}
         assert sorted(h.text for h in by["VM6"]) == [
             "VM6 P1 r0", "VM6 P2 r5", "VM6 P3 r6", "VM6 P4 r7", "VM6 P5 r8"]
-        assert len(rr.calls) == 1 and len(rr.calls[0][1]) == 13  # one rerank over all kept
+        # one rerank: each vendor's first six candidates, and its best chunk per product
+        # beyond them (VM6's r6, r7 and r8)
+        assert len(rr.calls) == 1 and len(rr.calls[0][1]) == 6 + 6 + 9
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_scores_past_a_vendors_first_passages(vkb_dsn):
+    """BACKLOG 43: a vendor's best passage is often not among its first two candidates (the
+    order follows the question's wording), so the reranker judges ``depth`` of them."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d = await _doc(conn, "VA", "P")
+        for rank, text in enumerate(["VA weak0", "VA weak1", "VA weak2", "VA strong3",
+                                     "VA weak4", "VA weak5", "VA strong6"]):
+            await _ranked_chunk(conn, d, rank, text)
+        rr = FakeReranker(lambda t: 0.9 if "strong" in t else 0.2)
+        kw = dict(embedder=FakeEmbedder(_vec(0)), reranker=rr, vendors=["VA"], per_vendor=2,
+                  per_vendor_multi=3, min_score=0.5)
+        res = await enumerate_vendors(conn, "qqqabsent", **kw)
+        assert res.kept == ["VA"] and res.best_scores == {"VA": 0.9}
+        # the answer gets the vendor's best two by score, not its first two candidates
+        assert [h.text for h in res.hits] == ["VA strong3", "VA weak0"]
+        assert len(rr.calls[0][1]) == 6  # ENUM_RERANK_DEPTH: "strong6" is not scored
+        res = await enumerate_vendors(conn, "qqqabsent", depth=2, **kw)
+        assert res.kept == [] and res.dropped == ["VA"]  # the old cut misses it
+    finally:
+        await conn.close()
+
+
+async def test_enumeration_reranks_in_batches_and_fails_as_one(vkb_dsn, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        for v in ("VA", "VB", "VC"):
+            await _ranked_vendor(conn, v, [("P", 2)])
+        monkeypatch.setattr(modes, "ENUM_RERANK_BATCH", 4)
+        rr = FakeReranker(lambda t: 0.9 if t.startswith("VC") else 0.1)
+        kw = dict(embedder=FakeEmbedder(_vec(0)), vendors=["VA", "VB", "VC"], min_score=0.5)
+        res = await enumerate_vendors(conn, "qqqabsent", reranker=rr, **kw)
+        assert sorted(len(c[1]) for c in rr.calls) == [2, 4]  # six passages, two calls
+        assert res.kept == ["VC"] and sorted(res.dropped) == ["VA", "VB"] and res.rerank_ok
+        assert {h.rerank_score for h in res.hits} == {0.9}
+
+        class HalfDown(FakeReranker):
+            async def rerank(self, query, documents, top_k):
+                if len(self.calls) == 1:  # the second batch fails
+                    self.calls.append((query, list(documents), top_k))
+                    return None
+                return await super().rerank(query, documents, top_k)
+
+        res = await enumerate_vendors(conn, "qqqabsent", reranker=HalfDown(lambda t: 0.9), **kw)
+        assert res.rerank_ok is False and sorted(res.kept) == ["VA", "VB", "VC"]  # nobody judged
     finally:
         await conn.close()
 

@@ -44,12 +44,14 @@ def _hit(n: int, text: str = "Passage text.", superseded: bool = False) -> Hit:
 
 
 class FakeBackend:
-    def __init__(self, *, caps=None, hits=None, answer=None, fail=None, topics=()):
+    def __init__(self, *, caps=None, hits=None, answer=None, fail=None, topics=(),
+                 evidence=None):
         self.calls: list[tuple] = []
         self.caps = caps or CapResult()  # or a function of the filter
         self.known_topics = list(topics)
         self.hits = hits or []
         self._answer = answer or {}
+        self._evidence = evidence or {}
         self.fail = fail
 
     async def vendors(self):
@@ -109,13 +111,19 @@ class FakeBackend:
         self.calls.append(("answer", question))
         return self._answer
 
+    async def evidence(self, question):
+        self.calls.append(("evidence", question))
+        if self.fail:
+            raise self.fail
+        return self._evidence
+
 
 async def test_the_tools_are_listed_read_only():
     async with Client(ms.build_server(FakeBackend())) as c:
         tools = {t.name: t for t in (await c.list_tools()).tools}
     assert set(tools) == {"list_vendors", "list_dimensions", "list_targets",
                           "query_capabilities", "search_docs", "read_section",
-                          "read_document", "answer_question"}
+                          "read_document", "answer_question", "gather_evidence"}
     assert all(t.annotations.read_only_hint for t in tools.values())
     caps = tools["query_capabilities"]
     assert "topic" in caps.input_schema["properties"]
@@ -596,3 +604,109 @@ async def test_read_document_unknown_chunk_is_an_error():
     async with Client(ms.build_server(FakeBackend())) as c:
         r = await c.call_tool("read_document", {"chunk_id": "gone"})
     assert r.is_error and "search again" in r.content[0].text
+
+
+# --- gather_evidence: the passages without the answer model (BACKLOG 42) ----------------------
+
+def _passage(n, vendor, text="Passage text.", aspect=None):
+    return {**citation(n, _hit(n, text)), "vendor": vendor, "product": "Example Backup",
+            "aspect": aspect, "rerank_score": 0.9}
+
+
+def _evidence(passages, **kw):
+    return {"query": "Which vendors support X?", "shape": "enumeration", "topic": None,
+            "scope": {"vendors": [], "products": [], "relaxed": False}, "table": None,
+            "not_found": [], "error": None, "rerank_ok": True, "retrieved": len(passages),
+            "passages": passages, **kw}
+
+
+async def test_gather_evidence_groups_an_enumeration_by_vendor():
+    out = _evidence([_passage(1, "Alpha"), _passage(2, "Beta"), _passage(3, "Beta")],
+                    vendors_checked=["Alpha", "Beta", "Gamma"], not_found=["Gamma"])
+    backend = FakeBackend(evidence=out)
+    async with Client(ms.build_server(backend)) as c:
+        r = await c.call_tool("gather_evidence", {"question": "Which vendors support X?"})
+    assert backend.calls == [("evidence", "Which vendors support X?")]
+    assert r.content[0].text == (
+        "Evidence for: Which vendors support X?\n"
+        "Read as: a question about every vendor (3 checked). Part 1 of 1.\n\n"
+        "## Alpha\n\n"
+        "[1] Alpha · Example Backup — Page 1 › Guide › RDS\n"
+        "    source: https://docs.example/1 (chunk k1)\nPassage text.\n\n"
+        "## Beta\n\n"
+        "[2] Beta · Example Backup — Page 2 › Guide › RDS\n"
+        "    source: https://docs.example/2 (chunk k2)\nPassage text.\n\n"
+        "[3] Beta · Example Backup — Page 3 › Guide › RDS\n"
+        "    source: https://docs.example/3 (chunk k3)\nPassage text.\n\n"
+        "No supporting passage found for: Gamma.\n\n" + ms.EVIDENCE_RULES)
+    sc = r.structured_content
+    assert sc["part"] == 1 and sc["parts"] == 1 and sc["shape"] == "enumeration"
+    assert sc["not_found"] == ["Gamma"] and sc["retrieved"] == 3
+    assert [p["marker"] for p in sc["passages"]] == [1, 2, 3]
+    assert sc["passages"][1] == {"marker": 2, "chunk_id": "k2", "vendor": "Beta",
+                                 "product": "Example Backup", "title": "Page 2",
+                                 "url": "https://docs.example/2", "aspect": None}
+
+
+async def test_gather_evidence_groups_a_topic_by_aspect_and_cuts_long_passages():
+    out = _evidence([_passage(1, "Alpha"), _passage(2, "Alpha", "x" * 3000, "Immutability"),
+                     _passage(3, "Beta", aspect="Immutability")],
+                    shape="comparison", topic="ransomware_protection",
+                    aspects=["Immutability", "Encryption"],
+                    scope={"vendors": ["Alpha", "Beta"], "products": [], "relaxed": False})
+    async with Client(ms.build_server(FakeBackend(evidence=out))) as c:
+        text = (await c.call_tool("gather_evidence", {"question": "q"})).content[0].text
+    assert "Read as: a comparison of Alpha, Beta on ransomware_protection, by aspect " \
+           "(Immutability; Encryption). Part 1 of 1." in text
+    assert text.index("## General") < text.index("[1] Alpha") < text.index("## Immutability") \
+        < text.index("[2] Alpha") < text.index("[3] Beta")
+    assert "x" * ms.PASSAGE_CHARS + " […] (read_section k2 for the rest)" in text
+    assert "x" * (ms.PASSAGE_CHARS + 1) not in text
+    assert "No passage was retrieved for: Encryption." in text
+
+
+async def test_gather_evidence_is_read_in_parts():
+    passages = [_passage(n, "Alpha" if n < 30 else "Beta", "y" * 1100) for n in range(1, 41)]
+    backend = FakeBackend(evidence=_evidence(passages, vendors_checked=["Alpha", "Beta"]))
+    async with Client(ms.build_server(backend)) as c:
+        first = await c.call_tool("gather_evidence", {"question": "q"})
+        last = await c.call_tool("gather_evidence", {"question": "q", "part": 3})
+        over = await c.call_tool("gather_evidence", {"question": "q", "part": 4})
+    assert first.structured_content["parts"] == 3
+    t1, t3 = first.content[0].text, last.content[0].text
+    assert len(t1) <= ms.PART_CHARS + 600
+    assert "Part 1 of 3." in t1 and t1.rstrip().endswith(
+        "Call gather_evidence again with part=2 (same question) before you answer.")
+    assert ms.EVIDENCE_RULES not in t1 and t3.endswith(ms.EVIDENCE_RULES)
+    # a vendor's heading is repeated where its passages continue in the next part
+    assert t3.split("\n\n")[1] in ("## Alpha", "## Beta")
+    shown = [p["marker"] for p in first.structured_content["passages"]] + \
+        [p["marker"] for p in last.structured_content["passages"]]
+    assert shown[0] == 1 and shown[-1] == 40 and len(set(shown)) == len(shown)
+    assert over.is_error and "parts 1-3" in over.content[0].text
+
+
+async def test_gather_evidence_of_a_grid_is_the_table_with_its_sources():
+    out = _evidence([_passage(1, "Alpha", aspect="Immutability")], topic="ransomware_protection",
+                    aspects=["Immutability"], table="| Vendor | Immutability |\n| --- | --- |\n"
+                    "| Alpha | ✓ [1] |", vendors_checked=["Alpha", "Beta"], not_found=["Beta"])
+    async with Client(ms.build_server(FakeBackend(evidence=out))) as c:
+        text = (await c.call_tool("gather_evidence", {"question": "q"})).content[0].text
+    assert "| Alpha | ✓ [1] |" in text
+    assert "Sources:\n[1] https://docs.example/1 (chunk k1)" in text
+    assert "Passage text." not in text  # the cells' passages are read with read_section
+
+
+async def test_gather_evidence_with_nothing_found_says_so():
+    async with Client(ms.build_server(FakeBackend(evidence=_evidence([], shape="single")))) as c:
+        r = await c.call_tool("gather_evidence", {"question": "q"})
+    assert r.content[0].text.endswith(ms.NO_EVIDENCE) and not r.is_error
+
+
+async def test_gather_evidence_logs_the_question(caplog):
+    with caplog.at_level("INFO", logger="vendorkb.mcp_server"):
+        async with Client(ms.build_server(FakeBackend(evidence=_evidence([])))) as c:
+            await c.call_tool("gather_evidence", {"question": "Which vendors support X?"})
+    assert any(r.getMessage() == (
+        'gather_evidence {"question": "Which vendors support X?", "shape": "enumeration", '
+        '"topic": null, "retrieved": 0, "part": 1}') for r in caplog.records)

@@ -191,4 +191,4 @@ def test_calibrate_floor_prints_both_rules_and_the_ruling(tmp_path, capsys):
     assert floors == {"recall_0.8": 0.6, "recall_0.95": 0.3}
     out = capsys.readouterr().out
     assert "recall >= 0.8" in out and "recall >= 0.95" in out
-    assert "0.46" in out and "ruling" in out
+    assert "0.56" in out and "recall-first" in out
