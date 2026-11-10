@@ -5,13 +5,14 @@ with one query embedding reused across the fan-out."""
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field, replace
 
 import psycopg
 
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.search import (
-    RERANK_CANDIDATES, Hit, embed_queries, facet_candidates, vendor_candidates,
+    _COLS, RERANK_CANDIDATES, Hit, _hit, embed_queries, facet_candidates, vendor_candidates,
 )
 from vendorkb.shape import Facet
 
@@ -35,6 +36,20 @@ ENUM_RERANK_BATCH = 100  # passages per rerank call; the calls of a question run
 ENUMERATION_MIN_SCORE = 0.56
 
 
+# Passages of a vendor's capability facts added to its candidates when the question names a
+# taxonomy target or dimension by an exact alias (``fact_candidates``); 0 turns it off. A
+# vendor's six candidates follow the question's wording, its fact passages do not: for three
+# wordings of "which vendors back up Entra ID", the best fact passage of Commvault, Eon, Bacula,
+# Rubrik and Datto scored over the floor every time, where Commvault's was a candidate for one
+# wording in three and Bacula's never (BACKLOG 43, 2026-11-10).
+ENUM_FACT_CHUNKS = 3
+# Dimensions nearly every question names without meaning them ("backup products", "restore"):
+# they pick no fact passages on their own; with a target they only order its passages.
+GENERIC_DIMENSIONS = frozenset({"coverage.backup", "coverage.restore"})
+MAX_ALIAS_WORDS = 6  # the longest phrase of a question looked up as an alias
+_TOKEN = re.compile(r"[^\s()\[\]{},;:!?\"“”]+")
+
+
 @dataclass
 class EnumerationResult:
     hits: list[Hit]
@@ -44,6 +59,8 @@ class EnumerationResult:
     rerank_ok: bool
     # each scored vendor's best rerank score, dropped vendors included ({} without a rerank)
     best_scores: dict[str, float] = field(default_factory=dict)
+    # vendors whose candidates included passages of their capability facts (fact_candidates)
+    fact_vendors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -79,6 +96,92 @@ def _truncate(groups: list[list[Hit]], max_hits: int) -> list[list[Hit]]:
     return groups
 
 
+def _phrases(question: str) -> dict[str, tuple[int, int]]:
+    """Every phrase of up to ``MAX_ALIAS_WORDS`` words of ``question``, lowercased, with the
+    word positions it spans (start, end); a phrase ending in a plural is there in the singular
+    too ("immutable backups" also as "immutable backup"). Brackets and sentence punctuation
+    separate words; a word keeps its inner hyphens, dots and slashes ("hyper-v")."""
+    words = [w for w in (t.strip(".'’`*") for t in _TOKEN.findall(question.lower())) if w]
+    out: dict[str, tuple[int, int]] = {}
+    for i in range(len(words)):
+        for j in range(i + 1, min(i + MAX_ALIAS_WORDS, len(words)) + 1):
+            out.setdefault(" ".join(words[i:j]), (i, j))
+            last = words[j - 1]
+            if len(last) > 3 and last.endswith("s"):
+                out.setdefault(" ".join([*words[i:j - 1], last[:-1]]), (i, j))
+    return out
+
+
+async def question_taxonomy(conn: psycopg.AsyncConnection,
+                            question: str) -> tuple[list[str], list[str]]:
+    """(target ids, dimension ids) the question names by an exact alias of the loaded taxonomy
+    (names are aliases too). The longest phrase wins: a phrase inside a longer matched one
+    names nothing ("azure" in "azure ad"). No embedding, no model: one indexed lookup."""
+    phrases = _phrases(question)
+    if not phrases:
+        return [], []
+    cur = await conn.execute(
+        "SELECT alias, entity_type, entity_id FROM aliases"
+        " WHERE entity_type IN ('target', 'dimension') AND alias = ANY(%s)", (list(phrases),))
+    rows = sorted(await cur.fetchall(),
+                  key=lambda r: (phrases[r[0]][0] - phrases[r[0]][1], phrases[r[0]][0], r[1], r[2]))
+    taken: list[tuple[int, int]] = []
+    targets: list[str] = []
+    dimensions: list[str] = []
+    for alias, kind, entity_id in rows:
+        i, j = phrases[alias]
+        if any(i < e and s < j and (s, e) != (i, j) for s, e in taken):
+            continue
+        taken.append((i, j))
+        ids = targets if kind == "target" else dimensions
+        if entity_id not in ids:
+            ids.append(entity_id)
+    return targets, dimensions
+
+
+async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors: list[str], *,
+                          limit: int = ENUM_FACT_CHUNKS) -> dict[str, list[Hit]]:
+    """For each vendor, up to ``limit`` current chunks behind its supported or partial
+    capability facts on what the question names (``question_taxonomy``): the facts on a named
+    target (or a target under it), those on a named dimension first; with no target, the facts
+    on a named dimension that is not one of ``GENERIC_DIMENSIONS``. Chunks with a supported
+    fact, a current one and more facts come first. {} when the question names neither, no
+    taxonomy is loaded or ``limit`` is 0. One statement for every vendor.
+
+    These are candidates, nothing more: the reranker scores them against the question like any
+    other passage, and the same floor decides."""
+    if limit <= 0 or not vendors:
+        return {}
+    targets, dimensions = await question_taxonomy(conn, question)
+    if not targets and not [d for d in dimensions if d not in GENERIC_DIMENSIONS]:
+        return {}
+    cur = await conn.execute("SELECT value FROM taxonomy_meta WHERE key = 'taxonomy_version'")
+    row = await cur.fetchone()
+    if row is None:
+        return {}
+    scope = ("(cap.target_id = ANY(%(targets)s) OR cap.target_id LIKE ANY(%(under)s))"
+             if targets else "cap.dimension_id = ANY(%(dimensions)s)")
+    cur = await conn.execute(
+        f"SELECT p.vendor, {_COLS} FROM (SELECT f.vendor, f.chunk_id, row_number() OVER"
+        " (PARTITION BY f.vendor ORDER BY f.on_dim DESC, f.sup DESC, f.cur DESC, f.n DESC,"
+        " f.chunk_id) AS rn FROM (SELECT cap.vendor, r.chunk_id,"
+        " bool_or(cap.dimension_id = ANY(%(dimensions)s)) AS on_dim,"
+        " bool_or(cap.support = 'supported') AS sup, bool_or(cap.is_current) AS cur,"
+        " count(*) AS n FROM capabilities cap JOIN raw_claims r ON r.claim_id = cap.claim_id"
+        " JOIN chunks ch ON ch.chunk_id = r.chunk_id"
+        " WHERE cap.support IN ('supported', 'partial') AND cap.taxonomy_version = %(version)s"
+        f" AND cap.vendor = ANY(%(vendors)s) AND ch.superseded_at IS NULL AND {scope}"
+        " GROUP BY cap.vendor, r.chunk_id) f) p"
+        " JOIN chunks c ON c.chunk_id = p.chunk_id JOIN documents d ON d.doc_id = c.doc_id"
+        " WHERE p.rn <= %(limit)s ORDER BY p.vendor, p.rn",
+        {"targets": targets, "under": [t + ".%" for t in targets], "dimensions": dimensions,
+         "version": row[0], "vendors": vendors, "limit": limit})
+    out: dict[str, list[Hit]] = {}
+    for vendor, *cols in await cur.fetchall():
+        out.setdefault(vendor, []).append(_hit(tuple(cols), len(out.get(vendor, [])) + 1))
+    return out
+
+
 async def _rerank_batched(reranker: Reranker, query: str,
                           texts: list[str]) -> list[tuple[int, float]] | None:
     """``reranker.rerank`` over ``texts`` in calls of ``ENUM_RERANK_BATCH``, run together;
@@ -100,10 +203,13 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
                             per_vendor: int = 3, per_vendor_multi: int = 5,
                             min_score: float = ENUMERATION_MIN_SCORE, max_hits: int = 60,
                             use_rerank: bool = True,
-                            depth: int = ENUM_RERANK_DEPTH) -> EnumerationResult:
+                            depth: int = ENUM_RERANK_DEPTH,
+                            fact_chunks: int | None = None) -> EnumerationResult:
     """Search every vendor (one batched candidate step, ``search.vendor_candidates``), rerank
     each vendor's first ``depth`` candidates (and its best chunk per product beyond them, the
-    ``_pick`` of its candidates) and keep the vendors whose best score reaches ``min_score``.
+    ``_pick`` of its candidates), with up to ``fact_chunks`` passages of its capability facts
+    on what the question names (``fact_candidates``; None reads ``ENUM_FACT_CHUNKS``), and
+    keep the vendors whose best score reaches ``min_score``.
     A kept vendor's hits are its best ``per_vendor`` passages by score (``per_vendor_multi``,
     the best of each product first, for a vendor with several products among them). On a
     reranker failure (or with ``use_rerank=False``, the free eval mode) every vendor with
@@ -116,16 +222,24 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     qvec = (await embed_queries(conn, embedder, [query]))[0]
     cands = await vendor_candidates(conn, query, qvec, vendors,
                                     limit=max(depth, per_vendor_multi * 2))
-    picked = {v: _pick(cands[v][:per_vendor_multi * 2], per_vendor, per_vendor_multi)
-              for v in vendors if v in cands}
-    empty = [v for v in vendors if v not in cands]
+    can_rerank = use_rerank and reranker is not None
+    facts = await fact_candidates(
+        conn, query, vendors, limit=ENUM_FACT_CHUNKS if fact_chunks is None else fact_chunks
+    ) if can_rerank else {}  # unranked, a fact passage is no evidence: only the reranker's say
+    picked = {v: _pick(cands.get(v, [])[:per_vendor_multi * 2], per_vendor, per_vendor_multi)
+              for v in vendors if v in cands or v in facts}
+    empty = [v for v in vendors if v not in picked]
 
     def judged(v: str) -> list[Hit]:
-        ids = {h.chunk_id for h in [*cands[v][:depth], *picked[v]]}
-        return [h for h in cands[v] if h.chunk_id in ids]
+        own = cands.get(v, [])
+        ids = {h.chunk_id for h in [*own[:depth], *picked[v]]}
+        first = [h for h in own if h.chunk_id in ids]
+        # a fact passage ranks after the vendor's own candidates until it is scored
+        extra = [replace(h, rrf_rank=len(own) + n) for n, h in enumerate(
+            (h for h in facts.get(v, []) if h.chunk_id not in ids), start=1)]
+        return first + extra
 
     flat = [h for v in picked for h in judged(v)]
-    can_rerank = use_rerank and reranker is not None
     if not flat:  # nothing needed reranking: not a reranker failure
         return EnumerationResult(hits=[], kept=[], dropped=[], empty=empty,
                                  rerank_ok=can_rerank)
@@ -133,7 +247,7 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     if can_rerank and reranker is not None:
         ranked = await _rerank_batched(reranker, query, [h.text for h in flat])
     if not ranked:  # None (outage) and [] for non-empty input are both failures
-        kept = list(picked)
+        kept = [v for v in picked if picked[v]]  # not a vendor known by its facts alone
         groups = _truncate([picked[v] for v in kept], max_hits)
         return EnumerationResult(hits=[h for g in groups for h in g], kept=kept, dropped=[],
                                  empty=empty, rerank_ok=False)
@@ -155,7 +269,7 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     groups = _truncate([chosen(v) for v in survivors] + [picked[v] for v in unscored], max_hits)
     return EnumerationResult(hits=[h for g in groups for h in g], kept=survivors + unscored,
                              dropped=dropped, empty=empty, rerank_ok=not unscored,
-                             best_scores=best)
+                             best_scores=best, fact_vendors=[v for v in picked if v in facts])
 
 
 def _distinct(hits: list[Hit], n: int) -> list[Hit]:
