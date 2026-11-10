@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
@@ -491,20 +492,36 @@ async def _answer_grid(conn, question: str, topic: Topic, *, settings, embedder,
     return out
 
 
-async def answer(conn, question: str, *, settings, embedder, reranker,
-                 scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
+@dataclass
+class Gathered:
+    """What a question's retrieval found, before any model call (``gather``)."""
+    shape: Shape
+    topic: Topic | None = None
+    narrowed: bool = False  # the question named the topic's aspects (detect_named_aspects)
+    grid: bool = False  # a "which vendors" topic question: the grid answers it, nothing retrieved
+    result: SearchResult = field(default_factory=lambda: SearchResult([], True))
+    vendors: list[str] = field(default_factory=list)  # the scope the passages were searched in
+    products: list[str] = field(default_factory=list)
+    relaxed: bool = False  # the scoped search found nothing and the scope was dropped
+    facets_empty: list[str] = field(default_factory=list)  # sides with no passage
+    checked: list[str] = field(default_factory=list)  # enumeration: every vendor searched
+    kept: list[str] = field(default_factory=list)  # enumeration: vendors over the floor
+    reranked_docs: int = 0  # the topic path's (TopicHits.reranked_docs)
+    aspect_of: dict[str, str] = field(default_factory=dict)  # chunk_id -> aspect id (topic)
+
+
+async def gather(conn, question: str, *, settings, embedder, reranker,
+                 scope_index: ScopeIndex) -> Gathered:
+    """The deterministic half of an answer: the question's shape and topic, and the passages
+    its path retrieves (every vendor for a "which vendors" question, each side of a comparison,
+    each aspect of a topic). No model call. ``answer`` writes from it; ``evidence`` returns it
+    to an agent that writes itself."""
     shape = detect_shape(question, scope_index)
+    g = Gathered(shape)
     # a single-shaped question keeps its named scope even with "vendors" wording
     # (detect_scope drops it there): enumerations never reach the scoped search
-    vendors, products = find_facets(question, scope_index)
-    relaxed = False
-    facets_empty: list[str] = []
-    checked: list[str] = []
-    kept: list[str] = []
-    system = SYSTEM_RULES
+    g.vendors, g.products = find_facets(question, scope_index)
     topic = None
-    narrowed = False  # the question named the topic's aspects (detect_named_aspects)
-    reranked_docs = 0  # the topic path's (TopicHits.reranked_docs)
     # a "which vendors" topic question gets the grid only with TOPIC_GRID on; off, it is any
     # other enumeration (no topic lookup at all)
     if (settings.topic_grid if shape.kind == "enumeration"
@@ -518,50 +535,116 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
             # side for all of them
             topic = detect_named_aspects(question, topics,
                                          exclude=product_surfaces(scope_index))
-            narrowed = topic is not None
+            g.narrowed = topic is not None
         if topic is not None and not topic_applies(question, shape, topic,
                                                    named_facets(question, scope_index)):
             topic = None  # a qualified question: today's answer
+            g.narrowed = False
+    g.topic = topic
     if shape.kind == "enumeration" and topic is not None:
-        return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
-                                  reranker=reranker, scope_index=scope_index, client=client)
+        g.grid = True
+        g.vendors, g.products = [], []
+        g.checked = list(scope_index.vendors)
+        return g
     if shape.kind == "enumeration":
-        checked = list(scope_index.vendors)
+        g.checked = list(scope_index.vendors)
         er = await enumerate_vendors(conn, question, embedder=embedder, reranker=reranker,
                                      per_vendor=ENUM_PER_VENDOR,
                                      per_vendor_multi=ENUM_PER_VENDOR_MULTI,
-                                     vendors=checked)
-        result = SearchResult(er.hits, er.rerank_ok)
-        kept = er.kept
-        system = SYSTEM_RULES + ENUMERATION_RULES
-        vendors, products = [], []
+                                     vendors=g.checked)
+        g.result = SearchResult(er.hits, er.rerank_ok)
+        g.kept = er.kept
+        g.vendors, g.products = [], []
     elif topic is not None:
         # the sides are the question's facets (a vendor and its own product count once, see
         # detect_shape); none for an unscoped question, searched across the whole corpus
         th = await topic_hits(conn, question, topic, facets=shape.facets, embedder=embedder,
                               reranker=reranker)
-        result = SearchResult(th.hits, th.rerank_ok)
-        reranked_docs = th.reranked_docs
-        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets),
-                                            narrowed=narrowed)
-        vendors = [n for k, n in shape.facets if k == "vendor"]
-        products = [n for k, n in shape.facets if k == "product"]
+        g.result = SearchResult(th.hits, th.rerank_ok)
+        g.reranked_docs = th.reranked_docs
+        g.aspect_of = dict(th.aspect_of)
+        g.vendors = [n for k, n in shape.facets if k == "vendor"]
+        g.products = [n for k, n in shape.facets if k == "product"]
         if len(shape.facets) >= 2:  # a single question may name several sides too
-            facets_empty = _facets_without_hits(shape.facets, th.hits)
+            g.facets_empty = _facets_without_hits(shape.facets, th.hits)
     elif shape.kind == "comparison":
         cr = await compare_facets(conn, question, embedder=embedder, reranker=reranker,
                                   facets=shape.facets)
-        result = SearchResult(cr.hits, cr.rerank_ok)
-        facets_empty = cr.facets_empty
-        vendors = [n for k, n in shape.facets if k == "vendor"]
-        products = [n for k, n in shape.facets if k == "product"]
+        g.result = SearchResult(cr.hits, cr.rerank_ok)
+        g.facets_empty = cr.facets_empty
+        g.vendors = [n for k, n in shape.facets if k == "vendor"]
+        g.products = [n for k, n in shape.facets if k == "product"]
     else:
-        scoped = bool(vendors or products)
-        result = await search_docs(conn, question, embedder=embedder, reranker=reranker,
-                                   vendor=vendors or None, product=products or None)
-        if scoped and not result.hits:
-            relaxed = True
-            result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
+        scoped = bool(g.vendors or g.products)
+        g.result = await search_docs(conn, question, embedder=embedder, reranker=reranker,
+                                     vendor=g.vendors or None, product=g.products or None)
+        if scoped and not g.result.hits:
+            g.relaxed = True
+            g.result = await search_docs(conn, question, embedder=embedder, reranker=reranker)
+    return g
+
+
+def _unlisted(g: Gathered, listed: Iterable[str]) -> tuple[list[str], list[str]]:
+    """An enumeration's vendors not in ``listed``: (those with passages kept, those with
+    none)."""
+    seen = {h.vendor for h in g.result.hits} & set(g.kept)
+    rest = [v for v in g.checked if v not in set(listed)]
+    return [v for v in rest if v in seen], [v for v in rest if v not in seen]
+
+
+async def evidence(conn, question: str, *, settings, embedder, reranker,
+                   scope_index: ScopeIndex) -> dict:
+    """What ``answer`` would write from, without writing it (BACKLOG 42): the passages of
+    ``gather``, numbered as ``answer`` numbers its sources, each with its vendor, product and
+    (for a topic) aspect; ``not_found`` names the vendors or sides searched with no passage. A
+    "which vendors" topic question returns the grid's table, built in code, and its cells'
+    passages. No model is called."""
+    g = await gather(conn, question, settings=settings, embedder=embedder, reranker=reranker,
+                     scope_index=scope_index)
+    out: dict = {"query": question, "shape": g.shape.kind,
+                 "topic": None if g.topic is None else g.topic.id,
+                 "scope": {"vendors": g.vendors, "products": g.products, "relaxed": g.relaxed},
+                 "table": None, "not_found": [], "error": None}
+    names: dict[str, str] = {}
+    if g.topic is not None:
+        out["aspects"] = [a.name for a in g.topic.aspects]
+        names = {a.id: a.name for a in g.topic.aspects}
+    hits, aspect_of = g.result.hits, g.aspect_of
+    rerank_ok = g.result.rerank_ok
+    if g.grid and g.topic is not None:
+        grid = await topic_grid(conn, g.topic, vendors=g.checked, embedder=embedder,
+                                reranker=reranker)
+        out["table"], hits = render_grid(grid, g.topic)
+        rerank_ok = grid.rerank_ok
+        aspect_of = {cell.hit.chunk_id: a for (_, a), cell in grid.cells.items()}
+        out.update(vendors_checked=g.checked, not_found=list(grid.no_fact))
+    elif g.shape.kind == "enumeration":
+        out.update(vendors_checked=g.checked, not_found=_unlisted(g, ())[1])
+    else:
+        out["not_found"] = list(g.facets_empty)
+    out.update(rerank_ok=rerank_ok, retrieved=len(hits), passages=[
+        {**citation(n, h), "vendor": h.vendor, "product": h.product,
+         "aspect": names.get(aspect_of.get(h.chunk_id, "")), "rerank_score": h.rerank_score}
+        for n, h in enumerate(hits, start=1)])
+    return out
+
+
+async def answer(conn, question: str, *, settings, embedder, reranker,
+                 scope_index: ScopeIndex, client: AsyncOpenAI) -> dict:
+    g = await gather(conn, question, settings=settings, embedder=embedder, reranker=reranker,
+                     scope_index=scope_index)
+    shape, topic, result = g.shape, g.topic, g.result
+    if g.grid and topic is not None:
+        return await _answer_grid(conn, question, topic, settings=settings, embedder=embedder,
+                                  reranker=reranker, scope_index=scope_index, client=client)
+    vendors, products, relaxed = g.vendors, g.products, g.relaxed
+    facets_empty, checked, kept, reranked_docs = g.facets_empty, g.checked, g.kept, g.reranked_docs
+    system = SYSTEM_RULES
+    if shape.kind == "enumeration":
+        system = SYSTEM_RULES + ENUMERATION_RULES
+    elif topic is not None:
+        system = SYSTEM_RULES + topic_rules(topic, products_named=bool(shape.facets),
+                                            narrowed=g.narrowed)
     out: dict = {"query": question, "answer": None, "citations": [], "unknown_markers": 0,
                  "uncited": False, "shape": shape.kind,
                  "topic": None if topic is None else topic.id,
@@ -579,10 +662,8 @@ async def answer(conn, question: str, *, settings, embedder, reranker,
 
     def closing() -> str:
         if shape.kind == "enumeration":
-            unlisted = [v for v in checked if v not in out["vendors_listed"]]
-            seen = {h.vendor for h in result.hits} & set(kept)
-            lines = (unconfirmed_line([v for v in unlisted if v in seen]),
-                     closing_line([v for v in unlisted if v not in seen]))
+            unconfirmed, missing = _unlisted(g, out["vendors_listed"])
+            lines = (unconfirmed_line(unconfirmed), closing_line(missing))
             return "\n".join(line for line in lines if line)
         return closing_line(facets_empty)
 

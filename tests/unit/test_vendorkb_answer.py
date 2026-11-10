@@ -1321,3 +1321,82 @@ async def test_a_single_question_with_several_sides_names_a_side_with_no_passage
     assert seen.hits[0]["facets"] == [("vendor", "Veeam"), ("vendor", "Commvault")]
     assert r["facets_empty"] == ["Commvault"]
     assert r["answer"].endswith("No supporting passage found for: Commvault.")
+
+
+# --- evidence: the passages without the answer model (BACKLOG 42) ------------------------------
+
+async def _evidence(question, index, **settings):
+    return await ans.evidence(None, question, settings=VendorkbSettings(_env_file=None, **settings),
+                              embedder=None, reranker=None, scope_index=index)
+
+
+@pytest.mark.asyncio
+async def test_evidence_of_an_enumeration_is_its_passages_by_vendor(monkeypatch):
+    idx = ScopeIndex(vendors=["A", "B", "C", "D"], products=[], aliases={})
+    _patch_enum(monkeypatch, [_hit(1, "A"), _hit(2, "B"), _hit(3, "B")], ["A", "B"],
+                dropped=["C"], empty=["D"])
+    r = await _evidence("Which vendors support immutable backups?", idx)
+    assert r["shape"] == "enumeration" and r["topic"] is None and r["table"] is None
+    assert [(p["marker"], p["vendor"], p["chunk_id"]) for p in r["passages"]] == [
+        (1, "A", "c1"), (2, "B", "c2"), (3, "B", "c3")]
+    assert r["passages"][0]["text"] == _hit(1, "A").text and r["passages"][0]["aspect"] is None
+    assert r["passages"][0]["url"] == "https://docs.example/1"
+    assert r["vendors_checked"] == ["A", "B", "C", "D"] and r["not_found"] == ["C", "D"]
+    assert r["retrieved"] == 3 and r["rerank_ok"] is True and r["error"] is None
+    assert "answer" not in r and "usage" not in r
+
+
+@pytest.mark.asyncio
+async def test_evidence_of_a_topic_comparison_labels_each_passage_with_its_aspect(
+        monkeypatch, topic):
+    hits = [_hit(1, "Veeam"), _hit(2, "Veeam"), _hit(3, "Commvault")]
+
+    async def fake_load(conn):
+        return [topic]
+
+    async def fake_hits(conn, question, topic, **kw):
+        return TopicHits(hits, {"c2": topic.aspects[1].id, "c3": topic.aspects[0].id}, True, 9)
+
+    monkeypatch.setattr(ans, "load_topics", fake_load)
+    monkeypatch.setattr(ans, "topic_hits", fake_hits)
+    r = await _evidence("Compare Veeam and Commvault ransomware protection.", INDEX_VC)
+    assert r["shape"] == "comparison" and r["topic"] == topic.id
+    assert r["aspects"] == [a.name for a in topic.aspects]
+    assert [p["aspect"] for p in r["passages"]] == [
+        None, topic.aspects[1].name, topic.aspects[0].name]
+    assert r["scope"]["vendors"] == ["Veeam", "Commvault"] and r["not_found"] == []
+
+
+@pytest.mark.asyncio
+async def test_evidence_of_a_comparison_names_the_side_with_no_passage(monkeypatch):
+    async def fake(conn, query, **kw):
+        return ComparisonResult([_hit(1, "Veeam")], ["Commvault"], True)
+
+    monkeypatch.setattr(ans, "compare_facets", fake)
+    r = await _evidence("Compare Veeam and Commvault retention.", INDEX_VC)
+    assert r["shape"] == "comparison" and r["not_found"] == ["Commvault"]
+    assert [p["vendor"] for p in r["passages"]] == ["Veeam"]
+
+
+@pytest.mark.asyncio
+async def test_evidence_of_a_grid_question_is_the_table_and_its_cells(monkeypatch, topic):
+    first, second = topic.aspects[0], topic.aspects[1]
+    grid = Grid(vendors=["Veeam"], cells={("Veeam", first.id): Cell("supported", _hit(1), False),
+                                          ("Veeam", second.id): Cell("partial", _hit(2), False)},
+                facts_as_of=None, no_fact=["Commvault"])
+
+    async def fake_load(conn):
+        return [topic]
+
+    async def fake_grid(conn, topic, **kw):
+        assert kw["vendors"] == ["Veeam", "Commvault"]
+        return grid
+
+    monkeypatch.setattr(ans, "load_topics", fake_load)
+    monkeypatch.setattr(ans, "topic_grid", fake_grid)
+    r = await _evidence("Which vendors offer ransomware protection?", INDEX_VC, topic_grid=True)
+    assert r["shape"] == "enumeration" and r["topic"] == topic.id
+    assert r["table"] == topics_mod.render_grid(grid, topic)[0] and "| Veeam |" in r["table"]
+    assert [(p["marker"], p["aspect"]) for p in r["passages"]] == [(1, first.name),
+                                                                   (2, second.name)]
+    assert r["not_found"] == ["Commvault"] and r["vendors_checked"] == ["Veeam", "Commvault"]

@@ -11,6 +11,7 @@ passage carries its source URL and chunk id from the database; nothing here writ
 - ``search_docs``: hybrid search over the documentation chunks, reranked.
 - ``read_section``: a chunk with its neighbours or its whole section.
 - ``answer_question``: vendorkb's cited answer (retrieval plus synthesis) in one call.
+- ``gather_evidence``: that answer's evidence without the synthesis, for the agent to write from.
 """
 from __future__ import annotations
 
@@ -67,7 +68,9 @@ citations. Rules:
 - For one vendor's details (limits, versions, prerequisites), search_docs with the vendor
   filter, then read_section for the surrounding text.
 - answer_question returns a complete cited answer in one call when you do not need to combine
-  sources yourself. Pass it the user's question word for word."""
+  sources yourself. Pass it the user's question word for word.
+- gather_evidence returns the same evidence without the written answer, for you to write from:
+  numbered passages by vendor or aspect. Cite each statement with its [N]."""
 
 # The ``question`` of answer_question. An agent that appended "List all vendors documented,
 # distinguishing supported versus partial support…" lowered every rerank score: a vendor fell
@@ -230,19 +233,127 @@ def format_topic_capabilities(topic: Topic, results: list[CapResult],
                                  "aspects": aspects}
 
 
+def _passage(n: int, *, vendor: str, product: str | None, title: str | None,
+             section_path: list[str], url: str | None, chunk_id: str, text: str) -> str:
+    """One numbered passage of a text result, cut at ``PASSAGE_CHARS``."""
+    if len(text) > PASSAGE_CHARS:
+        text = text[:PASSAGE_CHARS] + f" […] (read_section {chunk_id} for the rest)"
+    section = " › ".join(section_path)
+    return (f"[{n}] {vendor} · {product or 'unknown product'} — {title}"
+            f"{f' › {section}' if section else ''}\n    source: {url or 'no url'}"
+            f" (chunk {chunk_id})\n{text}")
+
+
 def format_hits(hits: list[Hit]) -> tuple[str, list[dict[str, Any]]]:
     parts, rows = [], []
     for n, h in enumerate(hits, 1):
-        text = h.text if len(h.text) <= PASSAGE_CHARS else (
-            h.text[:PASSAGE_CHARS] + f" […] (read_section {h.chunk_id} for the rest)")
-        section = " › ".join(h.section_path)
-        parts.append(f"[{n}] {h.vendor} · {h.product or 'unknown product'} — {h.title}"
-                     f"{f' › {section}' if section else ''}\n    source: {h.url or 'no url'}"
-                     f" (chunk {h.chunk_id})\n{text}")
+        parts.append(_passage(n, vendor=h.vendor, product=h.product, title=h.title,
+                              section_path=h.section_path, url=h.url, chunk_id=h.chunk_id,
+                              text=h.text))
         rows.append({"chunk_id": h.chunk_id, "doc_id": h.doc_id, "vendor": h.vendor,
                      "product": h.product, "title": h.title, "section_path": h.section_path,
                      "url": h.url, "rerank_score": h.rerank_score, "text": h.text})
     return "\n\n".join(parts), rows
+
+
+# The last lines of a gather_evidence reply: the answer model's rules, for the agent that
+# writes in its place (BACKLOG 42).
+EVIDENCE_RULES = (
+    "Write the answer from these passages only, and cite each statement with the [N] of the "
+    "passage that states it. State for a vendor only what its own passages show. A vendor or "
+    "aspect with no passage is not documented in what was retrieved: say so, never that the "
+    "product lacks it. Keep vendor and product names as given.")
+NO_EVIDENCE = ("No passage was found. Say that the documentation vendorkb covers does not "
+               "answer this; do not answer from general knowledge.")
+
+
+def _read_as(out: dict[str, Any]) -> str:
+    """How vendorkb read the question, for the first lines of a gather_evidence reply."""
+    scope = out.get("scope") or {}
+    sides = ", ".join([*(scope.get("vendors") or []), *(scope.get("products") or [])])
+    topic = out.get("topic")
+    by = f" on {topic}, by aspect ({'; '.join(out.get('aspects') or [])})" if topic else ""
+    if out.get("shape") == "enumeration":
+        checked = len(out.get("vendors_checked") or [])
+        if out.get("table") is not None:
+            return f"a question about every vendor on {topic} ({checked} checked): the facts found"
+        return f"a question about every vendor ({checked} checked)"
+    if out.get("shape") == "comparison":
+        return f"a comparison of {sides}{by}"
+    if sides:
+        return f"a question about {sides}{by}"
+    return f"a question naming no vendor or product{by}"
+
+
+def _evidence_group(out: dict[str, Any], passage: dict[str, Any]) -> str | None:
+    """The heading a passage goes under: its aspect for a topic, its vendor for a "which
+    vendors" question or a comparison, none for a single question."""
+    if out.get("topic"):
+        return passage.get("aspect") or "General"
+    if out.get("shape") in ("enumeration", "comparison"):
+        return str(passage.get("vendor"))
+    return None
+
+
+def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
+    """A gather_evidence reply as parts of (text, the passages shown in it). Passages keep the
+    numbers ``answer`` would give them, grouped under headings (a group's passages together,
+    groups in order of first appearance; for a topic, the kit's order after "General"), packed
+    whole into parts of at most ``PART_CHARS`` characters (headings and the lines around them
+    come on top). Every part starts with
+    how the question was read; the last one ends with what was not found and the rules. A
+    grid's table is one part with its sources, its cells' passages left to read_section."""
+    passages = out.get("passages") or []
+    head = f"Evidence for: {out.get('query')}\nRead as: {_read_as(out)}."
+    not_found = out.get("not_found") or []
+    if out.get("table") is not None:
+        sources = format_sources({"citations": passages, "topic": out.get("topic"),
+                                  "shape": "enumeration"})
+        body = out["table"] + (f"\n\n{sources}" if sources else "")
+        return [(f"{head} Part 1 of 1.\n\n{body}\n\n{EVIDENCE_RULES}",
+                 passages[:GRID_CITATIONS_SHOWN])]
+    if not passages:
+        return [(f"{head} Part 1 of 1.\n\n{NO_EVIDENCE}", [])]
+    order: dict[str | None, int] = {"General": -1} if out.get("topic") else {}
+    for i, name in enumerate(out.get("aspects") or []):
+        order.setdefault(name, i)
+    for p in passages:
+        order.setdefault(_evidence_group(out, p), len(order))
+    ranked = sorted(passages, key=lambda p: order[_evidence_group(out, p)])  # stable
+    shown = {p["marker"]: _passage(
+        p["marker"], vendor=p["vendor"], product=p.get("product"), title=p.get("title"),
+        section_path=p.get("section_path") or [], url=p.get("url"), chunk_id=p["chunk_id"],
+        text=p["text"]) for p in ranked}
+    parts: list[list[dict[str, Any]]] = [[]]
+    size = 0
+    for p in ranked:
+        chars = len(shown[p["marker"]])
+        if parts[-1] and size + chars > PART_CHARS:
+            parts.append([])
+            size = 0
+        parts[-1].append(p)
+        size += chars
+    tail = []
+    if not_found:
+        tail.append(f"No supporting passage found for: {', '.join(not_found)}.")
+    if out.get("topic"):
+        covered = {p.get("aspect") for p in passages}
+        if missing := [a for a in out.get("aspects") or [] if a not in covered]:
+            tail.append(f"No passage was retrieved for: {', '.join(missing)}.")
+    tail.append(EVIDENCE_RULES)
+    texts = []
+    for i, part in enumerate(parts, start=1):
+        blocks = [f"{head} Part {i} of {len(parts)}."]
+        group: str | None = None
+        for p in part:
+            if (name := _evidence_group(out, p)) != group and name is not None:
+                blocks.append(f"## {name}")  # repeated where a group continues in a new part
+            group = name
+            blocks.append(shown[p["marker"]])
+        blocks += tail if i == len(parts) else [
+            f"Call gather_evidence again with part={i + 1} (same question) before you answer."]
+        texts.append(("\n\n".join(blocks), part))
+    return texts
 
 
 def format_sources(out: dict[str, Any]) -> str:
@@ -489,6 +600,37 @@ def build_server(backend: Backend) -> MCPServer:
                                              else citations)]
         if grid:
             structured["citations_total"] = len(citations)
+        return _result(text, structured)
+
+    @server.tool(name="gather_evidence", annotations=_RO, description=(
+        "The evidence for a question, without a written answer: vendorkb reads the question as "
+        "answer_question does (every vendor checked for 'which vendors' questions, each side "
+        "of a comparison, each aspect of a broad subject) and returns the numbered passages it "
+        "found, grouped by vendor or aspect, with what it found nothing for. Write the answer "
+        "yourself from those passages only, citing each statement as [N]. Pass the user's "
+        "question word for word. A long reply comes in parts: read every part first."))
+    async def gather_evidence(question: Annotated[str, Field(description=VERBATIM)],
+                              part: int = 1) -> CallToolResult:
+        if not question.strip():
+            raise ToolError("gather_evidence needs a question")
+        try:
+            out = await backend.evidence(question)
+        except Exception as e:
+            raise _fail("gather_evidence", e) from e
+        log.info("gather_evidence %s", json.dumps(
+            {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
+             "retrieved": out.get("retrieved"), "part": part}, ensure_ascii=False))
+        if out.get("error"):
+            raise ToolError(f"gather_evidence failed: {out['error']}")
+        parts = format_evidence(out)
+        if not 1 <= part <= len(parts):
+            raise ToolError(f"part {part} does not exist: this evidence has parts 1-{len(parts)}")
+        text, shown = parts[part - 1]
+        structured = {k: out.get(k) for k in ("shape", "topic", "aspects", "scope", "retrieved",
+                                              "not_found", "rerank_ok")}
+        structured.update(part=part, parts=len(parts), passages=[
+            {k: p.get(k) for k in ("marker", "chunk_id", "vendor", "product", "title", "url",
+                                   "aspect")} for p in shown])
         return _result(text, structured)
 
     return server
