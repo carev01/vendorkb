@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import struct
+import time
 import weakref
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -105,6 +106,59 @@ _TSQUERY = ("NULLIF(replace(websearch_to_tsquery('english', %s)::text, ' & ', ' 
             "::tsquery")
 
 
+# The same, computed once per question by ``fts_query`` and passed as text.
+_TSQ = "%s::tsquery"
+# A lexeme in more than this share of the chunks is left out of a question's full-text query
+# when rarer ones remain. The ORed query matched 60% of the corpus through words such as
+# "backup" (45% of chunks) and "support" (23%), and ranking every match was the statement's
+# cost: 2.9 s unscoped, 3.9 s for a "which vendors" question, against 1.1 s and 0.4 s without
+# them (BACKLOG 35, 2026-11-10). 1.0 or more leaves every question as it is. Measured at 10%
+# against the rule off: the 23 labelled "which vendors" questions with the rerank keep their
+# vendor recall (0.972 -> 0.971, 406 of 419 expected vendors both) with 2.6 -> 2.8 noise vendors
+# a question, at 9.0 -> 4.1 s; single-vendor pool recall stays 0.950 (free eval).
+FTS_COMMON_FREQ = 0.1
+COMMON_TTL = 3600.0  # seconds the list of common lexemes is kept in the process
+_COMMON: dict[float, tuple[float, list[str]]] = {}  # FTS_COMMON_FREQ -> (read at, lexemes)
+
+
+async def common_lexemes(conn: psycopg.AsyncConnection) -> list[str]:
+    """The lexemes in more than ``FTS_COMMON_FREQ`` of the chunks, from the planner's own
+    statistics of ``chunks.tsv`` (no scan; none until the table is analysed, and then at most
+    the 1,000 most common). Read once an hour."""
+    if FTS_COMMON_FREQ >= 1.0:
+        return []
+    now = time.monotonic()
+    kept = _COMMON.get(FTS_COMMON_FREQ)
+    if kept is not None and now - kept[0] < COMMON_TTL:
+        return kept[1]
+    cur = await conn.execute(
+        "SELECT e FROM (SELECT unnest(most_common_elems::text::text[]) AS e,"
+        " unnest(most_common_elem_freqs[1:cardinality(most_common_elems::text::text[])]) AS f"
+        " FROM pg_stats WHERE schemaname = current_schema() AND tablename = 'chunks'"
+        " AND attname = 'tsv') t WHERE f > %s ORDER BY e", (FTS_COMMON_FREQ,))
+    lexemes = [r[0] for r in await cur.fetchall()]
+    _COMMON[FTS_COMMON_FREQ] = (now, lexemes)
+    return lexemes
+
+
+async def fts_query(conn: psycopg.AsyncConnection, question: str) -> str | None:
+    """The full-text query of ``question`` as tsquery text, or None when it has no term (it
+    then matches no chunk). Its terms are ORed (``_TSQUERY``). When some of its lexemes are
+    common (``common_lexemes``) and some are not, only the others are searched and ranked: a
+    chunk that shares nothing but "backup" with the question is no candidate. A question of
+    common words only keeps them all."""
+    cur = await conn.execute(
+        "WITH lex AS (SELECT l, l = ANY(%(common)s::text[]) AS common"
+        " FROM unnest(tsvector_to_array(to_tsvector('english', %(q)s))) l) "
+        "SELECT CASE WHEN bool_or(common) AND bool_or(NOT common)"
+        " THEN string_agg(quote_literal(l), ' | ' ORDER BY l) FILTER (WHERE NOT common)"
+        " ELSE (SELECT NULLIF(replace(websearch_to_tsquery('english', %(q)s)::text,"
+        " ' & ', ' | '), '')) END FROM lex",
+        {"q": question, "common": await common_lexemes(conn)})
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
 _PGVECTOR_VERSION: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 
 
@@ -161,11 +215,11 @@ async def hybrid_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
         raise ValueError(f"unknown vector column {vector_column!r}")
     where, fparams = _filters(vendor, product)
     fts_sql = (f"SELECT {_COLS} FROM chunks c JOIN documents d USING (doc_id), "
-               f"(SELECT {_TSQUERY} AS tsq) q "
+               f"(SELECT {_TSQ} AS tsq) q "
                "WHERE c.tsv @@ q.tsq" + where +
                " ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id LIMIT %s")
     vec_sql = _vec_sql(vector_column, where)
-    cur = await conn.execute(fts_sql, [query, *fparams, FTS_LIMIT])
+    cur = await conn.execute(fts_sql, [await fts_query(conn, query), *fparams, FTS_LIMIT])
     fts_rows = await cur.fetchall()
     vec_rows = await _vector_rows(conn, vec_sql, [Vector(qvec), *fparams, Vector(qvec), VEC_LIMIT])
 
@@ -192,12 +246,12 @@ async def facet_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list
     names = [n for _, n in facets]
     fts_sql = (f"SELECT * FROM (SELECT f.idx, {_COLS}, row_number() OVER (PARTITION BY f.idx "
                "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
-               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q, "
+               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQ} AS tsq) q, "
                "unnest(%s::text[], %s::text[]) WITH ORDINALITY AS f(kind, name, idx) "
                f"WHERE c.tsv @@ q.tsq{_CURRENT} AND ((f.kind = 'vendor' AND d.vendor = f.name) "
                "OR (f.kind = 'product' AND d.product = f.name))) t "
                "WHERE rn <= %s ORDER BY idx, rn")
-    cur = await conn.execute(fts_sql, [query, kinds, names, FTS_LIMIT])
+    cur = await conn.execute(fts_sql, [await fts_query(conn, query), kinds, names, FTS_LIMIT])
     fts: list[list[tuple]] = [[] for _ in facets]
     for r in await cur.fetchall():
         fts[r[0] - 1].append(r[1:-1])
@@ -336,10 +390,10 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     fts_sql = ("SELECT chunk_id::text, vendor FROM (SELECT c.chunk_id, d.vendor, "
                "row_number() OVER (PARTITION BY d.vendor "
                "ORDER BY ts_rank_cd(c.tsv, q.tsq) DESC, c.chunk_id) AS rn "
-               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQUERY} AS tsq) q "
+               f"FROM chunks c JOIN documents d USING (doc_id), (SELECT {_TSQ} AS tsq) q "
                f"WHERE c.tsv @@ q.tsq{_CURRENT} AND d.vendor = ANY(%s)) t "
                "WHERE rn <= %s ORDER BY vendor, rn")
-    cur = await conn.execute(fts_sql, [query, vendors, FTS_LIMIT])
+    cur = await conn.execute(fts_sql, [await fts_query(conn, query), vendors, FTS_LIMIT])
     fts: dict[str, list[str]] = {}
     for cid, v in await cur.fetchall():
         fts.setdefault(v, []).append(cid)

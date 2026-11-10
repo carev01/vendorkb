@@ -28,7 +28,8 @@ stack.
   cleared); the bootstrap's end prunes documents it never served (`sync_seen`), refusing more
   than max(500, 2% of documents) unless `--allow-prune N` covers it. The Helm sync CronJob
   runs with `--max-tokens 5000000`;
-- hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
+- hybrid retrieval (`search.py`): Postgres full-text search (OR terms, without the lexemes in
+  over 10% of the chunks when rarer ones remain: `fts_query`) plus pgvector HNSW, merged by
   reciprocal rank fusion (k=60), then a Voyage rerank of the top 40. Query embeddings are cached
   in `embedding_cache` (`search.embed_queries`), so a repeated question retrieves the same
   passages;
