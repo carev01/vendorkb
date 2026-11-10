@@ -92,20 +92,25 @@ async def test_fact_candidates_are_the_vendors_fact_passages_for_what_the_questi
     b1 = await _fact(conn, v, "Beta", "coverage.backup", "entra_id", "beta entra backup")
     await _fact(conn, v, "Beta", "coverage.backup", "entra_id", "beta old page", superseded=True)
     await capabilities.build(conn)
-    got = await fact_candidates(conn, "Which vendors support Entra ID backup?",
+    # the target alone: every fact passage on it, a coverage dimension's first
+    got = await fact_candidates(conn, "Which vendors support Entra ID?",
                                 ["Alpha", "Beta", "Gamma"])
     assert {k: sorted(h.chunk_id for h in hs) for k, hs in got.items()} == {
         "Alpha": sorted([a1, a2]), "Beta": [b1]}
     assert got["Alpha"][0].vendor == "Alpha" and got["Alpha"][0].rerank_score is None
-    one = await fact_candidates(conn, "Which vendors support Entra ID backup?", ["Alpha"], limit=1)
+    one = await fact_candidates(conn, "Which vendors support Entra ID?", ["Alpha"], limit=1)
     assert [len(hs) for hs in one.values()] == [1]
+    # the target and a dimension ("backup scope" is an alias of coverage.backup): its facts only
+    got = await fact_candidates(conn, "What is each vendor's backup scope for Entra ID?",
+                                ["Alpha", "Beta"])
+    assert {k: [h.chunk_id for h in hs] for k, hs in got.items()} == {"Alpha": [a1], "Beta": [b1]}
     # nothing named, a generic word only, or switched off: no fact passage
     assert await fact_candidates(conn, "Which vendors are fastest?", ["Alpha"]) == {}
     assert await fact_candidates(conn, "Which vendors support Entra ID?", ["Alpha"], limit=0) == {}
     assert await fact_candidates(conn, "Which vendors support Entra ID?", []) == {}
 
 
-async def test_a_named_dimension_orders_a_targets_passages_and_stands_alone_without_one(kb):
+async def test_a_named_dimension_narrows_a_targets_passages_and_stands_alone_without_one(kb):
     conn, v = kb
     await _fact(conn, v, "Alpha", "coverage.backup", "salesforce", "alpha sfdc backup")
     keep = await _fact(conn, v, "Alpha", "retention.maximum_period", "salesforce",
@@ -113,11 +118,12 @@ async def test_a_named_dimension_orders_a_targets_passages_and_stands_alone_with
     other = await _fact(conn, v, "Alpha", "retention.maximum_period", "entra_id",
                         "alpha entra retention")
     await capabilities.build(conn)
-    got = await fact_candidates(conn, "Which vendors have max retention for SFDC?", ["Alpha"],
-                                limit=1)
-    assert [h.chunk_id for h in got["Alpha"]] == [keep]  # on the dimension, though only partial
+    got = await fact_candidates(conn, "Which vendors have max retention for SFDC?", ["Alpha"])
+    assert [h.chunk_id for h in got["Alpha"]] == [keep]  # the dimension's fact on the target
     got = await fact_candidates(conn, "Which vendors document the longest retention?", ["Alpha"])
     assert sorted(h.chunk_id for h in got["Alpha"]) == sorted([keep, other])
+    # a generic dimension alone names nothing ("backup scope" -> coverage.backup)
+    assert await fact_candidates(conn, "What is the backup scope?", ["Alpha"]) == {}
 
 
 async def test_a_fact_passage_keeps_a_vendor_whose_own_candidates_miss_it(kb):

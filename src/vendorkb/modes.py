@@ -44,7 +44,7 @@ ENUMERATION_MIN_SCORE = 0.56
 # wording in three and Bacula's never (BACKLOG 43, 2026-11-10).
 ENUM_FACT_CHUNKS = 3
 # Dimensions nearly every question names without meaning them ("backup products", "restore"):
-# they pick no fact passages on their own; with a target they only order its passages.
+# they pick no fact passages on their own; with a target they narrow its facts to themselves.
 GENERIC_DIMENSIONS = frozenset({"coverage.backup", "coverage.restore"})
 MAX_ALIAS_WORDS = 6  # the longest phrase of a question looked up as an alias
 _TOKEN = re.compile(r"[^\s()\[\]{},;:!?\"“”]+")
@@ -142,30 +142,39 @@ async def question_taxonomy(conn: psycopg.AsyncConnection,
 async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors: list[str], *,
                           limit: int = ENUM_FACT_CHUNKS) -> dict[str, list[Hit]]:
     """For each vendor, up to ``limit`` current chunks behind its supported or partial
-    capability facts on what the question names (``question_taxonomy``): the facts on a named
-    target (or a target under it), those on a named dimension first; with no target, the facts
-    on a named dimension that is not one of ``GENERIC_DIMENSIONS``. Chunks with a supported
-    fact, a current one and more facts come first. {} when the question names neither, no
-    taxonomy is loaded or ``limit`` is 0. One statement for every vendor.
+    capability facts on what the question names (``question_taxonomy``):
+
+    - a target and a dimension: the facts of that dimension on the target (or a target under
+      it), so "Entra ID backup" brings no passage about signing in with Entra ID;
+    - a target alone: every fact on it, the coverage dimensions first;
+    - no target: the facts of a named dimension that is not one of ``GENERIC_DIMENSIONS``.
+
+    Chunks with a supported fact, a current one and more facts come first. {} when the question
+    names none of these, no taxonomy is loaded or ``limit`` is 0. One statement for every
+    vendor.
 
     These are candidates, nothing more: the reranker scores them against the question like any
     other passage, and the same floor decides."""
     if limit <= 0 or not vendors:
         return {}
     targets, dimensions = await question_taxonomy(conn, question)
-    if not targets and not [d for d in dimensions if d not in GENERIC_DIMENSIONS]:
-        return {}
+    if not targets:
+        dimensions = [d for d in dimensions if d not in GENERIC_DIMENSIONS]
+        if not dimensions:
+            return {}
     cur = await conn.execute("SELECT value FROM taxonomy_meta WHERE key = 'taxonomy_version'")
     row = await cur.fetchone()
     if row is None:
         return {}
-    scope = ("(cap.target_id = ANY(%(targets)s) OR cap.target_id LIKE ANY(%(under)s))"
-             if targets else "cap.dimension_id = ANY(%(dimensions)s)")
+    on_target = "(cap.target_id = ANY(%(targets)s) OR cap.target_id LIKE ANY(%(under)s))"
+    on_dimension = "cap.dimension_id = ANY(%(dimensions)s)"
+    scope = " AND ".join(c for c, wanted in ((on_target, targets), (on_dimension, dimensions))
+                         if wanted)
     cur = await conn.execute(
         f"SELECT p.vendor, {_COLS} FROM (SELECT f.vendor, f.chunk_id, row_number() OVER"
-        " (PARTITION BY f.vendor ORDER BY f.on_dim DESC, f.sup DESC, f.cur DESC, f.n DESC,"
+        " (PARTITION BY f.vendor ORDER BY f.coverage DESC, f.sup DESC, f.cur DESC, f.n DESC,"
         " f.chunk_id) AS rn FROM (SELECT cap.vendor, r.chunk_id,"
-        " bool_or(cap.dimension_id = ANY(%(dimensions)s)) AS on_dim,"
+        " bool_or(cap.dimension_id LIKE 'coverage.%%') AS coverage,"
         " bool_or(cap.support = 'supported') AS sup, bool_or(cap.is_current) AS cur,"
         " count(*) AS n FROM capabilities cap JOIN raw_claims r ON r.claim_id = cap.claim_id"
         " JOIN chunks ch ON ch.chunk_id = r.chunk_id"
