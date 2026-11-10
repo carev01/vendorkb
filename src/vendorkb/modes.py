@@ -38,16 +38,48 @@ ENUMERATION_MIN_SCORE = 0.56
 
 # Passages of a vendor's capability facts added to its candidates when the question names a
 # taxonomy target or dimension by an exact alias (``fact_candidates``); 0 turns it off. A
-# vendor's six candidates follow the question's wording, its fact passages do not: for three
-# wordings of "which vendors back up Entra ID", the best fact passage of Commvault, Eon, Bacula,
-# Rubrik and Datto scored over the floor every time, where Commvault's was a candidate for one
-# wording in three and Bacula's never (BACKLOG 43, 2026-11-10).
-ENUM_FACT_CHUNKS = 3
+# vendor's six candidates follow the question's wording, its fact passages do not.
+ENUM_FACT_CHUNKS = 5
+# A plain question (``Subject.plain``: who backs up <target>, nothing more) also keeps a vendor
+# whose fact passage scores at least this against the fixed query "Backup support for
+# <target>". A passage's score against the question as asked moves with the wording and
+# straddles the floor (Bacula's Entra ID passage: 0.63, 0.65, 0.62, 0.56 on four wordings),
+# where its score against the fixed query is one number (0.77). On six question families of
+# three or four wordings (94 expected vendors, 2026-11-10): expected vendors kept on every
+# wording 84.0% -> 93.6% at this floor, noise vendors a wording 2.26 -> 2.32 (0.60: 94.7%,
+# 2.68; 0.56: 95.7%, 3.05). BACKLOG 43.
+ENUM_FACT_MIN_SCORE = 0.65
 # Dimensions nearly every question names without meaning them ("backup products", "restore"):
-# they pick no fact passages on their own; with a target they narrow its facts to themselves.
+# they pick no fact passages on their own, and do not make a question about something.
 GENERIC_DIMENSIONS = frozenset({"coverage.backup", "coverage.restore"})
 MAX_ALIAS_WORDS = 6  # the longest phrase of a question looked up as an alias
 _TOKEN = re.compile(r"[^\s()\[\]{},;:!?\"“”]+")
+# The words of a question that asks who protects something and nothing more. Any other word
+# outside the target's name ("without agents", "natively", "granular", a version, a limit)
+# makes the question a narrower one, which the fixed query above would not be about.
+PLAIN_WORDS = frozenset((
+    "which what who whom vendors vendor tools tool products product solutions solution software"
+    " platforms platform companies company providers provider"
+    " backup backups back up backing backed protect protects protecting protection protected"
+    " restore restores restoring recover recovers recovering recovery"
+    " offer offers offering provide provides support supports supported supporting cover covers"
+    " do does can could have has is are be that there any all the a an of and or to in on for"
+    " with my our your we i it data documented available"
+).split())
+
+
+@dataclass(frozen=True)
+class Subject:
+    """What a question names in the taxonomy (``question_subject``)."""
+    targets: tuple[str, ...] = ()
+    dimensions: tuple[str, ...] = ()  # in the order named, the generic ones included
+    # the question names a target and asks nothing beyond who backs it up or supports it:
+    # no dimension but the generic ones, no word outside the target's name and PLAIN_WORDS
+    plain: bool = False
+
+    @property
+    def specific(self) -> tuple[str, ...]:
+        return tuple(d for d in self.dimensions if d not in GENERIC_DIMENSIONS)
 
 
 @dataclass
@@ -61,6 +93,12 @@ class EnumerationResult:
     best_scores: dict[str, float] = field(default_factory=dict)
     # vendors whose candidates included passages of their capability facts (fact_candidates)
     fact_vendors: list[str] = field(default_factory=list)
+    # a plain question's fixed query, and the vendors kept by a fact passage's score against it
+    # alone (their passages as asked scored under the floor); ``best_scores`` holds what was
+    # asked, ``fact_scores`` each fact vendor's best score against the fixed query
+    fixed_query: str | None = None
+    kept_by_facts: list[str] = field(default_factory=list)
+    fact_scores: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -96,12 +134,17 @@ def _truncate(groups: list[list[Hit]], max_hits: int) -> list[list[Hit]]:
     return groups
 
 
+def _words(question: str) -> list[str]:
+    """The question's words, lowercased. Brackets and sentence punctuation separate words; a
+    word keeps its inner hyphens, dots and slashes ("hyper-v")."""
+    return [w for w in (t.strip(".'’`*") for t in _TOKEN.findall(question.lower())) if w]
+
+
 def _phrases(question: str) -> dict[str, tuple[int, int]]:
-    """Every phrase of up to ``MAX_ALIAS_WORDS`` words of ``question``, lowercased, with the
+    """Every phrase of up to ``MAX_ALIAS_WORDS`` words of ``question`` (``_words``), with the
     word positions it spans (start, end); a phrase ending in a plural is there in the singular
-    too ("immutable backups" also as "immutable backup"). Brackets and sentence punctuation
-    separate words; a word keeps its inner hyphens, dots and slashes ("hyper-v")."""
-    words = [w for w in (t.strip(".'’`*") for t in _TOKEN.findall(question.lower())) if w]
+    too ("immutable backups" also as "immutable backup")."""
+    words = _words(question)
     out: dict[str, tuple[int, int]] = {}
     for i in range(len(words)):
         for j in range(i + 1, min(i + MAX_ALIAS_WORDS, len(words)) + 1):
@@ -112,14 +155,14 @@ def _phrases(question: str) -> dict[str, tuple[int, int]]:
     return out
 
 
-async def question_taxonomy(conn: psycopg.AsyncConnection,
-                            question: str) -> tuple[list[str], list[str]]:
-    """(target ids, dimension ids) the question names by an exact alias of the loaded taxonomy
-    (names are aliases too). The longest phrase wins: a phrase inside a longer matched one
-    names nothing ("azure" in "azure ad"). No embedding, no model: one indexed lookup."""
+async def question_subject(conn: psycopg.AsyncConnection, question: str) -> Subject:
+    """The targets and dimensions the question names by an exact alias of the loaded taxonomy
+    (names are aliases too), and whether it is plain (``Subject.plain``). The longest phrase
+    wins: a phrase inside a longer matched one names nothing ("azure" in "azure ad"). No
+    embedding, no model: one indexed lookup."""
     phrases = _phrases(question)
     if not phrases:
-        return [], []
+        return Subject()
     cur = await conn.execute(
         "SELECT alias, entity_type, entity_id FROM aliases"
         " WHERE entity_type IN ('target', 'dimension') AND alias = ANY(%s)", (list(phrases),))
@@ -128,6 +171,7 @@ async def question_taxonomy(conn: psycopg.AsyncConnection,
     taken: list[tuple[int, int]] = []
     targets: list[str] = []
     dimensions: list[str] = []
+    named: set[int] = set()  # word positions inside a target's name or a generic dimension's
     for alias, kind, entity_id in rows:
         i, j = phrases[alias]
         if any(i < e and s < j and (s, e) != (i, j) for s, e in taken):
@@ -136,32 +180,44 @@ async def question_taxonomy(conn: psycopg.AsyncConnection,
         ids = targets if kind == "target" else dimensions
         if entity_id not in ids:
             ids.append(entity_id)
-    return targets, dimensions
+        if kind == "target" or entity_id in GENERIC_DIMENSIONS:
+            named.update(range(i, j))
+    plain = bool(targets) and all(d in GENERIC_DIMENSIONS for d in dimensions) and all(
+        n in named or w in PLAIN_WORDS for n, w in enumerate(_words(question)))
+    return Subject(tuple(targets), tuple(dimensions), plain)
+
+
+async def question_taxonomy(conn: psycopg.AsyncConnection,
+                            question: str) -> tuple[list[str], list[str]]:
+    """(target ids, dimension ids) of ``question_subject``."""
+    subject = await question_subject(conn, question)
+    return list(subject.targets), list(subject.dimensions)
 
 
 async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors: list[str], *,
-                          limit: int = ENUM_FACT_CHUNKS) -> dict[str, list[Hit]]:
+                          limit: int = ENUM_FACT_CHUNKS,
+                          subject: Subject | None = None) -> dict[str, list[Hit]]:
     """For each vendor, up to ``limit`` current chunks behind its supported or partial
-    capability facts on what the question names (``question_taxonomy``):
+    capability facts on what the question names (``subject``, else ``question_subject``):
 
-    - a target and a dimension: the facts of that dimension on the target (or a target under
-      it), so "Entra ID backup" brings no passage about signing in with Entra ID;
-    - a target alone: every fact on it, the coverage dimensions first;
+    - a target: every fact on it (or on a target under it), the coverage dimensions first;
+      narrowed to the specific dimensions the question also names ("max retention for
+      Salesforce"). A generic dimension narrows nothing: whether the question says "backup"
+      must not change the passages;
     - no target: the facts of a named dimension that is not one of ``GENERIC_DIMENSIONS``.
 
     Chunks with a supported fact, a current one and more facts come first. {} when the question
     names none of these, no taxonomy is loaded or ``limit`` is 0. One statement for every
     vendor.
 
-    These are candidates, nothing more: the reranker scores them against the question like any
-    other passage, and the same floor decides."""
+    These are candidates, nothing more: the reranker scores them like any other passage."""
     if limit <= 0 or not vendors:
         return {}
-    targets, dimensions = await question_taxonomy(conn, question)
-    if not targets:
-        dimensions = [d for d in dimensions if d not in GENERIC_DIMENSIONS]
-        if not dimensions:
-            return {}
+    if subject is None:
+        subject = await question_subject(conn, question)
+    targets, dimensions = list(subject.targets), list(subject.specific)
+    if not targets and not dimensions:
+        return {}
     cur = await conn.execute("SELECT value FROM taxonomy_meta WHERE key = 'taxonomy_version'")
     row = await cur.fetchone()
     if row is None:
@@ -191,6 +247,19 @@ async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors:
     return out
 
 
+async def fixed_query(conn: psycopg.AsyncConnection, subject: Subject) -> str | None:
+    """The query a plain question's fact passages are also scored against: "Backup support
+    for <target>", the same whatever the question's wording (two targets at most, the least
+    specific first). None for a question that is not plain."""
+    if not subject.plain:
+        return None
+    cur = await conn.execute(
+        "SELECT name FROM targets WHERE target_id = ANY(%s) ORDER BY length(target_id), target_id"
+        " LIMIT 2", (list(subject.targets),))
+    names = [r[0] for r in await cur.fetchall()]
+    return f"Backup support for {' and '.join(names)}" if names else None
+
+
 async def _rerank_batched(reranker: Reranker, query: str,
                           texts: list[str]) -> list[tuple[int, float]] | None:
     """``reranker.rerank`` over ``texts`` in calls of ``ENUM_RERANK_BATCH``, run together;
@@ -218,7 +287,10 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     each vendor's first ``depth`` candidates (and its best chunk per product beyond them, the
     ``_pick`` of its candidates), with up to ``fact_chunks`` passages of its capability facts
     on what the question names (``fact_candidates``; None reads ``ENUM_FACT_CHUNKS``), and
-    keep the vendors whose best score reaches ``min_score``.
+    keep the vendors whose best score reaches ``min_score``. For a plain question (who backs
+    up a target, nothing more: ``Subject.plain``) a vendor is also kept when one of its fact
+    passages scores ``ENUM_FACT_MIN_SCORE`` against the fixed query (``fixed_query``), which
+    does not move with the wording; a narrower question is judged as asked only.
     A kept vendor's hits are its best ``per_vendor`` passages by score (``per_vendor_multi``,
     the best of each product first, for a vendor with several products among them). On a
     reranker failure (or with ``use_rerank=False``, the free eval mode) every vendor with
@@ -232,9 +304,13 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     cands = await vendor_candidates(conn, query, qvec, vendors,
                                     limit=max(depth, per_vendor_multi * 2))
     can_rerank = use_rerank and reranker is not None
-    facts = await fact_candidates(
-        conn, query, vendors, limit=ENUM_FACT_CHUNKS if fact_chunks is None else fact_chunks
-    ) if can_rerank else {}  # unranked, a fact passage is no evidence: only the reranker's say
+    limit = ENUM_FACT_CHUNKS if fact_chunks is None else fact_chunks
+    facts: dict[str, list[Hit]] = {}
+    fixed: str | None = None
+    if can_rerank and limit > 0:  # unranked, a fact passage is no evidence: the reranker says
+        subject = await question_subject(conn, query)
+        facts = await fact_candidates(conn, query, vendors, limit=limit, subject=subject)
+        fixed = await fixed_query(conn, subject) if facts else None
     picked = {v: _pick(cands.get(v, [])[:per_vendor_multi * 2], per_vendor, per_vendor_multi)
               for v in vendors if v in cands or v in facts}
     empty = [v for v in vendors if v not in picked]
@@ -267,18 +343,41 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
         scored[flat[i].vendor].append(replace(flat[i], rerank_score=scores[i]))
     unscored = [v for v in picked if not scored[v]]
     best = {v: max(h.rerank_score or 0.0 for h in hs) for v, hs in scored.items() if hs}
-    survivors = sorted((v for v in best if best[v] >= min_score), key=lambda v: -best[v])
-    dropped = [v for v in best if v not in survivors]
+
+    # A plain question: each fact passage's score against the fixed query too. ``lift`` is that
+    # score brought to the floor's scale (ENUM_FACT_MIN_SCORE there is ``min_score`` here), so
+    # one comparison keeps a vendor and puts the passage that kept it first among its hits.
+    lift: dict[str, float] = {}  # chunk_id -> fixed-query score minus the gap of the two floors
+    fact_scores: dict[str, float] = {}
+    if fixed is not None and reranker is not None:
+        fact_hits = [h for hs in facts.values() for h in hs]
+        again = await _rerank_batched(reranker, fixed, [h.text for h in fact_hits])
+        if again is None:  # the vendors kept as asked stand; nobody is kept by a fact alone
+            fixed = None
+        else:
+            for i, score in dict(reversed(again)).items():
+                hit = fact_hits[i]
+                lift[hit.chunk_id] = score - (ENUM_FACT_MIN_SCORE - min_score)
+                fact_scores[hit.vendor] = max(fact_scores.get(hit.vendor, 0.0), score)
+
+    def worth(h: Hit) -> float:
+        return max(h.rerank_score or 0.0, lift.get(h.chunk_id, 0.0))
+
+    standing = {v: max(map(worth, hs)) for v, hs in scored.items() if hs}
+    survivors = sorted((v for v in standing if standing[v] >= min_score),
+                       key=lambda v: -standing[v])
+    dropped = [v for v in standing if v not in survivors]
 
     def chosen(v: str) -> list[Hit]:
-        by_score = sorted(scored[v], key=lambda h: (-(h.rerank_score or 0.0), h.rrf_rank))
-        return sorted(_pick(by_score, per_vendor, per_vendor_multi),
-                      key=lambda h: -(h.rerank_score or 0.0))
+        by_score = sorted(scored[v], key=lambda h: (-worth(h), h.rrf_rank))
+        return sorted(_pick(by_score, per_vendor, per_vendor_multi), key=lambda h: -worth(h))
 
     groups = _truncate([chosen(v) for v in survivors] + [picked[v] for v in unscored], max_hits)
     return EnumerationResult(hits=[h for g in groups for h in g], kept=survivors + unscored,
                              dropped=dropped, empty=empty, rerank_ok=not unscored,
-                             best_scores=best, fact_vendors=[v for v in picked if v in facts])
+                             best_scores=best, fact_vendors=[v for v in picked if v in facts],
+                             fixed_query=fixed, fact_scores=fact_scores,
+                             kept_by_facts=[v for v in survivors if best[v] < min_score])
 
 
 def _distinct(hits: list[Hit], n: int) -> list[Hit]:
