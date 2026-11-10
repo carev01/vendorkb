@@ -66,7 +66,7 @@ far fewer vendors (64.9% recall; 13% on cv-07) and is the only arm with unsuppor
 ## Side findings
 
 - **Markers survive Haiku (BACKLOG 41).** The relay agents kept every marker of every answer
-  (290 of 290). The loss seen in Copilot Studio came with its GPT model or its own formatting,
+  (320 of 320). The loss seen in Copilot Studio came with its GPT model or its own formatting,
   not from Claude Haiku relaying; re-test in Copilot now that the agent is on Haiku.
 - **The question arrives unchanged (BACKLOG 39).** With "word for word" in the tool and the
   rules, all 24 relay and evidence agents passed the question as the user wrote it.
@@ -74,7 +74,7 @@ far fewer vendors (64.9% recall; 13% on cv-07) and is the only arm with unsuppor
   `answer_question` or `gather_evidence` took 120–210 s (45–60 s alone). The database was busy
   with the vendor-filtered vector searches of the per-aspect retrieval, at about 1.2 cores. The
   public route cuts a request at 100 s.
-- **Dropped connections.** Four tool calls ended with "peer closed connection" mid-reply while
+- **Dropped connections.** Four tool calls (three logged, one before the log recorded failures) ended with "peer closed connection" mid-reply while
   the server was loaded; the pod did not restart and logged nothing. `agent_eval.py call` now
   reports it and the agent retries.
 - **The eval's token file** (`~/.config/vendorkb/mcp-token`) was stale after the 2026-11-09
@@ -92,5 +92,5 @@ far fewer vendors (64.9% recall; 13% on cv-07) and is the only arm with unsuppor
 ## Spend
 
 36 Haiku agent runs (plus 6 that stopped on the stale token and one rerun), 14 grader runs.
-Server side: 24 full retrievals, 12 of them with the answer model (about $0.06), and about 70
+Server side: 24 full retrievals, 12 of them with the answer model (about $0.06), and 39
 `search_docs` calls.

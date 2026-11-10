@@ -443,7 +443,7 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     Done when an agent reply keeps a marker on every cited statement.
 
     *2026-11-10:* in the item 42 pilot, Haiku agents relaying `answer_question` kept every
-    marker (290 of 290 over 12 answers), and the transcript of item 39 shows GPT kept them too,
+    marker (320 of 320 over 12 answers), and the transcript of item 39 shows GPT kept them too,
     adding its own footnote numbers. So the loss is not Claude Haiku's: re-test in Copilot
     Studio with the agent on Haiku before changing the marker form.
 42. **Do we need vendorkb's answer model?** (user, 2026-11-09; take with items 40 and 41,
