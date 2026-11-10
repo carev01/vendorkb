@@ -296,7 +296,38 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     mapped to the wrong dimension ("Inactive files" -> anomaly detection, "Dedicated backup
     networks" -> air gap, AI-agent session details -> deletion safeguards); they also reach
     `query_capabilities`. A blind sample per security/cyber dimension would size it.
-35. *2026-11-10, from the item 42 pilot:* with four to six agents at once, a topic
+35. **Topic retrieval time: cause found and fixed 2026-11-10 (branch
+    `topic-speed-and-full-passages`).** `chunks.superseded_at` (added 2026-11-09) had no planner
+    statistics: adding a column changes no row, so autovacuum never analysed the table (last
+    analysed 2026-11-06). The planner took `superseded_at IS NULL`, which every search carries,
+    for 0.5% of the chunks, and instead of the HNSW index it computed the distance to all
+    227,613 chunks and sorted them (on disk, 108 MB): 2.2 s a vector search. A two-vendor
+    topic question makes 18 of them.
+
+    `schema.sql` now runs `ANALYZE chunks (superseded_at)` (a test checks the statistics exist
+    after an upgrade). Measured on production with the statistics inside a rolled-back
+    transaction, retrieval only, first call then warm:
+
+    | question | before | with statistics |
+    |---|---|---|
+    | Veeam vs Commvault ransomware comparison | 44-46 s | 9-14 s, then 4 s |
+    | one vendor's ransomware protection | 25-27 s | 5-6 s, then 3 s |
+    | a single-vendor question | 5.5 s | 2.4-3.7 s |
+    | "which vendors" question | 8 s | 8 s |
+
+    The "which vendors" pool query (2,000 neighbours over all vendors) is now an exact sort on
+    purpose (`search.ENUM_VEC_SQL`): it was one by accident, the HNSW index reaches 2,000 rows
+    only by iterating (5-11 s, and other passages), and item 43's floor and depth were
+    calibrated on the exact order. `answer_question` and `gather_evidence` log their seconds.
+
+    Left:
+    - the "which vendors" retrieval stays at about 8 s, most of it the one full-text statement
+      (not profiled further); single questions spend their 2-3 s there too;
+    - under load: to be re-measured after the deploy with four topic questions at once (the
+      pilot's 120-210 s were sixteen-fold sorts queueing on the database's cores);
+    - the dropped connections of the pilot: cause not found.
+
+    *2026-11-10, from the item 42 pilot:* with four to six agents at once, a topic
     `answer_question` or `gather_evidence` took 120-210 s (45-60 s alone), past the public
     route's 100 s. The database was busy with the vendor-filtered vector searches of the
     per-aspect retrieval (about 1.2 cores); four calls also lost their connection mid-reply
@@ -510,7 +541,12 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     | claims in the 12 replies | 691-807 | 484-546 | 345-354 |
 
     The evidence arm matches on accuracy, cites less completely, says about 30% less and is no
-    faster end to end. `gather_evidence` stays as an optional tool. Not run: the full 35
+    faster end to end. `gather_evidence` stays as an optional tool.
+
+    *After the pilot (user, 2026-11-10):* `gather_evidence` returns each passage whole, as the
+    answer model reads it (a chunk is at most about 1,200 tokens), not cut at 1,200 characters.
+    The replies are about twice as long: the Veeam-Commvault comparison is 116k characters in 7
+    parts (56k in 3 before), a "which vendors" question 132k in 8. Not re-measured with agents. Not run: the full 35
     questions (the pilot cannot tell differences under about 5 points; the citation and speed
     results do not depend on that), and a Copilot Studio agent on the alternative rules.
 43. **Vendors listed for a "which vendors" question moved with its wording** (user,
@@ -550,6 +586,13 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     - The kept vendors without evidence grow on some wordings (Storware, Unitrends, Synology:
       1-3 -> 2-5 on the Entra wordings); the answer model declines most ("Passages found but
       not judged to show it").
+
+    *2026-11-10, the remaining flicker:* three identical calls kept Commvault once and dropped
+    it twice, also with an exact vector sort. The embedding provider returns a slightly
+    different vector for the same text now and then (1 of 4 calls: largest component
+    difference 7.7e-4, cosine 0.99997), which moves a candidate across the six-per-vendor cut.
+    A cache of query embeddings (the `embedding_cache` table, input type "query") would make a
+    repeated question retrieve the same passages, and save the embedding call.
 
     **Answer level (2026-11-10):** the 23 labelled questions through the full answer, the
     deployed code and the branch side by side, one run each: expected vendors listed 385 ->

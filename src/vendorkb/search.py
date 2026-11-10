@@ -299,6 +299,18 @@ async def unextracted_candidates(conn: psycopg.AsyncConnection, queries: list[st
     return out
 
 
+# The enumeration's vector query: ids only, same shape as _vec_sql (text chunk_id as the
+# distance tiebreak), but an EXACT order: the "+ 0" keeps the planner off the HNSW index. The
+# pool asks for ENUM_VEC_POOL (2,000) neighbours, which the index reaches only by iterating
+# (5-11 s, approximate; the exact sort over the corpus takes about 2 s, in parallel), and a
+# small vendor's own query sorts just its chunks. The enumeration floor and depth were
+# calibrated on the exact order (2026-11-10).
+ENUM_VEC_SQL = ("SELECT chunk_id, vendor FROM (SELECT c.chunk_id::text AS chunk_id, d.vendor, "
+                "c.embedding <=> %s AS dist FROM chunks c JOIN documents d USING (doc_id) "
+                f"WHERE d.vendor = ANY(%s){_CURRENT} ORDER BY (c.embedding <=> %s) + 0 LIMIT %s) t "
+                "ORDER BY dist, chunk_id")
+
+
 async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: list[float],
                             vendors: list[str], *, limit: int) -> dict[str, list[Hit]]:
     """``hybrid_candidates(vendor=[v], limit=limit)`` for every vendor at once, keyed by vendor
@@ -306,7 +318,8 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     full-text and top ``VEC_LIMIT`` vector rows, cut to ``limit``.
 
     The statement count does not grow with the vendor count: ONE full-text query ranked once
-    and cut per vendor, ONE vector query over all the vendors (``ENUM_VEC_POOL`` rows), a
+    and cut per vendor, ONE vector query over all the vendors (``ENUM_VEC_POOL`` rows, an exact
+    sort: ``ENUM_VEC_SQL``), a
     scoped vector query only for each vendor with fewer than ``limit`` rows in that pool (a
     small vendor, so a cheap scan), then one fetch of the fused chunks' columns. The ranking
     queries carry ids only, so the 2000-row pool does not ship chunk text. Per-vendor scoped
@@ -330,20 +343,15 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
     for cid, v in await cur.fetchall():
         fts.setdefault(v, []).append(cid)
 
-    # Same shape as _vec_sql (text chunk_id as the distance tiebreak), ids only.
-    vec_sql = ("SELECT chunk_id, vendor FROM (SELECT c.chunk_id::text AS chunk_id, d.vendor, "
-               "c.embedding <=> %s AS dist FROM chunks c JOIN documents d USING (doc_id) "
-               f"WHERE d.vendor = ANY(%s){_CURRENT} ORDER BY c.embedding <=> %s LIMIT %s) t "
-               "ORDER BY dist, chunk_id")
     vec: dict[str, list[str]] = {v: [] for v in vendors}
-    for cid, v in await _vector_rows(conn, vec_sql,
+    for cid, v in await _vector_rows(conn, ENUM_VEC_SQL,
                                      [Vector(qvec), vendors, Vector(qvec), ENUM_VEC_POOL]):
         if len(vec[v]) < VEC_LIMIT:
             vec[v].append(cid)
     for v in vendors:
         if len(vec[v]) < limit:  # short in the pool: its own scoped query replaces its rows
             vec[v] = [cid for cid, _ in await _vector_rows(
-                conn, vec_sql, [Vector(qvec), [v], Vector(qvec), VEC_LIMIT])]
+                conn, ENUM_VEC_SQL, [Vector(qvec), [v], Vector(qvec), VEC_LIMIT])]
 
     orders = {v: rrf([fts.get(v, []), vec[v]], weights=[FTS_WEIGHT, 1.0])[:limit]
               for v in vendors}

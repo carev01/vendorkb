@@ -1,4 +1,5 @@
 """The MCP tools (mcp_server) through an in-process client, over a fake backend."""
+import json
 from pathlib import Path
 
 import pytest
@@ -313,9 +314,10 @@ async def test_answer_question_logs_the_question_as_sent(caplog):
         async with Client(ms.build_server(FakeBackend(answer=out))) as c:
             await c.call_tool("answer_question", {"question": "Compare A and B\nplease"})
     line = next(r.getMessage() for r in caplog.records if "answer_question" in r.getMessage())
-    assert line == ('answer_question {"question": "Compare A and B\\nplease", "shape": '
-                    '"comparison", "topic": "ransomware_protection", "retrieved": 7, '
-                    '"citations": 1}')
+    assert line.startswith('answer_question {"question": "Compare A and B\\nplease", "shape": '
+                           '"comparison", "topic": "ransomware_protection", "retrieved": 7, '
+                           '"citations": 1, "seconds": ')
+    assert isinstance(json.loads(line.split(" ", 1)[1])["seconds"], float)  # BACKLOG 35
 
 
 def _grid_answer(topic: load.Topic) -> dict:
@@ -648,7 +650,7 @@ async def test_gather_evidence_groups_an_enumeration_by_vendor():
                                  "url": "https://docs.example/2", "aspect": None}
 
 
-async def test_gather_evidence_groups_a_topic_by_aspect_and_cuts_long_passages():
+async def test_gather_evidence_groups_a_topic_by_aspect_and_gives_passages_whole():
     out = _evidence([_passage(1, "Alpha"), _passage(2, "Alpha", "x" * 3000, "Immutability"),
                      _passage(3, "Beta", aspect="Immutability")],
                     shape="comparison", topic="ransomware_protection",
@@ -660,30 +662,32 @@ async def test_gather_evidence_groups_a_topic_by_aspect_and_cuts_long_passages()
            "(Immutability; Encryption). Part 1 of 1." in text
     assert text.index("## General") < text.index("[1] Alpha") < text.index("## Immutability") \
         < text.index("[2] Alpha") < text.index("[3] Beta")
-    assert "x" * ms.PASSAGE_CHARS + " […] (read_section k2 for the rest)" in text
-    assert "x" * (ms.PASSAGE_CHARS + 1) not in text
+    # the whole passage, as the answer model gets it: no cut at PASSAGE_CHARS (search_docs' cut)
+    assert "\n" + "x" * 3000 + "\n" in text and "read_section k2 for the rest" not in text
     assert "No passage was retrieved for: Encryption." in text
 
 
 async def test_gather_evidence_is_read_in_parts():
-    passages = [_passage(n, "Alpha" if n < 30 else "Beta", "y" * 1100) for n in range(1, 41)]
+    passages = [_passage(n, "Alpha" if n < 30 else "Beta", "y" * 4000) for n in range(1, 13)]
+    passages[5] = _passage(6, "Alpha", "z" * 30_000)  # longer than a part: a part by itself
     backend = FakeBackend(evidence=_evidence(passages, vendors_checked=["Alpha", "Beta"]))
     async with Client(ms.build_server(backend)) as c:
         first = await c.call_tool("gather_evidence", {"question": "q"})
         last = await c.call_tool("gather_evidence", {"question": "q", "part": 3})
-        over = await c.call_tool("gather_evidence", {"question": "q", "part": 4})
-    assert first.structured_content["parts"] == 3
+        over = await c.call_tool("gather_evidence", {"question": "q", "part": 6})
+    # four passages of 4,000 characters fit a part; the 30,000-character one stands alone
+    assert first.structured_content["parts"] == 5  # 1-4, 5, 6 alone, 7-10, 11-12
+    assert [p["marker"] for p in first.structured_content["passages"]] == [1, 2, 3, 4]
     t1, t3 = first.content[0].text, last.content[0].text
     assert len(t1) <= ms.PART_CHARS + 600
-    assert "Part 1 of 3." in t1 and t1.rstrip().endswith(
+    assert "Part 1 of 5." in t1 and t1.rstrip().endswith(
         "Call gather_evidence again with part=2 (same question) before you answer.")
-    assert ms.EVIDENCE_RULES not in t1 and t3.endswith(ms.EVIDENCE_RULES)
+    assert ms.EVIDENCE_RULES not in t1 and ms.EVIDENCE_RULES not in t3
     # a vendor's heading is repeated where its passages continue in the next part
-    assert t3.split("\n\n")[1] in ("## Alpha", "## Beta")
-    shown = [p["marker"] for p in first.structured_content["passages"]] + \
-        [p["marker"] for p in last.structured_content["passages"]]
-    assert shown[0] == 1 and shown[-1] == 40 and len(set(shown)) == len(shown)
-    assert over.is_error and "parts 1-3" in over.content[0].text
+    assert t3.split("\n\n")[1] == "## Alpha"
+    assert [p["marker"] for p in last.structured_content["passages"]] == [6]
+    assert "z" * 30_000 in t3
+    assert over.is_error and "parts 1-5" in over.content[0].text
 
 
 async def test_gather_evidence_of_a_grid_is_the_table_with_its_sources():
@@ -707,6 +711,6 @@ async def test_gather_evidence_logs_the_question(caplog):
     with caplog.at_level("INFO", logger="vendorkb.mcp_server"):
         async with Client(ms.build_server(FakeBackend(evidence=_evidence([])))) as c:
             await c.call_tool("gather_evidence", {"question": "Which vendors support X?"})
-    assert any(r.getMessage() == (
+    assert any(r.getMessage().startswith(
         'gather_evidence {"question": "Which vendors support X?", "shape": "enumeration", '
-        '"topic": null, "retrieved": 0, "part": 1}') for r in caplog.records)
+        '"topic": null, "retrieved": 0, "part": 1, "seconds": ') for r in caplog.records)

@@ -95,7 +95,7 @@ RULES = {
 TOOL_HELP = {
     "relay": "`answer_question` takes `question`.",
     "evidence": ("`gather_evidence` takes `question` and `part` (a number); `read_section` takes "
-                 "`chunk_id` and `expand` \"0\"/\"1\"/\"full\", for a passage that was cut short."),
+                 "`chunk_id` and `expand` \"0\"/\"1\"/\"full\", to read a passage in its section."),
     "raw": ("`list_vendors` takes no arguments; `search_docs` takes `query`, optional `vendor` "
             "(a list of vendor names) and `k`; `read_section` takes `chunk_id` and `expand` "
             "\"0\"/\"1\"/\"full\"; `query_capabilities` takes taxonomy filters such as `dimension`, "
