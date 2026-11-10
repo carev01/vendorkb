@@ -563,8 +563,9 @@ async def test_enumeration_statement_count_is_independent_of_vendor_count(vkb_ds
             assert res.kept == vs and len(res.hits) == 3 * len(vs)
             counts.append(cc.executes)
         # FTS + (SET LOCAL + pool query) + text fetch, + extversion once per connection
-        # vendor_candidates' statements, and the short one that builds the full-text query
-        assert counts[0] == counts[1] == counts[2] <= 6
+        # vendor_candidates' statements, the short one that builds the full-text query and the
+        # alias lookup of fact_candidates (it names nothing here, so no facts statement follows)
+        assert counts[0] == counts[1] == counts[2] <= 7
     finally:
         await conn.close()
 

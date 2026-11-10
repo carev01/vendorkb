@@ -43,7 +43,12 @@ stack.
   batched `search.vendor_candidates`, whose 2,000-row vector pool is an exact sort on purpose,
   `ENUM_VEC_SQL`; the reranker judges six candidates per vendor,
   `ENUM_RERANK_DEPTH`, and the answer gets each vendor's best 2/3; floor
-  `ENUMERATION_MIN_SCORE` 0.56 calibrated 2026-11-10 at that depth, BACKLOG 43) and `compare_facets` (per-facet quotas
+  `ENUMERATION_MIN_SCORE` 0.56 calibrated 2026-11-10 at that depth, BACKLOG 43; each vendor's
+  fact passages on the target or dimension the question names by exact alias join its
+  candidates, `fact_candidates`, and for a plain question, who backs up a target and nothing
+  more, a vendor is also kept when a coverage-fact passage scores `ENUM_FACT_MIN_SCORE` 0.65
+  against the fixed query "Backup support for <target>"; a narrower question, "without
+  agents", is judged as asked only) and `compare_facets` (per-facet quotas
   that survive the rerank);
 - a cite-or-abstain answer step (`answer.py`): `gather` retrieves (shape, topic, every vendor /
   each side / each aspect; no model), `answer` writes from it, and `evidence` returns it
