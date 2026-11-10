@@ -331,8 +331,8 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     "support" (23%) make it match 60% of the corpus, and the time is `ts_rank_cd` over every
     match (134k rows), after a sequential read of every chunk's `tsv`. Leaving out the lexemes
     in more than a share of the chunks when rarer ones remain (read from `pg_stats`, no scan)
-    lets the GIN index serve it: 1.1 s, 0.2 s and 0.4 s for the three statements. Prototype on
-    branch `fts-common-words` (`search.fts_query`, `FTS_COMMON_FREQ`). The free eval on the
+    lets the GIN index serve it: 1.1 s, 0.2 s and 0.4 s for the three statements. `search.fts_query` does
+    this (`FTS_COMMON_FREQ`). The free eval on the
     labelled questions (no rerank), rule off / over 20% / over 10%:
 
     | | off | 20% | 10% |
@@ -344,9 +344,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     | single question, p50 / p90 seconds | 3.0 / 8.9 | 1.6 / 4.7 | 1.2 / 2.5 |
     | "which vendors", p50 seconds (calibration / holdout) | 9.5 / 6.3 | 7.0 / 4.0 | 4.7 / 3.5 |
 
-    Not adopted yet: the free mode keeps every vendor, so it does not show what the change does
-    to the reranked "which vendors" result that item 43's floor was calibrated on. That needs
-    the 23 labelled questions with the rerank, before and after (about 7M rerank tokens).
+    **Adopted at 10% (2026-11-10, `FTS_COMMON_FREQ = 0.1`)** after the reranked check the free
+    mode cannot give: the 23 labelled "which vendors" questions with the rerank, rule off
+    against 10% (7.0M rerank tokens): vendor recall 0.972 -> 0.971 (406 of 419 expected vendors
+    found both times), noise vendors a question 2.61 -> 2.78, retrieval p50 9.0 -> 4.1 s and
+    p90 13.0 -> 6.6 s.
 
     Left:
     - the dropped connections of the pilot: cause not found (not seen since the fix).

@@ -112,8 +112,11 @@ _TSQ = "%s::tsquery"
 # when rarer ones remain. The ORed query matched 60% of the corpus through words such as
 # "backup" (45% of chunks) and "support" (23%), and ranking every match was the statement's
 # cost: 2.9 s unscoped, 3.9 s for a "which vendors" question, against 1.1 s and 0.4 s without
-# them (BACKLOG 35, 2026-11-10). 1.0 or more leaves every question as it is.
-FTS_COMMON_FREQ = 0.2
+# them (BACKLOG 35, 2026-11-10). 1.0 or more leaves every question as it is. Measured at 10%
+# against the rule off: the 23 labelled "which vendors" questions with the rerank keep their
+# vendor recall (0.972 -> 0.971, 406 of 419 expected vendors both) with 2.6 -> 2.8 noise vendors
+# a question, at 9.0 -> 4.1 s; single-vendor pool recall stays 0.950 (free eval).
+FTS_COMMON_FREQ = 0.1
 COMMON_TTL = 3600.0  # seconds the list of common lexemes is kept in the process
 _COMMON: dict[float, tuple[float, list[str]]] = {}  # FTS_COMMON_FREQ -> (read at, lexemes)
 
