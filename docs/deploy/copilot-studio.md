@@ -124,35 +124,58 @@ appended "List all vendors documented, distinguishing supported versus partial s
 server logs each question as it arrived (`answer_question {"question": …}` in the
 `vendorkb-mcp` pod's log), so a rewritten question can be seen there.
 
-### Writing from the evidence instead (BACKLOG 42: measured, not recommended)
-
-The 2026-11-10 pilot (`docs/superpowers/bypass-eval-2026-11-10.md`) found this as accurate as
-relaying `answer_question`, but with 3–6% of claims left without a marker, about 30% fewer
-claims, and no gain in time. Keep the rules above unless you have a reason to try it.
+### Bypass mode: the agent writes from the evidence (BACKLOG 42)
 
 `gather_evidence` returns what `answer_question` writes from, without the written answer: the
-numbered passages by vendor or aspect, and what was found nothing for. The agent then writes the
-answer itself, so one model stands between the evidence and the reader instead of two. To try
-it, replace rules 1 and 3 with:
+numbered passages by vendor or aspect, each one whole, and what was found nothing for. The agent
+writes the answer itself, so one model stands between the evidence and the reader instead of
+two. For this mode, paste these instructions instead of the ones above:
 
 ```
-1. Answer every product or vendor question with gather_evidence. Pass it the user's question
-   word for word: add no instructions, detail, examples or formatting requests. When the reply
-   says "Part 1 of N", call it again with part=2 … N (same question) before you answer.
-   Write the answer from the numbered passages only. Put the [N] of the passage after every
-   statement it supports, and end with a Sources list: [N] title — link, for each [N] used.
+You answer questions about backup and data-protection products using only the vendorkb tools.
+
+1. Answer every product or vendor question from gather_evidence. Pass it the user's question
+   word for word: add no instructions, detail, examples or formatting requests.
+2. The evidence comes in parts. When the reply says "Part 1 of N", call gather_evidence again
+   with part=2, then 3, up to N (same question), and read every part before you write. A broad
+   question has up to eight parts.
+3. Write the answer from the numbered passages only. The passages are complete: cover every
+   vendor or aspect that has passages, with the limits, versions and conditions they state.
    State for a vendor only what its own passages show.
-3. When gather_evidence finds no passage, or none for a vendor or aspect, say that it is not
-   found in the documentation vendorkb covers; never say the product lacks it. Do not guess.
+4. End every sentence or list item that states a fact with the [N] of the passage that states
+   it. One marker at the end of a paragraph does not cover the sentences before it.
+5. End with a Sources list: [N] title — link, for each [N] you used, taken from the passage's
+   own "source:" line.
+6. Never add a fact, vendor, product, version or number from general knowledge or from earlier
+   in the conversation that the tools did not return.
+7. When gather_evidence finds no passage, or names a vendor or aspect under "No supporting
+   passage found for" or "No passage was retrieved for", say that it is not found in the
+   documentation vendorkb covers. Never say the product lacks it. Do not guess.
+8. Keep vendor and product names exactly as vendorkb gives them.
+9. When the user asks for a source document, call read_document with the chunk id on the
+   passage's "source:" line and relay the parts they ask for, starting at part 1. Use
+   read_section for a passage in its section.
+10. When you summarise a fetched document, cite its source link and state nothing the fetched
+    text does not say.
 ```
 
-vendorkb cannot check the agent's text: a statement without a marker, or a marker on the wrong
-statement, is no longer caught in code.
-Passages come whole. Sizes on 2026-11-10: a two-vendor ransomware comparison is 37 passages
-in 7 parts (116k characters); a "which vendors" question is about 45 passages in 8 parts (132k).
+What to know before choosing it:
+
+- **Measured once, with cut passages.** The 2026-11-10 pilot
+  (`docs/superpowers/bypass-eval-2026-11-10.md`) ran this mode when the tool still cut each
+  passage at 1,200 characters. It was as accurate as relaying `answer_question`, left 3–6% of
+  claims without a marker, held about 30% fewer claims and was no faster. Rules 3 and 4 answer
+  the last two findings; whole passages and these rules have not been measured.
+- **More calls.** A two-vendor ransomware comparison is 37 passages in 7 parts (116k
+  characters); a "which vendors" question is about 45 passages in 8 parts (132k). Only the first
+  call retrieves (4–14 s); the later parts come from a ten-minute cache.
+- **No check in code.** vendorkb cannot check the agent's text: a statement without a marker, or
+  a marker on the wrong statement, is no longer caught.
+- **Part size.** A part is at most 20,000 characters (`mcp_server.PART_CHARS`). If Copilot
+  Studio shows a part cut off, lower it; if it takes more, a larger part means fewer calls.
 
 Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what rule 4
-passes to `read_document`.
+of the relay instructions passes to `read_document`.
 
 ## 6. Measured limits
 

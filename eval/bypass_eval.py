@@ -68,16 +68,25 @@ RULES = {
         "When answer_question refuses or finds nothing, say that it is not found in the "
         "documentation vendorkb covers. Do not guess.",
         NAMES],
+    # docs/deploy/copilot-studio.md §5, bypass mode (rules 1-8; 9 and 10 are about documents)
     "evidence": [
-        f"Answer with gather_evidence. {VERBATIM} When the reply says \"Part 1 of N\", call it "
-        "again with part 2 … N (same question) before you answer. Write the answer from the "
-        "numbered passages only. Put the [N] of the passage after every statement it supports, "
-        "and end with a Sources list: `[N] title — link` for each [N] used. State for a vendor "
-        "only what its own passages show.",
+        f"Answer from gather_evidence. {VERBATIM}",
+        "The evidence comes in parts. When the reply says \"Part 1 of N\", call gather_evidence "
+        "again with part=2, then 3, up to N (same question), and read every part before you "
+        "write.",
+        "Write the answer from the numbered passages only. The passages are complete: cover "
+        "every vendor or aspect that has passages, with the limits, versions and conditions "
+        "they state. State for a vendor only what its own passages show.",
+        "End every sentence or list item that states a fact with the [N] of the passage that "
+        "states it. One marker at the end of a paragraph does not cover the sentences before "
+        "it.",
+        "End with a Sources list: `[N] title — link`, for each [N] you used, taken from the "
+        "passage's own \"source:\" line.",
         NEVER,
-        "When gather_evidence finds no passage, or none for a vendor or aspect, say that it is "
-        "not found in the documentation vendorkb covers; never say the product lacks it. Do "
-        "not guess.",
+        "When gather_evidence finds no passage, or names a vendor or aspect under \"No "
+        "supporting passage found for\" or \"No passage was retrieved for\", say that it is not "
+        "found in the documentation vendorkb covers. Never say the product lacks it. Do not "
+        "guess.",
         NAMES],
     "raw": [
         "Every factual statement in your reply must cite a source the tools returned: number "
