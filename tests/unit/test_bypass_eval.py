@@ -74,6 +74,10 @@ def test_sentences_skip_headings_and_short_lines():
     assert be.sentences(body) == ["Veeam locks backups for a set time [1].",
                                   "It also supports object lock on S3 [2, 3]."]
     assert be._numbers(body) == [1, 2, 3]
+    # markers after the last full stop cite the whole list item
+    item = "- **Acme Backup** can schedule reports. Reports go out by email. [1][2]"
+    assert be.sentences(item) == [
+        "**Acme Backup** can schedule reports. Reports go out by email. [1][2]"]
 
 
 def test_stride_is_even_and_keeps_the_first():

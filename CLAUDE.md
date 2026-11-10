@@ -66,7 +66,8 @@ stack.
       `mcp.publicIngress`, only `/mcp`, Cloudflare free plan with no WAF rules).
     - `read_document` returns a cited page's full stored text in parts of `PART_CHARS`.
     - `gather_evidence` returns `answer_question`'s evidence without the written answer, in
-      parts, for an agent that writes itself (optional; not measured yet).
+      parts, for an agent that writes itself (optional: the 2026-11-10 pilot found it as
+      accurate as relaying, with weaker citations and no faster).
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
   - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
@@ -167,6 +168,10 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   Code subagent (Sonnet) per brief answers a labelled cross-vendor question through the
   deployed MCP server, then `score RUN --baseline eval/agent_baseline.json` exits 1 on a
   regression. Run it after a taxonomy, mapper or MCP tool change.
+  `eval/bypass_eval.py prepare|items|score` is the three-arm agent eval of BACKLOG 42 (relay
+  `answer_question`, write from `gather_evidence`, raw tools; blind graders on sampled cited
+  statements). Its 2026-11-10 pilot kept the answer model
+  (`docs/superpowers/bypass-eval-2026-11-10.md`).
   `eval/map_replay.py run|score|recall` replays the dimension adjudication on the labelled
   sample (`eval/labels/dimension-sample-2026-11-08.json`) under variants, storing nothing, for
   about $0.03 a variant: measure a mapper change there before paying for a re-map.

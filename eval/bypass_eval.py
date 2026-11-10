@@ -224,7 +224,8 @@ def _numbers(text: str) -> list[int]:
 
 def sentences(body: str) -> list[str]:
     """The body's sentences that could state something: each line split at sentence ends,
-    without headings, table rules and lines of under four words."""
+    without headings, table rules and lines of under four words. A line whose markers follow
+    its last full stop is one statement, cited as a whole."""
     out = []
     for line in body.splitlines():
         line = line.strip()
@@ -232,7 +233,11 @@ def sentences(body: str) -> list[str]:
             continue
         if re.fullmatch(r"\*\*[^*]+\*\*:?", line):  # a bold line used as a heading
             continue
-        for part in _SENTENCE.split(re.sub(r"^(?:[-*+]|\d+\.)\s+", "", line)):
+        line = re.sub(r"^(?:[-*+]|\d+\.)\s+", "", line)
+        parts = _SENTENCE.split(line)
+        if len(parts) > 1 and not re.sub(r"[\s.,;]", "", MARKERS.sub("", parts[-1])):
+            parts = [line]  # "One. Two. [3]": the marker after the last stop cites the whole item
+        for part in parts:
             if len(MARKERS.sub("", part).split()) >= 4:
                 out.append(part.strip())
     return out

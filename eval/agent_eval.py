@@ -207,11 +207,14 @@ def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
 
     token = os.environ.get("VENDORKB_MCP_TOKEN") or Path(
         os.path.expanduser(TOKEN_FILE)).read_text().strip()
-    r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
-        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": tool, "arguments": arguments}},
-        headers={"authorization": f"Bearer {token}", "content-type": "application/json",
-                 "accept": "application/json, text/event-stream"})
+    try:
+        r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": tool, "arguments": arguments}},
+            headers={"authorization": f"Bearer {token}", "content-type": "application/json",
+                     "accept": "application/json, text/event-stream"})
+    except httpx.HTTPError as e:  # a dropped connection: logged, and the agent may retry
+        return 1, f"error: the connection failed ({type(e).__name__}: {e}); try the call again"
     return parse_reply(r.status_code, r.text)
 
 

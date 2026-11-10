@@ -124,7 +124,11 @@ appended "List all vendors documented, distinguishing supported versus partial s
 server logs each question as it arrived (`answer_question {"question": …}` in the
 `vendorkb-mcp` pod's log), so a rewritten question can be seen there.
 
-### Writing from the evidence instead (BACKLOG 42, to be measured)
+### Writing from the evidence instead (BACKLOG 42: measured, not recommended)
+
+The 2026-11-10 pilot (`docs/superpowers/bypass-eval-2026-11-10.md`) found this as accurate as
+relaying `answer_question`, but with 3–6% of claims left without a marker, about 30% fewer
+claims, and no gain in time. Keep the rules above unless you have a reason to try it.
 
 `gather_evidence` returns what `answer_question` writes from, without the written answer: the
 numbered passages by vendor or aspect, and what was found nothing for. The agent then writes the
@@ -143,7 +147,7 @@ it, replace rules 1 and 3 with:
 ```
 
 vendorkb cannot check the agent's text: a statement without a marker, or a marker on the wrong
-statement, is no longer caught in code. Measure before adopting (BACKLOG 42's three arms).
+statement, is no longer caught in code.
 Sizes on 2026-11-10: a two-vendor ransomware comparison is 37 passages in 3 parts (56k
 characters); a "which vendors" question is about 45 passages in 4 parts (66k).
 
