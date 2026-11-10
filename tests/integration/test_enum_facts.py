@@ -251,6 +251,31 @@ async def test_a_plain_question_keeps_a_vendor_by_its_fact_passage_against_the_f
     assert res.kept == [] and res.kept_by_facts == []
 
 
+async def test_a_vendor_kept_as_asked_shows_its_best_passages_as_asked(kb):
+    """The fixed query decides who is kept, not what a vendor that passed anyway shows."""
+    conn, v = kb
+    await _fact(conn, v, "Alpha", "coverage.backup", "entra_id", "alpha object table")
+    await _page(conn, "Alpha", "alpha overview one")
+    await _page(conn, "Alpha", "alpha overview two")
+    await _fact(conn, v, "Beta", "coverage.backup", "entra_id", "beta object table")
+    await _page(conn, "Beta", "beta other page")
+    await capabilities.build(conn)
+
+    def score(query, text):
+        if query.startswith("Backup support for"):
+            return 0.95  # every fact passage, far above anything as asked
+        return {"alpha overview one": 0.8, "alpha overview two": 0.7}.get(text, 0.3)
+
+    res = await enumerate_vendors(conn, "Which vendors support Azure AD backup?",
+                                  embedder=FakeEmbedder(), reranker=FakeReranker(score),
+                                  vendors=["Alpha", "Beta"], per_vendor=2, per_vendor_multi=3,
+                                  min_score=0.56)
+    assert res.kept == ["Alpha", "Beta"] and res.kept_by_facts == ["Beta"]
+    by = {name: [h.text for h in res.hits if h.vendor == name] for name in ("Alpha", "Beta")}
+    assert by["Alpha"] == ["alpha overview one", "alpha overview two"]  # not the object table
+    assert by["Beta"][0] == "beta object table"  # what kept it comes first
+
+
 async def test_a_narrower_question_is_judged_as_asked_only(kb):
     """"Without agents" is the point of the question: a passage on backing up the target in
     general must not keep a vendor (BACKLOG 43, user 2026-11-10)."""

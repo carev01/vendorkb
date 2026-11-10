@@ -350,7 +350,7 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
 
     # A plain question: each fact passage's score against the fixed query too. ``lift`` is that
     # score brought to the floor's scale (ENUM_FACT_MIN_SCORE there is ``min_score`` here), so
-    # one comparison keeps a vendor and puts the passage that kept it first among its hits.
+    # one comparison keeps a vendor.
     lift: dict[str, float] = {}  # chunk_id -> fixed-query score minus the gap of the two floors
     fact_scores: dict[str, float] = {}
     if fixed is not None and reranker is not None:
@@ -373,8 +373,15 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     dropped = [v for v in standing if v not in survivors]
 
     def chosen(v: str) -> list[Hit]:
-        by_score = sorted(scored[v], key=lambda h: (-worth(h), h.rrf_rank))
-        return sorted(_pick(by_score, per_vendor, per_vendor_multi), key=lambda h: -worth(h))
+        # A vendor kept as asked shows its best passages as asked, as it always did: the fixed
+        # query decides who is kept, never which passages a vendor that passed anyway shows
+        # (ordered by ``worth``, AvePoint's Entra ID hits became fact passages the answer model
+        # found nothing in, and its line was lost: 2026-11-10). Only a vendor kept by a fact
+        # passage alone leads with that passage.
+        def key(h: Hit) -> float:
+            return (h.rerank_score or 0.0) if best[v] >= min_score else worth(h)
+        by_score = sorted(scored[v], key=lambda h: (-key(h), h.rrf_rank))
+        return sorted(_pick(by_score, per_vendor, per_vendor_multi), key=lambda h: -key(h))
 
     groups = _truncate([chosen(v) for v in survivors] + [picked[v] for v in unscored], max_hits)
     return EnumerationResult(hits=[h for g in groups for h in g], kept=survivors + unscored,
