@@ -207,7 +207,8 @@ async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors:
     - a target: every fact on it (or on a target under it), the coverage dimensions first;
       narrowed to the specific dimensions the question also names ("max retention for
       Salesforce"). A generic dimension narrows nothing: whether the question says "backup"
-      must not change the passages;
+      must not change the passages. A plain question (``Subject.plain``) takes the coverage
+      dimensions only;
     - no target: the facts of a named dimension that is not one of ``GENERIC_DIMENSIONS``.
 
     Chunks with a supported fact, a current one and more facts come first. {} when the question
@@ -228,8 +229,11 @@ async def fact_candidates(conn: psycopg.AsyncConnection, question: str, vendors:
         return {}
     on_target = "(cap.target_id = ANY(%(targets)s) OR cap.target_id LIKE ANY(%(under)s))"
     on_dimension = "cap.dimension_id = ANY(%(dimensions)s)"
-    scope = " AND ".join(c for c, wanted in ((on_target, targets), (on_dimension, dimensions))
-                         if wanted)
+    # a plain question is about backing the target up: a fact of another kind on it (signing in
+    # with Entra ID, bare-metal recovery to Nutanix AHV) is no passage for it
+    coverage = "cap.dimension_id LIKE 'coverage.%%'"
+    scope = " AND ".join(c for c, wanted in ((on_target, targets), (on_dimension, dimensions),
+                                             (coverage, subject.plain)) if wanted)
     cur = await conn.execute(
         f"SELECT p.vendor, {_COLS} FROM (SELECT f.vendor, f.chunk_id, row_number() OVER"
         " (PARTITION BY f.vendor ORDER BY f.coverage DESC, f.sup DESC, f.cur DESC, f.n DESC,"

@@ -276,6 +276,22 @@ async def test_a_vendor_kept_as_asked_shows_its_best_passages_as_asked(kb):
     assert by["Beta"][0] == "beta object table"  # what kept it comes first
 
 
+async def test_a_plain_question_takes_coverage_facts_only(kb):
+    """Portworx signs in with Entra ID and N-Able restores bare metal to Nutanix AHV: neither
+    is a passage on backing the target up (2026-11-10)."""
+    conn, v = kb
+    backup = await _fact(conn, v, "Alpha", "coverage.backup", "entra_id", "alpha backs it up")
+    await _fact(conn, v, "Alpha", "retention.maximum_period", "entra_id", "alpha keeps it long")
+    await _fact(conn, v, "Beta", "retention.maximum_period", "entra_id", "beta keeps it long")
+    await capabilities.build(conn)
+    got = await fact_candidates(conn, "Which vendors support Azure AD backup?", ["Alpha", "Beta"])
+    assert {k: [h.chunk_id for h in hs] for k, hs in got.items()} == {"Alpha": [backup]}
+    # a narrower question about the target still gets every fact on it as a candidate
+    got = await fact_candidates(conn, "Which vendors keep Azure AD backups longest?",
+                                ["Alpha", "Beta"])
+    assert sorted(got) == ["Alpha", "Beta"] and len(got["Alpha"]) == 2
+
+
 async def test_a_narrower_question_is_judged_as_asked_only(kb):
     """"Without agents" is the point of the question: a passage on backing up the target in
     general must not keep a vendor (BACKLOG 43, user 2026-11-10)."""
