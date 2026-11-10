@@ -187,6 +187,7 @@ async def test_a_vendor_known_only_by_a_fact_passage_is_judged_too(kb):
     ("Which vendors support Azure AD backup?", True),
     ("Which vendors can back up and restore Microsoft Entra ID?", True),
     ("Who protects Azure AD?", True),
+    ("Which vendors back up Azure AD systems (formerly Entra)?", True),  # nothing added
     ("What is each vendor's backup scope for Entra ID?", False),  # "each", "vendor's", "scope"
     # anything more is a narrower question
     ("Which vendors back up Azure AD without agents?", False),

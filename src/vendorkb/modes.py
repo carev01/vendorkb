@@ -65,6 +65,10 @@ PLAIN_WORDS = frozenset((
     " offer offers offering provide provides support supports supported supporting cover covers"
     " do does can could have has is are be that there any all the a an of and or to in on for"
     " with my our your we i it data documented available"
+    # words that add nothing to a target's name: "Hyper-V virtual machines", "AIX systems",
+    # "Entra ID (formerly Azure AD)"
+    " vm vms virtual machine machines system systems server servers workload workloads"
+    " environment environments formerly also called known as"
 ).split())
 
 
