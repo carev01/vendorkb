@@ -22,6 +22,7 @@ import json
 import os
 import statistics
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,11 @@ import yaml
 
 ARMS = {"full": ("list_vendors", "list_dimensions", "list_targets", "query_capabilities",
                  "search_docs", "read_section"),
-        "search": ("list_vendors", "search_docs", "read_section")}
+        "search": ("list_vendors", "search_docs", "read_section"),
+        # eval/bypass_eval.py (BACKLOG 42): relay vendorkb's answer, or write from its evidence
+        "relay": ("answer_question",),
+        "evidence": ("gather_evidence", "read_section")}
+MAX_ANSWERS = 3  # answer_question calls an agent may make (each is a full paid answer)
 DEFAULT_URL = "http://vendorkb-mcp.k3s.home.lan/mcp"
 TOKEN_FILE = "~/.config/vendorkb/mcp-token"
 REPO = Path(__file__).resolve().parent.parent
@@ -154,6 +159,9 @@ def check_call(tool: str, arm: str, log: Path | None, max_searches: int) -> str 
     if tool == "search_docs" and log is not None \
             and tool_counts(log).get("search_docs", 0) >= max_searches:
         return "search budget used up: answer from what you have"
+    if tool == "answer_question" and log is not None \
+            and tool_counts(log).get("answer_question", 0) >= MAX_ANSWERS:
+        return "you have already asked: answer from what you have"
     return None
 
 
@@ -175,8 +183,6 @@ def parse_reply(status: int, body: str) -> tuple[int, str]:
 
 
 def _call(args: argparse.Namespace) -> int:
-    import httpx
-
     arm = os.environ.get("ARM", "full")
     log = Path(os.environ["CALL_LOG"]) if os.environ.get("CALL_LOG") else None
     arguments = json.loads(args.arguments) if args.arguments else {}
@@ -184,19 +190,29 @@ def _call(args: argparse.Namespace) -> int:
     if refused:
         print(refused, file=sys.stderr)
         return 2
-    if log is not None:
+    started = time.monotonic()
+    code, text = mcp_call(args.tool, arguments)
+    if log is not None:  # one line a call, with what the agent was shown
         with log.open("a") as f:
-            f.write(json.dumps({"tool": args.tool, "arguments": arguments}) + "\n")
+            f.write(json.dumps({"tool": args.tool, "arguments": arguments, "code": code,
+                                "seconds": round(time.monotonic() - started, 1),
+                                "result": text}) + "\n")
+    print(text, file=sys.stderr if code else sys.stdout)
+    return code
+
+
+def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
+    """One MCP tools/call on the deployed server: (exit code, the reply's text)."""
+    import httpx
+
     token = os.environ.get("VENDORKB_MCP_TOKEN") or Path(
         os.path.expanduser(TOKEN_FILE)).read_text().strip()
     r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
         "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-        "params": {"name": args.tool, "arguments": arguments}},
+        "params": {"name": tool, "arguments": arguments}},
         headers={"authorization": f"Bearer {token}", "content-type": "application/json",
                  "accept": "application/json, text/event-stream"})
-    code, text = parse_reply(r.status_code, r.text)
-    print(text, file=sys.stderr if code else sys.stdout)
-    return code
+    return parse_reply(r.status_code, r.text)
 
 
 def _prepare(args: argparse.Namespace) -> int:
@@ -286,7 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("prepare", help="write one agent brief per question")
     p.add_argument("--out", required=True)
-    p.add_argument("--arm", choices=sorted(ARMS), default="full")
+    p.add_argument("--arm", choices=["full", "search"], default="full")
     p.add_argument("--max-searches", type=int, default=6)
     p.add_argument("--ids", nargs="+", default=None)
     p.add_argument("--questions", default=str(REPO / "eval" / "questions.yaml"))
