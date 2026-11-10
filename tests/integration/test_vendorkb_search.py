@@ -563,7 +563,8 @@ async def test_enumeration_statement_count_is_independent_of_vendor_count(vkb_ds
             assert res.kept == vs and len(res.hits) == 3 * len(vs)
             counts.append(cc.executes)
         # FTS + (SET LOCAL + pool query) + text fetch, + extversion once per connection
-        assert counts[0] == counts[1] == counts[2] <= 5
+        # vendor_candidates' statements, and the short one that builds the full-text query
+        assert counts[0] == counts[1] == counts[2] <= 6
     finally:
         await conn.close()
 
@@ -996,7 +997,7 @@ async def test_comparison_statement_count_has_one_full_text_query(vkb_dsn):
                                        reranker=rr, facets=facets)
             assert len(res.hits) == 5 * len(facets)
             # ONE full-text query, one SET LOCAL, one vector query per facet
-            assert cc.executes == 2 + len(facets)
+            assert cc.executes == 3 + len(facets)  # fts_query, then as before
     finally:
         await conn.close()
 
@@ -1249,4 +1250,65 @@ async def test_search_docs_reads_its_query_embedding_from_the_cache(vkb_dsn):
         assert emb.calls == [(["alpha"], "query")]
     finally:
         await conn.execute("DELETE FROM embedding_cache")
+        await conn.close()
+
+
+# --- common words left out of the full-text query (BACKLOG 35) -------------------------------
+
+async def _common_corpus(conn):
+    """Forty chunks that all say "backup"; one also says "immutable", one "nfs"."""
+    await _fresh(conn)
+    d = await _doc(conn, "VA", "P")
+    for i in range(40):
+        extra = {0: " immutable", 1: " nfs"}.get(i, "")
+        await _chunk(conn, d, i, f"backup{extra} filler{i}", 5)
+    await conn.execute("ANALYZE chunks")
+    search._COMMON.clear()
+
+
+async def test_common_lexemes_come_from_the_planners_statistics(vkb_dsn, monkeypatch):
+    conn = await connect(vkb_dsn)
+    try:
+        await _common_corpus(conn)
+        assert await search.common_lexemes(conn) == ["backup"]
+        monkeypatch.setattr(search, "FTS_COMMON_FREQ", 1.0)  # off
+        assert await search.common_lexemes(conn) == []
+    finally:
+        search._COMMON.clear()
+        await conn.execute("DELETE FROM documents")
+        await conn.execute("ANALYZE chunks")
+        await conn.close()
+
+
+async def test_fts_query_leaves_common_words_out_when_rarer_ones_remain(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _common_corpus(conn)
+        assert await search.fts_query(conn, "Immutable backups on NFS?") == "'immut' | 'nfs'"
+        # only common words: all of them stay, as before
+        assert await search.fts_query(conn, "backup backups") == "'backup' | 'backup'"
+        # nothing common in it: the query as it always was
+        assert await search.fts_query(conn, "immutable nfs") == "'immut' | 'nfs'"
+        assert await search.fts_query(conn, "the of and") is None  # stop words only
+        got = await hybrid_candidates(conn, "Immutable backups on NFS?", _vec(0), limit=50)
+        fts_first = [h.text.split()[1] for h in got[:2]]
+        assert sorted(fts_first) == ["immutable", "nfs"]  # the two chunks with a rare word lead
+    finally:
+        search._COMMON.clear()
+        await conn.execute("DELETE FROM documents")
+        await conn.execute("ANALYZE chunks")
+        await conn.close()
+
+
+async def test_fts_query_without_statistics_is_the_ored_question(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DELETE FROM pg_statistic WHERE starelid = 'chunks'::regclass")
+        search._COMMON.clear()
+        assert await search.common_lexemes(conn) == []
+        assert await search.fts_query(conn, "Immutable backups on NFS?") == (
+            "'immut' | 'backup' | 'nfs'")
+    finally:
+        search._COMMON.clear()
         await conn.close()
