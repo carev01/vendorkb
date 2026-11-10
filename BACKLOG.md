@@ -519,5 +519,9 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       second look.
     - The kept vendors without evidence grow on some wordings (Storware, Unitrends, Synology:
       1-3 -> 2-5 on the Entra wordings); the answer model declines most ("Passages found but
-      not judged to show it"). The answer-level vendor recall and precision on the 23 labelled
-      questions were not re-measured.
+      not judged to show it").
+
+    **Answer level (2026-11-10):** the 23 labelled questions through the full answer, the
+    deployed code and the branch side by side, one run each: expected vendors listed 385 ->
+    397 of 419 (mean recall 0.933 -> 0.955), mean precision 0.932 -> 0.931, vendors listed
+    that are not expected 28 -> 29, 33 -> 34 s an answer, rerank tokens 65K -> 159K a question.
