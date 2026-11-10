@@ -34,7 +34,8 @@ stack.
   such as "Own" or "Slide" match case-sensitively);
 - question shape (`shape.py`): single / comparison / enumeration, deterministic. Two named
   facets never enumerate; a one-vendor "which tools…" question enumerates only for a workload
-  vendor (`WORKLOAD_VENDORS`);
+  vendor (`WORKLOAD_VENDORS`), and a "which vendors…" question naming a workload vendor's
+  product ("Entra ID backup") enumerates too;
 - cross-vendor retrieval (`modes.py`): `enumerate_vendors` (all vendors at once via the
   batched `search.vendor_candidates`, 2/3 chunks per vendor, one rerank, floor
   `ENUMERATION_MIN_SCORE` 0.54 calibrated 2026-11-06) and `compare_facets` (per-facet quotas

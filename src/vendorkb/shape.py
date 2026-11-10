@@ -123,8 +123,10 @@ def detect_shape(question: str, index: ScopeIndex) -> Shape:
         # "other vendors besides Veeam" sweeps; "storage vendors Veeam integrates with" does not
         if _EXCLUDING.search(question):
             return Shape("enumeration", facets)
-        if (kind == "vendor" and name in WORKLOAD_VENDORS
-                and not _is_subject(name, question, index)):
+        # a workload vendor, or its product ("which vendors support Entra ID backup?": the
+        # phrase is also the name of Microsoft's product), is what gets protected
+        owner = name if kind == "vendor" else _product_vendor(name, index)
+        if owner in WORKLOAD_VENDORS and not _is_subject(name, question, index):
             return Shape("enumeration", facets)
         return Shape("single", facets)
     if _SWEEP.search(question) and kind == "vendor" and not _is_subject(name, question, index) and (

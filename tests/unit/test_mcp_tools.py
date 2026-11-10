@@ -122,6 +122,11 @@ async def test_the_tools_are_listed_read_only():
     assert "`topic`" in caps.description and "grouped by aspect" in caps.description
     assert "exclusive with `dimension`" in caps.description
     assert "topic" in tools["list_dimensions"].description
+    # BACKLOG 39: an agent's added instructions change what is retrieved
+    ask = tools["answer_question"]
+    assert ask.input_schema["properties"]["question"]["description"] == ms.VERBATIM
+    assert "word for word" in ms.VERBATIM and "word for word" in ask.description
+    assert "word for word" in ms.INSTRUCTIONS
 
 
 async def test_query_capabilities_cites_every_fact():

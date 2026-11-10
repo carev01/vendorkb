@@ -359,13 +359,29 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     Microsoft Entra ID", scored 0.586 and was kept; the model wrote a Spanning line from it,
     and the line check only counts a line that names another vendor (`_names_other`). The
     user's own wording lists Datto and not Spanning. `answer_question` now logs the question
-    as sent. Open:
-    - the question as the user asked it: the tool description and the agent's instructions
-      ("pass the question unchanged"), or retrieval on the question's first sentence;
-    - drop an enumeration line whose text names another vendor's product, checked on the
-      labelled questions first (workload vendors are named legitimately);
-    - "Which vendors support Entra ID backup?" reads as a single question on Microsoft's
-      product "Entra ID Backup" and is answered from Microsoft's pages only.
+    as sent.
+
+    **Done 2026-11-09 (branch `enum-workload-product-and-verbatim`):**
+    - "Pass the user's question word for word" is in the `question` parameter's description,
+      the tool's description, the server instructions and rule 1 of the agent's instructions
+      (docs/deploy/copilot-studio.md §5; paste the new rule 1 into Copilot Studio).
+    - "Which vendors support Entra ID backup?" read as a single question on Microsoft's product
+      "Entra ID Backup" and was answered from Microsoft's pages only. With "vendors" wording, a
+      workload vendor's product now enumerates like the workload vendor (`shape.detect_shape`),
+      unless the product is what is asked about ("which vendors does Azure Backup integrate
+      with?"). No labelled question changes shape.
+
+    Open:
+    - whether the agent complies: read the question log after the next Copilot tests. If it
+      still pads the question, retrieve on the text up to the last question mark (the padded
+      question cut there scores Datto 0.659, Spanning 0.419; no labelled question has text
+      after its last question mark, so measure on labelled questions with the agent's sentence
+      appended);
+    - the Spanning line. Not a blanket drop of lines naming another vendor: of 419 stored
+      enumeration lines, 6 name a non-workload vendor and all 6 are true integrations (Velero,
+      Storware, Dell storage). With the user's own wording the page is still kept (0.667) and
+      the line is the model's choice; a prompt rule is the next step if it recurs
+      (`lines_naming_other_vendors` counts such lines).
 
     Was, to investigate:
     - why the enumeration's per-vendor retrieval and relevance floor (`enumeration_min_score`)
