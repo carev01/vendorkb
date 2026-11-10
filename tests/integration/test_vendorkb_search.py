@@ -1160,3 +1160,93 @@ async def test_unextracted_candidates_come_from_the_newest_pages(vkb_dsn, monkey
         assert "pool of 0 unextracted chunks" in caplog.text
     finally:
         await conn.close()
+
+
+# --- the query-embedding cache (BACKLOG 43) ---------------------------------------------------
+
+class DriftingEmbedder:
+    """An embedder with a cache key whose vectors differ a little on every call, as the
+    provider's do now and then for the same text."""
+
+    cache_model = "test-model@768"
+
+    def __init__(self):
+        self.calls = []
+
+    async def embed(self, texts, *, input_type="document"):
+        self.calls.append((list(texts), input_type))
+        v = _vec(0)
+        v[1] = 0.001 * len(self.calls)
+        return [list(v) for _ in texts]
+
+
+async def test_a_repeated_question_is_embedded_once_and_gets_the_same_vector(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DELETE FROM embedding_cache")
+        emb = DriftingEmbedder()
+        first = await search.embed_queries(conn, emb, ["which vendors?", "aspect one"])
+        again = await search.embed_queries(conn, emb, ["aspect one", "which vendors?", "new"])
+        assert emb.calls == [(["which vendors?", "aspect one"], "query"), (["new"], "query")]
+        assert again[0] == first[1] and again[1] == first[0]  # bit for bit, in the order asked
+        assert again[2] != first[0]
+        cur = await conn.execute(
+            "SELECT text, input_type, model, octet_length(vec) FROM embedding_cache ORDER BY text")
+        assert await cur.fetchall() == [
+            ("aspect one", "query", "test-model@768", 768 * 4),
+            ("new", "query", "test-model@768", 768 * 4),
+            ("which vendors?", "query", "test-model@768", 768 * 4)]
+        # the first call already returns what later calls will read back (float32)
+        third = await search.embed_queries(conn, emb, ["new"])
+        assert third[0] == again[2] and len(emb.calls) == 2
+    finally:
+        await conn.execute("DELETE FROM embedding_cache")
+        await conn.close()
+
+
+async def test_the_query_cache_skips_long_texts_repeats_and_embedders_without_a_key(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DELETE FROM embedding_cache")
+        emb = DriftingEmbedder()
+        long = "x" * (search.QUERY_CACHE_MAX_CHARS + 1)
+        got = await search.embed_queries(conn, emb, ["q", long, "q"])
+        assert emb.calls == [(["q", long], "query")] and got[0] == got[2]
+        await search.embed_queries(conn, emb, [long])
+        assert emb.calls[-1] == ([long], "query")  # never cached
+        cur = await conn.execute("SELECT text FROM embedding_cache")
+        assert await cur.fetchall() == [("q",)]
+        # a document embedding of the same text is another row, not this one
+        await conn.execute("INSERT INTO embedding_cache (model, input_type, text, vec) VALUES"
+                           " ('test-model@768', 'document', 'd', %s)", (b"\x00" * 4,))
+        await search.embed_queries(conn, emb, ["d"])
+        assert emb.calls[-1] == (["d"], "query")
+        # a test double with no cache key is called every time and stores nothing
+        fake = FakeEmbedder(_vec(1))
+        assert await search.embed_queries(conn, fake, ["q"]) == [_vec(1)]
+        assert await search.embed_queries(conn, fake, ["q"]) == [_vec(1)] and len(fake.calls) == 2
+    finally:
+        await conn.execute("DELETE FROM embedding_cache")
+        await conn.close()
+
+
+async def test_search_docs_reads_its_query_embedding_from_the_cache(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DELETE FROM embedding_cache")
+        d = await _doc(conn, "VA", "P")
+        await _chunk(conn, d, 0, "alpha backup", 0)
+        emb = DriftingEmbedder()
+        for _ in range(2):
+            res = await search_docs(conn, "alpha", embedder=emb, reranker=None)
+            assert [h.text for h in res.hits] == ["alpha backup"]
+            res = await enumerate_vendors(conn, "alpha", embedder=emb, reranker=None,
+                                          vendors=["VA"])
+            assert [h.text for h in res.hits] == ["alpha backup"]
+        assert emb.calls == [(["alpha"], "query")]
+    finally:
+        await conn.execute("DELETE FROM embedding_cache")
+        await conn.close()

@@ -42,8 +42,8 @@ import psycopg
 from vendorkb.clients import Embedder, Reranker
 from vendorkb.modes import _distinct
 from vendorkb.search import (
-    _COLS, VEC_LIMIT, Hit, _hit, facet_candidates, hybrid_candidates, unextracted_candidates,
-    vector_candidates)
+    _COLS, VEC_LIMIT, Hit, _hit, embed_queries, facet_candidates, hybrid_candidates,
+    unextracted_candidates, vector_candidates)
 from vendorkb.shape import Facet
 from vendorkb.taxonomy.load import Aspect, Topic, current_version
 from vendorkb.text import normalize
@@ -339,8 +339,7 @@ async def topic_hits(conn: psycopg.AsyncConnection, question: str, topic: Topic,
     second short); an own passage an aspect also chose keeps its place and is labelled in
     ``aspect_of``. An embedder failure propagates: the caller records it."""
     sides: list[Facet | None] = list(facets) or [None]
-    vecs = await embedder.embed([question, *(a.query for a in topic.aspects)],
-                                input_type="query")
+    vecs = await embed_queries(conn, embedder, [question, *(a.query for a in topic.aspects)])
     version = await current_version(conn)
     if len(facets) >= 2:
         own_lists = await facet_candidates(conn, question, vecs[0], list(facets), limit=own * 3)
@@ -502,7 +501,7 @@ async def _catch_up(conn: psycopg.AsyncConnection, topic: Topic, vendors: list[s
     limit = max(1, min(CATCH_UP_CANDIDATES, TOPIC_RERANK_DOCS // len(aspects)))
     queries = [a.query for a in aspects]
     try:
-        qvecs = await embedder.embed(queries, input_type="query")
+        qvecs = await embed_queries(conn, embedder, queries)
     except httpx.HTTPError as exc:
         log.warning("vendorkb grid catch-up skipped, the embedder failed: %s: %s",
                     type(exc).__name__, exc)

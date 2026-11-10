@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import struct
 import weakref
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -365,6 +366,54 @@ async def vendor_candidates(conn: psycopg.AsyncConnection, query: str, qvec: lis
             for v, order in orders.items() if order}
 
 
+# Query texts longer than this are embedded every time (the mapper's rule for the same table).
+QUERY_CACHE_MAX_CHARS = 1_000
+
+
+def _floats(vec: bytes) -> list[float]:
+    return list(struct.unpack(f"<{len(vec) // 4}f", vec))
+
+
+async def embed_queries(conn: psycopg.AsyncConnection, embedder: Embedder,
+                        texts: list[str]) -> list[list[float]]:
+    """Query embeddings of ``texts``, in order. A text embedded before is read from
+    ``embedding_cache`` (the embedder's ``cache_model``, input type "query") bit for bit; the
+    rest are embedded in one call and stored as float32, and that stored value is what this
+    call returns too. So a question asked again searches with the same vector: the provider
+    returns a slightly different one for the same text now and then (1 call in 4, cosine
+    0.99997, 2026-11-10), enough to move a passage across a per-vendor cut (BACKLOG 43). It
+    also saves the call (0.2-1.6 s).
+
+    An embedder with no ``cache_model`` (a test double) is called every time, as are texts over
+    ``QUERY_CACHE_MAX_CHARS``. A failed cache write is logged and does not fail the search. An
+    embedder failure propagates."""
+    model = getattr(embedder, "cache_model", None)
+    if model is None:
+        return await embedder.embed(texts, input_type="query")
+    keys = list(dict.fromkeys(t for t in texts if len(t) <= QUERY_CACHE_MAX_CHARS))
+    found: dict[str, list[float]] = {}
+    if keys:
+        async with conn.cursor(binary=True) as cur:
+            await cur.execute("SELECT text, vec FROM embedding_cache WHERE model = %s"
+                              " AND input_type = 'query' AND text = ANY(%s)", (model, keys))
+            found = {text: _floats(vec) for text, vec in await cur.fetchall()}
+    missing = list(dict.fromkeys(t for t in texts if t not in found))
+    if missing:
+        fresh = dict(zip(missing, await embedder.embed(missing, input_type="query"), strict=True))
+        rows = [(model, t, struct.pack(f"<{len(v)}f", *v)) for t, v in fresh.items()
+                if len(t) <= QUERY_CACHE_MAX_CHARS]
+        try:
+            async with conn.transaction(), conn.cursor() as cur:
+                await cur.executemany(
+                    "INSERT INTO embedding_cache (model, input_type, text, vec)"
+                    " VALUES (%s, 'query', %s, %s) ON CONFLICT DO NOTHING", rows)
+        except psycopg.Error as exc:
+            log.warning("query embedding cache not written: %s: %s", type(exc).__name__, exc)
+        found.update(fresh)
+        found.update({t: _floats(vec) for _, t, vec in rows})
+    return [found[t] for t in texts]
+
+
 async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Embedder,
                       reranker: Reranker | None, vendor: list[str] | None = None,
                       product: list[str] | None = None, k: int = 10,
@@ -375,7 +424,7 @@ async def search_docs(conn: psycopg.AsyncConnection, query: str, *, embedder: Em
     if vector_column not in VECTOR_COLUMNS:
         raise ValueError(f"unknown vector column {vector_column!r}")
     # An embedder failure propagates: the caller records it.
-    qvec = (await embedder.embed([query], input_type="query"))[0]
+    qvec = (await embed_queries(conn, embedder, [query]))[0]
     candidates = await hybrid_candidates(conn, query, qvec, vendor=vendor, product=product,
                                          vector_column=vector_column)
 
