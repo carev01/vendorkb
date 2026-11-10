@@ -649,24 +649,38 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     "natively", a specific dimension or any other word makes the question a narrower one,
     judged as asked only. None of the 23 labelled questions is plain.
 
-    Measured with the gate:
+    *Two corrections from the answers (2026-11-10).* A plain question takes a target's
+    coverage facts only: N-Able was listed for "Nutanix AHV backup" on bare-metal recovery *to*
+    AHV, and Portworx once for Entra ID on signing in with it. And the fixed query decides who
+    is kept, never which passages a vendor that passed as asked shows: ordered by it,
+    AvePoint's Entra ID hits became passages the answer model found nothing in, and its line
+    was lost.
+
+    Measured with the gate and both corrections:
 
     | | before | after |
     |---|---|---|
     | 23 labelled questions, vendor recall (rerank) | 0.971 (406/419) | 0.975 (407/419) |
     | noise vendors a question | 2.74 | 2.83 |
-    | six families: expected kept on every wording | 79/94 (84.0%) | 85/94 (90.4%) |
-    | vendors that come and go | 27 | 21 |
-    | noise vendors a wording | 2.21 | 2.26 |
+    | their answers: vendor recall / precision | 0.945 / 0.916 | 0.959 / 0.916 (two runs) |
+    | six families, 19 wordings: expected kept on every wording | 79/94 (84.0%) | 83/94 (88.3%) |
+    | vendors that come and go | 27 | 24 |
+    | noise vendors a wording | 2.21 | 2.21 |
+    | the 12 plain wordings: expected vendors kept | 175/190 | 182/190 |
+    | noise vendors over the 12 | 27 | 27 |
 
-    On the three plain Entra ID wordings every one of the 17 expected vendors is kept (14-16
-    before), Commvault and Bacula among them. "Which vendors back up Nutanix AHV without
-    agents?" kept nobody through the fixed query.
+    On the three plain Entra ID wordings every one of the 17 expected vendors is kept (15-16
+    before), and the answer now lists Commvault and Bacula. "Which vendors back up Nutanix AHV
+    without agents?" kept nobody through the fixed query; its answer gained Commvault, with an
+    agentless line, through the fact passages judged as asked. The answer-level "before" had to
+    be run twice (the first loaded the branch's code), which gave the two "after" runs.
 
     Left:
     - a narrow wording gets the fact passages as candidates and nothing more: the Copilot
       agent's padded Entra ID question still loses Commvault and Eon, and the tape family
       (every wording names the dimension) is unchanged;
+    - a plain question is helped only where the vendor's facts are coverage facts: for AIX,
+      Arcserve and Unitrends (agent facts) still come and go;
     - vendors with no fact for the subject (CloudAlly for Google Workspace, Arctera for AIX):
       an extraction gap;
     - the fixed query says "backup support": a plain question about something else of a target
