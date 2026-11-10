@@ -37,7 +37,8 @@ stack.
   vendor (`WORKLOAD_VENDORS`), and a "which vendors…" question naming a workload vendor's
   product ("Entra ID backup") enumerates too;
 - cross-vendor retrieval (`modes.py`): `enumerate_vendors` (all vendors at once via the
-  batched `search.vendor_candidates`; the reranker judges six candidates per vendor,
+  batched `search.vendor_candidates`, whose 2,000-row vector pool is an exact sort on purpose,
+  `ENUM_VEC_SQL`; the reranker judges six candidates per vendor,
   `ENUM_RERANK_DEPTH`, and the answer gets each vendor's best 2/3; floor
   `ENUMERATION_MIN_SCORE` 0.56 calibrated 2026-11-10 at that depth, BACKLOG 43) and `compare_facets` (per-facet quotas
   that survive the rerank);
@@ -65,8 +66,8 @@ stack.
     - Public route for Copilot Studio: `https://vendorkb.area51.pp.ua/mcp` (Helm
       `mcp.publicIngress`, only `/mcp`, Cloudflare free plan with no WAF rules).
     - `read_document` returns a cited page's full stored text in parts of `PART_CHARS`.
-    - `gather_evidence` returns `answer_question`'s evidence without the written answer, in
-      parts, for an agent that writes itself (optional: the 2026-11-10 pilot found it as
+    - `gather_evidence` returns `answer_question`'s evidence (whole passages) without the
+      written answer, in parts, for an agent that writes itself (optional: the 2026-11-10 pilot found it as
       accurate as relaying, with weaker citations and no faster).
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
   - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
@@ -208,6 +209,10 @@ CI (`.github/workflows/ci.yml`) runs exactly: ruff, mypy, pytest.
   never re-embed unchanged chunks.
 - **Settings come from `VendorkbSettings` (`config.py`)**, loaded from `.env`. Tests never read `.env`
   (`tests/conftest.py`).
+- **A column added to a filled table needs its own `ANALYZE` in `schema.sql`.** Adding it
+  changes no row, so autovacuum never analyses the table, and the planner guesses 0.5% for
+  `IS NULL`: `chunks.superseded_at` without statistics made every vector search an exact sort of
+  the whole corpus (2.2 s each, BACKLOG 35).
 - **Writes are idempotent.** Documents are keyed on the article id and gated on `content_hash`
   (`store.py`); callers wrap a page of writes in one transaction.
 

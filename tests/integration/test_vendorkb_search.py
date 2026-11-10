@@ -418,6 +418,31 @@ async def test_enumeration_per_vendor_cap(vkb_dsn):
         await conn.close()
 
 
+async def test_the_enumeration_pool_is_an_exact_scan_not_the_hnsw_index(vkb_dsn):
+    """BACKLOG 35: 2,000 neighbours is not what the HNSW index is for (it iterates, 5-11 s,
+    approximate); the floor and depth were calibrated on the exact order (2026-11-10)."""
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        d = await _doc(conn, "VA", "P")
+        await _chunk(conn, d, 0, "alpha", 0)
+        async with conn.transaction():
+            await conn.execute("SET LOCAL enable_seqscan = off")  # the index, if it can be used
+            cur = await conn.execute("EXPLAIN " + search.ENUM_VEC_SQL,
+                                     [Vector(_vec(0)), ["VA"], Vector(_vec(0)), 2000])
+            plan = "\n".join(r[0] for r in await cur.fetchall())
+            cur = await conn.execute(
+                "EXPLAIN SELECT chunk_id FROM chunks ORDER BY embedding <=> %s LIMIT 5",
+                [Vector(_vec(0))])
+            plain = "\n".join(r[0] for r in await cur.fetchall())
+        assert "chunks_embedding_idx" in plain  # the planner would use it for a plain search
+        assert "chunks_embedding_idx" not in plan
+        got = await vendor_candidates(conn, "qqqabsent", _vec(0), ["VA"], limit=3)
+        assert [h.text for h in got["VA"]] == ["alpha"]
+    finally:
+        await conn.close()
+
+
 async def test_enumeration_scores_past_a_vendors_first_passages(vkb_dsn):
     """BACKLOG 43: a vendor's best passage is often not among its first two candidates (the
     order follows the question's wording), so the reranker judges ``depth`` of them."""

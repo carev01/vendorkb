@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import time
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -234,9 +235,10 @@ def format_topic_capabilities(topic: Topic, results: list[CapResult],
 
 
 def _passage(n: int, *, vendor: str, product: str | None, title: str | None,
-             section_path: list[str], url: str | None, chunk_id: str, text: str) -> str:
-    """One numbered passage of a text result, cut at ``PASSAGE_CHARS``."""
-    if len(text) > PASSAGE_CHARS:
+             section_path: list[str], url: str | None, chunk_id: str, text: str,
+             whole: bool = False) -> str:
+    """One numbered passage of a text result, cut at ``PASSAGE_CHARS`` unless ``whole``."""
+    if not whole and len(text) > PASSAGE_CHARS:
         text = text[:PASSAGE_CHARS] + f" […] (read_section {chunk_id} for the rest)"
     section = " › ".join(section_path)
     return (f"[{n}] {vendor} · {product or 'unknown product'} — {title}"
@@ -297,10 +299,12 @@ def _evidence_group(out: dict[str, Any], passage: dict[str, Any]) -> str | None:
 
 def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
     """A gather_evidence reply as parts of (text, the passages shown in it). Passages keep the
-    numbers ``answer`` would give them, grouped under headings (a group's passages together,
+    numbers ``answer`` would give them, each passage whole (the answer model reads it whole: a
+    chunk is at most about 1,200 tokens; cut at 1,200 characters, the agent wrote 30% fewer
+    claims, 2026-11-10), grouped under headings (a group's passages together,
     groups in order of first appearance; for a topic, the kit's order after "General"), packed
     whole into parts of at most ``PART_CHARS`` characters (headings and the lines around them
-    come on top). Every part starts with
+    come on top; a longer passage is a part by itself). Every part starts with
     how the question was read; the last one ends with what was not found and the rules. A
     grid's table is one part with its sources, its cells' passages left to read_section."""
     passages = out.get("passages") or []
@@ -323,7 +327,7 @@ def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]
     shown = {p["marker"]: _passage(
         p["marker"], vendor=p["vendor"], product=p.get("product"), title=p.get("title"),
         section_path=p.get("section_path") or [], url=p.get("url"), chunk_id=p["chunk_id"],
-        text=p["text"]) for p in ranked}
+        text=p["text"], whole=True) for p in ranked}
     parts: list[list[dict[str, Any]]] = [[]]
     size = 0
     for p in ranked:
@@ -578,15 +582,17 @@ def build_server(backend: Backend) -> MCPServer:
             question: Annotated[str, Field(description=VERBATIM)]) -> CallToolResult:
         if not question.strip():
             raise ToolError("answer_question needs a question")
+        started = time.monotonic()
         try:
             out = await backend.answer(question)
         except Exception as e:
             raise _fail("answer_question", e) from e
-        # the question as the agent sent it (agents rewrite the user's), on one line
+        # the question as the agent sent it (agents rewrite the user's), on one line, and how
+        # long the answer took (the public route cuts a request at 100 s)
         log.info("answer_question %s", json.dumps(
             {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
-             "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or [])},
-            ensure_ascii=False))
+             "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or []),
+             "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"answer_question failed: {out['error']}")
         sources = format_sources(out)
@@ -613,13 +619,15 @@ def build_server(backend: Backend) -> MCPServer:
                               part: int = 1) -> CallToolResult:
         if not question.strip():
             raise ToolError("gather_evidence needs a question")
+        started = time.monotonic()
         try:
             out = await backend.evidence(question)
         except Exception as e:
             raise _fail("gather_evidence", e) from e
         log.info("gather_evidence %s", json.dumps(
             {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
-             "retrieved": out.get("retrieved"), "part": part}, ensure_ascii=False))
+             "retrieved": out.get("retrieved"), "part": part,
+             "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"gather_evidence failed: {out['error']}")
         parts = format_evidence(out)

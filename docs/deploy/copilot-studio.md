@@ -148,8 +148,8 @@ it, replace rules 1 and 3 with:
 
 vendorkb cannot check the agent's text: a statement without a marker, or a marker on the wrong
 statement, is no longer caught in code.
-Sizes on 2026-11-10: a two-vendor ransomware comparison is 37 passages in 3 parts (56k
-characters); a "which vendors" question is about 45 passages in 4 parts (66k).
+Passages come whole. Sizes on 2026-11-10: a two-vendor ransomware comparison is 37 passages
+in 7 parts (116k characters); a "which vendors" question is about 45 passages in 8 parts (132k).
 
 Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what rule 4
 passes to `read_document`.
@@ -161,8 +161,8 @@ Measured on 2026-11-09 through Cloudflare:
 | | value |
 |---|---|
 | a single-vendor `answer_question` | about 25 s, 2.6k characters |
-| "which vendors" topic answers | 27–80 s (BACKLOG 35); Cloudflare's proxy timeout is 100 s |
-| `gather_evidence` | 6–9 s single or "which vendors", about 45 s for a topic comparison; parts of 20,000 characters |
+| topic answers | 27–80 s until 2026-11-10, when a topic question's retrieval fell from 45 s to 4–14 s (BACKLOG 35; the written answer comes on top); Cloudflare's proxy timeout is 100 s |
+| `gather_evidence` | 2–8 s single or "which vendors", 4–14 s for a topic comparison (45 s before the 2026-11-10 statistics fix, BACKLOG 35); parts of 20,000 characters |
 | `read_document` part size | 20,000 characters (`mcp_server.PART_CHARS`) |
 
 Lower `PART_CHARS` if Copilot Studio shows a part cut off.

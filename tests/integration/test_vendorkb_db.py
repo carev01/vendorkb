@@ -77,6 +77,33 @@ async def test_init_schema_adds_the_quarantine_hash_to_sync_failures(vkb_dsn):
         await conn.close()
 
 
+async def test_init_schema_gives_the_superseded_column_planner_statistics(vkb_dsn):
+    """BACKLOG 35: a column added to a filled table has no statistics until the next ANALYZE.
+    Without them the planner took ``superseded_at IS NULL`` for 0.5% of the chunks and sorted
+    every chunk by distance instead of using the HNSW index: 2.2 s a vector search."""
+    conn = await connect(vkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=768)
+        await conn.execute("DELETE FROM documents")
+        doc = uuid.uuid4()
+        await conn.execute(
+            "INSERT INTO documents (doc_id, vendor, product, source, title, url, content_hash,"
+            " fetched_at) VALUES (%s, 'V', 'P', 'S', 'T', 'http://u', 'h', now())", (doc,))
+        await conn.execute(
+            "INSERT INTO chunks (chunk_id, doc_id, section_path, ordinal, text, token_count,"
+            " embedding) SELECT gen_random_uuid(), %s, ARRAY['A'], n, 'text', 1,"
+            " array_fill(0.1, ARRAY[768])::vector FROM generate_series(1, 50) n", (doc,))
+        await conn.execute("DELETE FROM pg_statistic WHERE starelid = 'chunks'::regclass")
+        await conn.execute("DELETE FROM taxonomy_meta WHERE key = 'schema_version'")  # an upgrade
+        await init_schema(conn, embed_dim=768)
+        cur = await conn.execute("SELECT null_frac FROM pg_stats WHERE tablename = 'chunks'"
+                                 " AND attname = 'superseded_at'")
+        assert await cur.fetchall() == [(1.0,)]
+    finally:
+        await conn.execute("DELETE FROM documents")
+        await conn.close()
+
+
 async def test_a_current_schema_is_not_rerun_so_a_long_read_does_not_block_it(vkb_dsn):
     from vendorkb import db
 

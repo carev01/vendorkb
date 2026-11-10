@@ -41,6 +41,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS chunks_doc_ordinal_current_idx ON chunks (doc_
 CREATE INDEX IF NOT EXISTS chunks_superseded_idx ON chunks (doc_id)
     WHERE superseded_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS chunks_doc_idx ON chunks (doc_id);
+-- 2026-11-10 (BACKLOG 35): a column added to a filled table has no planner statistics until the
+-- table is next analysed, and adding it changes no row, so autovacuum never does. Without them
+-- ``superseded_at IS NULL`` (in every search) was estimated at 0.5% of the chunks, and the
+-- planner sorted every chunk by distance instead of using the HNSW index: 2.2 s a vector
+-- search, 35 s of a two-vendor topic question. One column: cheap, and enough.
+ANALYZE chunks (superseded_at);
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_idx ON chunks USING gin (tsv);
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx ON chunks USING hnsw (embedding vector_cosine_ops);
