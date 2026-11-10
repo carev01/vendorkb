@@ -44,6 +44,11 @@ class Embedder(_Client):
         self._retry_base_delay = retry_base_delay
         self.tokens_used = 0  # from the provider's usage.total_tokens, when it reports one
 
+    @property
+    def cache_model(self) -> str:
+        """The embedding space, as ``embedding_cache.model`` names it."""
+        return f"{self._s.embed_model}@{self._s.embed_dim}"
+
     async def embed(self, texts: list[str], *,
                     input_type: InputType = "document") -> list[list[float]]:
         out: list[list[float]] = []

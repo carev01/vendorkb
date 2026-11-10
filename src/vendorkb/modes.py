@@ -10,7 +10,9 @@ from dataclasses import dataclass, field, replace
 import psycopg
 
 from vendorkb.clients import Embedder, Reranker
-from vendorkb.search import RERANK_CANDIDATES, Hit, facet_candidates, vendor_candidates
+from vendorkb.search import (
+    RERANK_CANDIDATES, Hit, embed_queries, facet_candidates, vendor_candidates,
+)
 from vendorkb.shape import Facet
 
 # Chunks per vendor that answer() and the eval send to the rerank. 3/5 (the spec's default and
@@ -111,7 +113,7 @@ async def enumerate_vendors(conn: psycopg.AsyncConnection, query: str, *, embedd
     ``dropped``."""
     vendors = list(dict.fromkeys(vendors))
     # An embedder failure propagates: the caller records it.
-    qvec = (await embedder.embed([query], input_type="query"))[0]
+    qvec = (await embed_queries(conn, embedder, [query]))[0]
     cands = await vendor_candidates(conn, query, qvec, vendors,
                                     limit=max(depth, per_vendor_multi * 2))
     picked = {v: _pick(cands[v][:per_vendor_multi * 2], per_vendor, per_vendor_multi)
@@ -183,7 +185,7 @@ async def compare_facets(conn: psycopg.AsyncConnection, query: str, *, embedder:
     if not facets:
         return ComparisonResult(hits=[], facets_empty=[], rerank_ok=False)
     # An embedder failure propagates: the caller records it.
-    qvec = (await embedder.embed([query], input_type="query"))[0]
+    qvec = (await embed_queries(conn, embedder, [query]))[0]
     limit = max(1, RERANK_CANDIDATES // len(facets))
     cands = await facet_candidates(conn, query, qvec, list(facets), limit=limit)
     facets_empty = [name for (_, name), c in zip(facets, cands) if not c]

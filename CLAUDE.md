@@ -29,7 +29,9 @@ stack.
   than max(500, 2% of documents) unless `--allow-prune N` covers it. The Helm sync CronJob
   runs with `--max-tokens 5000000`;
 - hybrid retrieval (`search.py`): Postgres full-text search (OR terms) plus pgvector HNSW, merged by
-  reciprocal rank fusion (k=60), then a Voyage rerank of the top 40;
+  reciprocal rank fusion (k=60), then a Voyage rerank of the top 40. Query embeddings are cached
+  in `embedding_cache` (`search.embed_queries`), so a repeated question retrieves the same
+  passages;
 - question scope detection (`scope.py`, aliases in `scope_aliases.json`; ordinary-word names
   such as "Own" or "Slide" match case-sensitively);
 - question shape (`shape.py`): single / comparison / enumeration, deterministic. Two named
