@@ -624,6 +624,55 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     five identical calls kept the same 20 vendors and the same 45 passages with one embedding
     call. A question worded differently is another text, and still moves the borderline vendors.
 
+    **Wording, 2026-11-10 (branch `enum-fact-candidates`).** Six question families of three or
+    four wordings each (94 expected vendors): 84.0% of the expected vendors were kept on every
+    wording, 27 vendors came and went.
+
+    *What did not work.* Adding each vendor's fact passages as rerank candidates
+    (`modes.fact_candidates`: the question's target or dimension read by exact alias,
+    `question_subject`) is harmless and nearly useless alone: the passages now reach the
+    reranker, but their scores against the question as asked still move with the wording and
+    straddle the floor (Bacula's Entra ID passage: 0.63, 0.65, 0.62, 0.56). Lowering the floor
+    for vendors with facts added noise without fixing them.
+
+    *What works.* The same passage against a fixed query built from the taxonomy ("Backup
+    support for Microsoft Entra ID") has one score whatever the wording (Bacula 0.77, Eon
+    0.89). A vendor is now also kept when one of its fact passages scores
+    `ENUM_FACT_MIN_SCORE` (0.65) against that query. Offline, over all 19 wordings: 93.6% kept
+    on every wording at 0.65 (noise 2.26 -> 2.32 a wording), 94.7% at 0.60 (2.68), 95.7% at
+    0.56 (3.05).
+
+    *The gate (user, 2026-11-10: precision first; "which vendors back up Nutanix AHV without
+    agents" must keep its nuance).* The fixed query is about backing up the target in general,
+    so it applies to a plain question only (`Subject.plain`: a target, no dimension but the
+    generic ones, no word outside the target's name and `PLAIN_WORDS`). "Without agents",
+    "natively", a specific dimension or any other word makes the question a narrower one,
+    judged as asked only. None of the 23 labelled questions is plain.
+
+    Measured with the gate:
+
+    | | before | after |
+    |---|---|---|
+    | 23 labelled questions, vendor recall (rerank) | 0.971 (406/419) | 0.975 (407/419) |
+    | noise vendors a question | 2.74 | 2.83 |
+    | six families: expected kept on every wording | 79/94 (84.0%) | 85/94 (90.4%) |
+    | vendors that come and go | 27 | 21 |
+    | noise vendors a wording | 2.21 | 2.26 |
+
+    On the three plain Entra ID wordings every one of the 17 expected vendors is kept (14-16
+    before), Commvault and Bacula among them. "Which vendors back up Nutanix AHV without
+    agents?" kept nobody through the fixed query.
+
+    Left:
+    - a narrow wording gets the fact passages as candidates and nothing more: the Copilot
+      agent's padded Entra ID question still loses Commvault and Eon, and the tape family
+      (every wording names the dimension) is unchanged;
+    - vendors with no fact for the subject (CloudAlly for Google Workspace, Arctera for AIX):
+      an extraction gap;
+    - the fixed query says "backup support": a plain question about something else of a target
+      ("which vendors support Entra ID?" meant as sign-in) is read as backup;
+    - dimension-only questions ("which vendors support MFA?") have no fixed query yet.
+
     **Answer level (2026-11-10):** the 23 labelled questions through the full answer, the
     deployed code and the branch side by side, one run each: expected vendors listed 385 ->
     397 of 419 (mean recall 0.933 -> 0.955), mean precision 0.932 -> 0.931, vendors listed
