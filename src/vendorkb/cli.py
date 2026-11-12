@@ -287,6 +287,23 @@ async def _mcp(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
+async def _access(settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    from vendorkb.access import check_restricted, restrict
+
+    conn = await connect(settings.vendorkb_dsn)
+    try:
+        await init_schema(conn, embed_dim=settings.embed_dim)  # the policies and their table
+        await restrict(conn, args.role, args.hide,
+                       settings.vendorkb_restricted_password or None)
+    finally:
+        await conn.close()
+    print(json.dumps({"role": args.role, "hidden": sorted(set(args.hide))}))
+    if settings.mcp_restricted_dsn:  # prove it the way the MCP server will at start-up
+        await check_restricted(settings.mcp_restricted_dsn, args.hide)
+        print(json.dumps({"checked": "MCP_RESTRICTED_DSN sees none of their rows"}))
+    return 0
+
+
 async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     from vendorkb.claims import regate, support
 
@@ -466,6 +483,15 @@ def _parser() -> argparse.ArgumentParser:
                                    " (MCP_BEARER_TOKEN required)")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8080)
+    s = sub.add_parser("access", help="database roles that hide vendors (for an MCP key)")
+    ac = s.add_subparsers(dest="access_cmd", required=True)
+    c = ac.add_parser("restrict", help="create or update a login role that reads what the MCP"
+                                       " tools read, with these vendors hidden by row-level"
+                                       " security (a new role takes"
+                                       " VENDORKB_RESTRICTED_PASSWORD)")
+    c.add_argument("role")
+    c.add_argument("--hide", action="append", required=True, metavar="VENDOR",
+                   help="a vendor to hide (repeat; replaces the role's earlier list)")
     s = sub.add_parser("claims", help="maintain stored claims")
     cl = s.add_subparsers(dest="claims_cmd", required=True)
     c = cl.add_parser("regate", help="re-run the current evidence gate over every raw claim; "
@@ -551,7 +577,7 @@ def _parser() -> argparse.ArgumentParser:
 _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _sync,
              "reembed": _reembed, "promote-embedding": _promote, "extract": _extract,
              "refresh": _refresh, "claims": _claims, "taxonomy": _taxonomy,
-             "capabilities": _capabilities, "mcp": _mcp}
+             "capabilities": _capabilities, "mcp": _mcp, "access": _access}
 
 
 def main(argv: list[str] | None = None) -> int:

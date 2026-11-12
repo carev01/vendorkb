@@ -35,6 +35,12 @@ spec:
               {{- else }}
               value: {{ $m.allowedHosts | quote }}
               {{- end }}
+            {{- with $m.hiddenVendors }}
+            # MCP_BEARER_TOKEN's tools read as MCP_RESTRICTED_DSN's role (secret), which must
+            # hide these vendors, or the server does not start (docs/deploy/k3s.md §7c)
+            - name: MCP_HIDDEN_VENDORS
+              value: {{ . | quote }}
+            {{- end }}
           {{- include "vendorkb.envFrom" . | nindent 10 }}
           {{- include "vendorkb.containerSecurity" . | nindent 10 }}
           readinessProbe:

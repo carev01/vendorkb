@@ -14,7 +14,8 @@ HDRS = {"accept": "application/json, text/event-stream", "content-type": "applic
 
 
 def _app(token="s3cret"):
-    return build_app(VendorkbSettings(_env_file=None, mcp_bearer_token=token), FakeBackend())
+    return build_app(VendorkbSettings(_env_file=None, mcp_bearer_token=token),
+                     {"main": FakeBackend()})
 
 
 async def _post(app, headers):
@@ -73,3 +74,58 @@ async def test_the_secret_as_an_api_key_reaches_the_server(headers):
 async def test_a_wrong_api_key_is_401(headers):
     r = await _post(_app(), {**HDRS, **headers})
     assert r.status_code == 401 and r.headers["www-authenticate"] == "Bearer"
+
+
+class Vendors(FakeBackend):
+    def __init__(self, names):
+        super().__init__()
+        self.names = names
+
+    async def vendors(self):
+        return [{"vendor": n, "documents": 1, "capability_facts": 0,
+                 "products": [{"product": n, "documents": 1}]} for n in self.names]
+
+
+LIST = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": "list_vendors", "arguments": {}}}
+
+
+def _two_keys(**over):
+    s = VendorkbSettings(_env_file=None, **{
+        "mcp_bearer_token": "old", "mcp_full_access_token": "new",
+        "mcp_hidden_vendors": "Cohesity", "mcp_restricted_dsn": "postgresql://r@x/db", **over})
+    # the same rows behind both keys: the restricted one is guarded on top
+    return build_app(s, {"restricted": Vendors(["Cohesity", "Veeam"]),
+                         "full": Vendors(["Cohesity", "Veeam"])})
+
+
+async def _list(app, token):
+    async with app.router.lifespan_context(app), httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://vendorkb-mcp:8080") as c:
+        r = await c.post("/mcp", json=LIST, headers={**HDRS, "authorization": f"Bearer {token}"})
+    return r
+
+
+async def test_each_key_reaches_its_own_backend():
+    old, new = await _list(_two_keys(), "old"), await _list(_two_keys(), "new")
+    assert old.status_code == new.status_code == 200
+    assert "Veeam" in old.text and "Cohesity" not in old.text  # hidden from the old key
+    assert "Veeam" in new.text and "Cohesity" in new.text
+    assert (await _list(_two_keys(), "other")).status_code == 401
+
+
+@pytest.mark.parametrize("over, match", [
+    ({"mcp_restricted_dsn": ""}, "MCP_RESTRICTED_DSN"),
+    ({"mcp_full_access_token": "old"}, "must differ"),
+])
+def test_contradictory_keys_refuse_to_build(over, match):
+    with pytest.raises(ValueError, match=match):
+        _two_keys(**over)
+
+
+def test_a_restricted_dsn_without_hidden_vendors_is_unused():
+    from vendorkb.mcp_app import mcp_keys
+    keys = mcp_keys(VendorkbSettings(_env_file=None, mcp_bearer_token="old",
+                                     mcp_restricted_dsn="postgresql://r@x/db",
+                                     mcp_hidden_vendors=" , ", vendorkb_dsn="postgresql://o@x/db"))
+    assert [(k.label, k.hidden, k.dsn) for k in keys] == [("main", (), "postgresql://o@x/db")]

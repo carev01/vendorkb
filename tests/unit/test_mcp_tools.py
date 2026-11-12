@@ -314,7 +314,7 @@ async def test_answer_question_logs_the_question_as_sent(caplog):
         async with Client(ms.build_server(FakeBackend(answer=out))) as c:
             await c.call_tool("answer_question", {"question": "Compare A and B\nplease"})
     line = next(r.getMessage() for r in caplog.records if "answer_question" in r.getMessage())
-    assert line.startswith('answer_question {"question": "Compare A and B\\nplease", "shape": '
+    assert line.startswith('answer_question {"key": "main", "question": "Compare A and B\\nplease", "shape": '
                            '"comparison", "topic": "ransomware_protection", "retrieved": 7, '
                            '"citations": 1, "seconds": ')
     assert isinstance(json.loads(line.split(" ", 1)[1])["seconds"], float)  # BACKLOG 35
@@ -712,5 +712,5 @@ async def test_gather_evidence_logs_the_question(caplog):
         async with Client(ms.build_server(FakeBackend(evidence=_evidence([])))) as c:
             await c.call_tool("gather_evidence", {"question": "Which vendors support X?"})
     assert any(r.getMessage().startswith(
-        'gather_evidence {"question": "Which vendors support X?", "shape": "enumeration", '
+        'gather_evidence {"key": "main", "question": "Which vendors support X?", "shape": "enumeration", '
         '"topic": null, "retrieved": 0, "part": 1, "seconds": ') for r in caplog.records)

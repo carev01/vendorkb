@@ -78,6 +78,13 @@ stack.
       written answer, in parts, for an agent that writes itself (optional: the 2026-11-10 pilot found it as
       accurate as relaying, with weaker citations and no faster).
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
+    - Keys (2026-11-12, `access.py`, k3s.md §7c): with `MCP_HIDDEN_VENDORS` set (production:
+      Cohesity), `MCP_BEARER_TOKEN`'s tools read as `MCP_RESTRICTED_DSN`'s role, which the
+      row-level-security policies of `schema.sql` keep from those vendors' documents, chunks,
+      claims, facts and offerings; the server refuses to start unless that role provably hides
+      them. `MCP_FULL_ACCESS_TOKEN` is a second key that sees everything. Each key has its own
+      MCP server, backend and caches. A new table the tools read needs a GRANT in
+      `access.READ_TABLES` (and a policy if it names a vendor).
   - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
