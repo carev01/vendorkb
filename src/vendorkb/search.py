@@ -132,10 +132,10 @@ async def common_lexemes(conn: psycopg.AsyncConnection) -> list[str]:
     if kept is not None and now - kept[0] < COMMON_TTL:
         return kept[1]
     cur = await conn.execute(
-        "SELECT e FROM (SELECT unnest(most_common_elems::text::text[]) AS e,"
-        " unnest(most_common_elem_freqs[1:cardinality(most_common_elems::text::text[])]) AS f"
-        " FROM pg_stats WHERE schemaname = current_schema() AND tablename = 'chunks'"
-        " AND attname = 'tsv') t WHERE f > %s ORDER BY e", (FTS_COMMON_FREQ,))
+        # through a function: pg_stats hides a row-level-secured table's statistics from a
+        # restricted role (schema.sql, access_hidden_vendors)
+        "SELECT e FROM vendorkb_chunk_lexeme_freqs() WHERE f > %s ORDER BY e",
+        (FTS_COMMON_FREQ,))
     lexemes = [r[0] for r in await cur.fetchall()]
     _COMMON[FTS_COMMON_FREQ] = (now, lexemes)
     return lexemes

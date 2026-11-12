@@ -127,10 +127,14 @@ claimsRefresh:
 
 # The MCP server for the downstream agent (src/vendorkb/mcp_app.py). Secret key it needs:
 # MCP_BEARER_TOKEN (every request carries it as `Authorization: Bearer <token>`); tools also use
-# EMBED/RERANK (search) and JUDGE (answer_question) keys already in the secret.
+# EMBED/RERANK (search) and JUDGE (answer_question) keys already in the secret. Optional secret
+# keys: MCP_FULL_ACCESS_TOKEN (a second key that sees every vendor) and MCP_RESTRICTED_DSN (the
+# database role MCP_BEARER_TOKEN reads through when hiddenVendors is set).
 mcp:
   enabled: false
   replicas: 1
+  # Vendors MCP_BEARER_TOKEN must never see (comma-separated; `vendorkb access restrict`).
+  hiddenVendors: ""
   # Host headers the server answers (DNS-rebinding guard): the in-cluster service names and the
   # ingress host. "host:*" allows any port.
   allowedHosts: "vendorkb-mcp,vendorkb-mcp:*,vendorkb-mcp.vendorkb.svc,vendorkb-mcp.vendorkb.svc:*,vendorkb-mcp.vendorkb.svc.cluster.local:*,vendorkb-mcp.k3s.home.lan"

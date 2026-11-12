@@ -232,3 +232,66 @@ class DbBackend:
         finally:
             await client.close()
             await conn.close()
+
+
+class HiddenVendorError(RuntimeError):
+    """A hidden vendor's row reached a guarded backend: the database role did not hide it."""
+
+
+class GuardedBackend:
+    """``inner`` for a key that must never see ``hidden`` vendors (case-insensitive). The
+    database role is the guarantee (row-level security, ``access``); this is the second line:
+    lists drop a hidden vendor's rows, and a fact or evidence passage of one fails the call
+    rather than show it."""
+
+    def __init__(self, inner: Backend, hidden: list[str]) -> None:
+        self.inner, self.hidden = inner, {v.lower() for v in hidden}
+
+    def _shown(self, vendor: str | None) -> bool:
+        return (vendor or "").lower() not in self.hidden
+
+    def _check(self, vendors: list[str | None], where: str) -> None:
+        if not all(map(self._shown, vendors)):
+            raise HiddenVendorError(f"a hidden vendor's row reached {where}")
+
+    async def vendors(self) -> list[dict[str, Any]]:
+        return [v for v in await self.inner.vendors() if self._shown(v["vendor"])]
+
+    async def dimensions(self, query: str | None, family: str | None,
+                         limit: int) -> list[dict[str, Any]]:
+        return await self.inner.dimensions(query, family, limit)
+
+    async def targets(self, query: str | None, limit: int) -> list[dict[str, Any]]:
+        return await self.inner.targets(query, limit)
+
+    async def topics(self) -> list[Topic]:
+        return await self.inner.topics()
+
+    def _check_facts(self, res: CapResult) -> CapResult:
+        facts = [*res.facts, *res.product_level, *res.product_wide, *res.unresolved_target,
+                 *(f for c in res.conflicts for f in c.facts)]
+        self._check([f.vendor for f in facts], "query_capabilities")
+        return res
+
+    async def capabilities(self, f: CapFilter, limit: int) -> CapResult:
+        return self._check_facts(await self.inner.capabilities(f, limit))
+
+    async def capabilities_many(self, filters: list[CapFilter],
+                                limit: int) -> list[CapResult]:
+        return [self._check_facts(r) for r in await self.inner.capabilities_many(filters, limit)]
+
+    async def search(self, query: str, vendor: list[str] | None, product: list[str] | None,
+                     k: int) -> SearchResult:
+        res = await self.inner.search(query, vendor, product, k)
+        return SearchResult([h for h in res.hits if self._shown(h.vendor)], res.rerank_ok)
+
+    async def section(self, chunk_id: str, expand: Expand) -> list[Hit]:
+        return [h for h in await self.inner.section(chunk_id, expand) if self._shown(h.vendor)]
+
+    async def answer(self, question: str) -> dict[str, Any]:
+        return await self.inner.answer(question)
+
+    async def evidence(self, question: str) -> dict[str, Any]:
+        out = await self.inner.evidence(question)
+        self._check([p.get("vendor") for p in out.get("passages") or []], "gather_evidence")
+        return out

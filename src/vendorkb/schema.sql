@@ -540,3 +540,64 @@ CREATE TABLE IF NOT EXISTS embedding_cache (
     vec bytea NOT NULL,
     PRIMARY KEY (model, input_type, text)
 );
+
+-- 2026-11-12: vendors hidden from a database role (`vendorkb access restrict`). An MCP key can
+-- be served through such a role (MCP_RESTRICTED_DSN, mcp_app): row-level security then hides
+-- the vendor's documents, chunks, claims, facts and offerings from every query that role runs,
+-- written or not yet written, so no forgotten WHERE can show them. The owner (a superuser)
+-- bypasses it: sync, extraction and every other command see everything, unchanged. Vendors
+-- compare case-insensitively. ``session_user``: inside a SECURITY DEFINER function
+-- ``current_user`` is the definer.
+CREATE TABLE IF NOT EXISTS access_hidden_vendors (
+    role_name text NOT NULL,
+    vendor text NOT NULL,
+    PRIMARY KEY (role_name, vendor)
+);
+CREATE OR REPLACE FUNCTION vendorkb_hidden_vendors() RETURNS text[]
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path FROM CURRENT AS $$
+    SELECT coalesce(array_agg(lower(vendor)), ARRAY[]::text[]) FROM access_hidden_vendors
+    WHERE role_name = session_user $$;
+-- pg_stats hides the statistics of a table under row-level security from a role it applies
+-- to, and ``search.common_lexemes`` reads the chunks' lexeme frequencies there: corpus-wide
+-- word frequencies, no text, so a restricted role reads them through this function.
+CREATE OR REPLACE FUNCTION vendorkb_chunk_lexeme_freqs() RETURNS TABLE (e text, f real)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path FROM CURRENT AS $$
+    SELECT unnest(most_common_elems::text::text[]),
+           unnest(most_common_elem_freqs[1:cardinality(most_common_elems::text::text[])])
+    FROM pg_stats WHERE schemaname = current_schema() AND tablename = 'chunks'
+        AND attname = 'tsv' $$;
+-- The policies apply to every role but the owner. ``CAST((SELECT …))``: a scalar subquery runs
+-- the lookup once per query (bare, ``<> ALL (SELECT …)`` would compare with each row of it).
+-- A chunk or edition is visible when its document or offering is (their own policy applies).
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON documents;
+CREATE POLICY vendor_visible ON documents
+    USING (lower(vendor) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[])));
+ALTER TABLE chunks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON chunks;
+CREATE POLICY vendor_visible ON chunks
+    USING (EXISTS (SELECT 1 FROM documents d WHERE d.doc_id = chunks.doc_id));
+ALTER TABLE raw_claims ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON raw_claims;
+CREATE POLICY vendor_visible ON raw_claims
+    USING (lower(vendor) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[])));
+ALTER TABLE capabilities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON capabilities;
+CREATE POLICY vendor_visible ON capabilities
+    USING (lower(vendor) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[])));
+ALTER TABLE offerings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON offerings;
+CREATE POLICY vendor_visible ON offerings
+    USING (lower(vendor) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[])));
+ALTER TABLE editions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON editions;
+CREATE POLICY vendor_visible ON editions
+    USING (EXISTS (SELECT 1 FROM offerings o WHERE o.offering_id = editions.offering_id));
+-- an offering alias is scoped by its vendor, an edition alias by its offering
+ALTER TABLE aliases ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS vendor_visible ON aliases;
+CREATE POLICY vendor_visible ON aliases
+    USING (CASE entity_type
+           WHEN 'offering' THEN lower(scope) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[]))
+           WHEN 'edition' THEN EXISTS (SELECT 1 FROM offerings o WHERE o.offering_id = aliases.scope)
+           ELSE true END);

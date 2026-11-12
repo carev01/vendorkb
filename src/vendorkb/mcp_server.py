@@ -388,7 +388,8 @@ def format_sources(out: dict[str, Any]) -> str:
     return text
 
 
-def build_server(backend: Backend) -> MCPServer:
+def build_server(backend: Backend, label: str = "main") -> MCPServer:
+    """The tools over ``backend``; ``label`` names the MCP key in the question logs."""
     server = MCPServer("vendorkb", instructions=INSTRUCTIONS)
 
     async def _topic_facts(term: str, base: CapFilter, limit: int) -> tuple[str, dict[str, Any]]:
@@ -590,8 +591,8 @@ def build_server(backend: Backend) -> MCPServer:
         # the question as the agent sent it (agents rewrite the user's), on one line, and how
         # long the answer took (the public route cuts a request at 100 s)
         log.info("answer_question %s", json.dumps(
-            {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
-             "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or []),
+            {"key": label, "question": question, "shape": out.get("shape"),
+             "topic": out.get("topic"), "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or []),
              "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"answer_question failed: {out['error']}")
@@ -625,8 +626,8 @@ def build_server(backend: Backend) -> MCPServer:
         except Exception as e:
             raise _fail("gather_evidence", e) from e
         log.info("gather_evidence %s", json.dumps(
-            {"question": question, "shape": out.get("shape"), "topic": out.get("topic"),
-             "retrieved": out.get("retrieved"), "part": part,
+            {"key": label, "question": question, "shape": out.get("shape"),
+             "topic": out.get("topic"), "retrieved": out.get("retrieved"), "part": part,
              "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
         if out.get("error"):
             raise ToolError(f"gather_evidence failed: {out['error']}")

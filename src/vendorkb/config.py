@@ -92,6 +92,15 @@ class VendorkbSettings(BaseSettings):
     # MCP server (`vendorkb mcp`): the bearer token every request must carry (required), and
     # the Host headers it answers (comma-separated; "host:*" allows any port).
     mcp_bearer_token: str = ""
+    # Vendors hidden from MCP_BEARER_TOKEN's requests (comma-separated): its tools then read
+    # the database as MCP_RESTRICTED_DSN's role, which row-level security keeps from those
+    # vendors' rows (`vendorkb access restrict`; mcp_app). MCP_FULL_ACCESS_TOKEN, if set, is a
+    # second key that reads everything as VENDORKB_DSN.
+    mcp_hidden_vendors: str = ""
+    mcp_restricted_dsn: str = ""
+    mcp_full_access_token: str = ""
+    # the password `vendorkb access restrict` gives a new restricted role (or resets)
+    vendorkb_restricted_password: str = ""
     mcp_allowed_hosts: str = "localhost:*,127.0.0.1:*,vendorkb-mcp,vendorkb-mcp:*"
     map_candidates: int = 5
 

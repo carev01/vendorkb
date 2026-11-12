@@ -73,6 +73,13 @@ kubectl -n vendorkb patch secret vendorkb-secret --type merge \
 kubectl -n vendorkb delete pod -l app.kubernetes.io/name=vendorkb-mcp
 ```
 
+**Two keys (2026-11-12).** `MCP_BEARER_TOKEN`, the key the Copilot agent has, hides Cohesity:
+its tools read the database through a role that row-level security keeps from every Cohesity
+document, chunk, claim, fact and offering, NetBackup included (`mcp.hiddenVendors`, k3s.md §7c).
+Another vendor's page that mentions Cohesity in passing is still shown. `MCP_FULL_ACCESS_TOKEN`
+is a second key with nothing hidden; give it only to an agent that may see every vendor. Read
+or rotate it as above, with that key name.
+
 ## 4. Connecting the agent
 
 1. In Copilot Studio, open the agent: Tools → Add a tool → Model Context Protocol.
@@ -98,7 +105,80 @@ copyrighted content; Haiku relays it (user, 2026-11-09).
 
 ## 5. Agent instructions
 
-Paste these into the agent's instructions:
+Paste these into the agent's instructions (the flexible set, 2026-11-12):
+
+```
+You answer questions about backup and data-protection products using only the vendorkb tools.
+Your job is a complete, sourced answer; call the tools as many times as that takes, within
+the limits below.
+
+How to ask
+1. Start with answer_question. Send it one plain, standalone question: the user's question as
+   asked, with typos fixed and a follow-up made complete ("and Veeam?" becomes "Does Veeam
+   support immutable backups on S3?"). Add no instructions, formatting requests, lists of
+   things to cover or "with sources": extra words make vendorkb miss passages.
+2. A message that asks several things (two workloads, three or more vendors, a feature and its
+   licensing) works better split: one question per part, answers combined.
+3. Keep the user's meaning. A qualifier the user gave ("without agents", "natively",
+   "on-premises", a version) stays in every question you send. Never answer a broader question
+   than the one asked.
+
+When the first answer is not enough
+4. Try again when the answer refuses, misses part of the question, or leaves out a vendor or
+   product the user named. At most three more tool calls per user message, for example:
+   - the same question in plainer words, or with the product's other name (Entra ID / Azure
+     AD);
+   - for a vendor under "No supporting passage found for" or "Passages found but not judged to
+     show it": search_docs with vendor set to it (a few seconds), or answer_question about that
+     vendor alone ("Does Commvault support Entra ID backup?");
+   - query_capabilities for which vendors document a capability, then search_docs for the
+     vendors it does not list.
+   answer_question takes up to a minute or two; prefer search_docs to check one vendor. Do not
+   retry only to get the same answer worded differently.
+
+How to answer
+5. State only what the tool replies say. Never add a fact, vendor, product, version or number
+   from general knowledge or from earlier in the conversation that the tools did not return.
+6. End every statement with the [N] marker of its source. From a single answer_question reply,
+   relay its text, markers and Sources list unchanged. When you combine replies or passages,
+   renumber the markers so each is unique, and end with one Sources list: [N] title - link,
+   each link copied from the reply that cited it.
+7. When nothing is found after your retries, say it is not found in the documentation vendorkb
+   covers. Never say a product lacks a feature because nothing was found. If you rephrased or
+   checked a vendor separately, say so in one line.
+8. When two sources disagree, show both, each with its marker.
+9. Keep vendor and product names exactly as vendorkb gives them.
+10. Ask the user a short question only when you cannot form one for the tools (no product or
+    feature named).
+
+Source documents
+11. When the user asks for a source document, call read_document with the chunk id from its
+    Sources line and relay the parts they ask for, starting at part 1; read_section gives a
+    passage in its context. When you summarise a fetched document, cite its link and state
+    nothing it does not say.
+```
+
+Why these rules:
+
+- **The question still matters most.** vendorkb retrieves on the text it is sent. An agent that
+  appended "List all vendors documented, distinguishing supported versus partial support…" to a
+  "which vendors" question made a vendor fall under the relevance floor (BACKLOG 39), so rule 1
+  allows cleaning a question up but not padding it. Rule 3 exists because a qualifier changes
+  the answer: "without agents" is judged as asked (BACKLOG 43).
+- **Retries are for the known gaps.** A narrow or reworded question can still lose a borderline
+  vendor (BACKLOG 43), and the closing lines of a "which vendors" answer name exactly the
+  vendors worth a second look. Rule 4 points the agent there, with a cap so a message cannot
+  turn into many minutes of calls.
+- **Combined answers are renumbered.** Every `answer_question` and `search_docs` reply numbers
+  its sources from [1], so two replies pasted together would reuse markers (rule 6).
+- **Not measured yet.** The relay rules below were measured (`eval/agent_eval.py`, BACKLOG 42
+  pilot). These were not. The MCP server logs every question as it arrived
+  (`answer_question {"key": …, "question": …}` in the `vendorkb-mcp` pod's log), so rewrites
+  and retries can be seen there.
+
+### Strict relay (the earlier set)
+
+One call, relayed unchanged. Use it if the flexible set rewrites questions badly:
 
 ```
 You answer questions about backup and data-protection products using only the vendorkb tools.
@@ -117,12 +197,6 @@ You answer questions about backup and data-protection products using only the ve
 6. When you summarise a fetched document, cite its source link and state nothing the fetched
    text does not say.
 ```
-
-Rule 1's "word for word" matters: vendorkb retrieves on the text it is sent. An agent that
-appended "List all vendors documented, distinguishing supported versus partial support…" to a
-"which vendors" question made a vendor fall under the relevance floor (BACKLOG 39). The MCP
-server logs each question as it arrived (`answer_question {"question": …}` in the
-`vendorkb-mcp` pod's log), so a rewritten question can be seen there.
 
 ### Bypass mode: the agent writes from the evidence (BACKLOG 42)
 
@@ -174,8 +248,8 @@ What to know before choosing it:
 - **Part size.** A part is at most 20,000 characters (`mcp_server.PART_CHARS`). If Copilot
   Studio shows a part cut off, lower it; if it takes more, a larger part means fewer calls.
 
-Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what rule 4
-of the relay instructions passes to `read_document`.
+Every Sources line of an `answer_question` reply ends with `(chunk <id>)`. That id is what the
+instructions pass to `read_document`.
 
 ## 6. Measured limits
 

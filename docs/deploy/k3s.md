@@ -306,6 +306,39 @@ no OAuth.
 The server accepts its secret as `Authorization: Bearer <token>` or as `X-API-Key: <token>`.
 Setup and the agent's instructions: `docs/deploy/copilot-studio.md`.
 
+## 7c. A key that hides vendors
+
+`MCP_BEARER_TOKEN` can hide vendors: with `mcp.hiddenVendors` set (comma-separated), its tools
+read the database as `MCP_RESTRICTED_DSN`'s role, and the row-level-security policies of
+`schema.sql` hide those vendors' documents, chunks, claims, facts and offerings from that role
+in every query (`src/vendorkb/access.py`). The owner role bypasses them: sync, extraction and
+every other command are unchanged. At start-up the server proves the role is no superuser,
+cannot bypass row-level security, hides each listed vendor and sees none of its rows; otherwise
+it does not start. `MCP_FULL_ACCESS_TOKEN`, if set, is a second key that reads everything as
+`VENDORKB_DSN`. Each key has its own MCP server and caches, and the question log names the key.
+
+Set up (Cohesity hidden from the existing key; the new image must be deployed first, without
+`mcp.hiddenVendors`):
+
+```
+P=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+F=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+kubectl -n vendorkb patch secret vendorkb-secret --type merge -p "{\"stringData\":{
+  \"VENDORKB_RESTRICTED_PASSWORD\":\"$P\", \"MCP_FULL_ACCESS_TOKEN\":\"$F\",
+  \"MCP_RESTRICTED_DSN\":\"postgresql://vendorkb_mcp:$P@vendorkb-postgres:5432/vendorkb\"}}"
+unset P F
+kubectl -n vendorkb rollout restart deploy/vendorkb-mcp   # the pod reads the new keys
+kubectl -n vendorkb exec deploy/vendorkb-mcp -- vendorkb access restrict vendorkb_mcp --hide Cohesity
+helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
+  --set mcp.hiddenVendors=Cohesity
+```
+
+`access restrict` creates the role with `VENDORKB_RESTRICTED_PASSWORD` (an existing role keeps
+its password unless the variable is set), grants it read access to what the tools read and
+nothing else, and replaces the vendors it hides; with `MCP_RESTRICTED_DSN` set it then runs the
+start-up check. Rerun it with other `--hide` values to change the list (the server re-checks
+on its next start). To show everything again, unset `mcp.hiddenVendors`.
+
 ## 8. Verify
 
 Through the port-forward, with `VENDORKB_DSN` set as in step 4:
