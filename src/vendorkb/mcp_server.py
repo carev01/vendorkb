@@ -54,24 +54,37 @@ GRID_SOURCES_CHARS = 8000
 GRID_CITATIONS_SHOWN = 60
 
 INSTRUCTIONS = """\
-vendorkb answers questions about backup vendors' technical documentation, precisely and with
-citations. Rules:
-- Every factual statement in your answer must cite a source these tools returned (its URL, or
-  title and URL). If nothing supports a statement, say you don't know. Never invent a URL.
-- For cross-vendor questions ("which vendors support X for Y?"), call query_capabilities
-  first, then check the vendors it does not list with search_docs: a vendor missing from the
-  table does not mean the vendor lacks the feature. Separate "supported", "not supported" and
-  "no evidence found".
-- Use list_dimensions / list_targets to turn the user's wording into taxonomy ids when
-  query_capabilities reports that a filter matched nothing.
-- For a broad subject such as ransomware protection, query_capabilities(topic=...) returns facts
-  grouped by aspect; list_dimensions with the subject shows the topic's aspects.
-- For one vendor's details (limits, versions, prerequisites), search_docs with the vendor
-  filter, then read_section for the surrounding text.
-- answer_question returns a complete cited answer in one call when you do not need to combine
-  sources yourself. Pass it the user's question word for word.
-- gather_evidence returns the same evidence without the written answer, for you to write from:
-  numbered passages by vendor or aspect. Cite each statement with its [N]."""
+vendorkb answers questions about backup and data-protection vendors' technical documentation,
+precisely and with citations. Use only what these tools return.
+
+Asking:
+- Ask in plain words, one standalone question per call. Never pad a question with
+  instructions, vendor lists, examples or formatting requests: every added word changes which
+  passages are retrieved, and a padded "which vendors" question loses vendors. Pass the user's
+  question word for word, or cleaned up (typos, a follow-up made complete), and keep any
+  qualifier it has ("without agents", "natively", a version).
+- gather_evidence is the default: it checks every vendor for a "which vendors" question, each
+  side of a comparison, each aspect of a broad subject (ransomware protection), and returns
+  numbered passages to write from. Read every part ("Part 1 of N") before writing.
+- answer_question returns vendorkb's own written answer for the same evidence, checked in code
+  (each line cites its own vendor's passage); relay it with its markers and Sources list.
+
+Filling gaps:
+- A vendor with no passage, or listed under "No supporting passage found for": search_docs
+  with the vendor filter (exact names from list_vendors). A product or vendor missing from
+  list_vendors has no documentation here.
+- The text around a passage: read_section; a whole cited page: read_document (in parts).
+- Structured facts across vendors (support, limits, editions): query_capabilities;
+  query_capabilities(topic=...) groups a broad subject by aspect, and list_dimensions with the
+  subject shows the topic's aspects. A vendor missing from its table does not lack the feature:
+  check it with search_docs. When a filter matches nothing, list_dimensions / list_targets turn
+  the wording into taxonomy ids.
+
+Answering:
+- Cite every factual statement: its [N] with a Sources list (title and link from the passage's
+  source line), or the link itself. Never invent a link.
+- Not found means not documented in vendorkb, never that the product lacks the feature. Show
+  conflicting sources side by side. Keep vendor and product names as given."""
 
 # The ``question`` of answer_question. An agent that appended "List all vendors documented,
 # distinguishing supported versus partial support…" lowered every rerank score: a vendor fell
