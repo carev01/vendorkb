@@ -570,8 +570,15 @@ async def test_a_topic_fact_on_an_earlier_page_version_is_marked(ransomware):
 
 
 def test_the_instructions_name_the_topic_route():
-    assert "query_capabilities(topic=...)" in ms.INSTRUCTIONS
-    assert "list_dimensions with the subject shows the topic's aspects" in ms.INSTRUCTIONS
+    text = " ".join(ms.INSTRUCTIONS.split())
+    assert "query_capabilities(topic=...)" in text
+    assert "list_dimensions with the subject shows the topic's aspects" in text
+
+
+def test_the_instructions_make_gather_evidence_the_default():
+    text = " ".join(ms.INSTRUCTIONS.split())
+    assert "gather_evidence is the default" in text
+    assert "never that the product lacks the feature" in text
 
 
 async def test_read_document_parts_whole_chunks():
