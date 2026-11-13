@@ -1,0 +1,12 @@
+{
+  "name": "vendorkb-mcp",
+  "version": "1.0.0",
+  "description": "Local stdio MCP server that relays to the vendorkb MCP endpoint (for Claude Desktop)",
+  "type": "module",
+  "bin": { "vendorkb-mcp": "vendorkb-mcp.mjs" },
+  "files": ["vendorkb-mcp.mjs", "README.md"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test" },
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -78,6 +78,8 @@ stack.
       written answer, in parts, for an agent that writes itself (optional: the 2026-11-10 pilot found it as
       accurate as relaying, with weaker citations and no faster).
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
+    - `clients/node/vendorkb-mcp.mjs`: a dependency-free stdio relay to `/mcp` for Claude
+      Desktop where custom connectors are not allowed (README there; `npm test`).
     - Keys (2026-11-12, `access.py`, k3s.md §7c): with `MCP_HIDDEN_VENDORS` set (production:
       Cohesity), `MCP_BEARER_TOKEN`'s tools read as `MCP_RESTRICTED_DSN`'s role, which the
       row-level-security policies of `schema.sql` keep from those vendors' documents, chunks,
