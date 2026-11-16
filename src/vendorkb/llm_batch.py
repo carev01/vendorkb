@@ -116,9 +116,11 @@ async def held_ids(conn: psycopg.AsyncConnection, kind: str) -> set[str]:
 
 
 async def in_flight(conn: psycopg.AsyncConnection, kinds: Iterable[str]) -> int:
-    """Submitted batches of ``kinds`` (pending- rows included)."""
+    """Submitted batches of ``kinds`` that will end: pending- rows are left out (they wait for
+    a person, see ``unconfirmed``), so a run waiting on this count always finishes."""
     cur = await conn.execute("SELECT count(*) FROM llm_batches WHERE status = 'submitted'"
-                             " AND kind = ANY(%s)", (list(kinds),))
+                             " AND kind = ANY(%s) AND batch_id NOT LIKE %s",
+                             (list(kinds), PENDING + "%"))
     return int((await cur.fetchone())[0])  # type: ignore[index]
 
 

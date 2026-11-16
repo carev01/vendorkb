@@ -26,6 +26,15 @@ claim is asked again by the next run. A claim deleted while it was being asked i
 model), or a TypeError (the Anthropic SDK's "no key" error) stops the step: nothing else would
 succeed either. A stopped check still lets the review run; the first such error is raised after
 both.
+
+Batch mode (``run(mode="batch")``, the default of ``vendorkb claims support`` on the Anthropic
+API; BACKLOG 37): the same steps on the Message Batches API at half price (``llm_batch``). Each
+round, under the lock, collects the ended check and review batches (a verdict is stored as in
+sync mode), then submits the checks and reviews due: a claim flagged by a collected check goes
+into the round's review batch. ``wait`` (the CLI default) repeats rounds until no batch is
+open, waiting between them without the lock; without it (the refresh) a run does one round and
+the next run carries on. An unusable reply is asked again, at most ``llm_batch.MAX_ATTEMPTS``
+times. The budgets reserve each request at ``MAX_TOKENS`` of output, at the batch price.
 Spec and calibration: docs/superpowers/specs/2026-11-09-claim-support-check-design.md.
 """
 from __future__ import annotations
@@ -34,12 +43,13 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import anthropic
 import openai
 import psycopg
 
+from vendorkb import llm_batch
 from vendorkb.claims.extract import PROMPT_FAMILY, cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.llm import build_request, call, object_schema, rate_limited
@@ -93,6 +103,8 @@ REVIEW_SYSTEM = (
     "reader of the quote alone would give.\n"
     'Reply with JSON {"supported": true} or {"supported": false}.')
 REPLY_SCHEMA = object_schema({"supported": {"type": "boolean"}})
+CHECK_KIND, REVIEW_KIND = "support-check", "support-review"  # llm_batches kinds
+BATCH_KINDS = (CHECK_KIND, REVIEW_KIND)
 
 
 @dataclass(frozen=True)
@@ -124,15 +136,28 @@ class StepReport:
 @dataclass
 class SupportReport:
     taxonomy_version: str = ""
+    mode: str = "sync"
     locked: bool = False  # another support run holds the lock; nothing done
     check: StepReport = field(default_factory=StepReport)
     review: StepReport = field(default_factory=StepReport)
+    # batch mode: what the batch runner submitted and collected, and the batches still open
+    check_batch: llm_batch.BatchReport = field(default_factory=llm_batch.BatchReport)
+    review_batch: llm_batch.BatchReport = field(default_factory=llm_batch.BatchReport)
+    in_flight: int = 0
     flagged: int = 0  # after the run: flagged claims waiting for review (kept until then)
     rejected: int = 0  # after the run: claims the reviewer rejected (left out of capabilities)
 
 
 def checker_id(model: str, effort: str, prompt_version: str) -> str:
     return f"{model}@{effort}/{prompt_version}"
+
+
+def _price(model: str) -> tuple[float, float]:
+    try:
+        return price_per_mtok(model)  # never the EXTRACT_PRICE_* override
+    except ValueError:
+        raise ValueError(f"no price known for support model {model!r}: add it to"
+                         " claims.extract.PRICES_PER_MTOK") from None
 
 
 def user_message(row: ClaimRow) -> str:
@@ -220,11 +245,7 @@ class _Asker:
         self.client, self.settings, self.model, self.effort = client, settings, model, effort
         self.system, self.max_usd, self.report, self.label = system, max_usd, report, label
         self.record = record
-        try:
-            self.price = price_per_mtok(model)  # never the EXTRACT_PRICE_* override
-        except ValueError:
-            raise ValueError(f"no price known for support model {model!r}: add it to"
-                             " claims.extract.PRICES_PER_MTOK") from None
+        self.price = _price(model)
         self.spent = self.in_flight = 0.0
         self.stop = False
         self.fatal: Exception | None = None
@@ -308,6 +329,27 @@ class _Asker:
                 report.unsupported += 1
 
 
+async def _record_check(conn: psycopg.AsyncConnection, checker: str, claim_id: str,
+                        verdict: bool, cost: float) -> bool:
+    """Store a check verdict; False when the claim is gone. A claim with a verdict keeps it."""
+    cur = await conn.execute(
+        "INSERT INTO claim_support (claim_id, supported, checker, cost_usd)"
+        " SELECT claim_id, %s, %s, %s FROM raw_claims WHERE claim_id = %s"
+        " ON CONFLICT (claim_id) DO NOTHING", (verdict, checker, cost, claim_id))
+    return cur.rowcount > 0 or await _has_verdict(conn, claim_id)
+
+
+async def _record_review(conn: psycopg.AsyncConnection, reviewer: str, claim_id: str,
+                         verdict: bool, cost: float) -> bool:
+    """Store a review verdict; False when the claim (or its check) is gone. Idempotent for a
+    batch result handed over twice: the cost is added only once."""
+    cur = await conn.execute(
+        "UPDATE claim_support SET review_supported = %s, reviewer = %s,"
+        " reviewed_at = now(), cost_usd = cost_usd + CASE WHEN review_supported IS NULL"
+        " THEN %s ELSE 0 END WHERE claim_id = %s", (verdict, reviewer, cost, claim_id))
+    return cur.rowcount > 0
+
+
 async def check(conn: psycopg.AsyncConnection, version: str, *, client: Any,
                 settings: VendorkbSettings, max_usd: float, report: StepReport,
                 limit: int | None = None) -> None:
@@ -317,11 +359,7 @@ async def check(conn: psycopg.AsyncConnection, version: str, *, client: Any,
                          CHECK_PROMPT_VERSION)
 
     async def record(claim_id: str, verdict: bool, cost: float) -> bool:
-        cur = await conn.execute(
-            "INSERT INTO claim_support (claim_id, supported, checker, cost_usd)"
-            " SELECT claim_id, %s, %s, %s FROM raw_claims WHERE claim_id = %s"
-            " ON CONFLICT (claim_id) DO NOTHING", (verdict, checker, cost, claim_id))
-        return cur.rowcount > 0 or await _has_verdict(conn, claim_id)
+        return await _record_check(conn, checker, claim_id, verdict, cost)
 
     asker = _Asker(client=client, settings=settings, model=settings.support_model,
                    effort=settings.support_effort, system=CHECK_SYSTEM, max_usd=max_usd,
@@ -338,11 +376,7 @@ async def review(conn: psycopg.AsyncConnection, *, client: Any, settings: Vendor
                           REVIEW_PROMPT_VERSION)
 
     async def record(claim_id: str, verdict: bool, cost: float) -> bool:
-        cur = await conn.execute(
-            "UPDATE claim_support SET review_supported = %s, reviewer = %s,"
-            " reviewed_at = now(), cost_usd = cost_usd + %s WHERE claim_id = %s",
-            (verdict, reviewer, cost, claim_id))
-        return cur.rowcount > 0
+        return await _record_review(conn, reviewer, claim_id, verdict, cost)
 
     asker = _Asker(client=client, settings=settings, model=settings.support_review_model,
                    effort=settings.support_review_effort, system=REVIEW_SYSTEM,
@@ -350,15 +384,136 @@ async def review(conn: psycopg.AsyncConnection, *, client: Any, settings: Vendor
     await asker.run(rows)
 
 
+def _handler(conn: psycopg.AsyncConnection, step: StepReport, write: Any) -> llm_batch.Handler:
+    """A batch result handler: parse the verdict, store it with ``write``, count it."""
+    async def handle(result: llm_batch.Result) -> str | None:
+        step.calls += 1
+        step.spent_usd += result.cost
+        try:
+            verdict = parse_verdict(result.text)
+        except ValueError as e:
+            step.invalid += 1
+            step.errors.append(f"{result.custom_id}: {e}")
+            return str(e)
+        try:
+            written = await write(result.custom_id, verdict, result.cost)
+        except psycopg.errors.ForeignKeyViolation:
+            written = False
+        if not written:
+            step.vanished += 1
+        elif verdict:
+            step.supported += 1
+        else:
+            step.unsupported += 1
+        return None
+    return handle
+
+
+def _items(rows: list[ClaimRow], *, model: str, effort: str,
+           system: str) -> list[llm_batch.Item]:
+    return [llm_batch.Item(row.claim_id, build_request(
+        backend="anthropic", model=model, max_tokens=MAX_TOKENS, system=system,
+        user=user_message(row), schema=REPLY_SCHEMA, name="support_verdict", effort=effort))
+        for row in rows]
+
+
+async def _batch_round(conn: psycopg.AsyncConnection, version: str, *, client: Any,
+                       settings: VendorkbSettings, report: SupportReport,
+                       budget: dict[str, float], limit: int | None) -> None:
+    """Collect the ended check and review batches, then submit the checks and reviews due:
+    a claim flagged by a check collected here is submitted for review in the same round."""
+    checker = checker_id(settings.support_model, settings.support_effort, CHECK_PROMPT_VERSION)
+    reviewer = checker_id(settings.support_review_model, settings.support_review_effort,
+                          REVIEW_PROMPT_VERSION)
+    check_price, review_price = _price(settings.support_model), _price(settings.support_review_model)
+
+    async def write_check(claim_id: str, verdict: bool, cost: float) -> bool:
+        return await _record_check(conn, checker, claim_id, verdict, cost)
+
+    async def write_review(claim_id: str, verdict: bool, cost: float) -> bool:
+        return await _record_review(conn, reviewer, claim_id, verdict, cost)
+
+    await llm_batch.collect(conn, client, kind=CHECK_KIND, price=check_price,
+                            handle=_handler(conn, report.check, write_check),
+                            report=report.check_batch)
+    await llm_batch.collect(conn, client, kind=REVIEW_KIND, price=review_price,
+                            handle=_handler(conn, report.review, write_review),
+                            report=report.review_batch)
+    held = await llm_batch.held_ids(conn, CHECK_KIND)
+    checks = [r for r in await due_for_check(conn, version) if r.claim_id not in held][:limit]
+    held = await llm_batch.held_ids(conn, REVIEW_KIND)
+    review_ids = [i for i in await flagged_ids(conn) if i not in held][:limit]
+    for kind, rows, model, effort, system, price, step, batch in (
+            (CHECK_KIND, checks, settings.support_model, settings.support_effort, CHECK_SYSTEM,
+             check_price, report.check, report.check_batch),
+            (REVIEW_KIND, await _rows(conn, review_ids), settings.support_review_model,
+             settings.support_review_effort, REVIEW_SYSTEM, review_price, report.review,
+             report.review_batch)):
+        if not rows:
+            continue
+        step.claims += len(rows)
+        reserved, skipped = batch.reserved_usd, batch.skipped_by_budget
+        await llm_batch.submit(conn, client, kind=kind, model=model,
+                               items=_items(rows, model=model, effort=effort, system=system),
+                               price=price, max_usd=budget[kind], report=batch)
+        budget[kind] -= batch.reserved_usd - reserved
+        if batch.skipped_by_budget > skipped:
+            step.stopped_by_budget = True
+            step.skipped_by_budget += batch.skipped_by_budget - skipped
+
+
+async def _run_batch(conn: psycopg.AsyncConnection, version: str, *, client: Any,
+                     settings: VendorkbSettings, report: SupportReport, check_max_usd: float,
+                     review_max_usd: float, limit: int | None, wait: bool,
+                     poll_seconds: float) -> None:
+    """Rounds of collect-and-submit, each under the lock. Without ``wait``, one round (the
+    refresh: the next run carries on); with it, rounds until no batch is open, waiting for
+    them between rounds without the lock. The budgets cap what this run submits."""
+    budget = {CHECK_KIND: check_max_usd, REVIEW_KIND: review_max_usd}
+    while True:
+        cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
+        if not (await cur.fetchone())[0]:  # type: ignore[index]
+            report.locked = True
+            log.warning("support: another support run holds the lock; stopping here")
+            return
+        try:
+            await _batch_round(conn, version, client=client, settings=settings,
+                               report=report, budget=budget, limit=limit)
+            report.in_flight = await llm_batch.in_flight(conn, BATCH_KINDS)
+        finally:
+            await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+        if not wait or report.in_flight == 0:
+            return
+        log.info("support: %d batches open; waiting", report.in_flight)
+        await llm_batch.wait_ended(conn, client, BATCH_KINDS, poll_seconds=poll_seconds)
+
+
 async def run(conn: psycopg.AsyncConnection, *, client: Any, settings: VendorkbSettings,
               check_max_usd: float, review_max_usd: float,
-              limit: int | None = None) -> SupportReport:
-    """Check, then review (see the module docstring), under one advisory lock."""
-    report = SupportReport()
+              limit: int | None = None, mode: Literal["sync", "batch"] = "sync",
+              wait: bool = True, poll_seconds: float = 60.0) -> SupportReport:
+    """Check, then review (see the module docstring), under one advisory lock. ``mode``
+    batch: on the Message Batches API at half price (``_run_batch``; anthropic backend only)."""
+    if mode not in ("sync", "batch"):
+        raise ValueError(f"unknown mode {mode!r}")
+    if mode == "batch" and settings.support_backend != "anthropic":
+        raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
+                         " sync mode")
+    report = SupportReport(mode=mode)
     version = await current_version(conn)
     if version is None:
         return report
     report.taxonomy_version = version
+    if mode == "batch":
+        await _run_batch(conn, version, client=client, settings=settings, report=report,
+                         check_max_usd=check_max_usd, review_max_usd=review_max_usd,
+                         limit=limit, wait=wait, poll_seconds=poll_seconds)
+        report.flagged = len(await flagged_ids(conn))
+        report.rejected = await rejected_count(conn)
+        for step in (report.check, report.review):
+            step.errors = step.errors[:20]
+        log.info("support: %s", report)
+        return report
     cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
     if not (await cur.fetchone())[0]:  # type: ignore[index]
         report.locked = True

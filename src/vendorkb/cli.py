@@ -333,9 +333,18 @@ async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
         if args.claims_cmd == "support":
+            mode: Literal["sync", "batch"] = args.mode or (
+                "batch" if settings.support_backend == "anthropic" else "sync")
+            if args.retry_failed:
+                from vendorkb import llm_batch
+
+                for kind in support.BATCH_KINDS:
+                    await llm_batch.reset_failed(conn, kind)
             checked = await support.run(conn, client=client, settings=settings,
                                         check_max_usd=args.check_max_usd,
-                                        review_max_usd=args.review_max_usd, limit=args.limit)
+                                        review_max_usd=args.review_max_usd, limit=args.limit,
+                                        mode=mode, wait=not args.no_wait,
+                                        poll_seconds=args.poll_seconds)
             print(json.dumps(dataclasses.asdict(checked)))
             # failed calls are asked again by the next run, but they are worth a non-zero exit
             return 1 if checked.check.invalid or checked.review.invalid else 0
@@ -528,6 +537,15 @@ def _parser() -> argparse.ArgumentParser:
                    help="reviewer budget for this run (default 1.0)")
     c.add_argument("--limit", type=int, default=None,
                    help="at most this many claims per step (a smoke test)")
+    c.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: the Message Batches API at half price (default with"
+                        " SUPPORT_BACKEND anthropic); sync: one call per claim")
+    c.add_argument("--no-wait", action="store_true",
+                   help="batch mode: collect what has ended, submit what is due, and exit"
+                        " (the next run carries on) instead of waiting for the batches")
+    c.add_argument("--retry-failed", action="store_true",
+                   help="batch mode: first make the claims whose asks failed 3 times due again")
+    c.add_argument("--poll-seconds", type=float, default=60.0)
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
     t = tax.add_parser("propose", help="cluster the v3 claim strings of one section and merge "

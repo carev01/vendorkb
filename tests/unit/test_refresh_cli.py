@@ -127,8 +127,10 @@ def test_the_support_endpoint_falls_back_as_a_url_and_key_pair(stubbed, monkeypa
 def test_claims_support_wires_its_endpoint_and_the_budgets(stubbed, monkeypatch, capsys):
     from vendorkb.claims import support
 
-    async def fake_run(conn, *, client, settings, check_max_usd, review_max_usd, limit):
-        stubbed.update(check=check_max_usd, review=review_max_usd, limit=limit)
+    async def fake_run(conn, *, client, settings, check_max_usd, review_max_usd, limit, mode,
+                       wait, poll_seconds):
+        stubbed.update(check=check_max_usd, review=review_max_usd, limit=limit, mode=mode,
+                       wait=wait)
         report = support.SupportReport(taxonomy_version="2-x")
         report.check.invalid = 1 if limit == 1 else 0
         return report
@@ -142,7 +144,34 @@ def test_claims_support_wires_its_endpoint_and_the_budgets(stubbed, monkeypatch,
     assert json.loads(capsys.readouterr().out)["taxonomy_version"] == "2-x"
     assert stubbed["clients"] == [("openai", "http://router/v1", "map-key")]
     assert (stubbed["check"], stubbed["review"], stubbed["limit"]) == (4.0, 2.0, 20)
+    assert (stubbed["mode"], stubbed["wait"]) == ("sync", True)  # openai: no batches
     assert cli.main(["claims", "support", "--limit", "1"]) == 1  # an unusable call
+
+
+def test_claims_support_defaults_to_batch_mode_on_the_anthropic_api(stubbed, monkeypatch):
+    from vendorkb import llm_batch
+    from vendorkb.claims import support
+
+    seen, resets = {}, []
+
+    async def fake_run(conn, **kw):
+        seen.update(kw)
+        return support.SupportReport()
+
+    async def fake_reset(conn, kind):
+        resets.append(kind)
+        return 0
+
+    monkeypatch.setattr(support, "run", fake_run)
+    monkeypatch.setattr(llm_batch, "reset_failed", fake_reset)
+    assert cli.main(["claims", "support"]) == 0
+    assert (seen["mode"], seen["wait"]) == ("batch", True)
+    assert resets == []
+    assert cli.main(["claims", "support", "--no-wait", "--retry-failed"]) == 0
+    assert (seen["mode"], seen["wait"]) == ("batch", False)
+    assert resets == list(support.BATCH_KINDS)
+    assert cli.main(["claims", "support", "--mode", "sync"]) == 0
+    assert seen["mode"] == "sync"
 
 
 def test_refresh_on_a_vast_endpoint_extracts_through_its_proxy(stubbed, monkeypatch, capsys):
