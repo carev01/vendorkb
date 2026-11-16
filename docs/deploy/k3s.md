@@ -239,22 +239,25 @@ running between DocExtractor refreshes. The CronJob `vendorkb-claims-refresh` ru
 Until the sync has written chunks that no extraction has touched, a run is two queries and
 contacts nothing. When such chunks exist and no new document has arrived for
 `claimsRefresh.settleMinutes` (or the backlog fills a run), it wakes the distilled extractor
-(`deploy/azure`, scaled to zero), extracts every chunk with no finished extraction, maps the
+(`deploy/vast`: a Vast.ai serverless endpoint that scales to zero; the refresh wakes it and
+replaces bad hosts), extracts every chunk with no finished extraction, maps the
 claims not yet mapped under the current taxonomy version (`claimsRefresh.map.maxUsd` per run),
 support-checks the new claims of topic dimensions (`claimsRefresh.support`: the checker, then
 the reviewer for every flagged claim, each with its own `maxUsd` per run; backend anthropic
 needs `ANTHROPIC_API_KEY` in the secret), and rebuilds capabilities. Chunks that only errored never trigger a
 run; they ride along with the next one.
 
-Add the three keys to the secret (ANTHROPIC_API_KEY for the support check), then enable it with
-the endpoint's URL:
+Deploy the endpoint (`deploy/vast/README.md`), add the three keys to the secret (VAST_API_KEY
+for the extractor, MAP_API_KEY for the map, ANTHROPIC_API_KEY for the support check), then
+enable it with the endpoint's name and offer filter:
 
 ```
 kubectl -n vendorkb patch secret vendorkb-secret --type merge -p \
-  "{\"stringData\":{\"EXTRACT_API_KEY\":\"$SERVE_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\",\"ANTHROPIC_API_KEY\":\"$ANTHROPIC_KEY\"}}"
+  "{\"stringData\":{\"VAST_API_KEY\":\"$VAST_API_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\",\"ANTHROPIC_API_KEY\":\"$ANTHROPIC_KEY\"}}"
 helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
   --set claimsRefresh.enabled=true \
-  --set claimsRefresh.extract.baseUrl=https://<app>.<region>.azurecontainerapps.io/v1
+  --set claimsRefresh.extract.vast.endpoint=vendorkb-extractor \
+  --set-string "claimsRefresh.extract.vast.searchParams=$(. deploy/vast/endpoint.env; echo "$SEARCH_PARAMS")"
 kubectl -n vendorkb create job --from=cronjob/vendorkb-claims-refresh refresh-check  # one run now
 ```
 

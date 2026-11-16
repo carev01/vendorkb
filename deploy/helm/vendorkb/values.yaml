@@ -83,11 +83,11 @@ bootstrap:
 
 # Reactive claims refresh (`vendorkb refresh`, src/vendorkb/claims/refresh.py). Each run is a
 # couple of queries until the sync brings chunks no extraction has touched; then, once the feed
-# has been quiet for settleMinutes, it wakes the distilled extractor (deploy/azure, scaled to
-# zero), extracts, maps the new claims and rebuilds capabilities.
-# Secret keys it needs: EXTRACT_API_KEY (the endpoint's key), MAP_API_KEY (map.backend
-# openai: OpenRouter) or ANTHROPIC_API_KEY (map.backend anthropic), and ANTHROPIC_API_KEY for
-# support.backend anthropic.
+# has been quiet for settleMinutes, it wakes the distilled extractor (deploy/vast: a Vast.ai
+# serverless endpoint that scales to zero), extracts, maps the new claims and rebuilds
+# capabilities. Secret keys it needs: VAST_API_KEY (extract.vast; with extract.baseUrl
+# instead, EXTRACT_API_KEY), MAP_API_KEY (map.backend openai: OpenRouter) or ANTHROPIC_API_KEY
+# (map.backend anthropic), and ANTHROPIC_API_KEY for support.backend anthropic.
 claimsRefresh:
   enabled: false
   schedule: "45 3 * * 0"   # weekly, Sunday 03:45 (between sync runs)
@@ -97,12 +97,21 @@ claimsRefresh:
   activeDeadlineSeconds: 21600
   backoffLimit: 0
   extract:
-    baseUrl: ""            # required when enabled: https://<app>.<region>.azurecontainerapps.io/v1
+    # The Vast serverless endpoint (deploy/vast/README.md). searchParams is the worker
+    # group's offer filter as in deploy/vast/endpoint.env, without machine exclusions (the
+    # refresh adds those when a worker fails); workerReadySeconds is how long one worker may
+    # load before it is replaced.
+    vast:
+      endpoint: ""         # e.g. vendorkb-extractor
+      searchParams: ""
+      workerReadySeconds: 900
+    baseUrl: ""            # instead of vast: any OpenAI-compatible endpoint, ending in /v1
     model: vendorkb-qwen3.5-9b-r2
     maxTokens: 8000        # the corpus run's limit; a cut-off chunk is retried, then failed
     concurrency: 32
     limit: 20000           # chunks per run; a backlog this large runs without settling
-    warmupSeconds: 1500    # how long to wait for the scaled-to-zero endpoint
+    warmupSeconds: 3600    # how long to wait for the scaled-to-zero endpoint (a bad
+                           # host costs a worker's load time before it is replaced)
   map:
     backend: openai        # openai: OpenRouter (MAP_API_KEY); anthropic: ANTHROPIC_API_KEY
     baseUrl: https://openrouter.ai/api/v1

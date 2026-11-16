@@ -143,3 +143,48 @@ def test_claims_support_wires_its_endpoint_and_the_budgets(stubbed, monkeypatch,
     assert stubbed["clients"] == [("openai", "http://router/v1", "map-key")]
     assert (stubbed["check"], stubbed["review"], stubbed["limit"]) == (4.0, 2.0, 20)
     assert cli.main(["claims", "support", "--limit", "1"]) == 1  # an unusable call
+
+
+def test_refresh_on_a_vast_endpoint_extracts_through_its_proxy(stubbed, monkeypatch, capsys):
+    from vendorkb.claims import vast
+
+    woken = []
+
+    async def fake_wake(endpoint, api_key, **kw):
+        woken.append((endpoint, api_key, kw))
+        return vast.WakeReport()
+
+    async def fake_refresh(conn, *, ready, **kw):
+        await ready()
+        return refresh.RefreshReport()
+
+    monkeypatch.setattr(vast, "wake", fake_wake)
+    monkeypatch.setattr(refresh, "refresh", fake_refresh)
+    for name, value in {"VAST_ENDPOINT": "vendorkb-extractor", "VAST_API_KEY": "vast-key",
+                        "VAST_SEARCH_PARAMS": "num_gpus=1", "VAST_WORKER_READY_S": "600",
+                        "EXTRACT_MODEL": "vendorkb-qwen3.5-9b-r2", "MAP_BACKEND": "openai",
+                        "MAP_BASE_URL": "http://router/v1", "MAP_API_KEY": "map-key"}.items():
+        monkeypatch.setenv(name, value)
+    assert cli.main(["refresh", "--warmup-seconds", "3600"]) == 0
+    assert stubbed["clients"][:2] == [
+        ("openai", "https://openai.vast.ai/vendorkb-extractor", "vast-key"),
+        ("openai", "http://router/v1", "map-key")]  # the map keeps its own endpoint and key
+    assert woken == [("vendorkb-extractor", "vast-key", {
+        "model": "vendorkb-qwen3.5-9b-r2", "search_params": "num_gpus=1",
+        "timeout_s": 3600.0, "worker_ready_s": 600.0})]
+
+
+@pytest.mark.parametrize("missing", ["VAST_SEARCH_PARAMS", "MAP_BASE_URL"])
+def test_a_vast_endpoint_needs_its_filter_and_a_map_endpoint(stubbed, monkeypatch, missing):
+    async def fake_refresh(conn, *, ready, **kw):
+        await ready()
+        return refresh.RefreshReport()
+
+    monkeypatch.setattr(refresh, "refresh", fake_refresh)
+    env = {"VAST_ENDPOINT": "e", "VAST_API_KEY": "k", "VAST_SEARCH_PARAMS": "num_gpus=1",
+           "MAP_BACKEND": "openai", "MAP_BASE_URL": "http://router/v1"}
+    env.pop(missing)
+    for name, value in env.items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises(SystemExit, match=missing):
+        cli.main(["refresh"])

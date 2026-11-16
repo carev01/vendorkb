@@ -142,7 +142,7 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     schema marker changes (a deploy), bounded by the 10 s lock timeout, so every other
     `init_schema` call takes none; no change.
 
-## Local extractor (DESIGN.md M5: trained on Vast, served on Azure)
+## Local extractor (DESIGN.md M5: trained and served on Vast)
 
 18. **Fine-tune a local corpus extractor, distilled from Opus** (user decision,
     2026-11-06). The project aims for near-perfect claims, so the teacher is Claude Opus 5.5,
@@ -162,11 +162,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       bf16 needs about 56 GB, so it fits one 80 GB A100 (Azure Container Apps, validated
       2026-11-06) but not the P6000.
     - *2026-11-08: the corpus is extracted (217,037 chunks by the 9B, 54 errored), and
-      `deploy/azure` serves the adapter on a serverless A100 for `vendorkb refresh` (deploy
-      with the user's Azure login; LoRA serving validated against the merged model).*
-    - **Serving:** vLLM's OpenAI-compatible API on Azure Container Apps (A100, scale to zero) for
-      incremental extraction, through the existing `openai` extract backend. Batch the deltas
-      to amortise cold starts.
+      the adapter was to be served on Azure for `vendorkb refresh`; replaced by Vast serverless
+      on 2026-11-16, item 25).*
+    - **Serving:** vLLM's OpenAI-compatible API on a Vast.ai serverless endpoint (scale to zero,
+      `deploy/vast`; item 25) for incremental extraction, through the existing `openai` extract
+      backend. Batch the deltas to amortise cold starts.
     - **Student bar:** ≥90% agreement with Opus on a held-out set, and precision within a few
       points of it. Then run the full corpus on Vast, replacing item 4's API route.
 
@@ -217,9 +217,21 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     A positive-versus-not-supported-only rule still flags 59%. Add the conditions (or the
     target scope) to the key, or report conflicts only within one document set. Done when
     conflict groups are rare enough to read.
-25. **Deploy the Azure extractor and enable `claimsRefresh`** (`deploy/azure`, docs/deploy/k3s.md
-    §7a). This needs the user's Azure login and serverless A100 quota. Weekly is enough (user,
-    2026-11-09): the CronJob now runs Sundays 03:45. With item 37's batch pipeline, only the
+25. **Deploy the extractor and enable `claimsRefresh`** (`deploy/vast`, docs/deploy/k3s.md
+    §7a). Weekly is enough (user, 2026-11-09): the CronJob now runs Sundays 03:45.
+
+    *2026-11-16: Azure dropped, Vast serverless deployed and tested; the refresh stays off until
+    item 37 (user).* The Azure Container Apps app crashed before serving, and `az login` was
+    blocked on the corporate account (it worked from the user's Mac, East US). The user chose
+    Vast. Its serverless endpoint `vendorkb-extractor` serves the r2 adapter merged into the base
+    model (private HF repo `carev01/vendorkb-qwen3.5-9b-r2`: the proxy ignores the request's
+    model, so a LoRA cannot be named). Measured (`deploy/vast/README.md`): about 4 min cold start
+    on a good host, 32 chunks at once in 51 s, claims as the corpus run's (mean agreement 0.95).
+    Two bad hosts: one downloaded at 3 MB/s, one could not reach Hugging Face. Vast reboots a
+    failing worker on the same machine, so `claims/vast.py` (the refresh's wake) destroys it and
+    excludes the machine; the template's watchdog turns a slow download into a failed load. A
+    standby worker was not kept (user: a stopped instance gets rented by someone else). Test
+    cost $2.50. With item 37's batch pipeline, only the
     extraction should stay weekly; the batch stages need a frequent, cheap collect run, or a
     new page would take four weeks to reach capabilities.
 26. **Done 2026-11-09: the MCP server in Copilot Studio** (spec
