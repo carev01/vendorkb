@@ -388,13 +388,23 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
             client = _map_client(settings)
+            mode: Literal["sync", "batch"] = args.mode or (
+                "batch" if settings.map_backend == "anthropic" and not args.seed_decisions
+                else "sync")
+            if args.retry_failed:
+                from vendorkb import llm_batch
+
+                for kind in mapper.BATCH_KINDS:
+                    await llm_batch.reset_failed(conn, kind)
             try:
                 async with Embedder(settings) as embedder:
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
                                                      settings=settings, max_usd=args.max_usd,
                                                      remap=args.remap, vendor=args.vendor,
                                                      seed=args.seed_decisions,
-                                                     reask=frozenset(args.reask))
+                                                     reask=frozenset(args.reask), mode=mode,
+                                                     wait=not args.no_wait,
+                                                     poll_seconds=args.poll_seconds)
             finally:
                 close = getattr(client, "close", None)
                 if close is not None:
@@ -593,6 +603,17 @@ def _parser() -> argparse.ArgumentParser:
                    help="ask again (and replace) stored decisions whose answer is this entity,"
                         " e.g. after sharpening its definition; repeatable. Only claims this run"
                         " maps are covered: use it with a new taxonomy version or --all")
+    t.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: the Message Batches API at half price, in rounds (targets,"
+                        " then the dimensions they unlock; default with MAP_BACKEND anthropic);"
+                        " sync: one call per question")
+    t.add_argument("--no-wait", action="store_true",
+                   help="batch mode: one round (collect, map, submit) and exit; the next run"
+                        " carries on")
+    t.add_argument("--retry-failed", action="store_true",
+                   help="batch mode: first make the questions answered unusably 3 times due"
+                        " again")
+    t.add_argument("--poll-seconds", type=float, default=60.0)
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")
