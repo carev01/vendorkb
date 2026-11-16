@@ -150,6 +150,38 @@ CREATE TABLE IF NOT EXISTS extract_batches (
     ended_at timestamptz
 );
 
+-- Message Batches for the map and support calls (llm_batch.py; BACKLOG 37, spec
+-- 2026-11-09-message-batches-design.md), the sibling of extract_batches. A batch row is written
+-- under a ``pending-`` id before the provider's create returns, then renamed: a crash between
+-- the two keeps the spend counted and its items held. ``kind``: map-target, map-dimension,
+-- support-check, support-review.
+CREATE TABLE IF NOT EXISTS llm_batches (
+    batch_id text PRIMARY KEY,
+    kind text NOT NULL,
+    model text NOT NULL,
+    custom_ids text[] NOT NULL,
+    est_cost_usd double precision NOT NULL DEFAULT 0,
+    actual_cost_usd double precision,
+    status text NOT NULL CHECK (status IN ('submitted', 'processed')),
+    submitted_at timestamptz NOT NULL DEFAULT now(),
+    ended_at timestamptz
+);
+-- One row per item asked in a batch: what decoding its result needs (``payload``), and its
+-- attempts. ``in_flight`` while its batch runs; ``done`` once a result was used; ``errored``
+-- (due again) or, at the attempt cap, ``failed`` (never asked again until reset).
+CREATE TABLE IF NOT EXISTS llm_batch_items (
+    kind text NOT NULL,
+    custom_id text NOT NULL,
+    batch_id text,
+    payload jsonb NOT NULL DEFAULT '{}',
+    attempts int NOT NULL DEFAULT 0,
+    status text NOT NULL CHECK (status IN ('in_flight', 'done', 'errored', 'failed')),
+    last_error text,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (kind, custom_id)
+);
+CREATE INDEX IF NOT EXISTS llm_batch_items_batch ON llm_batch_items (batch_id);
+
 -- `taxonomy propose` spend, one row per run, updated after every call so a crash keeps it:
 -- the cumulative cap (settings.propose_budget_usd) sums every run (BACKLOG 15, M7).
 CREATE TABLE IF NOT EXISTS propose_runs (

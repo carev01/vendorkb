@@ -94,10 +94,15 @@ async def call(client: Any, request: dict[str, Any], *, backend: Backend,
         if getattr(choices[0].message, "refusal", None):
             return None, "refusal", cost
         return choices[0].message.content, None, cost
-    msg = await _create(client.messages.create, request)
+    return parse_message(await _create(client.messages.create, request), price=price)
+
+
+def parse_message(msg: Any, *, price: tuple[float, float],
+                  batch: bool = False) -> tuple[str | None, str | None, float]:
+    """(reply text, error, cost) of an Anthropic message: a sync reply or a batch result's."""
     usage = getattr(msg, "usage", None)
     cost = cost_usd(int(getattr(usage, "input_tokens", 0) or 0),
-                    int(getattr(usage, "output_tokens", 0) or 0), batch=False, price=price)
+                    int(getattr(usage, "output_tokens", 0) or 0), batch=batch, price=price)
     if getattr(msg, "stop_reason", None) in ("refusal", "max_tokens"):
         return None, str(msg.stop_reason), cost
     text = next((b.text for b in msg.content if getattr(b, "type", None) == "text"), None)
