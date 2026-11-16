@@ -89,8 +89,11 @@ stack.
       `access.READ_TABLES` (and a policy if it names a vendor).
   - `vendorkb refresh` (`claims/refresh.py`, weekly CronJob `vendorkb-claims-refresh`): acts
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
-    the scaled-to-zero extraction endpoint (`deploy/azure`), extracts, maps (MAP_BASE_URL /
-    MAP_API_KEY, else the EXTRACT_ ones), support-checks and rebuilds capabilities.
+    the scaled-to-zero extraction endpoint (`deploy/vast`: a Vast.ai serverless endpoint;
+    `claims/vast.py` wakes it through `https://openai.vast.ai/<endpoint>` and destroys and
+    excludes failing workers, since Vast reboots a bad host instead of moving off it), extracts,
+    maps (MAP_BASE_URL / MAP_API_KEY, else the EXTRACT_ ones; required with VAST_ENDPOINT),
+    support-checks and rebuilds capabilities.
   - `vendorkb claims support` (`claims/support.py`, BACKLOG 36; spec
     `specs/2026-11-09-claim-support-check-design.md`):
     - the checker (`SUPPORT_MODEL`, Haiku 5.5 at effort high) asks whether the quote shows each

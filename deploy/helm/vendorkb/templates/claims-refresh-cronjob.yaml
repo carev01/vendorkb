@@ -1,6 +1,12 @@
 {{- if .Values.claimsRefresh.enabled }}
 {{- $c := .Values.claimsRefresh }}
-{{- $endpoint := required "claimsRefresh.extract.baseUrl is required: the extraction endpoint (deploy/azure), ending in /v1" $c.extract.baseUrl }}
+{{- $vast := $c.extract.vast.endpoint }}
+{{- if not (or $vast $c.extract.baseUrl) }}
+{{- fail "claimsRefresh.extract.vast.endpoint (deploy/vast) or claimsRefresh.extract.baseUrl (an OpenAI-compatible endpoint ending in /v1) is required" }}
+{{- end }}
+{{- if and $vast (not $c.extract.vast.searchParams) }}
+{{- fail "claimsRefresh.extract.vast.searchParams is required with vast.endpoint (deploy/vast/endpoint.env)" }}
+{{- end }}
 # `vendorkb refresh`, often: it contacts nothing until the sync has brought chunks no
 # extraction has touched, then wakes the scaled-to-zero extraction endpoint once per burst,
 # extracts them, maps and support-checks their claims and rebuilds capabilities
@@ -51,12 +57,20 @@ spec:
               {{- include "vendorkb.env" . | nindent 14 }}
                 # These win over the shared ConfigMap and secret (env beats envFrom).
                 - {name: EXTRACT_BACKEND, value: openai}
-                - {name: EXTRACT_BASE_URL, value: {{ $endpoint | quote }}}
+                {{- if $vast }}
+                # the proxy URL and the Vast key (VAST_API_KEY, in the secret) as the
+                # extraction endpoint; wake replaces failing workers (claims/vast.py)
+                - {name: VAST_ENDPOINT, value: {{ $vast | quote }}}
+                - {name: VAST_SEARCH_PARAMS, value: {{ $c.extract.vast.searchParams | quote }}}
+                - {name: VAST_WORKER_READY_S, value: {{ $c.extract.vast.workerReadySeconds | quote }}}
+                {{- else }}
+                - {name: EXTRACT_BASE_URL, value: {{ $c.extract.baseUrl | quote }}}
+                {{- end }}
                 - {name: EXTRACT_MODEL, value: {{ $c.extract.model | quote }}}
                 - {name: EXTRACT_MAX_TOKENS, value: {{ $c.extract.maxTokens | quote }}}
                 - {name: EXTRACT_EFFORT, value: low}
                 - {name: EXTRACT_CONCURRENCY, value: {{ $c.extract.concurrency | quote }}}
-                # GPU time is billed by Azure, not per token: nominal prices keep the
+                # GPU time is billed by the GPU host (Vast), not per token: nominal prices keep the
                 # extraction ledger (real API spend) at zero.
                 - {name: EXTRACT_PRICE_IN_PER_MTOK, value: "0.000001"}
                 - {name: EXTRACT_PRICE_OUT_PER_MTOK, value: "0.000001"}

@@ -242,8 +242,29 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     from vendorkb.claims import refresh
 
+    if settings.vast_endpoint:  # the extractor is the endpoint's proxy, keyed with the Vast key
+        from vendorkb.claims.vast import proxy_url
+
+        if settings.map_backend == "openai" and not settings.map_base_url:
+            # the map would fall back to the extract endpoint, and send it the Vast key
+            raise SystemExit("MAP_BASE_URL is required with VAST_ENDPOINT")
+
+        settings = settings.model_copy(update={
+            "extract_backend": "openai", "extract_base_url": proxy_url(settings.vast_endpoint),
+            "extract_api_key": settings.vast_api_key})
+
     async def ready() -> None:
-        if settings.extract_backend == "openai" and settings.extract_base_url:
+        if settings.vast_endpoint:
+            from vendorkb.claims import vast
+
+            if not settings.vast_search_params:
+                raise SystemExit("VAST_SEARCH_PARAMS is required with VAST_ENDPOINT")
+            await vast.wake(settings.vast_endpoint, settings.vast_api_key,
+                            model=settings.extract_model,
+                            search_params=settings.vast_search_params,
+                            timeout_s=args.warmup_seconds,
+                            worker_ready_s=settings.vast_worker_ready_s)
+        elif settings.extract_backend == "openai" and settings.extract_base_url:
             await refresh.wait_until_ready(settings.extract_base_url, settings.extract_api_key,
                                            timeout_s=args.warmup_seconds)
 

@@ -66,6 +66,15 @@ class VendorkbSettings(BaseSettings):
     # both must be set (> 0) to take effect.
     extract_price_in_per_mtok: float = 0.0
     extract_price_out_per_mtok: float = 0.0
+    # The extractor on a Vast.ai serverless endpoint (claims/vast.py, deploy/vast): with
+    # vast_endpoint set, `vendorkb refresh` wakes it through the proxy (EXTRACT_BASE_URL
+    # https://openai.vast.ai/<endpoint>, EXTRACT_API_KEY the Vast key) and replaces failing
+    # workers. vast_search_params is the worker group's offer filter without the machine
+    # exclusions, which wake appends; vast_worker_ready_s is how long a worker may load.
+    vast_endpoint: str = ""
+    vast_api_key: str = ""
+    vast_search_params: str = ""
+    vast_worker_ready_s: float = 900.0
     # Taxonomy map (v2): the model that adjudicates nearest-neighbour candidates for a claim's
     # target and dimension (it may answer "none"), and how many candidates it sees. The
     # openai backend uses MAP_BASE_URL / MAP_API_KEY, each falling back to EXTRACT_BASE_URL /

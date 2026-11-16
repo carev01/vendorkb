@@ -1,0 +1,34 @@
+# The worker's start-up script (deploy.sh fills __HF__, a read-only token, and __MODEL__).
+# Vast's vastai/vllm image runs `vllm serve $VLLM_MODEL $VLLM_ARGS` through eval, so the
+# quoted JSON flags arrive intact; the PyWorker (vast-ai/pyworker) fronts it on port 3000.
+export HF_TOKEN="__HF__"
+export MODEL_NAME="__MODEL__"
+export VLLM_ARGS='--served-model-name __MODEL__ vendorkb-qwen3.5-9b-r2 --language-model-only --max-model-len 12288 --enable-prefix-caching --gpu-memory-utilization 0.92 --max-num-seqs 128 --default-chat-template-kwargs '"'"'{"enable_thinking":false}'"'"' --override-generation-config '"'"'{"temperature":0}'"'"' --download-dir /workspace/models --host 127.0.0.1 --port 18000'
+# The PyWorker reports a failed load on any of these log-line prefixes: vLLM's own failures,
+# and this script's watchdog marker. Vast then reboots the worker on the same machine; the
+# refresh (claims/vast.py) destroys it and excludes the machine.
+export MODEL_ERROR_LOG_MSGS='VENDORKB_WATCHDOG
+Traceback (most recent call last):
+RuntimeError: Engine
+INFO exited: vllm'
+# Watchdog: a host that downloads the 19.3 GB model slower than MIN_MBPS, or is not serving
+# within DEADLINE_S, reports a failed load.
+(
+  LOG=/var/log/portal/vllm.log; DIR=/workspace/models; MIN_MBPS=25; DONE_BYTES=19000000000
+  DEADLINE_S=1500; t0=$(date +%s)
+  sleep 180   # vLLM and Ray start before the download begins
+  while ! grep -q "Application startup complete" "$LOG" 2>/dev/null; do
+    s1=$(du -sb "$DIR" 2>/dev/null | cut -f1); sleep 60; s2=$(du -sb "$DIR" 2>/dev/null | cut -f1)
+    s1=${s1:-0}; s2=${s2:-0}; rate=$(( (s2 - s1) / 60 / 1048576 ))
+    if [ "$s2" -lt "$DONE_BYTES" ] && [ "$rate" -lt "$MIN_MBPS" ]; then
+      echo "VENDORKB_WATCHDOG: model download at ${rate} MB/s (${s2} bytes so far), giving up on this host" >> "$LOG"
+      exit 0
+    fi
+    if [ $(( $(date +%s) - t0 )) -gt "$DEADLINE_S" ]; then
+      echo "VENDORKB_WATCHDOG: not serving after ${DEADLINE_S} s, giving up on this host" >> "$LOG"
+      exit 0
+    fi
+  done
+) &
+entrypoint.sh &
+curl -L https://raw.githubusercontent.com/vast-ai/pyworker/refs/heads/main/start_server.sh | bash
