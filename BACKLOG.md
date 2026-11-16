@@ -691,3 +691,30 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     deployed code and the branch side by side, one run each: expected vendors listed 385 ->
     397 of 419 (mean recall 0.933 -> 0.955), mean precision 0.932 -> 0.931, vendors listed
     that are not expected 28 -> 29, 33 -> 34 s an answer, rerank tokens 65K -> 159K a question.
+
+## Access and clients (2026-11-12)
+
+44. **Done 2026-11-12 (PR #54): vendors hidden per key** (user: the existing key must never
+    return anything about Cohesity; a second key sees everything). `MCP_BEARER_TOKEN`'s tools
+    read as the role `vendorkb_mcp`, which row-level-security policies (`schema.sql`) keep from
+    every Cohesity document, chunk, claim, fact and offering, NetBackup included; other vendors'
+    passages that mention Cohesity stay visible (user decision). `GuardedBackend` filters again
+    in the app, and the server refuses to start unless the role provably hides the vendors
+    (`access.check_restricted`). `MCP_FULL_ACCESS_TOKEN` sees everything. Setup: k3s.md §7c.
+    Verified live on both keys.
+
+    Cost: the restricted key is about 2x slower (search 2.6 s vs 1.0 s, a "which vendors"
+    retrieval 9.8 s vs 4.9 s): the chunks policy's subplan keeps Postgres from scanning in
+    parallel. Marking the policy functions `PARALLEL SAFE` did not help (tried in production,
+    reverted 2026-11-16). Accepted by the user; if it matters later, a denormalised
+    `chunks.vendor` column would let the chunks policy compare a column instead.
+45. **Done 2026-11-12 (PR #55): a Node stdio relay for Claude Desktop**
+    (`clients/node/vendorkb-mcp.mjs`), where custom connectors are not allowed: no
+    dependencies, Node 18+, one POST per message, the key from `VENDORKB_MCP_KEY` or
+    `~/.config/vendorkb/mcp-key`. Verified through Cloudflare. The server's usage guide
+    (`mcp_server.INSTRUCTIONS`) was rewritten around `gather_evidence` with it; the Copilot
+    agent's instructions followed on 2026-11-16 (copilot-studio.md §5: the evidence set, with
+    `list_vendors` first).
+
+    Open: an `eval/agent_eval.py` run under the new guide and the evidence set (writing from
+    whole passages has not been measured with agents, item 42).
