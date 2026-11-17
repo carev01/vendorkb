@@ -1788,6 +1788,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault"
+    article_ids: ["04c824c5-672e-45aa-b61d-75a6035cee73"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["dad69d7c-189b-4d53-8d70-40697eae685a"]
@@ -1933,6 +1936,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "Rapid Recovery / Identity Recovery"
+    article_ids: ["6e81c6b6-0b21-46de-911c-b89bfb90291b", "6f76ed61-f376-48d4-a8d3-aa3a3d996317"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["04b95d92-d3b4-41b3-92fe-a25de736fb64", "78e2b9e5-bf0c-4e76-8b83-fc54e76f52cd"]
@@ -2250,6 +2256,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault / vRanger"
+    article_ids: ["b35a2d2d-a304-4429-a1f8-c584e2f6674e", "749cb354-3d33-42d7-a5ab-2b4c35fbd147"]
   - vendor: "Acronis"
     product: "Cyber Protect"
     article_ids: ["634e6356-3e2b-4e5d-bc67-5856e6fe835e", "6b306be8-6f84-4044-80e3-c1a1236c5964"]
@@ -2355,6 +2364,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "Rapid Recovery"
+    article_ids: ["ccf9090c-b371-477b-9eab-774443a27855"]
   - vendor: "Acronis"
     product: "Cyber Protect Cloud / On-premises"
     article_ids: ["03acd761-0e00-4343-998b-95adef25258e", "c3798a54-2b7f-4117-ab59-6210af52c8a4", "d9e57dce-a5af-4447-bc60-9d6cf0449290"]
@@ -2434,6 +2446,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "Rapid Recovery"
+    article_ids: ["b464d90d-73fb-467b-bd80-1f4d7fdbe928"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["481d7026-1b57-458e-9ee0-b3d01e8ec761"]
@@ -2555,6 +2570,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault Plug-in for Microsoft 365"
+    article_ids: ["a7fa89ae-d982-4f10-a212-b967787bc3c1"]
   - vendor: "Acronis"
     product: "Cyber Protect Cloud"
     article_ids: ["71ae694d-219a-48ca-804f-cfb960f8be4d", "bd24cba4-c4d3-4e1d-95d5-82ef37bb2970"]
@@ -2673,6 +2691,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "Rapid Recovery"
+    article_ids: ["050b22a8-a3a2-4714-81cf-58308f59ddc9"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["08b4ad14-3edf-4180-b628-e3905b1379e3", "3704689c-2a17-4cb0-a0e9-e87707097ef6"]
@@ -2843,6 +2864,7 @@
     product: "Veeam Agent for IBM AIX (VBR)"
     article_ids: ["43369e60-c4b3-4abb-9fbc-05a811507e55", "c0fbff20-b69f-4f97-a870-2a4def60d356"]
   unclear_vendors:
+  - "Quest Software"
   - "Druva"
   - "Nakivo"
   key_terms:
@@ -2873,6 +2895,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault"
+    article_ids: ["3e82e53b-25c1-48eb-a543-d4d819574e7d"]
   - vendor: "Acronis"
     product: "Cyber Protect Cloud / On-premises"
     article_ids: ["0ba21aed-3af2-4564-95ed-b7fbe03e1cf0", "3ee6e223-eb2a-45e2-b20b-a2dbf5048898", "5b497484-c73e-4035-854d-e19a17153483"]
@@ -3492,6 +3517,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault Plug-in for Oracle"
+    article_ids: ["702ae8d0-b458-4a2f-8722-5131fad3725a"]
   - vendor: "Arcserve"
     product: "Arcserve Backup"
     article_ids: ["6aa89449-97ee-4d8a-83da-cb182f3f4496", "e316f3c4-b030-46e9-aaa2-766de8d9db91"]
@@ -3666,6 +3694,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault"
+    article_ids: ["5b16b707-c2f8-46e4-9088-bbc7909396fa"]
   - vendor: "Acronis"
     product: "Cyber Protect On-premises"
     article_ids: ["d3c2ad3e-0081-4d32-b81c-171375a62637", "eb16cac3-eb08-4007-9211-7d96964ddfc0"]
@@ -3803,6 +3834,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "Rapid Recovery / NetVault Bare Metal Recovery"
+    article_ids: ["1a832aa2-8385-44ed-b413-28056f1c92fe"]
   - vendor: "Acronis"
     product: "Cyber Protect Cloud / On-premises"
     article_ids: ["1ecbad1e-3687-4234-b65e-df944554f98e", "9e5acfbf-a385-48cb-a66b-af7a315da75c", "bb964c1f-92be-4dca-8d1a-68558264adf0"]
@@ -4006,6 +4040,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "NetVault Plug-in for Nutanix AHV"
+    article_ids: ["a20938cb-0754-417f-82f9-0bbecdae02a1"]
   - vendor: "Acronis"
     product: "Cyber Protect On-premises, Cyber Protect Cloud"
     article_ids: ["7bba3692-e884-407b-8ef4-e9e0657c5cae", "b2eeae12-1fe8-4a62-96ce-5c49964ca8dc"]
@@ -4077,6 +4114,12 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "IBM"
+    product: "Storage Protect"
+    article_ids: ["8d8ca7b6-1638-4c9c-a812-02749858e1ae", "01940ef5-faf2-4bbf-96d5-391f9c3c52ab"]
+  - vendor: "Flosum"
+    product: "Backup & Archive"
+    article_ids: ["2afa500e-0d6e-47df-b3a5-cd7df5ca4c97"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["55c56e87-11ff-4b57-b48c-d0ad4d57da6a"]
@@ -4108,6 +4151,8 @@
     product: "Unitrends Unified Backup"
     article_ids: ["a6be8833-8b5b-4c77-93ca-c5fd16b9db58"]
   unclear_vendors:
+  - "Dell"
+  - "Quest Software"
   - "Acronis"
   - "Atempo"
   - "AvePoint"
@@ -4221,6 +4266,7 @@
     product: "Zerto"
     article_ids: ["15f87b9a-4a89-4862-9e63-ca67bd916e25", "fe4fede8-2e20-4d4c-9e5d-0e3ed709ac69"]
   unclear_vendors:
+  - "Quest Software"
   - "AWS"
   - "Afi.ai"
   - "Gearset"
@@ -4250,6 +4296,9 @@
   type: cross_vendor
   shape: enumeration
   expected_vendors:
+  - vendor: "Quest Software"
+    product: "QoreStor"
+    article_ids: ["21166b8e-9000-49ed-a64d-a7b23d637f63"]
   - vendor: "AWS"
     product: "AWS Backup"
     article_ids: ["148fd292-79a6-4dfc-a382-931b03658734"]
