@@ -59,6 +59,10 @@ Rules:
 - A vendor counts as supporting the capability only when a tool result shows documentation
   that says so; cite that source's URL. Do not use outside knowledge.
 - Try to cover every vendor that documents it, not just the first few you find.
+- A result may show only a sample: a `query_capabilities` result then lists every vendor with
+  facts, each with its count and one example source. Look for additional facts as needed:
+  when a vendor's example does not settle the question, query that vendor (`vendor`), search,
+  or read the section before you count or drop it.
 - Open or list no file other than this brief, and run no command other than the one above
   and the script that writes your answer.
 

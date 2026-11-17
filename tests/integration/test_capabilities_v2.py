@@ -317,6 +317,10 @@ async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
         assert one.vendor_totals["facts"] == {"examplevendor": 4, "othervendor": 1}
         assert one.vendor_totals["product_wide"] == {"examplevendor": 2}
         assert "product_level" not in one.vendor_totals  # empty, so not cut
+        # with one example per vendor: that vendor's first row, the one the sample would show
+        assert {v: f.vendor for v, f in one.vendor_examples["facts"].items()} == {
+            "examplevendor": "examplevendor", "othervendor": "othervendor"}
+        assert one.vendor_examples["facts"]["examplevendor"].claim_id == one.facts[0].claim_id
         unbounded = await capabilities.query(conn, CapFilter(target="okta", vendor="examplevendor"))
         assert len(unbounded.facts) == 4 and unbounded.totals["facts"] == 4
         assert unbounded.vendor_totals == {}  # nothing cut, nothing counted

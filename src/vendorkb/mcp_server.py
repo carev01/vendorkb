@@ -39,6 +39,8 @@ MAX_K = 12  # agents ask for k=30 to "see everything"; 12 x 1,200 characters fit
 MAX_LIMIT = 200
 WIDE_SHOWN = 10  # product-wide facts shown at most: the workload-specific facts come first
 QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content has it whole)
+EXAMPLE_QUOTE_SHOWN = 140  # quote characters of a cut result's per-vendor example
+SAMPLE_WITH_EXAMPLES = 5  # facts in full under a per-vendor example list (it cites every vendor)
 # Per search hit in the text output (structured content has it whole): agent clients cap a tool
 # result's size, and 8 x 2,500 characters overflowed them in the 2026-11-08 agent eval.
 PASSAGE_CHARS = 1200
@@ -180,6 +182,22 @@ def format_fact(n: int, f: Fact) -> str:
 
 
 _FACT_GROUPS = ("facts", "product_level", "product_wide", "unresolved_target")
+# Groups whose cut vendor list carries one example per vendor (the others list counts only: a
+# family-wide filter names 40+ vendors, and every example costs about 300 characters).
+_EXAMPLE_GROUPS = ("facts", "product_level")
+
+
+def _vendor_example(vendor: str, n: int, f: Fact | None) -> str:
+    """One line of a cut group's vendor list: the count, and the first fact as a citation."""
+    if f is None:
+        return f"- {vendor} ({n})"
+    quote = " ".join(f.evidence_quote.split())
+    if len(quote) > EXAMPLE_QUOTE_SHOWN:
+        quote = quote[:EXAMPLE_QUOTE_SHOWN] + " […]"
+    target = f" | {f.target_id}" if f.target_id else ""
+    return (f'- {vendor} ({n}): {f.support.upper()}{target} — "{quote}" — '
+            f"{f.title or 'untitled'} — {f.url or 'no url'} (chunk {f.chunk_id})"
+            + (EARLIER_VERSION if f.evidence_superseded else ""))
 
 
 def format_capabilities(res: CapResult, limit: int,
@@ -205,16 +223,30 @@ def format_capabilities(res: CapResult, limit: int,
         head = f"{title}: {total}" + (f" (first {len(shown)} shown)" if total > len(shown)
                                        else "")
         lines = [head]
+        in_full = shown
         if total > len(shown):
-            # the sample cannot name every vendor: list them all with their counts
+            # the sample cannot name every vendor: list them all with their counts, and for
+            # the workload-specific groups one citable example each
             vendors = res.vendor_totals.get(key) or dict(
                 sorted(Counter(f.vendor for f in facts).items(), key=lambda kv: (-kv[1], kv[0])))
+            examples = res.vendor_examples.get(key, {}) if key in _EXAMPLE_GROUPS else {}
             structured[f"{key}_vendors"] = vendors
-            lines.append(f"Vendors with these facts ({len(vendors)}): "
-                         + ", ".join(f"{v} {n}" for v, n in vendors.items())
-                         + ". The sample below does not show them all: query one vendor"
-                           " (`vendor`) for its facts.")
-        for f in shown:
+            if examples:
+                structured[f"{key}_vendor_examples"] = {
+                    v: dataclasses.asdict(f) for v, f in examples.items()}
+                lines.append(f"Vendors with these facts ({len(vendors)}), each with its count and"
+                             " one example; query one vendor (`vendor`) for all its facts:")
+                lines += [_vendor_example(v, c, examples.get(v)) for v, c in vendors.items()]
+                # the examples cite every vendor: a few facts in full keep the text within
+                # client limits (structured content keeps the whole sample)
+                in_full = shown[:SAMPLE_WITH_EXAMPLES]
+                lines.append(f"{len(in_full)} of these facts in full:")
+            else:
+                lines.append(f"Vendors with these facts ({len(vendors)}): "
+                             + ", ".join(f"{v} {c}" for v, c in vendors.items())
+                             + ". The sample below does not show them all: query one vendor"
+                               " (`vendor`) for its facts.")
+        for f in in_full:
             n += 1
             lines.append(format_fact(n, f))
         parts.append("\n".join(lines))
