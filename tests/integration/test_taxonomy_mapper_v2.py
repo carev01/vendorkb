@@ -1218,3 +1218,150 @@ async def test_genuine_bad_request_is_not_retried(vkb_dsn, tmp_path, monkeypatch
         assert len(attempts) == 1
     finally:
         await conn.close()
+
+
+# --- batch mode (BACKLOG 37) -------------------------------------------------------------
+
+class FakeBatchAPI:
+    """Anthropic-shaped batches answering with REPLIES; batches end when ``auto_end`` or once
+    ``end()`` is called."""
+
+    def __init__(self, replies=None, *, auto_end=True):
+        self.replies = REPLIES if replies is None else replies
+        self.auto_end = auto_end
+        self.created: list[list] = []
+        self.ended: set[str] = set()
+        self.messages = SimpleNamespace(batches=self)
+
+    def end(self):
+        self.ended.update(f"b{n}" for n in range(1, len(self.created) + 1))
+
+    def asked(self) -> list[list[tuple[str, str]]]:
+        """Per batch: the (kind, phrase) questions, sorted."""
+        return [sorted((_kind(u), _phrase(u)) for u in
+                       (r["params"]["messages"][0]["content"] for r in reqs))
+                for reqs in self.created]
+
+    async def create(self, *, requests):
+        self.created.append(list(requests))
+        return SimpleNamespace(id=f"b{len(self.created)}")
+
+    async def retrieve(self, batch_id):
+        done = self.auto_end or batch_id in self.ended
+        return SimpleNamespace(processing_status="ended" if done else "in_progress")
+
+    async def results(self, batch_id):
+        requests = self.created[int(batch_id[1:]) - 1]
+
+        async def gen():
+            for r in requests:
+                user = r["params"]["messages"][0]["content"]
+                candidates = _candidates(user)
+                choice = _number(self.replies[_phrase(user)](candidates), candidates)
+                msg = SimpleNamespace(
+                    content=[SimpleNamespace(type="text", text=json.dumps({"choice": choice}))],
+                    stop_reason="end_turn",
+                    usage=SimpleNamespace(input_tokens=400, output_tokens=20))
+                yield SimpleNamespace(custom_id=r["custom_id"],
+                                      result=SimpleNamespace(type="succeeded", message=msg))
+        return gen()
+
+
+def _batch_settings():
+    return _settings(map_backend="anthropic", map_model="claude-haiku-5-5")
+
+
+async def _batch_run(conn, api, **kw):
+    return await mapper.map_claims(conn, embedder=FakeEmbedder(), client=api,
+                                   settings=_batch_settings(), max_usd=1.0, mode="batch",
+                                   poll_seconds=0, **kw)
+
+
+async def _batch_fresh(conn, tmp_path):
+    await conn.execute("DROP TABLE IF EXISTS llm_batches, llm_batch_items CASCADE")
+    await _fresh(conn, tmp_path)
+
+
+async def test_batch_mode_asks_targets_first_then_the_dimensions_they_unlock(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        chosen = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        none = await _claim(conn, "the dashboard thing", "Okta")  # an alias target
+        api = FakeBatchAPI(auto_end=False)
+        version = await load.current_version(conn)
+
+        first = await _batch_run(conn, api, wait=False)
+        # the dimension of a claim whose target is waiting is not asked yet
+        assert api.asked() == [[("target", "okta workforce")],
+                               [("dimension", "the dashboard thing")]]
+        assert (first.claims_pending, first.decisions_pending, first.in_flight) == (2, 2, 2)
+        assert (await _mapping(conn, chosen))["mapped_version"] is None
+        assert (await _mapping(conn, none))["mapped_version"] is None
+        await _batch_run(conn, api, wait=False)  # nothing ended: nothing asked again
+        assert len(api.created) == 2
+
+        api.end()
+        second = await _batch_run(conn, api, wait=False)
+        assert api.asked()[2] == [("dimension", "keep copies for ages")]
+        m = await _mapping(conn, none)  # its "none" landed: mapped, stamped
+        assert (m["dimension_method"], m["mapped_version"]) == ("unmapped", version)
+        assert (second.claims_pending, second.batch.collected) == (1, 2)
+
+        api.end()
+        third = await _batch_run(conn, api, wait=False)
+        m = await _mapping(conn, chosen)
+        assert (m["target_id"], m["target_method"], m["dimension_id"], m["dimension_method"],
+                m["mapped_version"]) == ("okta", "llm", "retention.maximum_period", "llm",
+                                         version)
+        assert (third.claims_pending, third.in_flight, len(api.created)) == (0, 0, 3)
+        # the answers are stored decisions, as a sync run stores them
+        cur = await conn.execute("SELECT kind, phrase, choice FROM map_decisions ORDER BY 2")
+        assert await cur.fetchall() == [("dimension", "keep copies for ages",
+                                         "retention.maximum_period"),
+                                        ("target", "okta workforce", "okta"),
+                                        ("dimension", "the dashboard thing", None)]
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_waiting_runs_the_rounds_in_one_call_at_the_batch_price(vkb_dsn,
+                                                                                tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        chosen = await _claim(conn, "keep copies for ages", "Okta Workforce")
+        api = FakeBatchAPI()
+        report = await _batch_run(conn, api)
+        assert api.asked() == [[("target", "okta workforce")],
+                               [("dimension", "keep copies for ages")]]
+        assert (report.mode, report.rounds, report.in_flight) == ("batch", 3, 0)
+        m = await _mapping(conn, chosen)
+        assert (m["target_id"], m["dimension_id"]) == ("okta", "retention.maximum_period")
+        assert m["mapped_version"] == await load.current_version(conn)
+        # two answers at half of 400 in / 20 out at Haiku's $0.10 / $0.50 per MTok
+        assert report.batch.spent_usd == pytest.approx(2 * (400 * 0.10 + 20 * 0.50) / 1e6 * 0.5)
+        assert report.batch.submitted == 2
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_refuses_openai_and_seed_and_a_held_lock_does_nothing(vkb_dsn,
+                                                                              tmp_path):
+    conn = await connect(vkb_dsn)
+    other = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        with pytest.raises(ValueError, match="anthropic backend"):
+            await mapper.map_claims(conn, embedder=FakeEmbedder(), client=None,
+                                    settings=_settings(), max_usd=1.0, mode="batch")
+        with pytest.raises(ValueError, match="sync mode"):
+            await _batch_run(conn, FakeBatchAPI(), seed=True)
+        await other.execute("SELECT pg_advisory_lock(%s)", (mapper.LOCK_KEY,))
+        api = FakeBatchAPI()
+        report = await _batch_run(conn, api)
+        assert report.locked and api.created == []
+    finally:
+        await other.close()
+        await conn.close()

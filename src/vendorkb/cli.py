@@ -280,7 +280,8 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                 embedder=embedder, ready=ready, settle_minutes=args.settle_minutes,
                 extract_limit=args.extract_limit, map_max_usd=args.map_max_usd,
                 support_max_usd=args.support_max_usd,
-                support_review_max_usd=args.support_review_max_usd)
+                support_review_max_usd=args.support_review_max_usd, batch=args.batch,
+                extract_new=args.extract_new)
     finally:
         for client in (extract_client, map_client, support_client):
             close = getattr(client, "close", None)
@@ -333,9 +334,18 @@ async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
         if args.claims_cmd == "support":
+            mode: Literal["sync", "batch"] = args.mode or (
+                "batch" if settings.support_backend == "anthropic" else "sync")
+            if args.retry_failed:
+                from vendorkb import llm_batch
+
+                for kind in support.BATCH_KINDS:
+                    await llm_batch.reset_failed(conn, kind)
             checked = await support.run(conn, client=client, settings=settings,
                                         check_max_usd=args.check_max_usd,
-                                        review_max_usd=args.review_max_usd, limit=args.limit)
+                                        review_max_usd=args.review_max_usd, limit=args.limit,
+                                        mode=mode, wait=not args.no_wait,
+                                        poll_seconds=args.poll_seconds)
             print(json.dumps(dataclasses.asdict(checked)))
             # failed calls are asked again by the next run, but they are worth a non-zero exit
             return 1 if checked.check.invalid or checked.review.invalid else 0
@@ -379,13 +389,23 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
         if args.taxonomy_cmd == "map":
             await init_schema(conn, embed_dim=settings.embed_dim)
             client = _map_client(settings)
+            mode: Literal["sync", "batch"] = args.mode or (
+                "batch" if settings.map_backend == "anthropic" and not args.seed_decisions
+                else "sync")
+            if args.retry_failed:
+                from vendorkb import llm_batch
+
+                for kind in mapper.BATCH_KINDS:
+                    await llm_batch.reset_failed(conn, kind)
             try:
                 async with Embedder(settings) as embedder:
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
                                                      settings=settings, max_usd=args.max_usd,
                                                      remap=args.remap, vendor=args.vendor,
                                                      seed=args.seed_decisions,
-                                                     reask=frozenset(args.reask))
+                                                     reask=frozenset(args.reask), mode=mode,
+                                                     wait=not args.no_wait,
+                                                     poll_seconds=args.poll_seconds)
             finally:
                 close = getattr(client, "close", None)
                 if close is not None:
@@ -399,7 +419,10 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 prep = await propose.propose(
                     conn, client=client, embedder=embedder, settings=settings,
                     kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
-                    max_usd=args.max_usd, limit=args.limit)
+                    max_usd=args.max_usd, limit=args.limit,
+                    mode=args.mode or ("batch" if settings.extract_backend == "anthropic"
+                                       else "sync"),
+                    poll_seconds=args.poll_seconds)
         finally:
             close = getattr(client, "close", None)
             if close is not None:
@@ -500,6 +523,13 @@ def _parser() -> argparse.ArgumentParser:
                    help="support-review budget per run (default 1.0)")
     s.add_argument("--warmup-seconds", type=float, default=1500.0,
                    help="how long to wait for a scaled-to-zero endpoint (default 1500)")
+    s.add_argument("--batch", action="store_true",
+                   help="map and support-check on the Message Batches API at half price, one"
+                        " round per run; a run is also due while a batch is open, and"
+                        " capabilities wait until the support check is done")
+    s.add_argument("--no-extract", dest="extract_new", action="store_false",
+                   help="never extract or wake the endpoint (the frequent collect run of the"
+                        " batch pipeline; extraction is left to the weekly run)")
     s = sub.add_parser("mcp", help="serve the MCP tools over streamable HTTP at /mcp"
                                    " (MCP_BEARER_TOKEN required)")
     s.add_argument("--host", default="127.0.0.1")
@@ -528,6 +558,15 @@ def _parser() -> argparse.ArgumentParser:
                    help="reviewer budget for this run (default 1.0)")
     c.add_argument("--limit", type=int, default=None,
                    help="at most this many claims per step (a smoke test)")
+    c.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: the Message Batches API at half price (default with"
+                        " SUPPORT_BACKEND anthropic); sync: one call per claim")
+    c.add_argument("--no-wait", action="store_true",
+                   help="batch mode: collect what has ended, submit what is due, and exit"
+                        " (the next run carries on) instead of waiting for the batches")
+    c.add_argument("--retry-failed", action="store_true",
+                   help="batch mode: first make the claims whose asks failed 3 times due again")
+    c.add_argument("--poll-seconds", type=float, default=60.0)
     s = sub.add_parser("taxonomy", help="grow (propose), load and apply (map) the taxonomy")
     tax = s.add_subparsers(dest="taxonomy_cmd", required=True)
     t = tax.add_parser("propose", help="cluster the v3 claim strings of one section and merge "
@@ -546,6 +585,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="override EXTRACT_BACKEND")
     t.add_argument("--limit", type=int, default=None,
                    help="send at most N clusters, biggest first (smoke run)")
+    t.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: one Message Batch at half price, waited for (default with"
+                        " EXTRACT_BACKEND anthropic); sync: one call per cluster")
+    t.add_argument("--poll-seconds", type=float, default=60.0)
     t = tax.add_parser("load", help="validate the reviewed v2 YAML and replace the taxonomy"
                                     " tables with it (every problem listed, nothing written)")
     t.add_argument("path")
@@ -575,6 +618,17 @@ def _parser() -> argparse.ArgumentParser:
                    help="ask again (and replace) stored decisions whose answer is this entity,"
                         " e.g. after sharpening its definition; repeatable. Only claims this run"
                         " maps are covered: use it with a new taxonomy version or --all")
+    t.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: the Message Batches API at half price, in rounds (targets,"
+                        " then the dimensions they unlock; default with MAP_BACKEND anthropic);"
+                        " sync: one call per question")
+    t.add_argument("--no-wait", action="store_true",
+                   help="batch mode: one round (collect, map, submit) and exit; the next run"
+                        " carries on")
+    t.add_argument("--retry-failed", action="store_true",
+                   help="batch mode: first make the questions answered unusably 3 times due"
+                        " again")
+    t.add_argument("--poll-seconds", type=float, default=60.0)
     s = sub.add_parser("capabilities", help="build or query the capabilities table")
     cap = s.add_subparsers(dest="capabilities_cmd", required=True)
     cap.add_parser("build", help="rebuild from mapped raw claims (current taxonomy version)")

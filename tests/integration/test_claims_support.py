@@ -508,3 +508,169 @@ async def test_an_unpriced_support_model_says_where_to_add_its_price(vkb_dsn, tm
                               review_max_usd=1.0)
     finally:
         await conn.close()
+
+
+# --- batch mode (BACKLOG 37) -------------------------------------------------------------
+
+class FakeBatchAPI:
+    """Anthropic-shaped batches: a result's verdict is looked up by the claim's capability and
+    the step (``("check", cap)`` or ``("review", cap)``); a batch ends when ``auto_end`` or
+    once ``end()`` is called."""
+
+    def __init__(self, verdicts, *, auto_end=True):
+        self.verdicts, self.auto_end = verdicts, auto_end
+        self.created: list[tuple[str, list]] = []
+        self.ended: set[str] = set()
+        self.messages = SimpleNamespace(batches=self)
+
+    def end(self):
+        self.ended.update(f"b{n}" for n in range(1, len(self.created) + 1))
+
+    def steps(self):
+        return [(step, sorted(_capability_of(r) for r in reqs)) for step, reqs in self.created]
+
+    async def create(self, *, requests):
+        step = "check" if requests[0]["params"]["system"] == support.CHECK_SYSTEM else "review"
+        self.created.append((step, list(requests)))
+        return SimpleNamespace(id=f"b{len(self.created)}")
+
+    async def retrieve(self, batch_id):
+        done = self.auto_end or batch_id in self.ended
+        return SimpleNamespace(processing_status="ended" if done else "in_progress")
+
+    async def results(self, batch_id):
+        step, requests = self.created[int(batch_id[1:]) - 1]
+
+        async def gen():
+            for r in requests:
+                verdict = self.verdicts[(step, _capability_of(r))]
+                text = verdict if isinstance(verdict, str) else json.dumps({"supported": verdict})
+                msg = SimpleNamespace(content=[SimpleNamespace(type="text", text=text)],
+                                      stop_reason="end_turn",
+                                      usage=SimpleNamespace(input_tokens=300, output_tokens=40))
+                yield SimpleNamespace(custom_id=r["custom_id"],
+                                      result=SimpleNamespace(type="succeeded", message=msg))
+        return gen()
+
+
+def _capability_of(request) -> str:
+    return re.search(r"^Capability: (.*)$", request["params"]["messages"][0]["content"],
+                     re.M).group(1)
+
+
+def _batch_settings():
+    return VendorkbSettings(_env_file=None, support_backend="anthropic",
+                            support_model="claude-haiku-5-5",
+                            support_review_model="claude-opus-5-5")
+
+
+async def _batch_fresh(conn, tmp_path):
+    await conn.execute("DROP TABLE IF EXISTS llm_batches, llm_batch_items CASCADE")
+    return await _fresh(conn, tmp_path)
+
+
+async def test_batch_mode_checks_then_reviews_the_flagged_and_waits_for_both(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _batch_fresh(conn, tmp_path)
+        good = await _fact(conn, version, RETENTION, "kept for a year")
+        kept = await _fact(conn, version, FREQUENCY, "hourly")
+        bad = await _fact(conn, version, RESTORE, "restores users")
+        api = FakeBatchAPI({("check", "kept for a year"): True, ("check", "hourly"): False,
+                            ("check", "restores users"): False, ("review", "hourly"): True,
+                            ("review", "restores users"): False})
+        report = await support.run(conn, client=api, settings=_batch_settings(),
+                                   check_max_usd=1.0, review_max_usd=1.0, mode="batch",
+                                   poll_seconds=0)
+        assert api.steps() == [("check", ["hourly", "kept for a year", "restores users"]),
+                               ("review", ["hourly", "restores users"])]
+        rows = await _rows(conn)
+        assert rows[good][:1] == (True,) and rows[kept][:3] == (False, rows[kept][1], True)
+        assert rows[bad][0] is False and rows[bad][2] is False
+        assert rows[good][1] == "claude-haiku-5-5@high/support-v2"
+        assert rows[bad][3] == "claude-opus-5-5@low/review-v1"
+        assert (report.check.supported, report.check.unsupported) == (1, 2)
+        assert (report.review.supported, report.review.unsupported) == (1, 1)
+        assert (report.flagged, report.rejected, report.in_flight) == (0, 1, 0)
+        # the batch price: half of 300 in / 40 out at Haiku's $0.10 / $0.50 per MTok
+        assert report.check_batch.spent_usd == pytest.approx(3 * (300 * 0.10 + 40 * 0.50)
+                                                             / 1e6 * 0.5)
+        assert report.check_batch.submitted == 3 and report.review_batch.submitted == 2
+        await capabilities.build(conn)
+        assert await _capability_ids(conn) == {good, kept}  # the rejected one is left out
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_without_waiting_carries_on_across_runs_and_never_asks_twice(
+        vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _batch_fresh(conn, tmp_path)
+        flagged = await _fact(conn, version, RETENTION, "kept for a year")
+        api = FakeBatchAPI({("check", "kept for a year"): False,
+                            ("review", "kept for a year"): False}, auto_end=False)
+
+        async def once():
+            return await support.run(conn, client=api, settings=_batch_settings(),
+                                     check_max_usd=1.0, review_max_usd=1.0, mode="batch",
+                                     wait=False)
+
+        first = await once()  # submits the check, returns at once
+        assert api.steps() == [("check", ["kept for a year"])] and first.in_flight == 1
+        await once()  # the check batch is still open: nothing asked again
+        assert len(api.created) == 1
+        api.end()
+        second = await once()  # collects the flag, submits the review
+        assert api.steps()[1] == ("review", ["kept for a year"])
+        assert (second.flagged, second.in_flight) == (1, 1)
+        api.end()
+        third = await once()  # collects the review
+        assert (third.flagged, third.rejected, third.in_flight) == (0, 1, 0)
+        assert (await _rows(conn))[flagged][2] is False
+        assert len(api.created) == 2
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_unusable_replies_are_asked_again_and_the_budget_caps_a_run(
+        vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _batch_fresh(conn, tmp_path)
+        await _fact(conn, version, RETENTION, "kept for a year")
+        await _fact(conn, version, FREQUENCY, "hourly")
+        api = FakeBatchAPI({("check", "kept for a year"): "not json",
+                            ("check", "hourly"): True})
+        report = await support.run(conn, client=api, settings=_batch_settings(),
+                                   check_max_usd=1.0, review_max_usd=1.0, mode="batch",
+                                   poll_seconds=0)
+        # asked until the attempt cap, then left alone
+        assert [s for s, _ in api.steps()] == ["check"] * 3
+        assert report.check.invalid == 3 and report.check_batch.failed == 1
+        assert report.in_flight == 0
+
+        again = FakeBatchAPI({})
+        await support.run(conn, client=again, settings=_batch_settings(), check_max_usd=1.0,
+                          review_max_usd=1.0, mode="batch", wait=False)
+        assert again.created == []  # the failed claim is held: never asked again
+        await _fact(conn, version, RESTORE, "restores users")
+        await _fact(conn, version, RESTORE, "restores groups")
+        capped = await support.run(conn, client=FakeBatchAPI({}, auto_end=False),
+                                   settings=_batch_settings(), check_max_usd=1e-7,
+                                   review_max_usd=1.0, mode="batch", wait=False)
+        assert capped.check.stopped_by_budget and capped.check.skipped_by_budget == 2
+        assert capped.check_batch.submitted == 0
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_needs_the_anthropic_backend(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        with pytest.raises(ValueError, match="anthropic backend"):
+            await support.run(conn, client=None, settings=_settings(), check_max_usd=1.0,
+                              review_max_usd=1.0, mode="batch")
+    finally:
+        await conn.close()

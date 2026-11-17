@@ -690,3 +690,143 @@ async def test_reply_selects_which_members_become_aliases(vkb_dsn, tmp_path):
         assert report.none == 0 and any("'none'" in e for e in report.errors)
     finally:
         await conn.close()
+
+
+# ---- batch mode (BACKLOG 37) ----------------------------------------------------------------
+
+class FakeBatches:
+    """Message Batches whose results answer each request from REPLIES; a batch ends once its
+    id is in ``ended`` (all of them when ``end_all``)."""
+
+    def __init__(self, *, end_all=True, crash_while_waiting=False):
+        self.created: list[list] = []
+        self.ended: set[str] = set()
+        self.end_all = end_all
+        self.crash_while_waiting = crash_while_waiting
+
+    async def create(self, *, requests):
+        self.created.append(list(requests))
+        return SimpleNamespace(id=f"msgbatch_{len(self.created)}")
+
+    async def retrieve(self, batch_id):
+        done = self.end_all or batch_id in self.ended
+        if not done and self.crash_while_waiting:
+            raise RuntimeError("the pod was killed while waiting")
+        return SimpleNamespace(processing_status="ended" if done else "in_progress")
+
+    async def results(self, batch_id):
+        requests = self.created[int(batch_id.split("_")[1]) - 1]
+
+        async def gen():
+            for r in requests:
+                phrasings = _phrasings(r["params"]["messages"][-1]["content"])
+                reply = next(v for k, v in REPLIES.items() if k in phrasings)
+                text = json.dumps(_with_members(reply, phrasings))
+                msg = SimpleNamespace(content=[SimpleNamespace(type="text", text=text)],
+                                      stop_reason="end_turn",
+                                      usage=SimpleNamespace(input_tokens=400, output_tokens=80))
+                yield SimpleNamespace(custom_id=r["custom_id"],
+                                      result=SimpleNamespace(type="succeeded", message=msg))
+        return gen()
+
+
+def _batch_client(batches):
+    return SimpleNamespace(messages=SimpleNamespace(batches=batches))
+
+
+async def _fresh_batches(conn) -> None:
+    await conn.execute("DROP TABLE IF EXISTS llm_batches, llm_batch_items CASCADE")
+    await _fresh(conn)
+
+
+async def _sync_reference(conn, tmp_path) -> tuple[propose.ProposeReport, str]:
+    ref = tmp_path / "sync"
+    ref.mkdir()
+    out = _copy_fixture(ref)
+    report = await propose.propose(conn, client=FakeOpenAI(REPLIES),
+                                   embedder=FakeEmbedder(VECTORS), settings=_settings(),
+                                   kind="dimension", distance_threshold=0.2, out_path=out,
+                                   max_usd=2.0, limit=None)
+    return report, out.read_text()
+
+
+async def test_batch_mode_writes_what_sync_mode_writes_at_half_price(vkb_dsn, tmp_path):
+    from vendorkb.claims.extract import cost_usd, price_per_mtok
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh_batches(conn)
+        await _seed_dimensions(conn)
+        ref, ref_text = await _sync_reference(conn, tmp_path)
+        out = _copy_fixture(tmp_path)
+        batches = FakeBatches()
+        settings = VendorkbSettings(_env_file=None)
+        report = await propose.propose(
+            conn, client=_batch_client(batches), embedder=FakeEmbedder(VECTORS),
+            settings=settings, kind="dimension", distance_threshold=0.2, out_path=out,
+            max_usd=2.0, limit=None, mode="batch", poll_seconds=0)
+        assert report.mode == "batch"
+        assert len(batches.created) == 1 and len(batches.created[0]) == 4  # one batch
+        assert batches.created[0][0]["params"]["model"] == "claude-haiku-5-5"
+        assert (report.aliased, report.added, report.none, report.invalid) == (
+            ref.aliased, ref.added, ref.none, ref.invalid) == (1, 1, 1, 1)
+        assert report.unproposed == 0 and not report.stopped_by_budget
+        assert out.read_text() == ref_text  # the same review diff
+        one = cost_usd(400, 80, batch=True, price=price_per_mtok("claude-haiku-5-5", settings))
+        assert report.spent_usd == pytest.approx(4 * one)
+        assert report.batch.collected == 1 and report.batch.used == 4
+        (spent,) = await _rows(conn, "SELECT spent_usd FROM propose_runs WHERE spent_usd > 0"
+                                     " AND model = 'claude-haiku-5-5'")
+        assert float(spent[0]) == pytest.approx(4 * one)  # ledgered per run
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_after_a_crash_takes_the_open_batch_instead_of_asking_again(
+        vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh_batches(conn)
+        await _seed_dimensions(conn)
+        _, ref_text = await _sync_reference(conn, tmp_path)
+        out = _copy_fixture(tmp_path)
+        before = out.read_text()
+        batches = FakeBatches(end_all=False, crash_while_waiting=True)
+        kw = dict(embedder=FakeEmbedder(VECTORS), settings=VendorkbSettings(_env_file=None),
+                  kind="dimension", distance_threshold=0.2, out_path=out, max_usd=2.0,
+                  limit=None, mode="batch", poll_seconds=0)
+        with pytest.raises(RuntimeError):
+            await propose.propose(conn, client=_batch_client(batches), **kw)
+        assert out.read_text() == before and len(batches.created) == 1
+
+        batches.ended.add("msgbatch_1")
+        report = await propose.propose(conn, client=_batch_client(batches), **kw)
+        assert len(batches.created) == 1  # nothing asked twice
+        assert (report.batch.submitted, report.batch.collected) == (0, 1)
+        assert out.read_text() == ref_text
+        assert report.unproposed == 0
+    finally:
+        await conn.close()
+
+
+async def test_batch_mode_budget_and_backend(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh_batches(conn)
+        await _seed_dimensions(conn)
+        out = _copy_fixture(tmp_path)
+        batches = FakeBatches()
+        report = await propose.propose(
+            conn, client=_batch_client(batches), embedder=FakeEmbedder(VECTORS),
+            settings=VendorkbSettings(_env_file=None), kind="dimension",
+            distance_threshold=0.2, out_path=out, max_usd=0.000001, limit=None, mode="batch",
+            poll_seconds=0)
+        assert batches.created == [] and report.stopped_by_budget
+        assert report.unproposed == 4 and report.proposed == 0
+        with pytest.raises(ValueError, match="EXTRACT_BACKEND anthropic"):
+            await propose.propose(
+                conn, client=_batch_client(batches), embedder=FakeEmbedder(VECTORS),
+                settings=_settings(), kind="dimension", distance_threshold=0.2, out_path=out,
+                mode="batch")
+    finally:
+        await conn.close()

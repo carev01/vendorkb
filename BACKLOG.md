@@ -409,6 +409,26 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       propose (optional).
     - **Production:** the map moves to the Anthropic API, and `ANTHROPIC_API_KEY` goes into the
       secret.
+
+    **Built 2026-11-16 (branch `message-batches`), steps 1-5:**
+    - `llm_batch.py`: the runner and ledger (`llm_batches`, `llm_batch_items`): ledger first,
+      size-split batches, budget reserved at full `max_tokens` at the batch price, collect of
+      ended batches through an idempotent handler, attempt cap 3, then `failed` until
+      `--retry-failed`.
+    - `claims support` and `taxonomy map` default to batch mode on the Anthropic API and wait
+      (`--no-wait`: one round). The map runs in rounds under a new lock (0x766B66): targets,
+      then the dimensions they unlock (a claim whose target waits gets no dimension question).
+    - `vendorkb refresh --batch`: due also while a batch is open; extraction only when new
+      chunks are due (`--no-extract`: never); capabilities rebuilt only once support work is
+      quiescent. Helm `claimsRefresh.batch` (default true) with an hourly
+      `vendorkb-claims-collect` CronJob; `map.backend` anthropic.
+
+    - `taxonomy propose` defaults to batch mode on the Anthropic backend: one batch (kind
+      `propose`), waited for within the run; a custom id hashes the whole request, so a run
+      after a crash collects the open batch instead of asking again.
+
+    Budget-capped leftovers wait for the next weekly run (the hourly run
+    is due only while a batch is open).
 38. **Closed 2026-11-09: Copilot refused to relay full documents.** The refusal came from the
     agent's default GPT model, a rule built into the model. With the agent's model switched to
     Claude Haiku in Copilot Studio, it relays `read_document`'s full page (the user).

@@ -67,6 +67,7 @@ import numpy as np
 import openai
 import psycopg
 
+from vendorkb import llm_batch
 from vendorkb.claims.extract import cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.aspects import dimension_applies
@@ -86,6 +87,9 @@ QUOTE_CHARS = 300  # evidence quote kept per example claim
 _NN_BLOCK = 1024  # query rows per similarity matmul
 _EMBED_SLICE = 4096  # texts per embed call (the embedder batches further)
 _NO_CLASS = "(none)"
+LOCK_KEY = 0x766B66  # batch mode: single-flight across map runs (support 0x766B65)
+BATCH_KIND: dict[Kind, str] = {"target": "map-target", "dimension": "map-dimension"}
+BATCH_KINDS = tuple(BATCH_KIND.values())
 
 
 class _Embedder(Protocol):
@@ -139,6 +143,14 @@ class MapReport:
     stopped_by_budget: bool = False
     spent_usd: float = 0.0
     errors: list[str] = field(default_factory=list)
+    # batch mode (BACKLOG 37)
+    mode: str = "sync"
+    locked: bool = False  # another batch-mode map run holds the lock; nothing done
+    decisions_pending: int = 0  # adjudications waiting on a batch (submitted now or before)
+    claims_pending: int = 0  # claims left unmapped (no stamp) until those batches land
+    rounds: int = 0  # collect-and-submit rounds (wait: until no map batch is open)
+    in_flight: int = 0  # map batches still open after the run
+    batch: llm_batch.BatchReport = field(default_factory=llm_batch.BatchReport)
 
 
 @dataclass
@@ -475,6 +487,7 @@ class _Adjudication:
     decided: bool = False  # the model answered (a candidate or none)
     cached: bool = False  # answered from map_decisions
     reasked: bool = False  # its stored or earlier answer named a reask entity
+    pending: bool = False  # batch mode: no decision yet, its question is in (or goes to) a batch
     claim_ids: list[Any] = field(default_factory=list)
 
     def add_context(self, c: _Claim) -> None:
@@ -588,9 +601,9 @@ class _Adjudicator:
 
     def __init__(self, tax: _Tax, client: Any, settings: VendorkbSettings, max_usd: float,
                  report: MapReport, conn: psycopg.AsyncConnection,
-                 reask: frozenset[str] = frozenset()) -> None:
+                 reask: frozenset[str] = frozenset(), batch: bool = False) -> None:
         self.tax, self.client, self.settings, self.conn = tax, client, settings, conn
-        self.max_usd, self.report, self.reask = max_usd, report, reask
+        self.max_usd, self.report, self.reask, self.batch = max_usd, report, reask, batch
         self.price = map_price(settings)
         self.spent = self.in_flight = 0.0
         self.stop = False
@@ -612,6 +625,11 @@ class _Adjudicator:
                 self.report.decisions_reused += 1
         await self._carry([a for a in items if not a.cached])
         self.report.decisions_reasked += sum(a.reasked for a in items)
+        if self.batch:
+            await self._submit([a for a in items if not a.cached])
+            await self._keep([a for a in items if a.kind == "target" and a.choice is None
+                              and a.cached])
+            return
         try:
             await asyncio.gather(*(self._one(a) for a in items if not a.cached))
             await self._keep([a for a in items if a.kind == "target" and a.choice is None
@@ -722,6 +740,61 @@ class _Adjudicator:
                   PROMPT_RULES) for k, a in rows])
             return max(cur.rowcount, 0)  # executemany: the sum over the statements
 
+    def _request(self, a: _Adjudication, backend: Any = None) -> dict[str, Any]:
+        return build_request(backend=backend or self.settings.map_backend,
+                             model=self.settings.map_model, max_tokens=MAP_MAX_TOKENS,
+                             system=_SYSTEM[a.kind], user=_user_message(self.tax, a),
+                             schema=REPLY_SCHEMA, name="taxonomy_map")
+
+    async def _submit(self, items: list[_Adjudication]) -> None:
+        """Batch mode: every question without a decision waits on a batch; those no batch
+        holds yet are submitted, up to what is left of the run's budget."""
+        model = self.settings.map_model
+        for kind in ("target", "dimension"):
+            todo = [a for a in items if a.kind == kind]
+            if not todo:
+                continue
+            held = await llm_batch.held_ids(self.conn, BATCH_KIND[kind])
+            for a in todo:
+                a.pending = True
+            self.report.decisions_pending += len(todo)
+            new = [llm_batch.Item(decision_key(a, model), self._request(a, "anthropic"),
+                                  {"kind": a.kind, "text": a.text, "class_id": a.class_id,
+                                   "candidates": list(a.candidates)})
+                   for a in todo if decision_key(a, model) not in held]
+            reserved, skipped = self.report.batch.reserved_usd, self.report.batch.skipped_by_budget
+            await llm_batch.submit(self.conn, self.client, kind=BATCH_KIND[kind], model=model,
+                                   items=new, price=self.price, max_usd=self.max_usd,
+                                   report=self.report.batch)
+            self.max_usd -= self.report.batch.reserved_usd - reserved
+            if self.report.batch.skipped_by_budget > skipped:
+                self.report.stopped_by_budget = True
+                self.report.skipped_by_budget += self.report.batch.skipped_by_budget - skipped
+
+    def handler(self) -> llm_batch.Handler:
+        """Batch mode: store a collected answer as ``_one`` and ``run`` store a sync reply
+        (``_keep`` for a target answered none, then ``map_decisions``)."""
+        report = self.report
+
+        async def handle(result: llm_batch.Result) -> str | None:
+            p = result.payload
+            a = _Adjudication(p["kind"], p["text"], tuple(p["candidates"]), p.get("class_id"))
+            report.llm_calls += 1
+            try:
+                a.choice = _parse(result.text, a.candidates)
+            except ValueError as e:
+                report.llm_invalid += 1
+                report.errors.append(f"{a.kind} {a.text!r}: {e}")
+                return str(e)
+            a.decided = True
+            if a.choice is None:
+                report.llm_none += 1
+                if a.kind == "target":
+                    await self._keep([a])
+            await self._store([(result.custom_id, a)], "llm", replace=True)
+            return None
+        return handle
+
     async def _one(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings
         async with self.sem:
@@ -741,10 +814,7 @@ class _Adjudicator:
                 return
             self.in_flight += estimate
             try:
-                request = build_request(
-                    backend=settings.map_backend, model=settings.map_model,
-                    max_tokens=MAP_MAX_TOKENS, system=system, user=user,
-                    schema=REPLY_SCHEMA, name="taxonomy_map")
+                request = self._request(a)
                 text, error, cost = await call(self.client, request,
                                                backend=settings.map_backend, price=self.price)
             except (anthropic.BadRequestError, openai.BadRequestError) as e:
@@ -797,6 +867,7 @@ class _Mapped:
     edition_id: str | None = None
     skipped: bool = False
     failed: bool = False
+    pending: bool = False  # batch mode: an adjudication it needs is waiting on a batch
 
 
 def _resolve_scope(tax: _Tax, c: _Claim, m: _Mapped, report: MapReport) -> None:
@@ -871,14 +942,69 @@ def _count(report: MapReport, prefix: str, method: str | None) -> None:
 async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
                      settings: VendorkbSettings, max_usd: float, remap: bool = False,
                      vendor: str | None = None, seed: bool = False,
-                     reask: frozenset[str] = frozenset()) -> MapReport:
+                     reask: frozenset[str] = frozenset(),
+                     mode: Literal["sync", "batch"] = "sync", wait: bool = True,
+                     poll_seconds: float = 60.0) -> MapReport:
+    """Map the claims (see the module docstring). ``mode`` batch (BACKLOG 37; anthropic
+    backend): each round, under the map lock, collects the ended adjudication batches into
+    ``map_decisions``, maps every claim the decisions now resolve, and submits the questions
+    still missing; a claim waiting on one stays unmapped and unstamped. A claim whose target
+    question is waiting gets no dimension question yet (its class is unknown), so the decisions
+    land in rounds: targets, then the dimensions they unlock. ``wait`` repeats rounds until no
+    map batch is open, waiting between them without the lock; without it (the refresh) one
+    round, and the next run carries on. ``max_usd`` caps what the whole run submits."""
+    if mode not in ("sync", "batch"):
+        raise ValueError(f"unknown mode {mode!r}")
+    if mode == "sync":
+        return await _map_once(conn, embedder=embedder, client=client, settings=settings,
+                               max_usd=max_usd, remap=remap, vendor=vendor, seed=seed,
+                               reask=reask, batch=False)
+    if settings.map_backend != "anthropic":
+        raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
+                         " sync mode")
+    if seed:
+        raise ValueError("seed records decisions without calls: use sync mode")
+    total = llm_batch.BatchReport()
+    rounds = 0
+    while True:
+        cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
+        if not (await cur.fetchone())[0]:  # type: ignore[index]
+            log.warning("taxonomy map: another batch-mode map run holds the lock; stopping")
+            version = await current_version(conn)
+            return MapReport(taxonomy_version=version or "", mode="batch", locked=True,
+                             rounds=rounds, batch=total)
+        try:
+            report = await _map_once(conn, embedder=embedder, client=client,
+                                     settings=settings, max_usd=max_usd - total.reserved_usd,
+                                     remap=remap and rounds == 0, vendor=vendor, seed=False,
+                                     reask=reask if rounds == 0 else frozenset(), batch=True)
+            report.in_flight = await llm_batch.in_flight(conn, BATCH_KINDS)
+        finally:
+            await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
+        rounds += 1
+        total.add(report.batch)
+        report.mode, report.rounds, report.batch = "batch", rounds, total
+        if not wait or report.in_flight == 0:
+            return report
+        log.info("taxonomy map: %d batches open; waiting", report.in_flight)
+        await llm_batch.wait_ended(conn, client, BATCH_KINDS, poll_seconds=poll_seconds)
+
+
+async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
+                    settings: VendorkbSettings, max_usd: float, remap: bool,
+                    vendor: str | None, seed: bool, reask: frozenset[str],
+                    batch: bool) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
     report = MapReport(taxonomy_version=version)
     tax = await _snapshot(conn)
     # Built before any paid work: it refuses a model with no known price.
-    adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn, reask)
+    adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn, reask, batch)
+    if batch:  # the answers that landed become decisions the cache below answers from
+        for kind in BATCH_KINDS:
+            await llm_batch.collect(conn, client, kind=kind, price=adjudicator.price,
+                                    handle=adjudicator.handler(), report=report.batch)
     k = max(1, settings.map_candidates)
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
@@ -976,6 +1102,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
                 m.target_method = "llm" if m.target_id is not None else "unmapped"
                 m.skipped = a is not None and a.skipped
                 m.failed = a is not None and a.failed
+                m.pending = a is not None and a.pending
         _resolve_scope(tax, c, m, report)
         if m.target_id is not None:
             m.class_id = tax.target_class[m.target_id]
@@ -983,8 +1110,12 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         _resolve_offering(tax, c, m, report, products.get(c.vendor, frozenset()))
 
     # 3. Dimensions, the candidates drawn from the dimensions that apply to the target's class.
+    # A claim whose target waits on a batch has no class yet: its dimension is asked once the
+    # target lands, never against the wrong class.
     classes_of: dict[str, list[str | None]] = {}
     for c in claims:
+        if mapped[c.claim_id].pending:
+            continue
         if c.capability is not None and tax.lookup("dimension", "", c.capability) is None:
             seen = classes_of.setdefault(c.capability, [])
             if mapped[c.claim_id].class_id not in seen:
@@ -999,6 +1130,8 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
                 allowed_ids[cid] = allowed = tax.applicable(cid) & searchable
                 applicable[cid] = np.asarray([e in allowed for e in dimension_keys.entities],
                                              dtype=bool)
+    # (a phrase used only by claims whose target waits on a batch is asked later)
+    dimension_queries = [t for t in dimension_queries if t in classes_of]
     dim_cands = candidates(dimension_keys, dimension_queries,
                            {t: [applicable[cid] for cid in classes_of[t]]
                             for t in dimension_queries})
@@ -1015,7 +1148,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             adj_of[(text, cid)] = a
     for c in claims:
         a = (adj_of.get((c.capability, mapped[c.claim_id].class_id))
-             if c.capability is not None else None)
+             if c.capability is not None and not mapped[c.claim_id].pending else None)
         if a is not None:
             a.add_context(c)
     if seed:  # decisions recorded; the claims themselves are left as they are
@@ -1030,17 +1163,19 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         hit = tax.lookup("dimension", "", c.capability)
         if hit is not None:
             m.dimension_id, m.dimension_method = hit, "alias"
-        else:
+        elif not m.pending:
             a = adj_of.get((c.capability, m.class_id)) if c.capability is not None else None
             if a is not None and a.choice is not None:
                 m.dimension_id, m.dimension_method = a.choice, "llm"
             m.skipped = m.skipped or (a is not None and a.skipped)
             m.failed = m.failed or (a is not None and a.failed)
+            m.pending = a is not None and a.pending
         _count(report, "dimension", m.dimension_method)
         if (m.dimension_id or "").startswith("coverage.") and m.object_type_id is None:
             report.coverage_without_object_type += 1
         report.claims_skipped_by_budget += int(m.skipped)
-        done = not (m.skipped or m.failed)
+        report.claims_pending += int(m.pending)
+        done = not (m.skipped or m.failed or m.pending)
         report.claims_to_retry += int(not done)
         rows.append((c.claim_id, m.dimension_id, m.dimension_method, m.class_id, m.target_id,
                      m.target_method, m.variant_id, m.object_type_id, m.offering_id,

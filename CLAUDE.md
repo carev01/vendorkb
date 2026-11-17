@@ -94,6 +94,15 @@ stack.
     excludes failing workers, since Vast reboots a bad host instead of moving off it), extracts,
     maps (MAP_BASE_URL / MAP_API_KEY, else the EXTRACT_ ones; required with VAST_ENDPOINT),
     support-checks and rebuilds capabilities.
+  - Message Batches (BACKLOG 37, `llm_batch.py`; tables `llm_batches`, `llm_batch_items`):
+    `taxonomy map`, `claims support` and `taxonomy propose` default to batch mode on the
+    Anthropic API (half price; they wait for their batches, `--no-wait` does one round for map
+    and support; propose sends one batch, its custom ids hash the request). The map lands in rounds
+    (targets, then the dimensions they unlock) under lock 0x766B66. `refresh --batch` (Helm
+    `claimsRefresh.batch`) does one round per run; the hourly `vendorkb-claims-collect`
+    (`--no-extract`) carries open batches on, and capabilities are rebuilt only once the
+    support check is quiescent. A batch handler must be idempotent: a result can be handed
+    over twice after a crash.
   - `vendorkb claims support` (`claims/support.py`, BACKLOG 36; spec
     `specs/2026-11-09-claim-support-check-design.md`):
     - the checker (`SUPPORT_MODEL`, Haiku 5.5 at effort high) asks whether the quote shows each
