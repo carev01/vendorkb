@@ -112,11 +112,19 @@ claimsRefresh:
     limit: 20000           # chunks per run; a backlog this large runs without settling
     warmupSeconds: 3600    # how long to wait for the scaled-to-zero endpoint (a bad
                            # host costs a worker's load time before it is replaced)
+  # Map and support on the Message Batches API at half price (BACKLOG 37): one round per run,
+  # so a new page's facts land over several runs (map targets, map dimensions, check, review;
+  # usually hours) and capabilities are rebuilt once the support check is done. collect is the
+  # frequent run that carries the open batches on (--no-extract: it never wakes the GPU; it
+  # contacts nothing while no batch is open). Needs map.backend and support.backend anthropic.
+  batch: true
+  collect:
+    schedule: "17 * * * *"   # hourly
   map:
-    backend: openai        # openai: OpenRouter (MAP_API_KEY); anthropic: ANTHROPIC_API_KEY
-    baseUrl: https://openrouter.ai/api/v1
-    model: anthropic/claude-haiku-5.5
-    maxUsd: 1.0            # per due run; claims left over wait for the next one
+    backend: anthropic     # anthropic: ANTHROPIC_API_KEY (batch mode); openai: OpenRouter (MAP_API_KEY)
+    baseUrl: ""            # openai only, e.g. https://openrouter.ai/api/v1
+    model: claude-haiku-5-5   # openai: anthropic/claude-haiku-5.5
+    maxUsd: 1.0            # submitted per due run; claims left over wait for the next one
   # The claim support check (src/vendorkb/claims/support.py): the checker asks each new claim
   # of a topic dimension, the reviewer re-asks every claim it flags; capabilities leave out
   # only the claims the reviewer rejects. backend anthropic needs ANTHROPIC_API_KEY in the

@@ -373,3 +373,96 @@ async def test_wait_until_ready_polls_until_the_endpoint_answers():
         await refresh.wait_until_ready("http://serve.test/v1", "k", timeout_s=0, poll_s=0,
                                        transport=httpx.MockTransport(
                                            lambda r: httpx.Response(503)))
+
+
+# --- batch mode (BACKLOG 37) -------------------------------------------------------------
+
+def _batch_settings() -> VendorkbSettings:
+    return VendorkbSettings(_env_file=None, extract_backend="openai",
+                            extract_model="vendorkb-test", extract_price_in_per_mtok=1e-6,
+                            extract_price_out_per_mtok=1e-6, map_backend="anthropic",
+                            map_model="claude-haiku-5-5", support_backend="anthropic",
+                            support_model="claude-haiku-5-5",
+                            support_review_model="claude-opus-5-5")
+
+
+async def _with_topic(conn, tmp_path) -> None:
+    doc = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
+    doc["topics"] = [{"id": "everything", "name": "Everything", "triggers": ["everything"],
+                      "aspects": [{"id": "all", "name": "All", "query": "All",
+                                   "dimensions": [d["id"] for d in doc["dimensions"]]}]}]
+    path = tmp_path / "taxonomy.yaml"
+    path.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+    await load.load_taxonomy(conn, path)
+
+
+async def test_batch_mode_publishes_new_facts_only_once_checked_and_reviewed(vkb_dsn, tmp_path):
+    from tests.integration.test_claims_support import FakeBatchAPI
+
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DROP TABLE IF EXISTS llm_batches, llm_batch_items, claim_support"
+                           " CASCADE")
+        await init_schema(conn, embed_dim=8)
+        await _with_topic(conn, tmp_path)
+        await _chunk(conn)
+        api = FakeBatchAPI({("check", "backed up objects"): False,  # flagged by the checker,
+                            ("review", "backed up objects"): True},  # kept by the reviewer
+                           auto_end=False)
+        ready, extractor = Ready(), FakeExtract()
+
+        async def run(extract_new):
+            return await refresh.refresh(
+                conn, settings=_batch_settings(), extract_client=extractor, map_client=NoCalls(),
+                support_client=api, embedder=NoCalls(), ready=ready, settle_minutes=60,
+                extract_limit=100, map_max_usd=1.0, support_max_usd=1.0,
+                support_review_max_usd=1.0, batch=True, extract_new=extract_new, now=NOW)
+
+        first = await run(True)  # the weekly run: extract, map (aliases), submit the check
+        assert (first.mode, first.due, ready.calls, first.extract["done"]) == ("batch", True, 1, 1)
+        assert first.support["check_batch"]["submitted"] == 1
+        assert first.capabilities_deferred and first.capabilities_rows is None
+        assert await _count(conn, "SELECT count(*) FROM capabilities") == 0
+
+        hourly = await run(False)  # the check is open: due, but no extraction, no wake
+        assert (hourly.due, hourly.open_batches, hourly.extract) == (True, 1, None)
+        assert ready.calls == 1
+        # nothing landed: nothing to build, nothing asked again
+        assert hourly.capabilities_rows is None and len(api.created) == 1
+
+        api.end()
+        second = await run(False)  # the check lands (flagged): the review is submitted
+        assert api.steps()[1] == ("review", ["backed up objects"])
+        assert second.capabilities_deferred
+        assert await _count(conn, "SELECT count(*) FROM capabilities") == 0
+
+        api.end()
+        third = await run(False)  # the review lands (kept): quiescent, the fact is published
+        assert not third.capabilities_deferred and third.capabilities_rows == 1
+        assert await _count(conn, "SELECT count(*) FROM capabilities") == 1
+
+        idle = await run(False)  # nothing open, nothing new
+        assert (idle.due, idle.reason) == (False, "no new chunks")
+        assert len(extractor.calls) == 1 and ready.calls == 1
+    finally:
+        await conn.close()
+
+
+async def test_the_collect_run_never_extracts_new_chunks(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await conn.execute("DROP TABLE IF EXISTS llm_batches, llm_batch_items CASCADE")
+        await init_schema(conn, embed_dim=8)
+        await _chunk(conn)
+        ready = Ready()
+        report = await refresh.refresh(
+            conn, settings=_batch_settings(), extract_client=FakeExtract(),
+            map_client=NoCalls(), support_client=NoCalls(), embedder=NoCalls(), ready=ready,
+            settle_minutes=60, extract_limit=100, map_max_usd=1.0, batch=True,
+            extract_new=False, now=NOW)
+        assert (report.new_chunks, report.due, ready.calls) == (1, False, 0)
+        assert report.reason == "extraction is left to the extracting run"
+    finally:
+        await conn.close()

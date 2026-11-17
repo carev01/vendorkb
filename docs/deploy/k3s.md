@@ -247,13 +247,25 @@ the reviewer for every flagged claim, each with its own `maxUsd` per run; backen
 needs `ANTHROPIC_API_KEY` in the secret), and rebuilds capabilities. Chunks that only errored never trigger a
 run; they ride along with the next one.
 
-Deploy the endpoint (`deploy/vast/README.md`), add the three keys to the secret (VAST_API_KEY
-for the extractor, MAP_API_KEY for the map, ANTHROPIC_API_KEY for the support check), then
-enable it with the endpoint's name and offer filter:
+**Batch mode** (`claimsRefresh.batch`, the default; BACKLOG 37): the map and the support check
+run on the Anthropic Message Batches API at half price, one round per run. A second CronJob,
+`vendorkb-claims-collect` (hourly, `--batch --no-extract`), never wakes the GPU. It contacts
+nothing while no batch is open; otherwise it collects what ended, maps, and submits the next
+stage. A new page's facts reach capabilities after four stages (map targets, map dimensions,
+check, review): usually a few hours, at worst about four days. Capabilities are rebuilt only
+once the support check is done, so an unchecked fact is never published (the run's report says
+`capabilities_deferred`). Work a run's budget left over waits for the next weekly run. By hand,
+`vendorkb taxonomy map` and `vendorkb claims support` default to batch mode on the Anthropic
+API and wait for their batches (`--no-wait`: one round; `--mode sync`: no batches;
+`--retry-failed`: ask again what failed 3 times).
+
+Deploy the endpoint (`deploy/vast/README.md`), add the keys to the secret (VAST_API_KEY for the
+extractor, ANTHROPIC_API_KEY for the map and the support check), then enable it with the
+endpoint's name and offer filter:
 
 ```
 kubectl -n vendorkb patch secret vendorkb-secret --type merge -p \
-  "{\"stringData\":{\"VAST_API_KEY\":\"$VAST_API_KEY\",\"MAP_API_KEY\":\"$OPENROUTER_KEY\",\"ANTHROPIC_API_KEY\":\"$ANTHROPIC_KEY\"}}"
+  "{\"stringData\":{\"VAST_API_KEY\":\"$VAST_API_KEY\",\"ANTHROPIC_API_KEY\":\"$ANTHROPIC_KEY\"}}"
 helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
   --set claimsRefresh.enabled=true \
   --set claimsRefresh.extract.vast.endpoint=vendorkb-extractor \

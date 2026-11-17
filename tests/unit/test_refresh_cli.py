@@ -217,3 +217,17 @@ def test_a_vast_endpoint_needs_its_filter_and_a_map_endpoint(stubbed, monkeypatc
         monkeypatch.setenv(name, value)
     with pytest.raises(SystemExit, match=missing):
         cli.main(["refresh"])
+
+
+def test_refresh_batch_flags(stubbed, monkeypatch, capsys):
+    seen = []
+
+    async def fake_refresh(conn, *, ready, **kw):
+        seen.append((kw["batch"], kw["extract_new"]))
+        return refresh.RefreshReport()
+
+    monkeypatch.setattr(refresh, "refresh", fake_refresh)
+    assert cli.main(["refresh"]) == 0
+    assert cli.main(["refresh", "--batch"]) == 0
+    assert cli.main(["refresh", "--batch", "--no-extract"]) == 0
+    assert seen == [(False, True), (True, True), (True, False)]

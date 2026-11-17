@@ -218,6 +218,17 @@ async def rejected_count(conn: psycopg.AsyncConnection) -> int:
     return int((await cur.fetchone())[0])  # type: ignore[index]
 
 
+async def waiting(conn: psycopg.AsyncConnection, version: str) -> int:
+    """Batch mode: the checks and reviews still to be asked or answered. Claims held by a
+    batch (open, or failed at the attempt cap) count as answered when failed and as waiting
+    while their batch is open, which ``llm_batch.in_flight`` reports; this counts the claims no
+    batch holds yet."""
+    held = await llm_batch.held_ids(conn, CHECK_KIND)
+    checks = sum(1 for r in await due_for_check(conn, version) if r.claim_id not in held)
+    held = await llm_batch.held_ids(conn, REVIEW_KIND)
+    return checks + sum(1 for i in await flagged_ids(conn) if i not in held)
+
+
 # ``capabilities build``'s filter on raw_claims ``r``: leave out the claims the reviewer rejected.
 NOT_REJECTED = ("NOT EXISTS (SELECT 1 FROM claim_support s WHERE s.claim_id = r.claim_id"
                 " AND s.review_supported = false)")

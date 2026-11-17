@@ -280,7 +280,8 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                 embedder=embedder, ready=ready, settle_minutes=args.settle_minutes,
                 extract_limit=args.extract_limit, map_max_usd=args.map_max_usd,
                 support_max_usd=args.support_max_usd,
-                support_review_max_usd=args.support_review_max_usd)
+                support_review_max_usd=args.support_review_max_usd, batch=args.batch,
+                extract_new=args.extract_new)
     finally:
         for client in (extract_client, map_client, support_client):
             close = getattr(client, "close", None)
@@ -519,6 +520,13 @@ def _parser() -> argparse.ArgumentParser:
                    help="support-review budget per run (default 1.0)")
     s.add_argument("--warmup-seconds", type=float, default=1500.0,
                    help="how long to wait for a scaled-to-zero endpoint (default 1500)")
+    s.add_argument("--batch", action="store_true",
+                   help="map and support-check on the Message Batches API at half price, one"
+                        " round per run; a run is also due while a batch is open, and"
+                        " capabilities wait until the support check is done")
+    s.add_argument("--no-extract", dest="extract_new", action="store_false",
+                   help="never extract or wake the endpoint (the frequent collect run of the"
+                        " batch pipeline; extraction is left to the weekly run)")
     s = sub.add_parser("mcp", help="serve the MCP tools over streamable HTTP at /mcp"
                                    " (MCP_BEARER_TOKEN required)")
     s.add_argument("--host", default="127.0.0.1")
