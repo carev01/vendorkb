@@ -91,6 +91,9 @@ spec:
                 # extraction ledger (real API spend) at zero.
                 - {name: EXTRACT_PRICE_IN_PER_MTOK, value: "0.000001"}
                 - {name: EXTRACT_PRICE_OUT_PER_MTOK, value: "0.000001"}
+                # The extraction cap counts every run ever ledgered (the Anthropic pilots: $84 by
+                # 2026-11-17), so the default $25 refused the first refresh before any chunk.
+                - {name: EXTRACT_BUDGET_USD, value: {{ $c.extract.budgetUsd | quote }}}
                 - {name: MAP_BACKEND, value: {{ $c.map.backend | quote }}}
                 - {name: MAP_BASE_URL, value: {{ $c.map.baseUrl | quote }}}
                 - {name: MAP_MODEL, value: {{ $c.map.model | quote }}}
