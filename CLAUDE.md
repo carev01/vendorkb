@@ -197,7 +197,9 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   `eval/agent_eval.py prepare|call|score` is the agent-level regression gate: one fresh Claude
   Code subagent (Sonnet) per brief answers a labelled cross-vendor question through the
   deployed MCP server, then `score RUN --baseline eval/agent_baseline.json` exits 1 on a
-  regression. Run it after a taxonomy, mapper or MCP tool change.
+  regression. Run it after a taxonomy, mapper or MCP tool change. It calls with the
+  full-access key (`~/.config/vendorkb/mcp-full-access-token`), as the labels name every
+  vendor; the standard key hides `MCP_HIDDEN_VENDORS`.
   `eval/bypass_eval.py prepare|items|score` is the three-arm agent eval of BACKLOG 42 (relay
   `answer_question`, write from `gather_evidence`, raw tools; blind graders on sampled cited
   statements). Its 2026-11-10 pilot kept the answer model
