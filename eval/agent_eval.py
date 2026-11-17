@@ -9,8 +9,8 @@ deployed MCP server, and their answers are scored against ``expected_vendors``.
 The questions are the cross-vendor ones in ``eval/questions.yaml`` with ``expected_vendors``
 (``--ids`` narrows them). Arm ``full`` offers every MCP tool; ``search`` only
 ``list_vendors``, ``search_docs`` and ``read_section``. The agents run ``call``, which talks
-to the MCP server (``VENDORKB_MCP_URL``; token from ``VENDORKB_MCP_TOKEN`` or
-``~/.config/vendorkb/mcp-token``), refuses tools outside the arm and more than
+to the MCP server (``VENDORKB_MCP_URL``; token from ``VENDORKB_MCP_TOKEN`` or the full-access
+key in ``~/.config/vendorkb/mcp-full-access-token``, which sees every vendor), refuses tools outside the arm and more than
 ``--max-searches`` ``search_docs`` calls (each reranks ``RERANK_CANDIDATES`` chunks, about 20k
 rerank tokens), and logs every call as a JSON line. ``score`` exits 1 when a mean drops more
 than ``--tolerance`` below the baseline, and 2 when an answer is missing or unreadable.
@@ -36,7 +36,9 @@ ARMS = {"full": ("list_vendors", "list_dimensions", "list_targets", "query_capab
         "evidence": ("gather_evidence", "read_section")}
 MAX_ANSWERS = 3  # answer_question calls an agent may make (each is a full paid answer)
 DEFAULT_URL = "http://vendorkb-mcp.k3s.home.lan/mcp"
-TOKEN_FILE = "~/.config/vendorkb/mcp-token"
+# The evals use the full-access key (MCP_FULL_ACCESS_TOKEN): the labels name every vendor, and
+# the standard key hides MCP_HIDDEN_VENDORS (Cohesity), which only some MCP clients need.
+FULL_ACCESS_TOKEN_FILE = "~/.config/vendorkb/mcp-full-access-token"
 REPO = Path(__file__).resolve().parent.parent
 
 BRIEF = """# Agent brief: answer a cross-vendor question with the vendorkb tools
@@ -206,7 +208,7 @@ def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
     import httpx
 
     token = os.environ.get("VENDORKB_MCP_TOKEN") or Path(
-        os.path.expanduser(TOKEN_FILE)).read_text().strip()
+        os.path.expanduser(FULL_ACCESS_TOKEN_FILE)).read_text().strip()
     try:
         r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
             "jsonrpc": "2.0", "id": 1, "method": "tools/call",
