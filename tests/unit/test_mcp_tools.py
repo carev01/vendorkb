@@ -757,6 +757,35 @@ async def test_gather_evidence_is_read_in_parts():
     assert over.is_error and "parts 1-5" in over.content[0].text
 
 
+async def test_a_long_vendor_reply_opens_with_an_index_of_every_vendor():
+    # 3 vendors x 3 passages of 4,000 characters: three parts; part 1 cannot show them all
+    passages = [_passage(n, v, f"{v} passage {n}. " + "w" * 4000)
+                for n, v in enumerate(["Alpha"] * 3 + ["Beta"] * 3 + ["Gamma"] * 3, start=1)]
+    out = _evidence(passages, vendors_checked=["Alpha", "Beta", "Gamma", "Delta"],
+                    not_found=["Delta"])
+    async with Client(ms.build_server(FakeBackend(evidence=out))) as c:
+        first = await c.call_tool("gather_evidence", {"question": "q"})
+        second = await c.call_tool("gather_evidence", {"question": "q", "part": 2})
+    t1 = first.content[0].text
+    assert first.structured_content["parts"] >= 2 and len(t1) <= ms.PART_CHARS + 600
+    lines = t1.split("\n\n")[1].splitlines()
+    assert lines[0].startswith("Vendors with passages (3)")
+    # each vendor: its markers, the parts that hold them, and its first passage as a citation
+    assert lines[1].startswith('- Alpha ([1], [2], [3], part') and \
+        '"Alpha passage 1. www' in lines[1] and "[…]" in lines[1] and \
+        "— Page 1 — https://docs.example/1" in lines[1]
+    assert lines[3].startswith("- Gamma ([7], [8], [9], part") and "part 99" not in t1
+    assert lines[4] == "No passage for: Delta."
+    assert "Vendors with passages" not in second.content[0].text  # part 1 only
+
+
+async def test_a_short_vendor_reply_has_no_index():
+    out = _evidence([_passage(1, "Alpha"), _passage(2, "Beta")])
+    async with Client(ms.build_server(FakeBackend(evidence=out))) as c:
+        text = (await c.call_tool("gather_evidence", {"question": "q"})).content[0].text
+    assert "Vendors with passages" not in text
+
+
 async def test_gather_evidence_of_a_grid_is_the_table_with_its_sources():
     out = _evidence([_passage(1, "Alpha", aspect="Immutability")], topic="ransomware_protection",
                     aspects=["Immutability"], table="| Vendor | Immutability |\n| --- | --- |\n"
