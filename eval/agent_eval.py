@@ -71,6 +71,8 @@ Rules:
   or read the section before you count or drop it.
 - Open or list no file other than this brief, and run no command other than the one above
   and the script that writes your answer.
+- Keep any file you write while working (saved tool output, scripts) in {work} and nowhere
+  else: other agents work at the same time, and a shared folder mixes up their evidence.
 
 Write your answer as JSON to {output} (build it with a short Python script and json.dump):
 `{{"question_id": "{qid}", "supported": [{{"vendor": "<name as list_vendors spells it>",
@@ -246,14 +248,16 @@ def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
 
 def _prepare(args: argparse.Namespace) -> int:
     out = Path(args.out).resolve()
-    for sub in ("briefs", "results", "logs"):
+    for sub in ("briefs", "results", "logs", "work"):
         (out / sub).mkdir(parents=True, exist_ok=True)
     questions = load_questions(args.questions, args.ids)
     for q in questions:
         name = f"{args.arm}-{q['id']}"
         command = (f"cd {REPO} && CALL_LOG={out / 'logs' / name}.jsonl ARM={args.arm}"
                    f" MAX_SEARCHES={args.max_searches} {sys.executable} eval/agent_eval.py call")
+        (out / "work" / name).mkdir(exist_ok=True)  # each agent's own scratch folder
         (out / "briefs" / f"{name}.md").write_text(BRIEF.format(
+            work=out / "work" / name,
             command=command, tools=", ".join(ARMS[args.arm]), max_searches=args.max_searches,
             output=out / "results" / f"{name}.json", qid=q["id"],
             question=" ".join(q["question"].split())))

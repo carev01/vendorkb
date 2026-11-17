@@ -364,6 +364,35 @@ def _evidence_group(out: dict[str, Any], passage: dict[str, Any]) -> str | None:
     return None
 
 
+INDEX_EXCERPT = 160  # characters of a vendor's first passage in a gather_evidence index
+
+
+def _vendor_index(ranked: list[dict[str, Any]], where: dict[int, int],
+                  not_found: list[str]) -> str:
+    """The vendor index of a "which vendors" reply: per vendor (in reply order) its passages'
+    numbers and parts, and its first passage as an excerpt with its source; then the vendors
+    with no passage. ``where`` maps a marker to its part (empty while sizing the index)."""
+    by_vendor: dict[str, list[dict[str, Any]]] = {}
+    for p in ranked:
+        by_vendor.setdefault(str(p["vendor"]), []).append(p)
+    lines = [f"Vendors with passages ({len(by_vendor)}); each line cites its first passage, "
+             "the parts hold them all:"]
+    for vendor, ps in by_vendor.items():
+        first = ps[0]
+        text = " ".join(str(first.get("text") or "").split())
+        if len(text) > INDEX_EXCERPT:
+            text = text[:INDEX_EXCERPT] + " […]"
+        parts = sorted({where[p["marker"]] for p in ps if p["marker"] in where})
+        in_parts = (f", part{'s' if len(parts) > 1 else ''} "
+                    f"{', '.join(str(n) for n in parts)}") if parts else ", part 99"
+        markers = ", ".join(f"[{p['marker']}]" for p in ps)
+        lines.append(f'- {vendor} ({markers}{in_parts}): "{text}" — '
+                     f"{first.get('title') or 'untitled'} — {first.get('url') or 'no url'}")
+    if not_found:
+        lines.append(f"No passage for: {', '.join(not_found)}.")
+    return "\n".join(lines)
+
+
 def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
     """A gather_evidence reply as parts of (text, the passages shown in it). Passages keep the
     numbers ``answer`` would give them, each passage whole (the answer model reads it whole: a
@@ -395,15 +424,31 @@ def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]
         p["marker"], vendor=p["vendor"], product=p.get("product"), title=p.get("title"),
         section_path=p.get("section_path") or [], url=p.get("url"), chunk_id=p["chunk_id"],
         text=p["text"], whole=True) for p in ranked}
-    parts: list[list[dict[str, Any]]] = [[]]
-    size = 0
-    for p in ranked:
-        chars = len(shown[p["marker"]])
-        if parts[-1] and size + chars > PART_CHARS:
-            parts.append([])
-            size = 0
-        parts[-1].append(p)
-        size += chars
+    # a "which vendors" reply in several parts opens with an index of every vendor, each with a
+    # citable excerpt, so an agent that reads part 1 only still sees them all (2026-11-17 agent
+    # eval: agents that stopped after a few parts missed every vendor of the parts they skipped)
+    many = out.get("shape") == "enumeration" and \
+        sum(len(t) for t in shown.values()) > PART_CHARS
+    index_room = len(_vendor_index(ranked, {}, not_found)) if many else 0
+
+    def pack(index_chars: int) -> list[list[dict[str, Any]]]:
+        packed: list[list[dict[str, Any]]] = [[]]
+        size = index_chars  # part 1 opens with the index
+        for p in ranked:
+            chars = len(shown[p["marker"]])
+            if packed[-1] and size + chars > PART_CHARS:
+                packed.append([])
+                size = 0
+            packed[-1].append(p)
+            size += chars
+        return packed
+
+    # the index takes room from part 1 (at least a quarter of it is left for passages)
+    parts = pack(min(index_room, PART_CHARS * 3 // 4))
+    index = ""
+    if many and len(parts) > 1:
+        where = {p["marker"]: i for i, part in enumerate(parts, start=1) for p in part}
+        index = _vendor_index(ranked, where, not_found)
     tail = []
     if not_found:
         tail.append(f"No supporting passage found for: {', '.join(not_found)}.")
@@ -415,6 +460,8 @@ def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]
     texts = []
     for i, part in enumerate(parts, start=1):
         blocks = [f"{head} Part {i} of {len(parts)}."]
+        if i == 1 and index:
+            blocks.append(index)
         group: str | None = None
         for p in part:
             if (name := _evidence_group(out, p)) != group and name is not None:
