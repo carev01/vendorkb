@@ -27,6 +27,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
+from vendorkb.claims.extract import SUPPORT_VALUES
 from vendorkb.mcp_backend import Backend
 from vendorkb.search import Hit
 from vendorkb.taxonomy.capabilities import CapFilter, CapResult, Fact
@@ -185,6 +186,17 @@ _FACT_GROUPS = ("facts", "product_level", "product_wide", "unresolved_target")
 # Groups whose cut vendor list carries one example per vendor (the others list counts only: a
 # family-wide filter names 40+ vendors, and every example costs about 300 characters).
 _EXAMPLE_GROUPS = ("facts", "product_level")
+
+
+def _support(value: str | None) -> str | None:
+    """A support filter in any case or spelling the results suggest ("SUPPORTED", "not
+    supported"); an unknown value is a ToolError naming the valid ones."""
+    if value is None or not value.strip():
+        return None
+    v = "_".join(value.strip().lower().replace("-", " ").split())
+    if v not in SUPPORT_VALUES:
+        raise ToolError(f"support {value!r} is not one of {', '.join(SUPPORT_VALUES)}")
+    return v
 
 
 def _vendor_example(vendor: str, n: int, f: Fact | None) -> str:
@@ -538,9 +550,13 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
             vendor: str | list[str] | None = None,
             family: str | None = None, offering: str | None = None, edition: str | None = None,
             object_type: str | None = None,
-            support: Literal["supported", "partial", "not_supported", "unclear"] | None = None,
+            support: Annotated[str | None, Field(description=(
+                "supported, partial, not_supported or unclear, in any case (the results print "
+                "it in capitals)"))] = None,
             availability: str | None = None, value_min: float | None = None,
             value_max: float | None = None, limit: int = 20) -> CallToolResult:
+        support = _support(support)
+        availability = "_".join((availability or "").lower().replace("-", " ").split()) or None
         topic = (topic or "").strip() or None
         if topic is not None and dimension is not None:
             raise ToolError("query_capabilities takes a topic or a dimension, not both: a topic "
