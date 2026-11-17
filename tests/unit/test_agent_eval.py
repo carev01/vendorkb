@@ -71,6 +71,19 @@ def test_check_call_enforces_the_arm_and_the_search_budget(tmp_path):
     assert check_call("read_section", "full", log, 2) is None
 
 
+def test_check_call_caps_gather_evidence_retrievals_not_parts(tmp_path):
+    log = tmp_path / "calls.jsonl"
+    assert check_call("gather_evidence", "full", log, 10, {"question": "q"}) is None
+    assert "not available" in check_call("gather_evidence", "search", log, 10)
+    calls = [{"question": "q1"}, {"question": "q1", "part": 2}, {"question": "q2", "part": 1}]
+    log.write_text("".join(json.dumps({"tool": "gather_evidence", "arguments": a}) + "\n"
+                           for a in calls))
+    # two retrievals made: a third question is refused, a later part of one is not
+    assert "evidence budget used up" in check_call("gather_evidence", "full", log, 10,
+                                                   {"question": "q3"})
+    assert check_call("gather_evidence", "full", log, 10, {"question": "q1", "part": 3}) is None
+
+
 def test_prepare_then_score_round_trip(qfile, tmp_path, capsys):
     run = tmp_path / "run"
     assert agent_eval.main(["prepare", "--out", str(run), "--questions", str(qfile),

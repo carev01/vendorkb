@@ -29,12 +29,15 @@ from typing import Any
 import yaml
 
 ARMS = {"full": ("list_vendors", "list_dimensions", "list_targets", "query_capabilities",
-                 "search_docs", "read_section"),
+                 "search_docs", "read_section", "gather_evidence"),
         "search": ("list_vendors", "search_docs", "read_section"),
         # eval/bypass_eval.py (BACKLOG 42): relay vendorkb's answer, or write from its evidence
         "relay": ("answer_question",),
         "evidence": ("gather_evidence", "read_section")}
 MAX_ANSWERS = 3  # answer_question calls an agent may make (each is a full paid answer)
+# gather_evidence retrievals an agent may make (each is a paid per-vendor retrieval; later
+# parts of one question's evidence are cached on the server and not counted)
+MAX_EVIDENCE = 2
 DEFAULT_URL = "http://vendorkb-mcp.k3s.home.lan/mcp"
 # The evals use the full-access key (MCP_FULL_ACCESS_TOKEN): the labels name every vendor, and
 # the standard key hides MCP_HIDDEN_VENDORS (Cohesity), which only some MCP clients need.
@@ -51,9 +54,12 @@ support something, using only the vendorkb tools, called from a shell:
 Tools available to you: {tools}. (`list_vendors` takes no arguments; `search_docs` takes
 `query`, optional `vendor` (a list of vendor names) and `k`; `read_section` takes `chunk_id`
 and `expand` "0"/"1"/"full"; `query_capabilities` takes taxonomy filters such as `dimension`,
-`target`, `vendor`, `support`; `list_dimensions` / `list_targets` take `query`.) Run
+`target`, `vendor`, `support`, and `query`, words the facts' quotes must contain, to narrow
+them to a detail finer than a dimension; `list_dimensions` / `list_targets` take `query`;
+`gather_evidence`, where offered, takes the `question` word for word and returns the passages
+retrieved for it vendor by vendor, in parts (`part` 2, 3, ... for the rest).) Run
 `list_vendors` first for the vendor names. You have at most {max_searches} `search_docs`
-calls; the command refuses more.
+calls and 2 `gather_evidence` questions; the command refuses more.
 
 Rules:
 - A vendor counts as supporting the capability only when a tool result shows documentation
@@ -158,7 +164,8 @@ def tool_counts(log: Path) -> dict[str, int]:
     return counts
 
 
-def check_call(tool: str, arm: str, log: Path | None, max_searches: int) -> str | None:
+def check_call(tool: str, arm: str, log: Path | None, max_searches: int,
+               arguments: dict[str, Any] | None = None) -> str | None:
     """Why the call is refused, or None."""
     if tool not in ARMS[arm]:
         return f"tool {tool!r} is not available in this setup; use: {', '.join(ARMS[arm])}"
@@ -168,7 +175,19 @@ def check_call(tool: str, arm: str, log: Path | None, max_searches: int) -> str 
     if tool == "answer_question" and log is not None \
             and tool_counts(log).get("answer_question", 0) >= MAX_ANSWERS:
         return "you have already asked: answer from what you have"
+    if tool == "gather_evidence" and log is not None and int((arguments or {}).get("part", 1)) <= 1 \
+            and _first_parts(log) >= MAX_EVIDENCE:
+        return "evidence budget used up: read more parts of what you gathered, or answer"
     return None
+
+
+def _first_parts(log: Path) -> int:
+    """gather_evidence calls in the log that retrieved (part 1), not a later part."""
+    if not log.exists():
+        return 0
+    calls = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
+    return sum(1 for c in calls if c["tool"] == "gather_evidence"
+               and int((c.get("arguments") or {}).get("part", 1)) <= 1)
 
 
 def parse_reply(status: int, body: str) -> tuple[int, str]:
@@ -192,7 +211,8 @@ def _call(args: argparse.Namespace) -> int:
     arm = os.environ.get("ARM", "full")
     log = Path(os.environ["CALL_LOG"]) if os.environ.get("CALL_LOG") else None
     arguments = json.loads(args.arguments) if args.arguments else {}
-    refused = check_call(args.tool, arm, log, int(os.environ.get("MAX_SEARCHES", "10")))
+    refused = check_call(args.tool, arm, log, int(os.environ.get("MAX_SEARCHES", "10")),
+                         arguments)
     if refused:
         print(refused, file=sys.stderr)
         return 2

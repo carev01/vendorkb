@@ -543,8 +543,10 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "availability, value range); `vendor` takes one name or a list. Give at least one "
         "filter. `topic` (a broad subject such as ransomware protection; list_dimensions shows "
         "them) covers all its dimensions at once, with the facts grouped by aspect and `limit` "
-        "shared among the aspects; it is exclusive with `dimension`. A vendor missing here is "
-        "not evidence of absence: check it with search_docs."))
+        "shared among the aspects; it is exclusive with `dimension`. `query` narrows the other "
+        "filters to facts whose quote or conditions contain its words, for a detail finer than "
+        "a dimension (e.g. dimension operations.reports with query \"schedule email\"). A vendor "
+        "missing here is not evidence of absence: check it with search_docs."))
     async def query_capabilities(
             dimension: str | None = None, topic: str | None = None, target: str | None = None,
             vendor: str | list[str] | None = None,
@@ -554,8 +556,14 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
                 "supported, partial, not_supported or unclear, in any case (the results print "
                 "it in capitals)"))] = None,
             availability: str | None = None, value_min: float | None = None,
-            value_max: float | None = None, limit: int = 20) -> CallToolResult:
+            value_max: float | None = None,
+            query: Annotated[str | None, Field(description=(
+                "words the facts' quotes or conditions must contain (stemmed English; every "
+                "word by default, \"a or b\" for alternatives, quotes for a phrase); narrows the "
+                "other filters, so give at least one of them too"))] = None,
+            limit: int = 20) -> CallToolResult:
         support = _support(support)
+        query = (query or "").strip() or None
         availability = "_".join((availability or "").lower().replace("-", " ").split()) or None
         topic = (topic or "").strip() or None
         if topic is not None and dimension is not None:
@@ -572,6 +580,12 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         f = CapFilter(vendor=vendors, offering=offering, edition=edition, dimension=dimension,
                       family=family, target=target, object_type=object_type, support=support,
                       availability=availability, value_min=value_min, value_max=value_max)
+        if query is not None:
+            if topic is None and all(v is None for v in dataclasses.asdict(f).values()):
+                # the words are read from every matching fact's text: alone, that is the table
+                raise ToolError("`query` narrows other filters: give a dimension, target, "
+                                "family, topic or vendor with it")
+            f = dataclasses.replace(f, text=query)
         limit = max(1, min(limit, MAX_LIMIT))
         if topic is not None:
             text, structured = await _topic_facts(topic, f, limit)
