@@ -329,6 +329,30 @@ async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
         await conn.close()
 
 
+async def test_text_narrows_to_facts_whose_quote_has_the_words(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        v = await _fresh(conn)
+        await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                     object_type="user", mapped_version=v,
+                     quote="Backups run without an agent and reports are emailed on a schedule.")
+        await _claim(conn, "coverage.backup", "okta", class_id="saas.identity",
+                     object_type="user", mapped_version=v, quote="An agent is installed.")
+        await capabilities.build(conn)
+        base = CapFilter(target="okta")
+        assert len((await capabilities.query(conn, base)).facts) == 2
+        # stems match ("emailed", "schedule"); every word must appear unless "or" joins them
+        hit = await capabilities.query(conn, dataclasses.replace(base, text="email scheduled"))
+        assert [f.evidence_quote for f in hit.facts] == [
+            "Backups run without an agent and reports are emailed on a schedule."]
+        both = await capabilities.query(conn, dataclasses.replace(base, text="emailed or installed"))
+        assert len(both.facts) == 2
+        none = await capabilities.query(conn, dataclasses.replace(base, text="tape"))
+        assert not none.facts and none.hint and "'tape'" in none.hint and "search_docs" in none.hint
+    finally:
+        await conn.close()
+
+
 async def test_a_target_text_that_did_not_map_is_not_product_wide(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

@@ -91,6 +91,10 @@ class CapFilter:
     availability: str | None = None
     value_min: float | None = None
     value_max: float | None = None
+    # words the fact's quote, conditions or capability phrase must contain (English stems; web
+    # search syntax: every word by default, "a or b" for alternatives, quotes for a phrase), for
+    # a nuance narrower than any dimension ("scheduled report email", "agentless")
+    text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -355,6 +359,7 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         "ver": version, "vendors": _vendors(f.vendor), "family": f.family,
         "support": f.support,
         "availability": f.availability, "vmin": f.value_min, "vmax": f.value_max,
+        "text": (f.text or "").strip() or None,
         "ot": f.object_type, "dims": dimensions, "has_target": targets is not None,
         "targets": targets or [], "target_dims": [], "offerings": offerings,
         "editions": None if editions is None else [f"{o}/{e}" for o, e in editions],
@@ -406,6 +411,9 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         " AND (%(availability)s::text IS NULL OR c.availability = %(availability)s::text)"
         " AND (%(vmin)s::float8 IS NULL OR c.value >= %(vmin)s::float8)"
         " AND (%(vmax)s::float8 IS NULL OR c.value <= %(vmax)s::float8)"
+        " AND (%(text)s::text IS NULL OR to_tsvector('english', coalesce(r.evidence_quote, '')"
+        "  || ' ' || coalesce(c.conditions, '') || ' ' || coalesce(r.capability_raw, ''))"
+        "  @@ websearch_to_tsquery('english', %(text)s::text))"
         " AND (%(ot)s::text IS NULL OR c.object_type_id = %(ot)s::text"
         f"  OR ({wide} AND c.object_type_id IS NULL))"
         " AND (NOT %(has_target)s OR c.target_id = ANY(%(targets)s::text[])"
@@ -461,5 +469,10 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         result.conflicts = [Conflict(g, members[g], sizes.get(g, 0)) for g in met]
     if not (result.facts or result.product_level or result.product_wide
             or result.unresolved_target):
-        result.hint = await _hint(conn, f, targets, dimensions)
+        if params["text"] is not None:  # the words, not the taxonomy filters, emptied it
+            result.hint = (f"no fact under these filters has a quote or condition with the words "
+                           f"{params['text']!r}; try fewer or other words (\"a or b\" for "
+                           "alternatives), drop `query`, or check with search_docs")
+        else:
+            result.hint = await _hint(conn, f, targets, dimensions)
     return result

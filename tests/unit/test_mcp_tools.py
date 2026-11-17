@@ -249,6 +249,20 @@ async def test_query_capabilities_takes_support_and_availability_in_any_case():
         r.content[0].text
 
 
+async def test_query_capabilities_query_narrows_other_filters():
+    backend = FakeBackend(caps=CapResult(facts=[_fact()], totals={"facts": 1}))
+    async with Client(ms.build_server(backend)) as c:
+        await c.call_tool("query_capabilities", {"dimension": "operations.reports",
+                                                 "query": " schedule email "})
+        assert backend.calls[-1][1].text == "schedule email"
+        await c.call_tool("query_capabilities", {"dimension": "operations.reports"})
+        assert backend.calls[-1][1].text is None
+        n = len(backend.calls)
+        r = await c.call_tool("query_capabilities", {"query": "legal hold"})  # alone: refused
+    assert r.is_error and "narrows other filters" in r.content[0].text
+    assert len(backend.calls) == n
+
+
 async def test_query_capabilities_limit_and_hint():
     # the backend already returns at most `limit` rows per group; totals keep the full counts
     capped = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(2)],
