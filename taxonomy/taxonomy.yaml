@@ -3651,7 +3651,7 @@ offerings:
 - vendor: Commvault
   id: commvault.grid
   name: Commvault Grid
-  aliases: [grid, grid appliance, hyperscale x, hyperscale grid, hyperscale appliance, commvault grid, commvault grid appliance, commvault grid reference architecture, commvault appliance hyperscale, hs2300 and hs4300 appliances, hs2300 and hs4300, hyperscale x appliance, hyperscale x appliances, commvault hyperscale x, commvault hyperscale x appliance]
+  aliases: [grid, grid appliance, hyperscale x, hyperscale grid, hyperscale appliance, commvault grid, commvault grid appliance, commvault grid reference architecture, commvault appliance hyperscale, hs2300 and hs4300 appliances, hs2300 and hs4300, hyperscale x appliance, hyperscale x appliances, commvault hyperscale x, commvault hyperscale x appliance, hyperscale]
   editions: []
 - vendor: Commvault
   id: commvault.edge
@@ -3659,8 +3659,8 @@ offerings:
   aliases: [edge, hyperscale edge, commvault edge]
   editions: []
 - vendor: Commvault
-  id: commvault.hyperscale_flex
-  name: Commvault HyperScale Flex
+  id: commvault.flex
+  name: Commvault Flex
   aliases: [flex, hyperscale flex, flex open, flex appliance, commvault flex appliance, commvault flex open, commvault flex, hsflex, commvault hyperscale flex]
   editions: []
 - vendor: Commvault
@@ -4022,7 +4022,12 @@ offerings:
 - vendor: Rubrik
   id: rubrik.cloud_cluster_es
   name: Rubrik Cloud Cluster Elastic Storage (ES)
-  aliases: [rubrik cloud cluster elastic storage, rubrik cloud cluster es, cloud cluster es, rubrik cloud cluster elastic storage on oci, rubrik cloud cluster elastic storage on gcp, rubrik cloud cluster elastic storage on amazon web services, rubrik cloud cluster es for azure]
+  aliases: [rubrik cloud cluster elastic storage, rubrik cloud cluster es, cloud cluster es, rubrik cloud cluster elastic storage on oci, rubrik cloud cluster elastic storage on gcp, rubrik cloud cluster elastic storage on amazon web services, rubrik cloud cluster es for azure, cloud cluster-es]
+- vendor: Rubrik
+  id: rubrik.cloud_cluster
+  name: Rubrik Cloud Cluster
+  aliases: [rubrik cloud cluster, rubrik cloud cluster on gcp, aws cloud cluster]
+  editions: []
 - vendor: Cohesity
   id: cohesity.cloud_edition
   name: Cohesity Cloud Edition
@@ -4202,6 +4207,16 @@ offerings:
   - {id: msp, name: MSP Edition, aliases: [msp, msp edition]}
   - {id: sbs, name: Small Business Server Edition, aliases: [sbs edition, sbs license]}
 - vendor: Arcserve
+  id: arcserve.imagemanager
+  name: Arcserve ImageManager
+  aliases: [imagemanager, arcserve imagemanager]
+  editions: []
+- vendor: Arcserve
+  id: arcserve.shadowcontrol
+  name: Arcserve ShadowControl
+  aliases: [shadowcontrol, arcserve shadowcontrol]
+  editions: []
+- vendor: Arcserve
   id: arcserve.appliance
   name: Arcserve Appliance
   aliases: [arcserve appliance, arcserve appliance x series, arcserve appliance for udp, arcserve appliance 9012-9504dr series, arcserve appliance x-series, arcserve appliance 10012bu-10576dr, 10012bu-10576dr series appliance, 9012-9504dr series appliance, appliance]
@@ -4328,9 +4343,9 @@ offerings:
   name: Commvault Orchestrate
   aliases: [commvault orchestrate, commvault orchestrate for copy data management]
 - vendor: Commvault
-  id: commvault.risk_analysis
-  name: Commvault Risk Analysis
-  aliases: [commvault risk analysis]
+  id: commvault.data_posture_360
+  name: Commvault Data Posture 360
+  aliases: [commvault risk analysis, data posture 360, commvault data posture 360]
 - vendor: Commvault
   id: commvault.activate
   name: Commvault Activate
