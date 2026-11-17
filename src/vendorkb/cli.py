@@ -419,7 +419,10 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 prep = await propose.propose(
                     conn, client=client, embedder=embedder, settings=settings,
                     kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
-                    max_usd=args.max_usd, limit=args.limit)
+                    max_usd=args.max_usd, limit=args.limit,
+                    mode=args.mode or ("batch" if settings.extract_backend == "anthropic"
+                                       else "sync"),
+                    poll_seconds=args.poll_seconds)
         finally:
             close = getattr(client, "close", None)
             if close is not None:
@@ -582,6 +585,10 @@ def _parser() -> argparse.ArgumentParser:
                    help="override EXTRACT_BACKEND")
     t.add_argument("--limit", type=int, default=None,
                    help="send at most N clusters, biggest first (smoke run)")
+    t.add_argument("--mode", choices=("sync", "batch"), default=None,
+                   help="batch: one Message Batch at half price, waited for (default with"
+                        " EXTRACT_BACKEND anthropic); sync: one call per cluster")
+    t.add_argument("--poll-seconds", type=float, default=60.0)
     t = tax.add_parser("load", help="validate the reviewed v2 YAML and replace the taxonomy"
                                     " tables with it (every problem listed, nothing written)")
     t.add_argument("path")

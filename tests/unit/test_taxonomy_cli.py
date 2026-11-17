@@ -47,10 +47,10 @@ def test_taxonomy_propose_refuses_v1_kinds(stubbed):
                                                           (2, False, 1)])
 def test_taxonomy_propose_args_and_exit(stubbed, monkeypatch, capsys, invalid, budget, code):
     async def fake_propose(conn, *, client, embedder, settings, kind, distance_threshold,
-                           out_path, max_usd, limit):
+                           out_path, max_usd, limit, mode, poll_seconds):
         stubbed.update(kind=kind, threshold=distance_threshold, out=out_path, max_usd=max_usd,
                        backend=settings.extract_backend, model=settings.extract_model,
-                       limit=limit)
+                       limit=limit, mode=mode)
         return propose.ProposeReport(kind=kind, invalid=invalid, stopped_by_budget=budget)
 
     monkeypatch.setattr(propose, "propose", fake_propose)
@@ -59,6 +59,7 @@ def test_taxonomy_propose_args_and_exit(stubbed, monkeypatch, capsys, invalid, b
                      "--limit", "3"]) == code
     assert (stubbed["kind"], stubbed["threshold"], stubbed["out"], stubbed["max_usd"],
             stubbed["backend"], stubbed["limit"]) == ("target", 0.3, "x.yaml", 1.5, "openai", 3)
+    assert stubbed["mode"] == "sync"  # the openai backend has no Message Batches
     assert json.loads(capsys.readouterr().out)["kind"] == "target"
 
 
@@ -71,6 +72,7 @@ def test_taxonomy_propose_defaults(stubbed, monkeypatch, capsys):
     assert cli.main(["taxonomy", "propose", "--kind", "dimension"]) == 0
     assert (stubbed["distance_threshold"], stubbed["out_path"], stubbed["max_usd"],
             stubbed["limit"]) == (0.25, "taxonomy/taxonomy.yaml", 2.0, None)
+    assert (stubbed["mode"], stubbed["poll_seconds"]) == ("batch", 60.0)  # anthropic default
 
 
 def test_taxonomy_load_and_map(stubbed, monkeypatch, capsys):

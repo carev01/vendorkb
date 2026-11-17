@@ -1,6 +1,6 @@
 # Message Batches for every Claude call (study)
 
-Status: approved 2026-11-09; steps 1-4 built 2026-11-16 (BACKLOG 37). Step 5 (propose) not built.
+Status: approved 2026-11-09; steps 1-5 built 2026-11-16 (BACKLOG 37).
 
 ## Why
 

@@ -49,6 +49,15 @@ far and the estimates in flight, would exceed ``max_usd``. Spend is the provider
 ``unproposed``; the file still gets what was proposed. A 400 stops dispatching and is raised
 after the file is written; any other failure costs only its cluster (counted in ``invalid``).
 
+``mode="batch"`` (the default on the anthropic backend, BACKLOG 37) sends the clusters as one
+Message Batch at half price instead (``llm_batch``, kind ``propose``) and waits for it within
+the run; the budget then reserves each request at its full output at the batch price. A
+cluster's custom id hashes its whole request, so a run after a crash first waits for and
+collects the batches the crashed run left open, and an identical cluster takes that answer
+instead of asking again. Answers of other clusters are dropped; every run asks afresh (the
+attempt cap of ``llm_batch`` is reset at the start, as in sync mode). A refused or failed
+create stops the run after the file is written, as a 400 does in sync mode.
+
 One run at a time (a session advisory lock; a second run returns ``locked`` without touching the
 file). Every run's spend is ledgered in ``propose_runs``, updated after each call, and the guard
 also stops before the spend of all runs together would exceed ``settings.propose_budget_usd``.
@@ -56,6 +65,7 @@ also stops before the spend of all runs together would exceed ``settings.propose
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import logging
@@ -77,6 +87,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 from ruamel.yaml.util import load_yaml_guess_indent
 
+from vendorkb import llm_batch
 from vendorkb.claims.extract import PROMPT_FAMILY, cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
@@ -95,6 +106,7 @@ CHARS_PER_TOKEN = 3
 MAX_MEMBERS_IN_PROMPT = 40
 MAX_VENDORS_IN_PROMPT = 10
 TOP_CANDIDATES = 5
+BATCH_KIND = "propose"
 
 _TEXT: dict[str, Any] = {"type": "string"}
 _NULLABLE_TEXT: dict[str, Any] = {"anyOf": [{"type": "string"}, {"type": "null"}]}
@@ -243,6 +255,7 @@ class _Cluster:
 @dataclass
 class ProposeReport:
     locked: bool = False            # another propose run holds the lock: nothing done
+    mode: str = "sync"
     spent_before_usd: float = 0.0   # the ledgered spend of earlier runs
     kind: str = ""
     out_path: str = ""
@@ -268,6 +281,7 @@ class ProposeReport:
     spent_usd: float = 0.0
     stopped_by_budget: bool = False
     errors: list[str] = field(default_factory=list)
+    batch: llm_batch.BatchReport = field(default_factory=llm_batch.BatchReport)
 
 
 def long_tail_path(out_path: str | Path) -> Path:
@@ -763,8 +777,11 @@ LOCK_KEY = 0x766B64  # single-flight across propose runs (sync 0x766B62, extract
 async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embedder,
                   settings: VendorkbSettings, kind: Kind, distance_threshold: float,
                   out_path: str | Path, max_usd: float = 2.0,
-                  limit: int | None = None) -> ProposeReport:
+                  limit: int | None = None, mode: Literal["sync", "batch"] = "sync",
+                  poll_seconds: float = 60.0) -> ProposeReport:
     """See the module docstring: under the lock, with this run's spend ledgered."""
+    if mode == "batch" and settings.extract_backend != "anthropic":
+        raise ValueError("batch mode needs EXTRACT_BACKEND anthropic (the Message Batches API)")
     cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
     if not (await cur.fetchone())[0]:  # type: ignore[index]
         log.warning("taxonomy propose: another propose run holds the lock; nothing done")
@@ -778,23 +795,113 @@ async def propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embe
         return await _propose(conn, client=client, embedder=embedder, settings=settings,
                               kind=kind, distance_threshold=distance_threshold,
                               out_path=out_path, max_usd=max_usd, limit=limit,
-                              run_id=run_id, before=before)
+                              run_id=run_id, before=before, mode=mode,
+                              poll_seconds=poll_seconds)
     finally:
         await conn.execute("UPDATE propose_runs SET ended_at = now() WHERE run_id = %s",
                            (run_id,))
         await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
 
 
+def _request(c: _Cluster, system: str, settings: VendorkbSettings) -> dict[str, Any]:
+    return build_request(
+        backend=settings.extract_backend, model=settings.extract_model,
+        max_tokens=settings.extract_max_tokens, system=system, user=_user_message(c),
+        schema=reply_schema(c.group.section), name="taxonomy_proposal")
+
+
+def _custom_id(request: dict[str, Any]) -> str:
+    """The same request, the same id: a run after a crash takes the crashed run's answer."""
+    digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode("utf-8")).hexdigest()
+    return f"p-{digest[:48]}"
+
+
+async def _batch_replies(conn: psycopg.AsyncConnection, client: Any, clusters: list[_Cluster],
+                         systems: dict[Section, str], *, settings: VendorkbSettings,
+                         price: tuple[float, float], max_usd: float, report: ProposeReport,
+                         run_id: str, poll_seconds: float
+                         ) -> tuple[list[dict[str, Any] | None], float, Exception | None]:
+    """The clusters' parsed replies through one Message Batch (see the module docstring):
+    (replies in cluster order, None where none is usable; spend; a create failure)."""
+    by_id: dict[str, int] = {}
+    items: list[llm_batch.Item] = []
+    for i, c in enumerate(clusters):
+        request = _request(c, systems[c.group.section], settings)
+        cid = _custom_id(request)
+        by_id.setdefault(cid, i)
+        items.append(llm_batch.Item(cid, request))
+    replies: list[dict[str, Any] | None] = [None] * len(clusters)
+    answered: set[int] = set()
+    batch = report.batch
+    fatal: Exception | None = None
+
+    async def handle(r: llm_batch.Result) -> str | None:
+        i = by_id.get(r.custom_id)
+        if i is None:  # a crashed run's cluster this run does not have: dropped
+            return None
+        c = clusters[i]
+        try:
+            replies[i] = _parse(r.text, c)
+        except ValueError as e:
+            report.invalid += 1
+            report.errors.append(f"{c.members[0].text}: {e}")
+            log.warning("taxonomy propose: unusable reply for %r: %s", c.members[0].text, e)
+            answered.add(i)
+            return str(e)
+        answered.add(i)
+        return None
+
+    async def settle() -> None:
+        await llm_batch.wait_ended(conn, client, [BATCH_KIND], poll_seconds=poll_seconds)
+        await llm_batch.collect(conn, client, kind=BATCH_KIND, price=price, handle=handle,
+                                report=batch)
+        await conn.execute("UPDATE propose_runs SET spent_usd = %s WHERE run_id = %s",
+                           (batch.spent_usd, run_id))
+
+    await llm_batch.reset_failed(conn, BATCH_KIND)
+    await settle()  # the batches a crashed run left open, first
+    held = await llm_batch.held_ids(conn, BATCH_KIND)  # pending- rows: wait for a person
+    seen: set[str] = set()
+    due = []
+    for i, item in enumerate(items):
+        if i in answered or item.custom_id in held or item.custom_id in seen:
+            continue
+        seen.add(item.custom_id)
+        due.append(item)
+    try:
+        await llm_batch.submit(conn, client, kind=BATCH_KIND, model=settings.extract_model,
+                               items=due, price=price, max_usd=max(0.0, max_usd),
+                               report=batch)
+    except anthropic.APIError as e:  # refused (no batch) or unknown (held as pending-)
+        fatal = e
+        report.errors.append(f"batch create: {type(e).__name__}: {e}")
+    if batch.skipped_by_budget:
+        report.stopped_by_budget = True
+    asked = {item.custom_id for item in due[:batch.submitted]}  # submit admits in order
+    if asked:
+        await settle()
+    for i, item in enumerate(items):
+        if i in answered:
+            continue
+        if item.custom_id in asked:  # errored, expired or missing: no usable reply
+            report.invalid += 1
+            report.errors.append(f"{clusters[i].members[0].text}: no usable batch result")
+        else:  # over budget, refused, or held by a pending- row
+            report.unproposed += 1
+    return replies, batch.spent_usd, fatal
+
+
 async def _propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Embedder,
                    settings: VendorkbSettings, kind: Kind, distance_threshold: float,
                    out_path: str | Path, max_usd: float, limit: int | None, run_id: str,
-                   before: float) -> ProposeReport:
+                   before: float, mode: Literal["sync", "batch"] = "sync",
+                   poll_seconds: float = 60.0) -> ProposeReport:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {', '.join(KINDS)}, got {kind!r}")
     path = Path(out_path)
     tail_path = long_tail_path(path)
     report = ProposeReport(kind=kind, out_path=str(path), long_tail_path=str(tail_path),
-                           spent_before_usd=before)
+                           spent_before_usd=before, mode=mode)
     # Before any paid work: a missing or broken file, or a model with no price, is refused.
     text = path.read_text(encoding="utf-8")
     tax = validate(parse_doc(text.encode("utf-8"), path))
@@ -896,10 +1003,7 @@ async def _propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Emb
                 return None
             in_flight += estimate
             try:
-                request = build_request(
-                    backend=settings.extract_backend, model=settings.extract_model,
-                    max_tokens=settings.extract_max_tokens, system=system, user=user,
-                    schema=reply_schema(c.group.section), name="taxonomy_proposal")
+                request = _request(c, system, settings)
                 text, error, cost = await call(client, request,
                                                backend=settings.extract_backend, price=price)
             except (anthropic.BadRequestError, openai.BadRequestError) as e:
@@ -928,7 +1032,13 @@ async def _propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Emb
                 log.warning("taxonomy propose: unusable reply for %r: %s", first, e)
                 return None
 
-    replies = await asyncio.gather(*(one(c) for c in clusters))
+    if mode == "batch":
+        replies, spent, fatal = await _batch_replies(
+            conn, client, clusters, systems, settings=settings, price=price,
+            max_usd=min(max_usd, settings.propose_budget_usd - before), report=report,
+            run_id=run_id, poll_seconds=poll_seconds)
+    else:
+        replies = list(await asyncio.gather(*(one(c) for c in clusters)))
     report.spent_usd = spent
 
     # Merge in cluster order (biggest first); each change must keep the file valid.

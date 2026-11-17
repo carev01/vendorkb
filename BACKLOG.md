@@ -410,8 +410,7 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
     - **Production:** the map moves to the Anthropic API, and `ANTHROPIC_API_KEY` goes into the
       secret.
 
-    **Built 2026-11-16 (branch `message-batches`), steps 1-4; not deployed, not run on the
-    real API yet:**
+    **Built 2026-11-16 (branch `message-batches`), steps 1-5:**
     - `llm_batch.py`: the runner and ledger (`llm_batches`, `llm_batch_items`): ledger first,
       size-split batches, budget reserved at full `max_tokens` at the batch price, collect of
       ended batches through an idempotent handler, attempt cap 3, then `failed` until
@@ -424,9 +423,11 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
       quiescent. Helm `claimsRefresh.batch` (default true) with an hourly
       `vendorkb-claims-collect` CronJob; `map.backend` anthropic.
 
-    Left: a smoke on the real API (about 2 items per kind, checking the ledger rows, the
-    result counts and the batch-priced cost) before the first refresh; step 5 (`taxonomy
-    propose`) not built. Budget-capped leftovers wait for the next weekly run (the hourly run
+    - `taxonomy propose` defaults to batch mode on the Anthropic backend: one batch (kind
+      `propose`), waited for within the run; a custom id hashes the whole request, so a run
+      after a crash collects the open batch instead of asking again.
+
+    Budget-capped leftovers wait for the next weekly run (the hourly run
     is due only while a batch is open).
 38. **Closed 2026-11-09: Copilot refused to relay full documents.** The refusal came from the
     agent's default GPT model, a rule built into the model. With the agent's model switched to
