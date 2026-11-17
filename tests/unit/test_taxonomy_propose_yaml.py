@@ -2,6 +2,8 @@
 written, appended entries follow their siblings' style, and an undo restores the text."""
 from pathlib import Path
 
+import yaml
+
 from ruamel.yaml.comments import CommentedMap
 
 from vendorkb.taxonomy import load, propose
@@ -103,3 +105,55 @@ def test_reads_back_catches_what_yaml_1_1_misreads():
     assert propose._reads_back(doc, _entry(("id", propose._scalar("on")),
                                            ("name", propose._scalar("null"))))
     assert propose._reads_back(doc, propose._flow_seq(["a b", propose._scalar("yes")]))
+
+
+WRAPPED = """\
+version: 2
+dimensions:
+- id: coverage.backup
+  name: Backup
+  definition: d
+  aliases: [first phrase, second phrase, third phrase,
+      fourth phrase, fifth phrase]
+  applies_to: all
+- id: coverage.restore
+  name: Restore
+  definition: d
+  aliases: [restore phrase one, restore phrase two,
+    restore phrase three]
+  applies_to: all
+- id: coverage.export
+  name: Export
+  definition: d
+  aliases: [export phrase, another export phrase, a third export phrase, and a much longer export phrase that runs on]
+  applies_to: all
+"""
+
+
+def test_dump_keeps_the_original_text_of_every_entry_it_did_not_change():
+    """ruamel keeps no line breaks inside a flow list, and a file wrapped at mixed widths
+    matches no single width: only the changed entry's lines may change."""
+    doc = propose._Doc(WRAPPED)
+    assert doc.dump() == WRAPPED  # nothing changed: the file as written
+    propose._add_aliases(doc.data["dimensions"][1], ["restore phrase four"])
+    entry = CommentedMap()
+    propose._set(entry, ("id", "coverage.compare"), ("name", "Compare"), ("definition", "d"))
+    entry["applies_to"] = "all"
+    propose._append(doc.data, "dimensions", entry, named=False)
+    out = doc.dump()
+    removed = [line for line in WRAPPED.splitlines() if line not in out.splitlines()]
+    assert removed == ["  aliases: [restore phrase one, restore phrase two,",
+                       "    restore phrase three]"]
+    assert out.startswith(WRAPPED.split("- id: coverage.restore")[0])  # entry 1 as written
+    assert "and a much longer export phrase that runs on]\n  applies_to: all\n" in out
+    data = yaml.safe_load(out)
+    assert data["dimensions"][1]["aliases"][-1] == "restore phrase four"
+    assert data["dimensions"][-1]["id"] == "coverage.compare"
+    assert data == yaml.safe_load(doc._dump(doc.data))
+
+
+def test_dump_falls_back_to_the_full_dump_when_the_splice_reads_back_wrong(monkeypatch):
+    doc = propose._Doc(WRAPPED)
+    propose._add_aliases(doc.data["dimensions"][0], ["sixth phrase"])
+    monkeypatch.setattr(propose, "_splice", lambda original, baseline, new: original)
+    assert doc.dump() == doc._dump(doc.data)

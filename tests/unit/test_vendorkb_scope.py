@@ -146,3 +146,23 @@ def test_product_surfaces_are_the_product_names_scope_detection_reads(tmp_path):
     # vendor names and their aliases are no product surfaces; nor is a shared source name
     for name in (*VENDORS, "Storware", "Amazon", "User Guide"):
         assert name not in surfaces, name
+
+
+def test_quest_software_by_its_short_name_and_its_identity_product():
+    from vendorkb.scope import DEFAULT_ALIASES_PATH
+
+    idx = load_scope_index(["Quest Software", "Microsoft"],
+                           ["Rapid Recovery", "Identity Recovery", "Entra ID Backup"],
+                           DEFAULT_ALIASES_PATH,
+                           product_vendors={"Rapid Recovery": "Quest Software",
+                                            "Identity Recovery": "Quest Software",
+                                            "Entra ID Backup": "Microsoft"})
+    assert detect_scope("Does Quest back up Exchange?", idx) == (["Quest Software"], [])
+    assert detect_scope("How does Quest Rapid Recovery replicate?", idx) == (
+        ["Quest Software"], ["Rapid Recovery"])
+    assert detect_scope("Can Quest Identity Recovery restore a deleted user?", idx) == (
+        [], ["Identity Recovery"])
+    # identity recovery as a subject names nobody's product, and "quest" is an ordinary word
+    assert detect_scope("Does Microsoft offer identity recovery for Entra ID?", idx) == (
+        ["Microsoft"], [])
+    assert detect_scope("my quest for a backup tool with identity recovery", idx) == ([], [])
