@@ -65,6 +65,8 @@ also stops before the spend of all runs together would exceed ``settings.propose
 from __future__ import annotations
 
 import asyncio
+import bisect
+import difflib
 import hashlib
 import io
 import json
@@ -504,6 +506,57 @@ def _find(seq: Any, eid: str) -> Any:
     return next((m for m in seq or [] if isinstance(m, dict) and m.get("id") == eid), None)
 
 
+def _splice(original: str, baseline: str, new: str) -> str:
+    """``new`` as a change to ``original``: ``baseline`` is ``original`` re-dumped unchanged,
+    so baseline -> new is exactly what propose changed, and original -> baseline is only
+    ruamel's re-wrapping (it keeps no line breaks inside a flow sequence, and a file wrapped
+    at mixed widths matches no single width). Each changed stretch of ``new`` replaces the
+    smallest stretch of ``original`` whose ends line up in all three; the rest of the file
+    keeps its text."""
+    o, b, n = (t.splitlines(keepends=True) for t in (original, baseline, new))
+
+    def aligned(x: list[str], y: list[str]) -> dict[int, tuple[int, int]]:
+        """Each x line boundary inside or at the ends of an equal stretch -> the (lowest,
+        highest) y boundary it matches (two where y has lines x has not)."""
+        out: dict[int, tuple[int, int]] = {}
+
+        def put(i: int, j: int) -> None:
+            lo, hi = out.get(i, (j, j))
+            out[i] = (min(lo, j), max(hi, j))
+        put(0, 0)
+        put(len(x), len(y))
+        for tag, i1, i2, j1, _ in difflib.SequenceMatcher(None, x, y, autojunk=False
+                                                          ).get_opcodes():
+            if tag == "equal":
+                for k in range(i2 - i1 + 1):
+                    put(i1 + k, j1 + k)
+        return out
+
+    bo = aligned(b, o)
+    both = sorted(set(bo) & set(aligned(b, n)))
+    hunks: list[list[int]] = []  # [b start, b end, n start, n end]
+    for tag, b1, b2, n1, n2 in difflib.SequenceMatcher(None, b, n, autojunk=False
+                                                       ).get_opcodes():
+        if tag == "equal":
+            continue
+        start = both[bisect.bisect_right(both, b1) - 1]
+        end = both[bisect.bisect_left(both, b2)]
+        hunk = [start, end, n1 - (b1 - start), n2 + (end - b2)]
+        if hunks and start <= hunks[-1][1]:  # B equals N between them: one hunk
+            hunks[-1][1], hunks[-1][3] = hunk[1], hunk[3]
+        else:
+            hunks.append(hunk)
+    out: list[str] = []
+    pos = 0
+    for start, end, n_start, n_end in hunks:
+        o_start = bo[start][1]  # original lines baseline dropped here stay before the change
+        o_end = max(o_start, bo[end][0])
+        out += o[pos:o_start] + n[n_start:n_end]
+        pos = o_end
+    out += o[pos:]
+    return "".join(out)
+
+
 class _Doc:
     def __init__(self, text: str) -> None:
         _, indent, offset = load_yaml_guess_indent(text)
@@ -512,12 +565,27 @@ class _Doc:
         self.yaml.preserve_quotes = True
         self.yaml.indent(mapping=indent - offset if offset else indent, sequence=indent,
                          offset=offset)
+        self.text = text
         self.data: CommentedMap = self.yaml.load(text)
 
-    def dump(self) -> str:
+    def _dump(self, data: Any) -> str:
         buf = io.StringIO()
-        self.yaml.dump(self.data, buf)
+        self.yaml.dump(data, buf)
         return buf.getvalue()
+
+    def dump(self) -> str:
+        """The document, with the original text kept wherever propose changed nothing
+        (``_splice``); the plain re-dump when the splice would not read back the same."""
+        new = self._dump(self.data)
+        out = _splice(self.text, self._dump(self.yaml.load(self.text)), new)
+        try:
+            if yaml.safe_load(out) == yaml.safe_load(new):
+                return out
+        except yaml.YAMLError:
+            pass
+        log.warning("taxonomy propose: the minimal-diff splice did not read back; writing the"
+                    " whole re-dumped file")
+        return new
 
     def entry(self, group: _Group, eid: str, tax: Taxonomy) -> CommentedMap:
         """The YAML mapping of the group's entry ``eid``."""

@@ -90,17 +90,20 @@ def _resolve(name: str, index: ScopeIndex) -> tuple[list[str], list[str]]:
 # single-word names that are also ordinary words: matched with their exact capitalization
 _WORD_NAMES = frozenset({
     "own", "fly", "slide", "spanning", "security", "platform", "insights", "support", "snapshot",
-    "monday", "application", "infrastructure", "documentation", "docs", "notices", "sentinel"})
+    "monday", "application", "infrastructure", "documentation", "docs", "notices", "sentinel",
+    "quest"})
 
 
 # A product name made only of these words ("Backup and Recovery", "Security Center") names
 # nobody's product on its own: it is a surface only after its vendor's name. Alone it matched
 # phrases such as "Microsoft's Entra Backup and Recovery" to Storware's product (cv-12).
+# "identity": Quest's "Identity Recovery" would otherwise take every question about identity
+# recovery (Entra ID, Active Directory) to Quest alone.
 _GENERIC_WORDS = frozenset({
     "backup", "backups", "recovery", "restore", "and", "&", "cloud", "data", "protection",
     "manager", "management", "console", "server", "agent", "suite", "platform", "service",
     "services", "for", "the", "online", "storage", "archive", "archiving", "replication",
-    "security", "enterprise", "center", "edition"})
+    "security", "enterprise", "center", "edition", "identity"})
 
 
 def _is_generic(product: str) -> bool:
