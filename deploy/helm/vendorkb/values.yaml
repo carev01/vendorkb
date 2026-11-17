@@ -112,6 +112,10 @@ claimsRefresh:
     limit: 20000           # chunks per run; a backlog this large runs without settling
     warmupSeconds: 3600    # how long to wait for the scaled-to-zero endpoint (a bad
                            # host costs a worker's load time before it is replaced)
+    # EXTRACT_BUDGET_USD: a cap on the extraction ledger of all runs together, including the
+    # earlier Anthropic runs ($84.43 on 2026-11-17). The refresh's own calls are priced near
+    # zero (GPU time is billed by Vast), so this only has to sit above that history.
+    budgetUsd: 100
   # Map and support on the Message Batches API at half price (BACKLOG 37): one round per run,
   # so a new page's facts land over several runs (map targets, map dimensions, check, review;
   # usually hours) and capabilities are rebuilt once the support check is done. collect is the
