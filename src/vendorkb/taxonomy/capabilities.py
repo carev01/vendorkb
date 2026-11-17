@@ -148,6 +148,9 @@ class CapResult:
     # rows per vendor in each group that ``limit`` cut, so a cut result still names every
     # vendor with facts: {group: {vendor: rows}}, most rows first
     vendor_totals: dict[str, dict[str, int]] = field(default_factory=dict)
+    # each of those vendors' first row in the usual order, a citable example: {group: {vendor:
+    # fact}}, in the order of vendor_totals
+    vendor_examples: dict[str, dict[str, Fact]] = field(default_factory=dict)
 
 
 class Built(NamedTuple):
@@ -394,7 +397,7 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         f"SELECT {grp} AS grp, count(*) OVER (PARTITION BY {grp}) AS total,"
         f" row_number() OVER (PARTITION BY {grp}{_ORDER}) AS pos,"
         f" row_number() OVER (PARTITION BY {grp}, c.vendor{_ORDER}) AS vendor_pos,"
-        f" {_FACT_COLUMNS}{_FROM}"
+        f" {_FACT_COLUMNS}, count(*) OVER (PARTITION BY {grp}, c.vendor) AS vendor_total{_FROM}"
         " WHERE c.taxonomy_version = %(ver)s"
         " AND (%(vendors)s::text[] IS NULL OR lower(c.vendor) = ANY(%(vendors)s::text[]))"
         " AND (%(dims)s::text[] IS NULL OR c.dimension_id = ANY(%(dims)s::text[]))"
@@ -408,14 +411,14 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         " AND (NOT %(has_target)s OR c.target_id = ANY(%(targets)s::text[])"
         f"  OR ({wide} AND c.dimension_id = ANY(%(target_dims)s::text[])))"
         f" AND ({exact} OR {general})" + _ORDER)
-    # the window ranks rows inside each group; the outer filter keeps the first ``limit``
-    matched = sql
+    # the window ranks rows inside each group; the outer filter keeps the first ``limit``, and
+    # every vendor's first row: a cut group's per-vendor example (one scan for both)
     if limit is None:
-        sql = f"SELECT * FROM ({sql}) s ORDER BY s.pos"
+        sql = f"SELECT *, 0 AS rr FROM ({sql}) s ORDER BY s.pos"
     else:  # round-robin across vendors: rank by the row's position within its vendor
         sql = (f"SELECT * FROM (SELECT s.*, row_number() OVER (PARTITION BY s.grp ORDER BY"
-               f" s.vendor_pos, s.pos) AS rr FROM ({sql}) s) t WHERE t.rr <= %(limit)s"
-               " ORDER BY t.rr")
+               f" s.vendor_pos, s.pos) AS rr FROM ({sql}) s) t"
+               " WHERE t.rr <= %(limit)s OR t.vendor_pos = 1 ORDER BY t.rr")
     cur = await conn.execute(sql, params)
     result = CapResult(totals={"facts": 0, "product_level": 0, "product_wide": 0,
                                "unresolved_target": 0})
@@ -423,17 +426,22 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
                                      "product_level": result.product_level,
                                      "product_wide": result.product_wide,
                                      "unresolved_target": result.unresolved_target}
+    firsts: dict[str, list[tuple[int, Fact]]] = {}
     for row in await cur.fetchall():
-        groups[row[0]].append(_fact(row[4:4 + _N_FACT]))  # after grp, total, pos, vendor_pos
+        # grp, total, pos, vendor_pos, the fact, vendor_total, rr
+        fact = _fact(row[4:4 + _N_FACT])
         result.totals[row[0]] = int(row[1])
-    cut = [g for g, rows in groups.items() if result.totals[g] > len(rows)]
-    if cut:
-        # a cut group shows a sample; its per-vendor counts say who else has facts
-        cur = await conn.execute(
-            f"SELECT s.grp, s.vendor, count(*) FROM ({matched}) s WHERE s.grp = ANY(%(cut)s)"
-            " GROUP BY 1, 2 ORDER BY 1, 3 DESC, 2", {**params, "cut": cut})
-        for grp_name, vendor, rows in await cur.fetchall():
-            result.vendor_totals.setdefault(str(grp_name), {})[str(vendor)] = int(rows)
+        if limit is None or int(row[5 + _N_FACT]) <= limit:
+            groups[row[0]].append(fact)
+        if int(row[3]) == 1:
+            firsts.setdefault(row[0], []).append((int(row[4 + _N_FACT]), fact))
+    for g, rows in groups.items():
+        if result.totals[g] > len(rows):
+            # a cut group shows a sample; per vendor, its count and first row say who else
+            # has facts, each with a source to cite
+            ranked = sorted(firsts.get(g, []), key=lambda nf: (-nf[0], nf[1].vendor))
+            result.vendor_totals[g] = {f.vendor: n for n, f in ranked}
+            result.vendor_examples[g] = {f.vendor: f for _, f in ranked}
 
     met = sorted({x.conflict_group for g in groups.values() for x in g
                   if x.conflict_group is not None})

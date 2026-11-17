@@ -176,7 +176,8 @@ def test_capabilities_build_and_query(stubbed, monkeypatch, capsys):
         value_min=1.0, value_max=9.5)
     out = json.loads(capsys.readouterr().out)
     assert set(out) == {"facts", "product_level", "product_wide", "unresolved_target",
-                        "conflicts", "hint", "unresolved", "totals", "vendor_totals"}
+                        "conflicts", "hint", "unresolved", "totals", "vendor_totals",
+                        "vendor_examples"}
     fact = out["facts"][0]
     assert (fact["vendor"], fact["url"], fact["evidence_quote"]) == ("veeam", "http://u", "q")
 

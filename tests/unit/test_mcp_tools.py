@@ -205,12 +205,23 @@ def test_superseded_fact_does_not_claim_a_newer_document_contradicts_it():
 
 def test_a_cut_result_names_every_vendor_with_its_count():
     # the query cut the group: its per-vendor counts name vendors the sample does not show
+    examples = {v: _fact(claim_id=f"e{v}", vendor=v, evidence_quote=f"{v} does it. " * 20)
+                for v in ("Bravo", "Acme")}
     res = CapResult(facts=[_fact(claim_id="c1", vendor="Acme")],
                     totals={"facts": 7, "product_level": 0, "product_wide": 0},
-                    vendor_totals={"facts": {"Bravo": 4, "Acme": 2, "Zulu": 1}})
+                    vendor_totals={"facts": {"Bravo": 4, "Acme": 2, "Zulu": 1}},
+                    vendor_examples={"facts": examples})
     text, structured = ms.format_capabilities(res, limit=1)
-    assert "Facts: 7 (first 1 shown)\nVendors with these facts (3): Bravo 4, Acme 2, Zulu 1." in text
+    lines = text.splitlines()
+    assert lines[0] == "Facts: 7 (first 1 shown)"
+    assert lines[1].startswith("Vendors with these facts (3), each with its count and one example")
+    # each vendor in count order, with its example as a citation (quote cut short)
+    assert lines[2].startswith('- Bravo (4): SUPPORTED | aws.rds — "Bravo does it.')
+    assert "[…]" in lines[2] and "https://" in lines[2] and "(chunk " in lines[2]
+    assert lines[3].startswith("- Acme (2): ") and lines[4] == "- Zulu (1)"  # no example given
+    assert lines[5] == "1 of these facts in full:"
     assert structured["facts_vendors"] == {"Bravo": 4, "Acme": 2, "Zulu": 1}
+    assert set(structured["facts_vendor_examples"]) == {"Bravo", "Acme"}
     # a group the formatter cuts (product-wide shows at most WIDE_SHOWN) counts its own rows
     wide = [_fact(claim_id=f"w{i}", vendor="Bravo" if i % 3 else "Acme", scope="product_wide")
             for i in range(ms.WIDE_SHOWN + 2)]
