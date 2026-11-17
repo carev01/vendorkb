@@ -203,6 +203,26 @@ def test_superseded_fact_does_not_claim_a_newer_document_contradicts_it():
     assert "a newer document says otherwise" in ms.format_fact(1, _fact(is_current=False))
 
 
+def test_a_cut_result_names_every_vendor_with_its_count():
+    # the query cut the group: its per-vendor counts name vendors the sample does not show
+    res = CapResult(facts=[_fact(claim_id="c1", vendor="Acme")],
+                    totals={"facts": 7, "product_level": 0, "product_wide": 0},
+                    vendor_totals={"facts": {"Bravo": 4, "Acme": 2, "Zulu": 1}})
+    text, structured = ms.format_capabilities(res, limit=1)
+    assert "Facts: 7 (first 1 shown)\nVendors with these facts (3): Bravo 4, Acme 2, Zulu 1." in text
+    assert structured["facts_vendors"] == {"Bravo": 4, "Acme": 2, "Zulu": 1}
+    # a group the formatter cuts (product-wide shows at most WIDE_SHOWN) counts its own rows
+    wide = [_fact(claim_id=f"w{i}", vendor="Bravo" if i % 3 else "Acme", scope="product_wide")
+            for i in range(ms.WIDE_SHOWN + 2)]
+    text, structured = ms.format_capabilities(
+        CapResult(product_wide=wide, totals={"product_wide": len(wide)}), limit=50)
+    assert structured["product_wide_vendors"] == {"Bravo": 8, "Acme": 4}
+    # an uncut result lists no vendors
+    text, structured = ms.format_capabilities(
+        CapResult(facts=[_fact()], totals={"facts": 1}), limit=5)
+    assert "Vendors with these facts" not in text and "facts_vendors" not in structured
+
+
 async def test_query_capabilities_limit_and_hint():
     # the backend already returns at most `limit` rows per group; totals keep the full counts
     capped = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(2)],
@@ -213,7 +233,7 @@ async def test_query_capabilities_limit_and_hint():
     assert "Facts: 5000 (first 2 shown)" in r.content[0].text
     assert len(r.structured_content["facts"]) == 2
     assert r.structured_content["facts_total"] == 5000 and backend.calls[-1][2] == 2
-    empty = CapResult(hint="no fact for target 'tape'; search the documentation instead")
+    empty =CapResult(hint="no fact for target 'tape'; search the documentation instead")
     async with Client(ms.build_server(FakeBackend(caps=empty))) as c:
         r = await c.call_tool("query_capabilities", {"target": "tape"})
     assert r.content[0].text.startswith("No facts. no fact for target 'tape'")
