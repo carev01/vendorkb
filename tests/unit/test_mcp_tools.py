@@ -234,6 +234,21 @@ def test_a_cut_result_names_every_vendor_with_its_count():
     assert "Vendors with these facts" not in text and "facts_vendors" not in structured
 
 
+async def test_query_capabilities_takes_support_and_availability_in_any_case():
+    backend = FakeBackend(caps=CapResult(facts=[_fact()], totals={"facts": 1}))
+    async with Client(ms.build_server(backend)) as c:
+        # the results print support in capitals, and agents copy it back
+        for given, want in (("SUPPORTED", "supported"), ("Not Supported", "not_supported"),
+                            ("not-supported", "not_supported"), (" partial ", "partial")):
+            await c.call_tool("query_capabilities", {"vendor": "x", "support": given})
+            assert backend.calls[-1][1].support == want
+        await c.call_tool("query_capabilities", {"vendor": "x", "availability": "General-Available"})
+        assert backend.calls[-1][1].availability == "general_available"
+        r = await c.call_tool("query_capabilities", {"vendor": "x", "support": "yes"})
+    assert r.is_error and "not one of supported, partial, not_supported, unclear" in \
+        r.content[0].text
+
+
 async def test_query_capabilities_limit_and_hint():
     # the backend already returns at most `limit` rows per group; totals keep the full counts
     capped = CapResult(facts=[_fact(claim_id=f"c{i}") for i in range(2)],

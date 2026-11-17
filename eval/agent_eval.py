@@ -312,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("prepare", help="write one agent brief per question")
     p.add_argument("--out", required=True)
     p.add_argument("--arm", choices=["full", "search"], default="full")
-    p.add_argument("--max-searches", type=int, default=6)
+    p.add_argument("--max-searches", type=int, default=10)
     p.add_argument("--ids", nargs="+", default=None)
     p.add_argument("--questions", default=str(REPO / "eval" / "questions.yaml"))
     p.add_argument("--label", default=None, help="free text kept in the manifest")
