@@ -3559,7 +3559,8 @@ offerings:
   editions:
   - {id: foundation, name: Foundation, aliases: [vdp foundation, foundation edition]}
   - {id: advanced, name: Advanced, aliases: [vdp advanced, advanced edition]}
-  - {id: premium, name: Premium, aliases: [vdp premium, premium edition]}
+  - {id: premium, name: Premium, aliases: [vdp premium, premium edition, veeam data platform premium]}
+  - {id: essentials, name: Essentials, aliases: [veeam data platform essentials, essentials, essentials edition, vdp essentials]}
 - vendor: Veeam
   id: veeam.backup_and_replication
   name: Veeam Backup & Replication (self-managed)
@@ -3626,29 +3627,34 @@ offerings:
 - vendor: Veeam
   id: veeam.kasten
   name: Veeam Kasten
-  aliases: [kasten, kasten k10, veeam kasten]
+  aliases: [kasten, kasten k10, veeam kasten, kasten for kubernetes]
   editions:
   - {id: free, name: Free, aliases: [free edition, starter]}
   - {id: enterprise, name: Enterprise, aliases: [enterprise]}
 - vendor: Commvault
   id: commvault.cloud_saas
   name: Commvault Cloud SaaS
-  aliases: [commvault cloud saas, metallic, commvault cloud as a service, saas delivery, commvault 
-      saas, commvault saas backup for microsoft 365, commvault cloud - saas, commvault cloud (saas), 
-      commvault cloud for saas]
-  editions: []
+  aliases: [commvault cloud saas, metallic, commvault cloud as a service, saas delivery, commvault saas, commvault saas backup for microsoft 365, commvault cloud - saas, commvault cloud (saas), commvault cloud for saas, metallic cloud, saas]
+  editions:
+  - {id: desktop_and_laptop, name: Desktop and laptop, aliases: [desktop and laptop, desktop and laptop only]}
+  - {id: premium_microsoft_365_backup_storage, name: Premium Microsoft 365 Backup Storage, aliases: [premium microsoft 365 backup storage]}
+  - {id: standard, name: Standard, aliases: [standard, active directory - standard, ad standard users, okta - standard, okta standard users, vm & kubernetes - standard]}
+  - {id: advanced, name: Advanced, aliases: [active directory - advanced, active directory advanced edition, ad advanced users, okta advanced users, vm & kubernetes - advanced, advanced vms]}
+  - {id: enterprise, name: Enterprise, aliases: [enterprise, active directory - enterprise, active directory enterprise edition, ad enterprise users, vm & kubernetes - enterprise]}
 - vendor: Commvault
   id: commvault.software
   name: Commvault self-managed software
-  aliases: [commvault software, commserve, self-hosted commvault, commvault on-premises, commvault 
-      cloud on (windows/linux) byol]
-  editions: []
+  aliases: [commvault software, commserve, self-hosted commvault, commvault on-premises, commvault cloud on (windows/linux) byol, self-managed, self-hosted]
+  editions:
+  - {id: enterprise, name: Enterprise, aliases: [enterprise, enterprise license]}
+  - {id: standard, name: Standard, aliases: [standard, standard edition]}
+  - {id: complete_backup_recovery, name: Complete Backup & Recovery, aliases: [commvault complete backup & recovery]}
+  - {id: express, name: Express Edition, aliases: [express edition]}
+  - {id: file_system_core, name: File System Core, aliases: [file system core]}
 - vendor: Commvault
-  id: commvault.grid_appliance
-  name: Commvault HyperScale Grid
-  aliases: [grid, grid appliance, hyperscale x, hyperscale grid, hyperscale appliance, commvault 
-      grid, commvault grid appliance, commvault grid reference architecture, commvault appliance 
-      hyperscale]
+  id: commvault.grid
+  name: Commvault Grid
+  aliases: [grid, grid appliance, hyperscale x, hyperscale grid, hyperscale appliance, commvault grid, commvault grid appliance, commvault grid reference architecture, commvault appliance hyperscale, hs2300 and hs4300 appliances, hs2300 and hs4300, hyperscale x appliance, hyperscale x appliances, commvault hyperscale x, commvault hyperscale x appliance, hyperscale]
   editions: []
 - vendor: Commvault
   id: commvault.edge
@@ -3657,9 +3663,8 @@ offerings:
   editions: []
 - vendor: Commvault
   id: commvault.flex
-  name: Commvault HyperScale Flex
-  aliases: [flex, hyperscale flex, flex open, flex appliance, commvault flex appliance, commvault 
-      flex open, commvault flex]
+  name: Commvault Flex
+  aliases: [flex, hyperscale flex, flex open, flex appliance, commvault flex appliance, commvault flex open, commvault flex, hsflex, commvault hyperscale flex]
   editions: []
 - vendor: Commvault
   id: commvault.air_gap_protect
@@ -3689,13 +3694,12 @@ offerings:
 - vendor: Cohesity
   id: cohesity.netbackup_appliance
   name: NetBackup appliances
-  aliases: [netbackup appliance, flex appliance, flex scale, access appliance, netbackup flex scale, 
-      5372 appliance, netbackup flex scale appliance, netbackup flex appliance]
+  aliases: [netbackup appliance, flex appliance, flex scale, access appliance, netbackup flex scale, 5372 appliance, netbackup flex scale appliance, netbackup flex appliance, cohesity 5372 appliance, 52xx appliance, flex 53x2 appliances]
   editions: []
 - vendor: Rubrik
   id: rubrik.cloud_vault
   name: Rubrik Cloud Vault
-  aliases: [rubrik cloud vault, rcv]
+  aliases: [rubrik cloud vault, rcv, rcv archive tier, rcv backup tier]
   editions: []
 - vendor: Rubrik
   id: rubrik.security_cloud_editions
@@ -3712,6 +3716,12 @@ offerings:
     aliases:
     - enterprise proactive
     - enterprise proactive edition
+  - id: foundation
+    name: Foundation
+    aliases: [foundation edition]
+  - id: standard
+    name: Standard
+    aliases: [standard]
 - vendor: Druva
   id: druva.data_security_cloud
   name: Druva Data Security Cloud
@@ -3726,6 +3736,11 @@ offerings:
   - {id: business, name: Business, aliases: [business plan]}
   - {id: enterprise, name: Enterprise, aliases: [enterprise plan]}
   - {id: elite, name: Elite, aliases: [elite plan]}
+  - {id: advanced, name: Advanced, aliases: [advanced, basic]}
+  - {id: education, name: Education, aliases: [education license, education]}
+  - {id: sandbox_seeding, name: Sandbox Seeding, aliases: [sandbox seeding, sandbox seeding license, seeding license]}
+  - {id: security_essentials, name: Security Essentials, aliases: [security essentials, security essentials license]}
+  - {id: premium, name: Premium, aliases: [premium, premium license]}
 - vendor: Microsoft
   id: microsoft.m365_backup_storage
   name: Microsoft 365 Backup Storage
@@ -3736,12 +3751,15 @@ offerings:
   name: Acronis Cyber Protect Cloud
   aliases: [cyber protect cloud]
   editions:
-  - {id: standard, name: Standard, aliases: [standard]}
+  - {id: standard, name: Standard, aliases: [standard, standard protection]}
   - {id: advanced_backup, name: Advanced Backup, aliases: [advanced backup]}
   - id: recovery
     name: Disaster Recovery
     aliases:
     - disaster recovery
+  - id: security_and_rmm
+    name: Security and RMM
+    aliases: [security and rmm, security and rmm (solution-based licensing mode); rmm service (service-based licensing mode), security and rmm (solution-based licensing mode) or rmm service (service-based licensing mode), rmm (service-based licensing mode) or security and rmm (solution-based licensing mode), rmm (service-based) or security and rmm (solution-based)]
 - vendor: Acronis
   id: acronis.cyber_frame
   name: Acronis Cyber Frame
@@ -3778,7 +3796,7 @@ offerings:
 - vendor: Veeam
   id: veeam.securiti_cloud
   name: Securiti Cloud (SaaS)
-  aliases: [securiti cloud, securiti-cloud, securit-cloud, securiti saas]
+  aliases: [securiti cloud, securiti-cloud, securit-cloud, securiti saas, securiti hosted, securiti hosted scanning]
   editions: []
 - vendor: Rubrik
   id: rubrik.salesforce_data_protection
@@ -3827,8 +3845,9 @@ offerings:
 - vendor: Druva
   id: druva.microsoft_365_backup
   name: Druva Microsoft 365 Backup Express
-  aliases: [microsoft 365 backup express, druva app for microsoft 365 backup express, backup express]
-  editions: []
+  aliases: [microsoft 365 backup express, druva app for microsoft 365 backup express, backup express, cloud backup for microsoft 365, druva for m365, insync for microsoft 365]
+  editions:
+  - {id: advanced, name: Advanced, aliases: [microsoft 365 advanced, m365 advanced]}
 - vendor: Salesforce
   id: salesforce.government_cloud
   name: Own Government Cloud
@@ -3837,7 +3856,7 @@ offerings:
 - vendor: Axcient
   id: axcient.file_backup
   name: Axcient Backup for Files
-  aliases: [backup for files]
+  aliases: [backup for files, backup for files portal]
   editions: []
 - vendor: CloudCasa
   id: cloudcasa.saas
@@ -3851,12 +3870,12 @@ offerings:
 - vendor: Druva
   id: druva.govcloud
   name: Druva GovCloud
-  aliases: [druva govcloud, gov cloud, insync govcloud, govcloud, dcp govcloud]
+  aliases: [druva govcloud, gov cloud, insync govcloud, govcloud, dcp govcloud, druva gov cloud, insync for govcloud]
   editions: []
 - vendor: Druva
   id: druva.identity_resilience
   name: Druva Identity Resilience
-  aliases: [druva identity resilience, identity resilience]
+  aliases: [druva identity resilience, identity resilience, identity resiliency]
 - vendor: Druva
   id: druva.draas
   name: Druva DRaaS
@@ -3874,20 +3893,17 @@ offerings:
 - vendor: Microsoft
   id: microsoft.data_protection_manager
   name: System Center Data Protection Manager (DPM)
-  aliases: [dpm]
+  aliases: [dpm, dpm server]
   editions: []
 - vendor: Axcient
   id: axcient.appliances
   name: Axcient x360Recover appliance
-  aliases: [x360recover appliances, pico, eco, x360recover mini, bdr appliance, rack bdr appliance, 
-      x360recover rack, x360recover nvme rack bdr appliance, x360recover mini bdr appliance, bdr 
-      appliances, mini bdr appliance]
+  aliases: [x360recover appliances, pico, eco, x360recover mini, bdr appliance, rack bdr appliance, x360recover rack, x360recover nvme rack bdr appliance, x360recover mini bdr appliance, bdr appliances, mini bdr appliance, x360recover appliance, x360recover rack bdr appliance, x360recover bdr appliance, bdr-rack-nvme, appliance, appliances]
   editions: []
 - vendor: Axcient
   id: axcient.continuity_cloud
   name: Axcient Continuity Cloud
-  aliases: [axcient continuity cloud, continuity cloud, rapid recovery v6 continuity cloud, 
-      shadowprotect for continuity cloud]
+  aliases: [axcient continuity cloud, continuity cloud, rapid recovery v6 continuity cloud, shadowprotect for continuity cloud, veeam vmware for continuity cloud, continuity cloud for veeam, quest for continuity cloud]
 - vendor: Axcient
   id: axcient.x360recover
   name: Axcient x360Recover
@@ -3895,7 +3911,9 @@ offerings:
 - vendor: Axcient
   id: axcient.bdr_for_shadowprotect
   name: Axcient BDR for ShadowProtect
-  aliases: [bdr for shadowprotect]
+  aliases: [bdr for shadowprotect, shadowprotect]
+  editions:
+  - {id: standalone, name: Standalone, aliases: [shadowprotect standalone]}
 - vendor: Axcient
   id: axcient.x360cloud
   name: Axcient x360Cloud
@@ -3907,8 +3925,7 @@ offerings:
 - vendor: Dell
   id: dell.avamar_virtual_edition
   name: Dell Avamar Virtual Edition (AVE)
-  aliases: [avamar virtual edition, ave, 'ave on azure, aws, and gcp', ave on vmware, ave on aws, 
-      ave on hyper-v]
+  aliases: [avamar virtual edition, ave, 'ave on azure, aws, and gcp', ave on vmware, ave on aws, ave on hyper-v, ave on azure, ave on gcp, ave on openstack kvm, ave on kvm]
   editions: []
 - vendor: AvePoint
   id: avepoint.salesforce_backup
@@ -3918,13 +3935,12 @@ offerings:
 - vendor: Hornetsecurity (Altaro)
   id: hornetsecurity_altaro.microsoft_365_backup
   name: Hornetsecurity 365 Total Backup
-  aliases: [o365 total backup subscription, hornetsecurity office 365 backup, Office 365 backup, 365
-      total backup, total backup, altaro office 365 backup]
+  aliases: [o365 total backup subscription, hornetsecurity office 365 backup, Office 365 backup, 365 total backup, total backup, altaro office 365 backup, o365 backup, 365tb]
   editions: []
 - vendor: Veeam
   id: veeam.securiti_sovereign
   name: Securiti Sovereign (self-hosted)
-  aliases: [securiti sovereign]
+  aliases: [securiti sovereign, securiti sovereign deployment, sovereign]
   editions: []
 - vendor: Veeam
   id: veeam.backup_for_microsoft_azure
@@ -3987,7 +4003,7 @@ offerings:
 - vendor: Veeam
   id: veeam.securiti_privacy_center
   name: Securiti Privacy Center
-  aliases: [privacy center]
+  aliases: [privacy center, privacy central]
 - vendor: Veeam
   id: veeam.management_pack_for_system_center
   name: Veeam Management Pack for Microsoft System Center
@@ -3998,6 +4014,8 @@ offerings:
   aliases: [bacula enterprise, bacula enterprise m365 plugin, windowsbmr, winbmr, bacula enterprise 
       oracle plugin, bacula enterprise db2 plugin, bacula enterprise sap plugin, google workspace 
       plugin, bacula enterprise openstack plugin, bacula enterprise google workspace plugin]
+  editions:
+  - {id: enterprise, name: Enterprise Edition, aliases: [enterprise, enterprise edition]}
 - vendor: Bacula
   id: bacula.community
   name: Bacula Community
@@ -4009,17 +4027,16 @@ offerings:
 - vendor: Rubrik
   id: rubrik.cloud_cluster_es
   name: Rubrik Cloud Cluster Elastic Storage (ES)
-  aliases: [rubrik cloud cluster elastic storage, rubrik cloud cluster es, cloud cluster es, rubrik 
-      cloud cluster elastic storage on oci, rubrik cloud cluster elastic storage on gcp, rubrik 
-      cloud cluster elastic storage on amazon web services]
+  aliases: [rubrik cloud cluster elastic storage, rubrik cloud cluster es, cloud cluster es, rubrik cloud cluster elastic storage on oci, rubrik cloud cluster elastic storage on gcp, rubrik cloud cluster elastic storage on amazon web services, rubrik cloud cluster es for azure, cloud cluster-es]
+- vendor: Rubrik
+  id: rubrik.cloud_cluster
+  name: Rubrik Cloud Cluster
+  aliases: [rubrik cloud cluster, rubrik cloud cluster on gcp, aws cloud cluster]
+  editions: []
 - vendor: Cohesity
   id: cohesity.cloud_edition
   name: Cohesity Cloud Edition
-  aliases: [cohesity cloud edition, cohesity cloud edition on azure, cohesity cloud edition on aws, 
-      cohesity cloud edition on gcp, cohesity cloud edition on azure govcloud, cohesity cloud 
-      edition on oci, cohesity cloud edition (legacy), cloud edition, cohesity cloud edition on aws 
-      govcloud, cloud edition (legacy), cohesity cloud edition on azure for government, cohesity 
-      cloud edition (ngce), cohesity cloud edition (legacy) on aws]
+  aliases: [cohesity cloud edition, cohesity cloud edition on azure, cohesity cloud edition on aws, cohesity cloud edition on gcp, cohesity cloud edition on azure govcloud, cohesity cloud edition on oci, cohesity cloud edition (legacy), cloud edition, cohesity cloud edition on aws govcloud, cloud edition (legacy), cohesity cloud edition on azure for government, cohesity cloud edition (ngce), cohesity cloud edition (legacy) on aws, cohesity cloud editions]
 - vendor: Cohesity
   id: cohesity.gaia_self_managed
   name: Cohesity Gaia (self-managed)
@@ -4027,11 +4044,11 @@ offerings:
 - vendor: Dell
   id: dell.cloudboost
   name: Dell CloudBoost
-  aliases: [cloudboost, cloudboost appliance]
+  aliases: [cloudboost, cloudboost appliance, on-prem cloudboost]
 - vendor: Cohesity
   id: cohesity.gaia_saas
   name: Cohesity Gaia (SaaS)
-  aliases: [gaia saas]
+  aliases: [gaia saas, gaia]
 - vendor: IBM
   id: ibm.storage_protect_for_virtual_environments
   name: IBM Storage Protect for Virtual Environments
@@ -4053,7 +4070,9 @@ offerings:
 - vendor: Rubrik
   id: rubrik.identity_resilience
   name: Rubrik Identity Resilience
-  aliases: [identity resilience, rubrik identity resilience]
+  aliases: [identity resilience, rubrik identity resilience, rubrikidentity resilience]
+  editions:
+  - {id: enterprise, name: Enterprise Edition, aliases: [identity resilience enterprise edition, rsc identity resilience enterprise edition, workforce identity resilience enterprise edition]}
 - vendor: Rubrik
   id: rubrik.annapurna
   name: Rubrik Annapurna
@@ -4077,7 +4096,7 @@ offerings:
 - vendor: Rubrik
   id: rubrik.hosted_gws_service
   name: Rubrik-hosted Google Workspace Service
-  aliases: [rubrik-hosted gws service]
+  aliases: [rubrik-hosted gws service, gws service]
 - vendor: Cohesity
   id: cohesity.smartfiles
   name: Cohesity SmartFiles
@@ -4088,6 +4107,8 @@ offerings:
   aliases: [netbackup, netbackup for vmware, netbackup for domino, netbackup for db2, netbackup for 
       kvm, netbackup for sql server, netbackup for exchange, netbackup for exchange server, 
       netbackup for cloud scale]
+  editions:
+  - {id: enterprise_server, name: NetBackup Enterprise Server, aliases: [netbackup enterprise server]}
 - vendor: Cohesity
   id: cohesity.alta_saas_protection
   name: Alta SaaS Protection
@@ -4103,9 +4124,7 @@ offerings:
 - vendor: Datto
   id: datto.siris
   name: Datto SIRIS
-  aliases: [datto siris, siris, siris private, virtual siris, siris imaged, cloud siris, siris 
-      imager, siris virtual, siris 3, siris cloud, siris 4 and 4x enterprise, siris 4 business and 
-      siris 4/4x professional]
+  aliases: [datto siris, siris, siris private, virtual siris, siris imaged, cloud siris, siris imager, siris virtual, siris 3, siris cloud, siris 4 and 4x enterprise, siris 4 business and siris 4/4x professional, datto siris appliances, datto siris appliance, datto siris devices]
 - vendor: Salesforce
   id: salesforce.archive
   name: Salesforce Archive
@@ -4122,12 +4141,11 @@ offerings:
 - vendor: Salesforce
   id: salesforce.backup_and_recover
   name: Own Backup & Recover
-  aliases: [backup & recover, own backup & recover, backup & recover for dynamics, backup & recover 
-      for workday, backup & recover for servicenow]
+  aliases: [backup & recover, own backup & recover, backup & recover for dynamics, backup & recover for workday, backup & recover for servicenow, backup & recover for salesforce]
 - vendor: Dell
   id: dell.networker_virtual_edition
   name: Dell NetWorker Virtual Edition (NVE)
-  aliases: [networker virtual edition]
+  aliases: [networker virtual edition, nve, nve appliance]
 - vendor: Dell
   id: dell.cloud_disaster_recovery
   name: Dell Cloud Disaster Recovery (Cloud DR)
@@ -4158,16 +4176,17 @@ offerings:
 - vendor: Barracuda
   id: barracuda.backup_vx
   name: Barracuda Backup Vx
-  aliases: [barracuda backup vx]
+  aliases: [barracuda backup vx, scalable virtual appliance, virtual appliance]
 - vendor: Barracuda
   id: barracuda.intronis_backup
   name: Barracuda Intronis Backup (ECHOplatform)
-  aliases: [echoplatform, intronis backup]
+  aliases: [echoplatform, intronis backup, ibu]
 - vendor: Barracuda
   id: barracuda.backup
   name: Barracuda Backup
-  aliases: [barracuda backup, barracuda backup appliance, encrypted backup model 6090, barracuda 
-      encrypted backup]
+  aliases: [barracuda backup, barracuda backup appliance, encrypted backup model 6090, barracuda encrypted backup, physical appliance]
+  editions:
+  - {id: physical_imaging_standard, name: Physical Imaging Standard, aliases: [physical imaging standard]}
 - vendor: Barracuda
   id: barracuda.message_archiver_vx
   name: Barracuda Message Archiver Vx
@@ -4189,15 +4208,27 @@ offerings:
   id: arcserve.shadowprotect_spx
   name: Arcserve ShadowProtect SPX
   aliases: [spx, shadowprotect spx]
+  editions:
+  - {id: msp, name: MSP Edition, aliases: [msp, msp edition]}
+  - {id: sbs, name: Small Business Server Edition, aliases: [sbs edition, sbs license]}
+- vendor: Arcserve
+  id: arcserve.imagemanager
+  name: Arcserve ImageManager
+  aliases: [imagemanager, arcserve imagemanager]
+  editions: []
+- vendor: Arcserve
+  id: arcserve.shadowcontrol
+  name: Arcserve ShadowControl
+  aliases: [shadowcontrol, arcserve shadowcontrol]
+  editions: []
 - vendor: Arcserve
   id: arcserve.appliance
   name: Arcserve Appliance
-  aliases: [arcserve appliance, arcserve appliance x series, arcserve appliance for udp, arcserve 
-      appliance 9012-9504dr series]
+  aliases: [arcserve appliance, arcserve appliance x series, arcserve appliance for udp, arcserve appliance 9012-9504dr series, arcserve appliance x-series, arcserve appliance 10012bu-10576dr, 10012bu-10576dr series appliance, 9012-9504dr series appliance, appliance]
 - vendor: Arcserve
   id: arcserve.shadowprotect_it_edition
   name: Arcserve ShadowProtect IT Edition
-  aliases: [it edition, shadowprotect it edition, shadowprotect it edition pro]
+  aliases: [it edition, shadowprotect it edition, shadowprotect it edition pro, it edition pro]
 - vendor: Arcserve
   id: arcserve.udp_cloud_hybrid
   name: Arcserve UDP Cloud Hybrid
@@ -4217,6 +4248,8 @@ offerings:
   aliases: [arcserve udp, arcserve unified data protection, arcserve unified data protection - full, 
       udp, arcserve unified data protection - agent, arcserve unified data protection agent for 
       linux, arcserve udp for linux]
+  editions:
+  - {id: foundation, name: Foundation, aliases: [foundation]}
 - vendor: Arcserve
   id: arcserve.shadowprotect_gre
   name: ShadowProtect Granular Recovery for Exchange (GRE)
@@ -4244,7 +4277,7 @@ offerings:
 - vendor: Datto
   id: datto.alto
   name: Datto ALTO
-  aliases: [alto, datto alto]
+  aliases: [alto, datto alto, alto 4, alto 5, alto devices]
 - vendor: Datto
   id: datto.nas
   name: Datto NAS
@@ -4269,6 +4302,13 @@ offerings:
       protection for sql, 'ibm storage protect for databases: data protection for microsoft sql server',
     'ibm storage protect for databases: data protection for oracle']
 - vendor: IBM
+  id: ibm.storage_protect
+  name: IBM Storage Protect (server)
+  aliases: [ibm storage protect server, storage protect server]
+  editions:
+  - {id: standard, name: Standard Edition, aliases: [standard edition, ibm storage protect standard edition]}
+  - {id: extended, name: Extended Edition, aliases: [extended edition, ibm storage protect extended edition]}
+- vendor: IBM
   id: ibm.storage_protect_plus
   name: IBM Storage Protect Plus
   aliases: [ibm spectrum protect plus, ibm storage protect plus, storage protect plus]
@@ -4283,8 +4323,7 @@ offerings:
 - vendor: IBM
   id: ibm.storage_defender_data_protect
   name: IBM Storage Defender Data Protect
-  aliases: [data protect, ibm storage defender data protect, storage defender data protect, data 
-      protect cluster]
+  aliases: [data protect, ibm storage defender data protect, storage defender data protect, data protect cluster, defender data protect]
 - vendor: IBM
   id: ibm.storage_protect_for_san
   name: IBM Storage Protect for SAN
@@ -4292,13 +4331,11 @@ offerings:
 - vendor: Commvault
   id: commvault.remote_office_appliance
   name: Commvault Remote Office Appliance
-  aliases: [remote office appliance ro1200, remote office appliance ro1100]
+  aliases: [remote office appliance ro1200, remote office appliance ro1100, ro1100]
 - vendor: Commvault
   id: commvault.data_access_manager
   name: Commvault Data Access Manager
-  aliases: [commvault data access manager, data access manager, satori data access controller, 
-      satori, satori dac, satori ch dac, data access manager saas, data access manager customer 
-      hosted, satori ch]
+  aliases: [commvault data access manager, data access manager, satori data access controller, satori, satori dac, satori ch dac, data access manager saas, data access manager customer hosted, satori ch, data access manager ch, data access manager private saas]
 - vendor: Commvault
   id: commvault.hyperscale_1_5
   name: Commvault HyperScale 1.5
@@ -4318,9 +4355,9 @@ offerings:
   name: Commvault Orchestrate
   aliases: [commvault orchestrate, commvault orchestrate for copy data management]
 - vendor: Commvault
-  id: commvault.risk_analysis
-  name: Commvault Risk Analysis
-  aliases: [commvault risk analysis]
+  id: commvault.data_posture_360
+  name: Commvault Data Posture 360
+  aliases: [commvault risk analysis, data posture 360, commvault data posture 360]
 - vendor: Commvault
   id: commvault.activate
   name: Commvault Activate
@@ -4398,7 +4435,7 @@ offerings:
 - vendor: AvePoint
   id: avepoint.confide
   name: AvePoint Confide
-  aliases: [avepoint confide, confide, confide with sharepoint embedded]
+  aliases: [avepoint confide, confide, confide with sharepoint embedded, confide for outlook]
 - vendor: AvePoint
   id: avepoint.cloud_management
   name: AvePoint Cloud Management
@@ -4424,10 +4461,14 @@ offerings:
   name: Atempo Tina
   aliases: [atempo tina, tina, tina hypervision agent for exchange, tina security & compliance 
       manager, tina for db2, tina for oracle, tina for sql server]
+  editions:
+  - {id: standard, name: Standard, aliases: [standard]}
 - vendor: Unitrends
   id: unitrends.helix
   name: Unitrends Helix
   aliases: [helix, unitrends helix]
+  editions:
+  - {id: premium, name: Premium, aliases: [helix premium, premium]}
 - vendor: Unitrends
   id: unitrends.unitrends_backup
   name: Unitrends Backup
@@ -4469,6 +4510,9 @@ offerings:
   id: spanning.backup_for_microsoft_365
   name: Spanning Backup for Microsoft 365
   aliases: [spanning backup for microsoft 365]
+  editions:
+  - {id: legacy, name: Legacy, aliases: [legacy subscriptions, legacy, legacy spanning backup subscriptions]}
+  - {id: standard, name: Standard, aliases: [standard, standard license]}
 - vendor: Afi.ai
   id: afi.backup_for_microsoft_azure
   name: Afi Backup for Microsoft Azure
@@ -4495,14 +4539,19 @@ offerings:
   id: nakivo.backup_for_microsoft_365
   name: NAKIVO Backup for Microsoft 365
   aliases: [backup for microsoft 365, nakivo backup for microsoft 365]
+  editions:
+  - {id: perpetual, name: Perpetual, aliases: [perpetual]}
 - vendor: Arctera
   id: arctera.dlo
   name: Arctera Desktop and Laptop Option (DLO)
   aliases: [desktop and laptop option, dlo]
+  editions: []
 - vendor: GRAX
   id: grax.platform
   name: GRAX Platform
   aliases: [grax platform]
+  editions:
+  - {id: premium, name: Premium, aliases: [premium]}
 - vendor: Keepit
   id: keepit.github
   name: Keepit for GitHub
@@ -4515,6 +4564,8 @@ offerings:
   id: ninjaone.entra_backup
   name: Dropsuite Entra Backup
   aliases: [dropsuite entra backup]
+  editions:
+  - {id: nfr, name: Not for Resale, aliases: [nfr]}
 - vendor: Storware
   id: storware.backup_and_recovery
   name: Storware Backup and Recovery
@@ -4530,11 +4581,228 @@ offerings:
 - vendor: Gearset
   id: gearset.sandbox_seeding
   name: Gearset Sandbox Seeding
-  aliases: [sandbox seeding]
+  aliases: [sandbox seeding, sandbox seeding add-on]
 - vendor: Gearset
   id: gearset.data_backup
   name: Gearset Data Backup
-  aliases: [gearset data backup]
+  aliases: [gearset data backup, data backup]
+  editions:
+  - {id: enterprise, name: Enterprise, aliases: [enterprise, backup enterprise]}
+  - {id: starter, name: Starter, aliases: [backup starter, starter]}
+- vendor: Cohesity
+  id: cohesity.cloud_archive_direct
+  name: CloudArchive Direct
+  aliases: [cloudarchivedirect, cloudarchive direct]
+  editions: []
+- vendor: Veeam
+  id: veeam.elastic_pods
+  name: Elastic Pods
+  aliases: [epod v2, elastic pods v2, pods, elastic pod v2]
+  editions: []
+- vendor: Veeam
+  id: veeam.coveware
+  name: Coveware
+  aliases: [coveware, coveware portal]
+  editions: []
+- vendor: IBM
+  id: ibm.next_gen_cloud_edition
+  name: Next-Generation Cloud Edition
+  aliases: [cloud edition, next-generation cloud edition, next-gen cloud edition, ibm cloud edition, aws next-gen cloud edition, azure ngce, cloud edition azure]
+  editions: []
+- vendor: Dell
+  id: dell.avamar_desktop_laptop
+  name: Dell Avamar Desktop/Laptop
+  aliases: [avamar desktop/laptop]
+  editions: []
+- vendor: Druva
+  id: druva.insync_endpoints
+  name: Druva inSync for Endpoints
+  aliases: [druva endpoints, insync endpoint]
+  editions: []
+- vendor: Druva
+  id: druva.msp
+  name: Druva MSP
+  aliases: [msp, druva msp, managed services center, druva managed services center]
+  editions: []
+- vendor: Bacula
+  id: bacula.bcloud
+  name: Bcloud
+  aliases: [bcloud service, bcloud]
+  editions: []
+- vendor: Veeam
+  id: veeam.backup_appliance
+  name: Backup appliance
+  aliases: [backup appliance, backup appliances]
+  editions: []
+- vendor: AvePoint
+  id: avepoint.recenter
+  name: AvePoint Recenter
+  aliases: [recenter, recenter for google workspace]
+  editions: []
+- vendor: Arcserve
+  id: arcserve.shadowstream
+  name: ShadowStream
+  aliases: [shadowstream]
+  editions: []
+- vendor: Datto
+  id: datto.siris_cloud
+  name: Datto SIRIS Cloud
+  aliases: [datto cloud siris]
+  editions: []
+- vendor: Atempo
+  id: atempo.tina_for_microsoft_365
+  name: Tina for Microsoft 365
+  aliases: [tina for microsoft 365]
+  editions: []
+- vendor: Synology
+  id: synology.activeprotect_appliance
+  name: Synology ActiveProtect Appliance
+  editions: []
+- vendor: GRAX
+  id: grax.data_lake
+  name: GRAX Data Lake
+  aliases: [grax data lake, data lake]
+  editions: []
+- vendor: Datto
+  id: datto.saas_protection
+  name: SaaS Protection
+  aliases: [saas protection]
+  editions: []
+- vendor: Commvault
+  id: commvault.commserve_express
+  name: CommServe Express
+  aliases: [express, commserve express]
+  editions: []
+- vendor: Portworx
+  id: portworx.on_premises
+  name: On-premises
+  aliases: [on-premises, stand-alone on-premises]
+  editions: []
+- vendor: Quest Software
+  id: quest_software.on_demand_migration
+  name: On Demand Migration
+  aliases: [on demand migration]
+  editions: []
+- vendor: CloudCasa
+  id: cloudcasa.self_hosted
+  name: CloudCasa Self-Hosted
+  aliases: [self-hosted]
+  editions: []
+- vendor: N-Able
+  id: nable.cloud_to_cloud_backup
+  name: Cloud-to-Cloud Backup
+  aliases: [c2c]
+  editions: []
+- vendor: IBM
+  id: ibm.storage_ready_node
+  name: IBM Storage Ready Node
+  aliases: [ibm storage ready node]
+  editions: []
+- vendor: Commvault
+  id: commvault.a_series_backup_appliance
+  name: Commvault Backup Appliance A-Series
+  aliases: [a600 / a410 / a210 backup appliance]
+  editions: []
+- vendor: Google
+  id: google.backup_recovery_appliance
+  name: Backup/recovery appliance
+  aliases: [backup/recovery appliance]
+  editions: []
+- vendor: HYCU
+  id: hycu.protege
+  name: Protégé
+  aliases: [hycu protégé]
+  editions: []
+- vendor: Unitrends
+  id: unitrends.ion
+  name: Unitrends ION
+  aliases: [ion/ion+]
+  editions: []
+- vendor: Flosum
+  id: flosum.self_hosted
+  name: Self-hosted
+  aliases: [self-hosted]
+  editions: []
+- vendor: NinjaOne (Dropsuite)
+  id: ninjaone.archiver
+  name: Dropsuite Archiver
+  aliases: [archiver]
+  editions: []
+- vendor: Dell
+  id: dell.data_protection_advisor
+  name: Dell Data Protection Advisor
+  aliases: [data protection advisor]
+  editions: []
+- vendor: Gearset
+  id: gearset.devops_launchpad
+  name: DevOps Launchpad
+  aliases: [devops launchpad]
+  editions: []
+- vendor: Quest Software
+  id: quest_software.dr_series_appliance
+  name: DR Series appliance
+  aliases: [dr series appliances, dr series, quest dr series]
+  editions: []
+- vendor: Atempo
+  id: atempo.lina
+  name: Atempo Lina
+  aliases: [lina]
+  editions: []
+- vendor: Rubrik
+  id: rubrik.physical_appliance
+  name: Physical Appliance
+  aliases: [physical appliance]
+  editions: []
+- vendor: Storware
+  id: storware.backup_and_recovery_cloud
+  name: Backup & Recovery Cloud
+  aliases: [storware backup & recovery cloud]
+  editions: []
+- vendor: Storware
+  id: storware.vawlt
+  name: Vawlt
+  aliases: [vawlt]
+  editions: []
+- vendor: Quest Software
+  id: quest_software.virtual_cluster_appliance
+  name: Virtual Cluster Appliance
+  aliases: [virtual cluster appliance]
+  editions: []
+- vendor: Quest Software
+  id: quest_software.vreplicator
+  name: vReplicator
+  aliases: [vreplicator]
+  editions: []
+- vendor: Arcserve
+  id: arcserve.cyber_resilient_storage
+  name: Arcserve Cyber Resilient Storage
+  aliases: [arcserve cyber resilient storage, arcserve cyber resilient data store, acrs]
+  editions: []
+- vendor: Arcserve
+  id: arcserve.cloud_cyber_resilient_storage
+  name: Arcserve Cloud Cyber Resilient Storage
+  aliases: [arcserve cloud cyber resilient storage, arcserve cloud cyber resilience storage, arcserve cloud cyber resilient data store, accrs]
+  editions: []
+- vendor: Cohesity
+  id: cohesity.netbackup_snapshot_manager
+  name: NetBackup Snapshot Manager
+  aliases: [netbackup snapshot manager, netbackup snapshot manager for data center, snapshot manager for data center]
+  editions: []
+- vendor: Veeam
+  id: veeam.software_appliance
+  name: Veeam Software Appliance
+  aliases: [veeam software appliance]
+  editions: []
+- vendor: Dell
+  id: dell.cloud_director_dpe
+  name: Dell Cloud Director Data Protection Extension
+  aliases: [cloud director data protection extension, cddpe]
+  editions: []
+- vendor: Dell
+  id: dell.openstack_dpe
+  name: Dell OpenStack Data Protection Extension
+  aliases: [openstack data protection extension, openstack dpe]
+  editions: []
 topics:
 - id: ransomware_protection
   name: Ransomware protection

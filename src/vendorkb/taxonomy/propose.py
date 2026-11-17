@@ -187,8 +187,16 @@ For "new":
 - id: snake_case, singular.
 - name: short, singular.""",
         "offering": """\
-You maintain the offerings of each vendor in a taxonomy of backup products. An offering is \
-a product or service a vendor sells. The message names the vendor.
+You maintain the offerings of each vendor in a taxonomy of backup products. An offering \
+scopes a capability fact more narrowly than the vendor's product line: a separately named \
+product, service or deployment form whose capabilities can differ from the rest, e.g. a SaaS \
+service versus the self-managed software ("Veeam Data Cloud", "self-managed"), a reduced \
+variant ("Express"), or a hardware appliance sold as its own deployment form ("Grid \
+appliance"). Test: would a fact be wrong or misleading if this qualifier were dropped? An \
+offering is never a feature or backup method (snapshots, IntelliSnap), a console, agent, \
+plug-in or other component (management console, proxy, gateway, core server, a plug-in for \
+one workload), a workload, cloud, region or platform, a license tier or edition, a version, \
+or the vendor's product line itself; answer "none" for those. The message names the vendor.
 For "new":
 - id: snake_case, the offering only (the vendor prefix is added).
 - name: the offering's name.""",
