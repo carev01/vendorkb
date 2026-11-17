@@ -312,8 +312,14 @@ async def test_limit_caps_each_group_and_reports_totals(vkb_dsn, monkeypatch):
         await capabilities.build(conn)
         two = await capabilities.query(conn, CapFilter(target="okta"), limit=2)
         assert {f.vendor for f in two.facts} == {"examplevendor", "othervendor"}
+        # a cut group counts every vendor's rows, so the vendors the sample misses are named
+        one = await capabilities.query(conn, CapFilter(target="okta"), limit=1)
+        assert one.vendor_totals["facts"] == {"examplevendor": 4, "othervendor": 1}
+        assert one.vendor_totals["product_wide"] == {"examplevendor": 2}
+        assert "product_level" not in one.vendor_totals  # empty, so not cut
         unbounded = await capabilities.query(conn, CapFilter(target="okta", vendor="examplevendor"))
         assert len(unbounded.facts) == 4 and unbounded.totals["facts"] == 4
+        assert unbounded.vendor_totals == {}  # nothing cut, nothing counted
         assert len(unbounded.conflicts[0].facts) == 2  # members are always capped
     finally:
         await conn.close()

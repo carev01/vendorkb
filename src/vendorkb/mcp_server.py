@@ -19,6 +19,7 @@ import dataclasses
 import json
 import logging
 import time
+from collections import Counter
 from typing import Annotated, Any, Literal
 
 from mcp.server.mcpserver import MCPServer
@@ -204,6 +205,15 @@ def format_capabilities(res: CapResult, limit: int,
         head = f"{title}: {total}" + (f" (first {len(shown)} shown)" if total > len(shown)
                                        else "")
         lines = [head]
+        if total > len(shown):
+            # the sample cannot name every vendor: list them all with their counts
+            vendors = res.vendor_totals.get(key) or dict(
+                sorted(Counter(f.vendor for f in facts).items(), key=lambda kv: (-kv[1], kv[0])))
+            structured[f"{key}_vendors"] = vendors
+            lines.append(f"Vendors with these facts ({len(vendors)}): "
+                         + ", ".join(f"{v} {n}" for v, n in vendors.items())
+                         + ". The sample below does not show them all: query one vendor"
+                           " (`vendor`) for its facts.")
         for f in shown:
             n += 1
             lines.append(format_fact(n, f))

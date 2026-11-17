@@ -145,6 +145,9 @@ class CapResult:
     hint: str | None = None
     unresolved: list[str] = field(default_factory=list)  # filters that named no taxonomy entity
     totals: dict[str, int] = field(default_factory=dict)  # rows per group before ``limit``
+    # rows per vendor in each group that ``limit`` cut, so a cut result still names every
+    # vendor with facts: {group: {vendor: rows}}, most rows first
+    vendor_totals: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 class Built(NamedTuple):
@@ -406,6 +409,7 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
         f"  OR ({wide} AND c.dimension_id = ANY(%(target_dims)s::text[])))"
         f" AND ({exact} OR {general})" + _ORDER)
     # the window ranks rows inside each group; the outer filter keeps the first ``limit``
+    matched = sql
     if limit is None:
         sql = f"SELECT * FROM ({sql}) s ORDER BY s.pos"
     else:  # round-robin across vendors: rank by the row's position within its vendor
@@ -422,6 +426,14 @@ async def query(conn: psycopg.AsyncConnection, f: CapFilter,
     for row in await cur.fetchall():
         groups[row[0]].append(_fact(row[4:4 + _N_FACT]))  # after grp, total, pos, vendor_pos
         result.totals[row[0]] = int(row[1])
+    cut = [g for g, rows in groups.items() if result.totals[g] > len(rows)]
+    if cut:
+        # a cut group shows a sample; its per-vendor counts say who else has facts
+        cur = await conn.execute(
+            f"SELECT s.grp, s.vendor, count(*) FROM ({matched}) s WHERE s.grp = ANY(%(cut)s)"
+            " GROUP BY 1, 2 ORDER BY 1, 3 DESC, 2", {**params, "cut": cut})
+        for grp_name, vendor, rows in await cur.fetchall():
+            result.vendor_totals.setdefault(str(grp_name), {})[str(vendor)] = int(rows)
 
     met = sorted({x.conflict_group for g in groups.values() for x in g
                   if x.conflict_group is not None})
