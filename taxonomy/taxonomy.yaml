@@ -3638,6 +3638,9 @@ offerings:
   editions:
   - {id: desktop_and_laptop, name: Desktop and laptop, aliases: [desktop and laptop, desktop and laptop only]}
   - {id: premium_microsoft_365_backup_storage, name: Premium Microsoft 365 Backup Storage, aliases: [premium microsoft 365 backup storage]}
+  - {id: standard, name: Standard, aliases: [standard, active directory - standard, ad standard users, okta - standard, okta standard users, vm & kubernetes - standard]}
+  - {id: advanced, name: Advanced, aliases: [active directory - advanced, active directory advanced edition, ad advanced users, okta advanced users, vm & kubernetes - advanced, advanced vms]}
+  - {id: enterprise, name: Enterprise, aliases: [enterprise, active directory - enterprise, active directory enterprise edition, ad enterprise users, vm & kubernetes - enterprise]}
 - vendor: Commvault
   id: commvault.software
   name: Commvault self-managed software
@@ -3736,6 +3739,8 @@ offerings:
   - {id: advanced, name: Advanced, aliases: [advanced, basic]}
   - {id: education, name: Education, aliases: [education license, education]}
   - {id: sandbox_seeding, name: Sandbox Seeding, aliases: [sandbox seeding, sandbox seeding license, seeding license]}
+  - {id: security_essentials, name: Security Essentials, aliases: [security essentials, security essentials license]}
+  - {id: premium, name: Premium, aliases: [premium, premium license]}
 - vendor: Microsoft
   id: microsoft.m365_backup_storage
   name: Microsoft 365 Backup Storage
@@ -4297,6 +4302,13 @@ offerings:
       protection for sql, 'ibm storage protect for databases: data protection for microsoft sql server',
     'ibm storage protect for databases: data protection for oracle']
 - vendor: IBM
+  id: ibm.storage_protect
+  name: IBM Storage Protect (server)
+  aliases: [ibm storage protect server, storage protect server]
+  editions:
+  - {id: standard, name: Standard Edition, aliases: [standard edition, ibm storage protect standard edition]}
+  - {id: extended, name: Extended Edition, aliases: [extended edition, ibm storage protect extended edition]}
+- vendor: IBM
   id: ibm.storage_protect_plus
   name: IBM Storage Protect Plus
   aliases: [ibm spectrum protect plus, ibm storage protect plus, storage protect plus]
@@ -4501,7 +4513,6 @@ offerings:
   editions:
   - {id: legacy, name: Legacy, aliases: [legacy subscriptions, legacy, legacy spanning backup subscriptions]}
   - {id: standard, name: Standard, aliases: [standard, standard license]}
-  - {id: trial, name: Trial, aliases: [trial]}
 - vendor: Afi.ai
   id: afi.backup_for_microsoft_azure
   name: Afi Backup for Microsoft Azure
@@ -4534,14 +4545,12 @@ offerings:
   id: arctera.dlo
   name: Arctera Desktop and Laptop Option (DLO)
   aliases: [desktop and laptop option, dlo]
-  editions:
-  - {id: trial, name: Trial, aliases: [trial, trial version]}
+  editions: []
 - vendor: GRAX
   id: grax.platform
   name: GRAX Platform
   aliases: [grax platform]
   editions:
-  - {id: trial, name: Trial, aliases: [trial]}
   - {id: premium, name: Premium, aliases: [premium]}
 - vendor: Keepit
   id: keepit.github
