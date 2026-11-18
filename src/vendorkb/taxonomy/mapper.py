@@ -609,8 +609,17 @@ class _Adjudicator:
         self.stop = False
         self.fatal: Exception | None = None
         self.sem = asyncio.Semaphore(max(1, settings.extract_concurrency))
+        self.claims = 0
+        self.steps = 0  # claim steps (a target, then a dimension, per claim) finished so far
 
-    async def run(self, items: list[_Adjudication]) -> None:
+    async def _progress(self, claims: int) -> None:
+        """Claims mapped so far: half the finished steps (each claim has two)."""
+        await task_runs.progress(min(self.steps // 2, claims), claims, self.report.spent_usd)
+
+    async def run(self, items: list[_Adjudication], *, base: int = 0, claims: int = 0) -> None:
+        """``base``: the steps already finished before these items (those needing no call);
+        ``claims``: the run's claim count, for progress."""
+        self.claims, self.steps = claims, base
         self.report.adjudications += len(items)
         model = self.settings.map_model
         keyed = {decision_key(a, model): a for a in items}
@@ -623,6 +632,7 @@ class _Adjudicator:
             elif choice is None or choice in a.candidates:
                 a.choice, a.cached = choice, True
                 self.report.decisions_reused += 1
+        self.steps += sum(len(a.claim_ids) for a in items if a.cached)
         await self._carry([a for a in items if not a.cached])
         self.report.decisions_reasked += sum(a.reasked for a in items)
         if self.batch:
@@ -796,6 +806,12 @@ class _Adjudicator:
         return handle
 
     async def _one(self, a: _Adjudication) -> None:
+        await self._ask(a)
+        self.steps += len(a.claim_ids)
+        self.report.spent_usd = self.spent
+        await self._progress(self.claims)
+
+    async def _ask(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings
         async with self.sem:
             system, user = _SYSTEM[a.kind], _user_message(self.tax, a)
@@ -1005,6 +1021,8 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
         for kind in BATCH_KINDS:
             await llm_batch.collect(conn, client, kind=kind, price=adjudicator.price,
                                     handle=adjudicator.handler(), report=report.batch)
+            # a collected batch: the claims are not read yet, so only the spend moves
+            await task_runs.progress(0, None, report.batch.spent_usd)
     k = max(1, settings.map_candidates)
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
@@ -1085,7 +1103,10 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
     if seed:
         await adjudicator.seed(list(target_adj.values()), current)
     else:
-        await adjudicator.run(list(target_adj.values()))
+        await adjudicator.run(list(target_adj.values()),
+                              base=len(claims) - sum(len(a.claim_ids)
+                                                     for a in target_adj.values()),
+                              claims=len(claims))
 
     for c in claims:
         m = mapped[c.claim_id]
@@ -1156,7 +1177,10 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
         await adjudicator.seed(list(dim_adj.values()), current)
         log.info("taxonomy map (seed): %s", report)
         return report
-    await adjudicator.run(list(dim_adj.values()))
+    await adjudicator.run(list(dim_adj.values()),
+                          base=2 * len(claims) - sum(len(a.claim_ids)
+                                                     for a in dim_adj.values()),
+                          claims=len(claims))
 
     rows = []
     for c in claims:

@@ -292,6 +292,8 @@ async def test_map_reports_progress(vkb_dsn, tmp_path):
         done, total, spent = rec.calls[-1]
         assert total == report.claims == 2
         assert done == report.claims - report.claims_to_retry == 2
+        assert any(0 < d < total for d, _, _ in rec.calls)  # progress while it works
+        assert all(d <= total for d, t, _ in rec.calls if t is not None)
         assert spent == pytest.approx(report.spent_usd) and spent > 0
     finally:
         await conn.close()

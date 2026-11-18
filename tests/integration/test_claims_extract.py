@@ -424,6 +424,28 @@ async def test_extract_reports_progress(vkb_dsn):
     finally:
         await conn.close()
 
+async def test_extract_progress_counts_skipped_chunks_and_never_exceeds_total(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [old] = await _doc(conn)
+        [new] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
+        await extract.run(conn, [old], client=client, settings=_settings(), mode="sync")
+        with task_runs.recording() as rec:
+            report = await extract.run(conn, [old, new], client=client,
+                                       settings=_settings(), mode="sync")
+        assert report.skipped == 1 and report.done == 1
+        assert rec.calls[-1][:2] == (2, 2)
+        assert all(d <= t for d, t, _ in rec.calls)
+        with task_runs.recording() as rec:  # nothing left to extract: one report, at 100%
+            await extract.run(conn, [old, new], client=client, settings=_settings(),
+                              mode="sync")
+        assert [c[:2] for c in rec.calls] == [(2, 2)]
+    finally:
+        await conn.close()
+
+
 async def test_claims_are_gated_against_the_text_the_chunk_holds_when_recorded(vkb_dsn):
     """A re-sync can reuse a chunk with new text while the model call is in flight: a quote
     that is no longer in the text must not be stored as evidence."""

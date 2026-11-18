@@ -42,6 +42,7 @@ class TaskRun:
         self.run_id = run_id or str(uuid.uuid4())
         self._last_write = float("-inf")
         self._finished = False
+        self._latest: tuple[int, int | None, float | None] | None = None  # last reported
 
     async def _drop_conn(self) -> None:
         conn, self.conn = self.conn, None
@@ -67,6 +68,7 @@ class TaskRun:
 
     async def progress(self, done: int, total: int | None = None,
                        spent_usd: float | None = None, *, force: bool = False) -> None:
+        self._latest = (done, total, spent_usd)  # kept even when throttled: finish() writes it
         now = _clock()
         if not force and now - self._last_write < HEARTBEAT_S:
             return
@@ -79,10 +81,12 @@ class TaskRun:
     async def finish(self, state: Literal["succeeded", "failed"],
                      details: dict | None = None) -> None:
         self._finished = True
+        done, total, spent = self._latest if self._latest is not None else (None, None, None)
         await self._write(
             "UPDATE task_runs SET state = %s, details = %s::jsonb, ended_at = now(),"
-            " heartbeat_at = now() WHERE run_id = %s",
-            (state, json.dumps(details or {}), self.run_id))
+            " heartbeat_at = now(), done = COALESCE(%s, done), total = COALESCE(%s, total),"
+            " spent_usd = COALESCE(%s, spent_usd) WHERE run_id = %s",
+            (state, json.dumps(details or {}), done, total, spent, self.run_id))
 
     async def _beat(self) -> None:
         while True:

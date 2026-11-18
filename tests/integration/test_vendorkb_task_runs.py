@@ -224,3 +224,14 @@ async def test_cli_exit_code_sets_state(vkb_dsn, monkeypatch):
     (row,) = await _rows(vkb_dsn)
     assert row[2:4] == ("extract", "failed")
     assert row[8]["errored"] == 2 and row[8]["chunks"] == 3
+
+
+async def test_finish_writes_the_last_progress_even_when_throttled(vkb_dsn):
+    await _reset(vkb_dsn)
+    async with track(vkb_dsn, "map"):
+        await progress(1, 10, 0.1, force=True)
+        await progress(7, 10, 0.7)  # inside the throttle window: not written by itself
+        await progress(10, 10, 1.0)
+    (row,) = await _rows(vkb_dsn)
+    assert row[3] == "succeeded"
+    assert row[5:8] == (10, 10, 1.0)
