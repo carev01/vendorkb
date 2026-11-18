@@ -596,6 +596,29 @@ def map_price(settings: VendorkbSettings) -> tuple[float, float]:
         return price_per_mtok(settings.map_model, settings)
 
 
+class _MapProgress:
+    """One run's progress on one basis across batch rounds: ``done`` and the spend carry over
+    from the finished rounds, ``total`` is those plus the round's own claims."""
+
+    def __init__(self) -> None:
+        self.done = 0  # claims finished in earlier rounds
+        self.spent = 0.0  # spend of earlier rounds
+        self.claims = 0  # this round's claims
+        self.best = 0
+
+    def start_round(self, claims: int) -> None:
+        self.claims = claims
+
+    def end_round(self, report: MapReport) -> None:
+        self.done = max(self.done, self.best)
+        self.spent += report.spent_usd + report.batch.spent_usd
+
+    async def report(self, finished: int, report: MapReport) -> None:
+        self.best = max(self.best, self.done + min(finished, self.claims))
+        await task_runs.progress(self.best, self.done + self.claims,
+                                 self.spent + report.spent_usd + report.batch.spent_usd)
+
+
 class _Adjudicator:
     """Sends adjudications under one budget for the whole run."""
 
@@ -609,17 +632,18 @@ class _Adjudicator:
         self.stop = False
         self.fatal: Exception | None = None
         self.sem = asyncio.Semaphore(max(1, settings.extract_concurrency))
-        self.claims = 0
+        self.progress: _MapProgress | None = None
         self.steps = 0  # claim steps (a target, then a dimension, per claim) finished so far
 
-    async def _progress(self, claims: int) -> None:
+    async def _progress(self) -> None:
         """Claims mapped so far: half the finished steps (each claim has two)."""
-        await task_runs.progress(min(self.steps // 2, claims), claims, self.report.spent_usd)
+        if self.progress is not None:
+            await self.progress.report(self.steps // 2, self.report)
 
-    async def run(self, items: list[_Adjudication], *, base: int = 0, claims: int = 0) -> None:
+    async def run(self, items: list[_Adjudication], *, base: int = 0) -> None:
         """``base``: the steps already finished before these items (those needing no call);
-        ``claims``: the run's claim count, for progress."""
-        self.claims, self.steps = claims, base
+        """
+        self.steps = base
         self.report.adjudications += len(items)
         model = self.settings.map_model
         keyed = {decision_key(a, model): a for a in items}
@@ -809,7 +833,7 @@ class _Adjudicator:
         await self._ask(a)
         self.steps += len(a.claim_ids)
         self.report.spent_usd = self.spent
-        await self._progress(self.claims)
+        await self._progress()
 
     async def _ask(self, a: _Adjudication) -> None:
         report, settings = self.report, self.settings
@@ -974,7 +998,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
     if mode == "sync":
         return await _map_once(conn, embedder=embedder, client=client, settings=settings,
                                max_usd=max_usd, remap=remap, vendor=vendor, seed=seed,
-                               reask=reask, batch=False)
+                               reask=reask, batch=False, progress=_MapProgress())
     if settings.map_backend != "anthropic":
         raise ValueError("batch mode needs the anthropic backend; for the openai backend use"
                          " sync mode")
@@ -982,6 +1006,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
         raise ValueError("seed records decisions without calls: use sync mode")
     total = llm_batch.BatchReport()
     rounds = 0
+    progress = _MapProgress()
     while True:
         cur = await conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,))
         if not (await cur.fetchone())[0]:  # type: ignore[index]
@@ -993,7 +1018,9 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
             report = await _map_once(conn, embedder=embedder, client=client,
                                      settings=settings, max_usd=max_usd - total.reserved_usd,
                                      remap=remap and rounds == 0, vendor=vendor, seed=False,
-                                     reask=reask if rounds == 0 else frozenset(), batch=True)
+                                     reask=reask if rounds == 0 else frozenset(), batch=True,
+                                     progress=progress)
+            progress.end_round(report)
             report.in_flight = await llm_batch.in_flight(conn, BATCH_KINDS)
         finally:
             await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
@@ -1009,7 +1036,7 @@ async def map_claims(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clie
 async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, client: Any,
                     settings: VendorkbSettings, max_usd: float, remap: bool,
                     vendor: str | None, seed: bool, reask: frozenset[str],
-                    batch: bool) -> MapReport:
+                    batch: bool, progress: _MapProgress | None = None) -> MapReport:
     version = await current_version(conn)
     if version is None:
         raise RuntimeError("no taxonomy loaded: run `vendorkb taxonomy load PATH` first")
@@ -1017,17 +1044,21 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
     tax = await _snapshot(conn)
     # Built before any paid work: it refuses a model with no known price.
     adjudicator = _Adjudicator(tax, client, settings, max_usd, report, conn, reask, batch)
+    adjudicator.progress = progress
     if batch:  # the answers that landed become decisions the cache below answers from
         for kind in BATCH_KINDS:
             await llm_batch.collect(conn, client, kind=kind, price=adjudicator.price,
                                     handle=adjudicator.handler(), report=report.batch)
-            # a collected batch: the claims are not read yet, so only the spend moves
-            await task_runs.progress(0, None, report.batch.spent_usd)
+            if progress is not None:  # a collected batch: the spend moves, the claims come next
+                await task_runs.progress(progress.best, None,
+                                         progress.spent + report.batch.spent_usd)
     k = max(1, settings.map_candidates)
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
     report.claims = len(claims)
-    await task_runs.progress(0, report.claims, report.spent_usd)
+    if progress is not None:
+        progress.start_round(report.claims)
+        await progress.report(0, report)
     # A target text that names the claim's own product (and no taxonomy target) is about the
     # product itself, not a workload: it is treated as no target text.
     products = await _vendor_products(conn)
@@ -1105,8 +1136,7 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
     else:
         await adjudicator.run(list(target_adj.values()),
                               base=len(claims) - sum(len(a.claim_ids)
-                                                     for a in target_adj.values()),
-                              claims=len(claims))
+                                                     for a in target_adj.values()))
 
     for c in claims:
         m = mapped[c.claim_id]
@@ -1179,8 +1209,7 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
         return report
     await adjudicator.run(list(dim_adj.values()),
                           base=2 * len(claims) - sum(len(a.claim_ids)
-                                                     for a in dim_adj.values()),
-                          claims=len(claims))
+                                                     for a in dim_adj.values()))
 
     rows = []
     for c in claims:
@@ -1225,7 +1254,7 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
             " mapped_version=CASE WHEN m.done THEN %s END"
             " FROM _claim_map m WHERE r.claim_id = m.claim_id AND r.prompt_version LIKE %s",
             (version, PROMPT_FAMILY))
-    await task_runs.progress(len(rows) - report.claims_to_retry, report.claims,
-                             report.spent_usd)
+    if progress is not None:
+        await progress.report(len(rows) - report.claims_to_retry, report)
     log.info("taxonomy map: %s", report)
     return report

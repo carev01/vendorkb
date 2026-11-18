@@ -235,3 +235,13 @@ async def test_finish_writes_the_last_progress_even_when_throttled(vkb_dsn):
     (row,) = await _rows(vkb_dsn)
     assert row[3] == "succeeded"
     assert row[5:8] == (10, 10, 1.0)
+
+
+async def test_done_and_spend_are_high_water_marks(vkb_dsn):
+    await _reset(vkb_dsn)
+    async with track(vkb_dsn, "map"):
+        await progress(5, 10, 0.5, force=True)
+        await progress(2, 8, 0.2, force=True)  # lower: done and spend keep their maxima
+        await progress(1, 9, None)  # throttled; finish() still writes the maxima
+    (row,) = await _rows(vkb_dsn)
+    assert row[5:8] == (5, 9, 0.5)  # the total may change freely

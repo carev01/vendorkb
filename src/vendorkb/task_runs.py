@@ -68,7 +68,14 @@ class TaskRun:
 
     async def progress(self, done: int, total: int | None = None,
                        spent_usd: float | None = None, *, force: bool = False) -> None:
-        self._latest = (done, total, spent_usd)  # kept even when throttled: finish() writes it
+        # done and spent only grow within a run (a retry or a new round must not lower them);
+        # total may change freely. Kept even when throttled: finish() writes them.
+        prev_done, prev_total, prev_spent = self._latest or (0, None, None)
+        done = max(done, prev_done)
+        if spent_usd is None or (prev_spent is not None and prev_spent > spent_usd):
+            spent_usd = prev_spent
+        total = total if total is not None else prev_total
+        self._latest = (done, total, spent_usd)
         now = _clock()
         if not force and now - self._last_write < HEARTBEAT_S:
             return

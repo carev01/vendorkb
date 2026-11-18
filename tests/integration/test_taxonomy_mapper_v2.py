@@ -1365,6 +1365,25 @@ async def test_batch_mode_waiting_runs_the_rounds_in_one_call_at_the_batch_price
         await conn.close()
 
 
+async def test_map_batch_mode_progress_never_goes_back_across_rounds(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        api = FakeBatchAPI()
+        with task_runs.recording() as rec:
+            report = await _batch_run(conn, api)
+        assert report.rounds == 3 and report.claims_to_retry == 0
+        dones = [d for d, _, _ in rec.calls]
+        assert dones == sorted(dones)  # one basis across the rounds: never back to 0
+        spends = [s for _, _, s in rec.calls if s is not None]
+        assert spends == sorted(spends) and spends[-1] > 0
+        done, total, _ = rec.calls[-1]
+        assert done == total == 1
+    finally:
+        await conn.close()
+
+
 async def test_batch_mode_refuses_openai_and_seed_and_a_held_lock_does_nothing(vkb_dsn,
                                                                               tmp_path):
     conn = await connect(vkb_dsn)
