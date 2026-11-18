@@ -25,7 +25,10 @@ config:
 
 postgres:
   image: pgvector/pgvector:pg16
-  storageClass: vsphere-csi-silver-sc
+  # Gold since 2026-11-18: on the throwaway-volume benchmark it gave ~5x Silver's random-read IOPS
+  # (66.8k vs 13.7k, 0.5 ms vs 2.3 ms), ~4x random writes and ~6x sequential reads. The class
+  # of a bound volume cannot change: moving it is a copy to a new PVC (docs/deploy/k3s.md).
+  storageClass: vsphere-csi-gold-sc
   size: 20Gi
   database: vendorkb
   user: vendorkb
