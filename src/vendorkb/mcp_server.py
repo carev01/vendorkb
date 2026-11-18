@@ -28,7 +28,10 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 
+from vendorkb import metrics
+from vendorkb.answer import REFUSAL
 from vendorkb.claims.extract import SUPPORT_VALUES
+from vendorkb.config import VendorkbSettings
 from vendorkb.mcp_backend import Backend
 from vendorkb.search import Hit
 from vendorkb.taxonomy.capabilities import CapFilter, CapResult, Fact
@@ -544,8 +547,10 @@ def format_sources(out: dict[str, Any]) -> str:
     return text
 
 
-def build_server(backend: Backend, label: str = "main") -> MCPServer:
-    """The tools over ``backend``; ``label`` names the MCP key in the question logs."""
+def build_server(backend: Backend, label: str = "main",
+                 settings: VendorkbSettings | None = None) -> MCPServer:
+    """The tools over ``backend``; ``label`` names the MCP key in the question logs and the usage
+    metrics, ``settings`` gives the answer prices of the cost metric (none: no cost counted)."""
     server = MCPServer("vendorkb", instructions=INSTRUCTIONS)
 
     async def _topic_facts(term: str, base: CapFilter, limit: int) -> tuple[str, dict[str, Any]]:
@@ -577,15 +582,16 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "List the vendors and products that have documentation, with document counts and how "
         "many capability facts each vendor has. Use it for valid vendor/product filter names."))
     async def list_vendors() -> CallToolResult:
-        try:
-            vendors = await backend.vendors()
-        except Exception as e:
-            raise _fail("list_vendors", e) from e
-        lines = [f"{v['vendor']} — {v['documents']} documents, {v['capability_facts']} "
-                 "capability facts; products: " + ", ".join(
-                     f"{p['product'] or 'unknown'} ({p['documents']})" for p in v["products"])
-                 for v in vendors]
-        return _result("\n".join(lines) or "No documentation.", {"vendors": vendors})
+        async with metrics.observe("list_vendors", label):
+            try:
+                vendors = await backend.vendors()
+            except Exception as e:
+                raise _fail("list_vendors", e) from e
+            lines = [f"{v['vendor']} — {v['documents']} documents, {v['capability_facts']} "
+                     "capability facts; products: " + ", ".join(
+                         f"{p['product'] or 'unknown'} ({p['documents']})" for p in v["products"])
+                     for v in vendors]
+            return _result("\n".join(lines) or "No documentation.", {"vendors": vendors})
 
     @server.tool(name="list_dimensions", annotations=_RO, description=(
         "Browse the taxonomy's dimensions (comparable capability aspects such as immutability, "
@@ -595,34 +601,36 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "Use the ids with query_capabilities(dimension=...)."))
     async def list_dimensions(query: str | None = None, family: str | None = None,
                               limit: int = 25) -> CallToolResult:
-        try:
-            rows = await backend.dimensions(query, family, max(1, min(limit, MAX_LIMIT)))
-            found = match_topics(query, await backend.topics()) if query and query.strip() else []
-        except Exception as e:
-            raise _fail("list_dimensions", e) from e
-        lines = [f"{d['id']} — {d['name']}: {d['definition']}"
-                 + (f" (aliases: {', '.join(d['aliases'][:8])})" if d["aliases"] else "")
-                 for d in rows]
-        if not found:
-            return _result("\n".join(lines) or "No dimension matches.", {"dimensions": rows})
-        shown = [format_topic(t) for t in found]
-        blocks = [text for text, _ in shown] + (["\n".join(lines)] if lines else [])
-        return _result("\n\n".join(blocks),
-                       {"dimensions": rows, "topics": [data for _, data in shown]})
+        async with metrics.observe("list_dimensions", label):
+            try:
+                rows = await backend.dimensions(query, family, max(1, min(limit, MAX_LIMIT)))
+                found = match_topics(query, await backend.topics()) if query and query.strip() else []
+            except Exception as e:
+                raise _fail("list_dimensions", e) from e
+            lines = [f"{d['id']} — {d['name']}: {d['definition']}"
+                     + (f" (aliases: {', '.join(d['aliases'][:8])})" if d["aliases"] else "")
+                     for d in rows]
+            if not found:
+                return _result("\n".join(lines) or "No dimension matches.", {"dimensions": rows})
+            shown = [format_topic(t) for t in found]
+            blocks = [text for text, _ in shown] + (["\n".join(lines)] if lines else [])
+            return _result("\n\n".join(blocks),
+                           {"dimensions": rows, "topics": [data for _, data in shown]})
 
     @server.tool(name="list_targets", annotations=_RO, description=(
         "Browse the taxonomy's targets (workloads, platforms, services and storage a backup "
         "product protects, such as Amazon RDS or Microsoft 365). `query` matches an id, an "
         "alias or part of a name. Use the ids with query_capabilities(target=...)."))
     async def list_targets(query: str | None = None, limit: int = 25) -> CallToolResult:
-        try:
-            rows = await backend.targets(query, max(1, min(limit, MAX_LIMIT)))
-        except Exception as e:
-            raise _fail("list_targets", e) from e
-        lines = [f"{t['id']} — {t['name']} [class {t['class']}]"
-                 + (f" (aliases: {', '.join(t['aliases'][:8])})" if t["aliases"] else "")
-                 for t in rows]
-        return _result("\n".join(lines) or "No target matches.", {"targets": rows})
+        async with metrics.observe("list_targets", label):
+            try:
+                rows = await backend.targets(query, max(1, min(limit, MAX_LIMIT)))
+            except Exception as e:
+                raise _fail("list_targets", e) from e
+            lines = [f"{t['id']} — {t['name']} [class {t['class']}]"
+                     + (f" (aliases: {', '.join(t['aliases'][:8])})" if t["aliases"] else "")
+                     for t in rows]
+            return _result("\n".join(lines) or "No target matches.", {"targets": rows})
 
     @server.tool(name="query_capabilities", annotations=_RO, description=(
         "Query the cross-vendor capability table: which vendors document a capability for a "
@@ -651,46 +659,47 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
                 "word by default, \"a or b\" for alternatives, quotes for a phrase); narrows the "
                 "other filters, so give at least one of them too"))] = None,
             limit: int = 20) -> CallToolResult:
-        support = _support(support)
-        query = (query or "").strip() or None
-        availability = "_".join((availability or "").lower().replace("-", " ").split()) or None
-        topic = (topic or "").strip() or None
-        if topic is not None and dimension is not None:
-            raise ToolError("query_capabilities takes a topic or a dimension, not both: a topic "
-                            "stands for all the dimensions of its aspects")
-        note = None
-        if (section := _section(target)) is not None:
-            note = (f"Note: {target!r} is a section of the results, not a taxonomy target, so "
-                    f"the target filter was ignored; {section} facts are listed in their own "
-                    "section.")
-            target = None
-        names = [vendor] if isinstance(vendor, str) else vendor or []
-        vendors = tuple(v.strip() for v in names if v.strip()) or None
-        f = CapFilter(vendor=vendors, offering=offering, edition=edition, dimension=dimension,
-                      family=family, target=target, object_type=object_type, support=support,
-                      availability=availability, value_min=value_min, value_max=value_max)
-        if query is not None:
-            if topic is None and all(v is None for v in dataclasses.asdict(f).values()):
-                # the words are read from every matching fact's text: alone, that is the table
-                raise ToolError("`query` narrows other filters: give a dimension, target, "
-                                "family, topic or vendor with it")
-            f = dataclasses.replace(f, text=query)
-        limit = max(1, min(limit, MAX_LIMIT))
-        if topic is not None:
-            text, structured = await _topic_facts(topic, f, limit)
-        else:
-            if all(v is None for v in dataclasses.asdict(f).values()):
-                raise ToolError((f"{note} " if note else "")
-                                + "query_capabilities needs at least one filter (e.g. dimension "
-                                "and target, or topic; see list_dimensions and list_targets)")
-            try:
-                res = await backend.capabilities(f, limit)
-            except Exception as e:
-                raise _fail("query_capabilities", e) from e
-            text, structured = format_capabilities(res, limit)
-        if note:
-            text, structured = f"{note}\n{text}", {**structured, "note": note}
-        return _result(text, structured)
+        async with metrics.observe("query_capabilities", label):
+            support = _support(support)
+            query = (query or "").strip() or None
+            availability = "_".join((availability or "").lower().replace("-", " ").split()) or None
+            topic = (topic or "").strip() or None
+            if topic is not None and dimension is not None:
+                raise ToolError("query_capabilities takes a topic or a dimension, not both: a topic "
+                                "stands for all the dimensions of its aspects")
+            note = None
+            if (section := _section(target)) is not None:
+                note = (f"Note: {target!r} is a section of the results, not a taxonomy target, so "
+                        f"the target filter was ignored; {section} facts are listed in their own "
+                        "section.")
+                target = None
+            names = [vendor] if isinstance(vendor, str) else vendor or []
+            vendors = tuple(v.strip() for v in names if v.strip()) or None
+            f = CapFilter(vendor=vendors, offering=offering, edition=edition, dimension=dimension,
+                          family=family, target=target, object_type=object_type, support=support,
+                          availability=availability, value_min=value_min, value_max=value_max)
+            if query is not None:
+                if topic is None and all(v is None for v in dataclasses.asdict(f).values()):
+                    # the words are read from every matching fact's text: alone, that is the table
+                    raise ToolError("`query` narrows other filters: give a dimension, target, "
+                                    "family, topic or vendor with it")
+                f = dataclasses.replace(f, text=query)
+            limit = max(1, min(limit, MAX_LIMIT))
+            if topic is not None:
+                text, structured = await _topic_facts(topic, f, limit)
+            else:
+                if all(v is None for v in dataclasses.asdict(f).values()):
+                    raise ToolError((f"{note} " if note else "")
+                                    + "query_capabilities needs at least one filter (e.g. dimension "
+                                    "and target, or topic; see list_dimensions and list_targets)")
+                try:
+                    res = await backend.capabilities(f, limit)
+                except Exception as e:
+                    raise _fail("query_capabilities", e) from e
+                text, structured = format_capabilities(res, limit)
+            if note:
+                text, structured = f"{note}\n{text}", {**structured, "note": note}
+            return _result(text, structured)
 
     @server.tool(name="search_docs", annotations=_RO, description=(
         "Search the vendors' documentation (hybrid keyword and semantic search, reranked). "
@@ -699,53 +708,56 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "not hold, and to check vendors it does not list."))
     async def search_docs(query: str, vendor: list[str] | None = None,
                           product: list[str] | None = None, k: int = 5) -> CallToolResult:
-        if not query.strip():
-            raise ToolError("search_docs needs a query")
-        try:
-            res = await backend.search(query, vendor or None, product or None,
-                                       max(1, min(k, MAX_K)))
-        except Exception as e:
-            raise _fail("search_docs", e) from e
-        text, rows = format_hits(res.hits)
-        return _result(text or "No passages found.", {"hits": rows, "reranked": res.rerank_ok})
+        async with metrics.observe("search_docs", label):
+            if not query.strip():
+                raise ToolError("search_docs needs a query")
+            try:
+                res = await backend.search(query, vendor or None, product or None,
+                                           max(1, min(k, MAX_K)))
+            except Exception as e:
+                raise _fail("search_docs", e) from e
+            text, rows = format_hits(res.hits)
+            return _result(text or "No passages found.", {"hits": rows, "reranked": res.rerank_ok})
 
     @server.tool(name="read_section", annotations=_RO, description=(
         "Read a passage returned by search_docs in context: `expand` \"0\" is the chunk alone, "
         "\"1\" adds the chunks before and after it, \"full\" returns its whole section."))
     async def read_section(chunk_id: str,
                            expand: Literal["0", "1", "full"] = "1") -> CallToolResult:
-        try:
-            hits = await backend.section(chunk_id, expand)
-        except Exception as e:
-            raise _fail("read_section", e) from e
-        if not hits:
-            raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
-                            " search again)")
-        text = _page_head(hits[0]) + "\n\n" + "\n\n".join(x.text for x in hits)
-        chunks = [{**row, "superseded": x.superseded}
-                  for row, x in zip(format_hits(hits)[1], hits, strict=True)]
-        return _result(text, {"chunks": chunks})
+        async with metrics.observe("read_section", label):
+            try:
+                hits = await backend.section(chunk_id, expand)
+            except Exception as e:
+                raise _fail("read_section", e) from e
+            if not hits:
+                raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
+                                " search again)")
+            text = _page_head(hits[0]) + "\n\n" + "\n\n".join(x.text for x in hits)
+            chunks = [{**row, "superseded": x.superseded}
+                      for row, x in zip(format_hits(hits)[1], hits, strict=True)]
+            return _result(text, {"chunks": chunks})
 
     @server.tool(name="read_document", annotations=_RO, description=(
         "The full text of the page a passage comes from (any chunk_id from search_docs, "
         "read_section or answer_question's sources), in parts: start at part 1; the reply "
         "says how many parts there are. Use it when the user asks for the source document."))
     async def read_document(chunk_id: str, part: int = 1) -> CallToolResult:
-        try:
-            hits = await backend.section(chunk_id, "page")
-        except Exception as e:
-            raise _fail("read_document", e) from e
-        if not hits:
-            raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
-                            " search again)")
-        parts = _parts(hits)
-        if not 1 <= part <= len(parts):
-            raise ToolError(f"part {part} does not exist: this page has parts 1-{len(parts)}")
-        chosen = parts[part - 1]
-        text = (_page_head(hits[0]) + f"\npart {part} of {len(parts)}\n\n"
-                + "\n\n".join(x.text for x in chosen))
-        return _result(text, {"chunk_ids": [x.chunk_id for x in chosen], "part": part,
-                              "parts": len(parts), "url": hits[0].url})
+        async with metrics.observe("read_document", label):
+            try:
+                hits = await backend.section(chunk_id, "page")
+            except Exception as e:
+                raise _fail("read_document", e) from e
+            if not hits:
+                raise ToolError(f"no chunk {chunk_id!r} (it may have been replaced by a newer sync;"
+                                " search again)")
+            parts = _parts(hits)
+            if not 1 <= part <= len(parts):
+                raise ToolError(f"part {part} does not exist: this page has parts 1-{len(parts)}")
+            chosen = parts[part - 1]
+            text = (_page_head(hits[0]) + f"\npart {part} of {len(parts)}\n\n"
+                    + "\n\n".join(x.text for x in chosen))
+            return _result(text, {"chunk_ids": [x.chunk_id for x in chosen], "part": part,
+                                  "parts": len(parts), "url": hits[0].url})
 
     @server.tool(name="answer_question", annotations=_RO, description=(
         "Answer a question from the documentation in one call: vendorkb retrieves, checks every "
@@ -755,33 +767,37 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "word. Slower than search_docs."))
     async def answer_question(
             question: Annotated[str, Field(description=VERBATIM)]) -> CallToolResult:
-        if not question.strip():
-            raise ToolError("answer_question needs a question")
-        started = time.monotonic()
-        try:
-            out = await backend.answer(question)
-        except Exception as e:
-            raise _fail("answer_question", e) from e
-        # the question as the agent sent it (agents rewrite the user's), on one line, and how
-        # long the answer took (the public route cuts a request at 100 s)
-        log.info("answer_question %s", json.dumps(
-            {"key": label, "question": question, "shape": out.get("shape"),
-             "topic": out.get("topic"), "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or []),
-             "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
-        if out.get("error"):
-            raise ToolError(f"answer_question failed: {out['error']}")
-        sources = format_sources(out)
-        text = (out.get("answer") or "No answer.") + (f"\n\n{sources}" if sources else "")
-        structured = {k: out.get(k) for k in ("answer", "shape", "scope", "uncited")}
-        citations = out.get("citations") or []
-        grid = bool(out.get("topic")) and out.get("shape") == "enumeration"
-        structured["citations"] = [{k: c.get(k) for k in ("marker", "chunk_id", "url", "title",
-                                                          "section_path")}
-                                   for c in (citations[:GRID_CITATIONS_SHOWN] if grid
-                                             else citations)]
-        if grid:
-            structured["citations_total"] = len(citations)
-        return _result(text, structured)
+        async with metrics.observe("answer_question", label) as obs:
+            if not question.strip():
+                raise ToolError("answer_question needs a question")
+            started = time.monotonic()
+            try:
+                out = await backend.answer(question)
+            except Exception as e:
+                raise _fail("answer_question", e) from e
+            # the question as the agent sent it (agents rewrite the user's), on one line, and how
+            # long the answer took (the public route cuts a request at 100 s)
+            log.info("answer_question %s", json.dumps(
+                {"key": label, "question": question, "shape": out.get("shape"),
+                 "topic": out.get("topic"), "retrieved": out.get("retrieved"), "citations": len(out.get("citations") or []),
+                 "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
+            metrics.record_answer(out, settings)  # tokens are spent even on an error
+            if out.get("error"):
+                raise ToolError(f"answer_question failed: {out['error']}")
+            if (out.get("answer") or "").strip().startswith(REFUSAL):
+                obs.outcome = "abstained"
+            sources = format_sources(out)
+            text = (out.get("answer") or "No answer.") + (f"\n\n{sources}" if sources else "")
+            structured = {k: out.get(k) for k in ("answer", "shape", "scope", "uncited")}
+            citations = out.get("citations") or []
+            grid = bool(out.get("topic")) and out.get("shape") == "enumeration"
+            structured["citations"] = [{k: c.get(k) for k in ("marker", "chunk_id", "url", "title",
+                                                              "section_path")}
+                                       for c in (citations[:GRID_CITATIONS_SHOWN] if grid
+                                                 else citations)]
+            if grid:
+                structured["citations_total"] = len(citations)
+            return _result(text, structured)
 
     @server.tool(name="gather_evidence", annotations=_RO, description=(
         "The evidence for a question, without a written answer: vendorkb reads the question as "
@@ -792,28 +808,29 @@ def build_server(backend: Backend, label: str = "main") -> MCPServer:
         "question word for word. A long reply comes in parts: read every part first."))
     async def gather_evidence(question: Annotated[str, Field(description=VERBATIM)],
                               part: int = 1) -> CallToolResult:
-        if not question.strip():
-            raise ToolError("gather_evidence needs a question")
-        started = time.monotonic()
-        try:
-            out = await backend.evidence(question)
-        except Exception as e:
-            raise _fail("gather_evidence", e) from e
-        log.info("gather_evidence %s", json.dumps(
-            {"key": label, "question": question, "shape": out.get("shape"),
-             "topic": out.get("topic"), "retrieved": out.get("retrieved"), "part": part,
-             "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
-        if out.get("error"):
-            raise ToolError(f"gather_evidence failed: {out['error']}")
-        parts = format_evidence(out)
-        if not 1 <= part <= len(parts):
-            raise ToolError(f"part {part} does not exist: this evidence has parts 1-{len(parts)}")
-        text, shown = parts[part - 1]
-        structured = {k: out.get(k) for k in ("shape", "topic", "aspects", "scope", "retrieved",
-                                              "not_found", "rerank_ok")}
-        structured.update(part=part, parts=len(parts), passages=[
-            {k: p.get(k) for k in ("marker", "chunk_id", "vendor", "product", "title", "url",
-                                   "aspect")} for p in shown])
-        return _result(text, structured)
+        async with metrics.observe("gather_evidence", label):
+            if not question.strip():
+                raise ToolError("gather_evidence needs a question")
+            started = time.monotonic()
+            try:
+                out = await backend.evidence(question)
+            except Exception as e:
+                raise _fail("gather_evidence", e) from e
+            log.info("gather_evidence %s", json.dumps(
+                {"key": label, "question": question, "shape": out.get("shape"),
+                 "topic": out.get("topic"), "retrieved": out.get("retrieved"), "part": part,
+                 "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
+            if out.get("error"):
+                raise ToolError(f"gather_evidence failed: {out['error']}")
+            parts = format_evidence(out)
+            if not 1 <= part <= len(parts):
+                raise ToolError(f"part {part} does not exist: this evidence has parts 1-{len(parts)}")
+            text, shown = parts[part - 1]
+            structured = {k: out.get(k) for k in ("shape", "topic", "aspects", "scope", "retrieved",
+                                                  "not_found", "rerank_ok")}
+            structured.update(part=part, parts=len(parts), passages=[
+                {k: p.get(k) for k in ("marker", "chunk_id", "vendor", "product", "title", "url",
+                                       "aspect")} for p in shown])
+            return _result(text, structured)
 
     return server

@@ -10,9 +10,15 @@ start-up check proves the role hides them, or the server does not start.
 MCP server and backend, so nothing (the evidence cache included) is shared between them.
 ``mcp_allowed_hosts`` is the Host-header allow-list that guards against DNS rebinding;
 ``host:*`` allows any port.
+
+Usage metrics (``metrics``): the gate marks a request carrying ``X-Vendorkb-Client: eval`` as the
+eval's; the lifespan serves the metrics on ``metrics_port`` (never a route of this app) and
+refreshes the pipeline snapshot, unless the port is 0 or the backends are the tests'.
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hmac
 import logging
 from collections.abc import AsyncIterator, Mapping
@@ -26,10 +32,12 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from vendorkb import metrics
 from vendorkb.access import check_restricted, parse_vendors
 from vendorkb.config import VendorkbSettings
 from vendorkb.mcp_backend import Backend, DbBackend, GuardedBackend
 from vendorkb.mcp_server import build_server
+from vendorkb.metrics_db import refresh_loop
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +46,8 @@ class BearerTokenGate:
     """401 (``WWW-Authenticate: Bearer``) unless the request carries one of the keys, exactly,
     as ``Authorization: Bearer <token>`` or as ``X-API-Key: <token>`` (Copilot Studio's API-key
     authentication); either header matching is enough. The request goes to that key's app.
-    Constant-time comparisons, every key compared."""
+    Constant-time comparisons, every key compared. ``X-Vendorkb-Client: eval`` (any case) sets
+    the request's ``metrics.client_kind`` to ``eval``."""
 
     def __init__(self, apps: Mapping[str, ASGIApp]) -> None:
         if not apps or not all(apps):
@@ -61,7 +70,11 @@ class BearerTokenGate:
                                     (b"content-type", b"text/plain")]})
             await send({"type": "http.response.body", "body": b"Unauthorized"})
             return
-        await chosen(scope, receive, send)
+        reset = metrics.client_kind.set(metrics.client_of(headers.get(b"x-vendorkb-client")))
+        try:
+            await chosen(scope, receive, send)
+        finally:
+            metrics.client_kind.reset(reset)
 
 
 @dataclass(frozen=True)
@@ -104,12 +117,13 @@ def build_app(settings: VendorkbSettings,
     security = TransportSecuritySettings(
         enable_dns_rebinding_protection=True, allowed_hosts=hosts,
         allowed_origins=[f"https://{h}" for h in hosts if not h.endswith(":*")])
+    metrics.set_build_info(settings.vendorkb_version)
     servers, apps = [], {}
     for key in keys:
         inner = (backends or {}).get(key.label) or DbBackend(
             settings.model_copy(update={"vendorkb_dsn": key.dsn}))
         server = build_server(GuardedBackend(inner, list(key.hidden)) if key.hidden else inner,
-                              label=key.label)
+                              label=key.label, settings=settings)
         servers.append(server)
         apps[key.token] = server.streamable_http_app(
             streamable_http_path="/mcp", stateless_http=True, transport_security=security)
@@ -120,10 +134,21 @@ def build_app(settings: VendorkbSettings,
             if key.hidden and backends is None:  # fails closed: the server does not start
                 role = await check_restricted(key.dsn, key.hidden)
                 log.info("MCP key %s: role %s hides %s", key.label, role, ", ".join(key.hidden))
-        async with AsyncExitStack() as stack:
-            for server in servers:
-                await stack.enter_async_context(server.session_manager.run())
-            yield
+        refresh = None
+        if settings.metrics_port and backends is None:
+            metrics.start(settings)
+            refresh = asyncio.create_task(refresh_loop(
+                settings.vendorkb_dsn, metrics.PIPELINE, settings.metrics_refresh_s))
+        try:
+            async with AsyncExitStack() as stack:
+                for server in servers:
+                    await stack.enter_async_context(server.session_manager.run())
+                yield
+        finally:
+            if refresh is not None:
+                refresh.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await refresh
 
     return Starlette(routes=[Route("/healthz", _health),
                              Route("/mcp", endpoint=BearerTokenGate(apps))],

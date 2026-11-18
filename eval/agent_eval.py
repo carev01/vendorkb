@@ -248,7 +248,9 @@ def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
                 "params": {"name": tool, "arguments": arguments}},
                 headers={"authorization": f"Bearer {token}",
                          "content-type": "application/json",
-                         "accept": "application/json, text/event-stream"})
+                         "accept": "application/json, text/event-stream",
+                         # the server's usage metrics count eval calls apart from users'
+                         "X-Vendorkb-Client": "eval"})
         except httpx.HTTPError as e:
             error = (f"error: the connection failed ({type(e).__name__}: {e}) after"
                      f" {attempt + 1} attempts; try the call again")

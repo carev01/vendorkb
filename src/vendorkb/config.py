@@ -117,6 +117,16 @@ class VendorkbSettings(BaseSettings):
     # the password `vendorkb access restrict` gives a new restricted role (or resets)
     vendorkb_restricted_password: str = ""
     mcp_allowed_hosts: str = "localhost:*,127.0.0.1:*,vendorkb-mcp,vendorkb-mcp:*"
+    # Prometheus metrics of `vendorkb mcp` (metrics): served on their own port (0: off, and no
+    # pipeline refresh), never as a route of the MCP app; the pipeline snapshot is refreshed
+    # every METRICS_REFRESH_S seconds. VENDORKB_VERSION labels vendorkb_build_info. The answer
+    # prices (USD per million tokens) turn answer tokens into vendorkb_answer_cost_usd_total;
+    # at 0 no cost is counted.
+    metrics_port: int = 9100
+    metrics_refresh_s: float = 60.0
+    vendorkb_version: str = ""
+    answer_price_in_per_mtok: float = 0.0
+    answer_price_out_per_mtok: float = 0.0
     map_candidates: int = 5
 
 
