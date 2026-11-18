@@ -1,0 +1,37 @@
+# The vendorkb scrape jobs. apply.py merges them into the prometheus-config map: every job whose
+# job_name starts with "vendorkb-" is replaced by these, the other jobs are kept as they are.
+- job_name: vendorkb-app
+  scrape_interval: 60s
+  static_configs:
+    - targets: ["vendorkb-mcp.vendorkb.svc:9100"]
+- job_name: vendorkb-postgres
+  scrape_interval: 60s
+  static_configs:
+    - targets: ["vendorkb-postgres-metrics.vendorkb.svc:9187"]
+- job_name: vendorkb-kube-state-metrics
+  scrape_interval: 60s
+  static_configs:
+    - targets: ["kube-state-metrics.monitoring.svc:8080"]
+- job_name: vendorkb-kubelet
+    # The kubelet's /metrics through the API server proxy (service account "prometheus", see
+    # prometheus-rbac.yaml), kept to the vendorkb volume stats only. A comment between jobs
+    # would be merged as the previous job's, so comments stay inside their job.
+  scrape_interval: 60s
+  scheme: https
+  tls_config:
+    ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  authorization:
+    credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  kubernetes_sd_configs:
+    - role: node
+  relabel_configs:
+    - target_label: __address__
+      replacement: kubernetes.default.svc:443
+    - source_labels: [__meta_kubernetes_node_name]
+      regex: (.+)
+      target_label: __metrics_path__
+      replacement: /api/v1/nodes/${1}/proxy/metrics
+  metric_relabel_configs:
+    - source_labels: [__name__, namespace]
+      regex: kubelet_volume_stats_.*;vendorkb
+      action: keep
