@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import psycopg
-from prometheus_client.core import CounterMetricFamily, GaugeMetricFamily
+from prometheus_client.core import GaugeMetricFamily
 from prometheus_client.registry import Collector
 
 from vendorkb.claims import support
@@ -23,16 +23,8 @@ from vendorkb.taxonomy import load
 log = logging.getLogger(__name__)
 
 P = "vendorkb_"
-# The ledgers behind pipeline_spend_usd_total: source -> SQL for its running sum.
-_SPEND_SQL = {
-    "extract": "SELECT coalesce(sum(cost_usd), 0) FROM extractions",
-    "extract_batch": "SELECT coalesce(sum(coalesce(actual_cost_usd, est_cost_usd)), 0)"
-                     " FROM extract_batches",
-    "llm_batch": "SELECT coalesce(sum(coalesce(actual_cost_usd, est_cost_usd)), 0)"
-                 " FROM llm_batches",
-    "propose": "SELECT coalesce(sum(spent_usd), 0) FROM propose_runs",
-    "support": "SELECT coalesce(sum(cost_usd), 0) FROM claim_support",
-}
+SPEND_WINDOWS = {"24h": "24 hours", "7d": "7 days"}
+REFRESH_TIMEOUT_S = 20.0  # statement_timeout of a refresh; wait_for allows a little more
 
 
 @dataclass
@@ -48,7 +40,7 @@ class Snapshot:
     corpus: dict[str, int] = field(default_factory=dict)
     extraction_errors: int = 0
     taxonomy_version: str | None = None
-    spend: dict[str, float] = field(default_factory=dict)
+    spend: dict[tuple[str, str], float] = field(default_factory=dict)  # (kind, window)
     table_sizes: dict[str, int] = field(default_factory=dict)
     sync_cursor_ts: float | None = None
 
@@ -56,6 +48,25 @@ class Snapshot:
 async def _rows(conn: psycopg.AsyncConnection, query: str, params=None) -> list[tuple]:
     cur = await conn.execute(query, params)
     return await cur.fetchall()
+
+
+async def _support_waiting(conn: psycopg.AsyncConnection, version: str) -> int:
+    """``support.waiting`` as one COUNT: the in-scope claims with no verdict that no batch
+    holds, plus the flagged, unreviewed verdicts no batch holds."""
+    dims = await support.topic_dimensions(conn)
+    held = ("(SELECT unnest(custom_ids) FROM llm_batches WHERE kind = %(kind)s"
+            " AND status = 'submitted' UNION SELECT custom_id FROM llm_batch_items"
+            " WHERE kind = %(kind)s AND status = 'failed')")
+    (n,), = await _rows(
+        conn,
+        "SELECT (SELECT count(*)" + support._SOURCE + " AND NOT EXISTS (SELECT 1 FROM"
+        " claim_support s WHERE s.claim_id = r.claim_id)"
+        " AND r.claim_id::text NOT IN " + held.replace("%(kind)s", "%(check)s") + ")"
+        " + (SELECT count(*) FROM claim_support WHERE NOT supported AND review_supported IS NULL"
+        " AND claim_id::text NOT IN " + held.replace("%(kind)s", "%(review)s") + ")",
+        {"family": PROMPT_FAMILY, "ver": version, "dims": dims,
+         "check": support.CHECK_KIND, "review": support.REVIEW_KIND})
+    return int(n)
 
 
 async def snapshot(conn: psycopg.AsyncConnection) -> Snapshot:
@@ -85,7 +96,7 @@ async def snapshot(conn: psycopg.AsyncConnection) -> Snapshot:
         " WHERE %s::text IS NULL OR mapped_version IS DISTINCT FROM %s::text",
         (version, version))
     s.backlog = {"extract": unextracted, "map": unmapped,
-                 "support": await support.waiting(conn, version) if version else 0}
+                 "support": await _support_waiting(conn, version) if version else 0}
 
     for kind, n, oldest in await _rows(
             conn,
@@ -107,9 +118,13 @@ async def snapshot(conn: psycopg.AsyncConnection) -> Snapshot:
     s.corpus = {"documents": docs, "chunks": chunks, "claims": claims, "capabilities": caps}
     s.extraction_errors = errors
 
-    for source, query in _SPEND_SQL.items():
-        (total,), = await _rows(conn, query)
-        s.spend[source] = float(total)
+    for window, interval in SPEND_WINDOWS.items():
+        for kind, usd in await _rows(
+                conn,
+                "SELECT kind, coalesce(sum(spent_usd), 0) FROM task_runs t WHERE NOT EXISTS"
+                " (SELECT 1 FROM task_runs c WHERE c.parent_id = t.run_id)"
+                " AND started_at > now() - %s::interval GROUP BY kind", (interval,)):
+            s.spend[(kind, window)] = float(usd)
     s.table_sizes = {name: size for name, size in await _rows(
         conn,
         "SELECT c.relname, pg_total_relation_size(c.oid)::bigint FROM pg_class c"
@@ -186,18 +201,16 @@ class PipelineCollector(Collector):
                      [([], s.extraction_errors)])
         yield _gauge("taxonomy_info", "Current taxonomy version", ["version"],
                      [([s.taxonomy_version], 1)] if s.taxonomy_version else [])
-        spend = CounterMetricFamily(P + "pipeline_spend_usd", "Pipeline spend by ledger",
-                                    labels=["source"])
-        for source, usd in s.spend.items():
-            spend.add_metric([source], usd)
-        yield spend
+        yield _gauge("pipeline_spend_usd", "Spend of leaf runs started in the window",
+                     ["kind", "window"], [([k, w], v) for (k, w), v in s.spend.items()])
         yield _gauge("table_size_bytes", "Total relation size of the largest tables", ["table"],
                      [([k], v) for k, v in s.table_sizes.items()])
         yield _gauge("sync_cursor_timestamp_seconds", "Last update of the sync cursor", [],
                      [([], s.sync_cursor_ts)] if s.sync_cursor_ts is not None else [])
 
 
-async def refresh_loop(dsn: str, collector: PipelineCollector, interval_s: float) -> None:
+async def refresh_loop(dsn: str, collector: PipelineCollector, interval_s: float,
+                       timeout_s: float = REFRESH_TIMEOUT_S) -> None:
     """Refresh the collector every ``interval_s`` until cancelled. A failure keeps the last
     snapshot, marks the refresh bad and is logged once per streak."""
     failing = False
@@ -206,7 +219,9 @@ async def refresh_loop(dsn: str, collector: PipelineCollector, interval_s: float
             conn = await psycopg.AsyncConnection.connect(
                 dsn, autocommit=True, connect_timeout=CONNECT_TIMEOUT_S)
             try:
-                collector.update(await snapshot(conn), True)
+                await conn.execute(f"SET statement_timeout = {int(timeout_s * 1000)}")
+                collector.update(
+                    await asyncio.wait_for(snapshot(conn), timeout_s + 5), True)
             finally:
                 await conn.close()
             failing = False

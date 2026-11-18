@@ -5,7 +5,7 @@ import pytest
 from prometheus_client import CollectorRegistry
 
 from vendorkb.db import connect, init_schema
-from vendorkb.metrics_db import PipelineCollector, snapshot
+from vendorkb.metrics_db import PipelineCollector, Snapshot, snapshot
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
 
@@ -145,24 +145,68 @@ async def test_batches(vkb_dsn):
 
 async def test_spend_sums(vkb_dsn):
     conn = await _fresh(vkb_dsn)
-    did = await _doc(conn)
-    for i, cost in enumerate((0.5, 0.25)):
-        cid = await _chunk(conn, did, i)
-        await conn.execute(
-            "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
-            " status, cost_usd) VALUES (%s, %s, 'm', 'claims-v3.1', 'done', %s)",
-            (str(uuid.uuid4()), cid, cost))
+    parent = str(uuid.uuid4())
     await conn.execute(
-        "INSERT INTO llm_batches (batch_id, kind, model, custom_ids, est_cost_usd,"
-        " actual_cost_usd, status) VALUES ('b', 'map-target', 'm', ARRAY[]::text[], 1, NULL,"
-        " 'submitted')")
+        "INSERT INTO task_runs (run_id, kind, state, origin, spent_usd, started_at)"
+        " VALUES (%s, 'refresh', 'succeeded', 'cluster', 1.0, now() - interval '1 hour')",
+        (parent,))
+    for kind, usd in (("extract", 0.25), ("support", 0.5)):
+        await conn.execute(
+            "INSERT INTO task_runs (run_id, parent_id, kind, state, origin, spent_usd,"
+            " started_at) VALUES (%s, %s, %s, 'succeeded', 'cluster', %s,"
+            " now() - interval '1 hour')", (str(uuid.uuid4()), parent, kind, usd))
+    await conn.execute(
+        "INSERT INTO task_runs (run_id, kind, state, origin, spent_usd, started_at)"
+        " VALUES (%s, 'map', 'succeeded', 'manual', 0.1, now() - interval '3 days')",
+        (str(uuid.uuid4()),))
     reg, _ = await _registry(conn)
-    assert reg.get_sample_value("vendorkb_pipeline_spend_usd_total", {"source": "extract"}) \
-        == pytest.approx(0.75)
-    assert reg.get_sample_value("vendorkb_pipeline_spend_usd_total", {"source": "llm_batch"}) \
-        == pytest.approx(1.0)
-    types = {m.name: m.type for m in reg.collect()}
-    assert types["vendorkb_pipeline_spend_usd"] == "counter"
+
+    def v(kind, window):
+        return reg.get_sample_value("vendorkb_pipeline_spend_usd",
+                                    {"kind": kind, "window": window})
+    assert v("extract", "24h") == pytest.approx(0.25)
+    assert v("support", "24h") == pytest.approx(0.5)
+    assert v("extract", "7d") == pytest.approx(0.25)
+    assert v("map", "24h") is None
+    assert v("map", "7d") == pytest.approx(0.1)
+    assert v("refresh", "24h") is None and v("refresh", "7d") is None
+    await conn.close()
+
+
+async def test_support_backlog_matches_waiting(vkb_dsn, monkeypatch):
+    from vendorkb.claims import support
+    from vendorkb.metrics_db import _support_waiting
+
+    async def dims(_conn):  # the topic loader's dimensions: one in-scope dimension
+        return ["d.one"]
+
+    monkeypatch.setattr(support, "topic_dimensions", dims)
+    conn = await _fresh(vkb_dsn)
+    did = await _doc(conn)
+    cid = await _chunk(conn, did, 0)
+    eid = str(uuid.uuid4())
+    await conn.execute(
+        "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+        " status) VALUES (%s, %s, 'm', 'claims-v3.1', 'done')", (eid, cid))
+    ids = [str(uuid.uuid4()) for _ in range(4)]
+    for claim in ids:
+        await conn.execute(
+            "INSERT INTO raw_claims (claim_id, extraction_id, chunk_id, vendor,"
+            " capability_raw, support, evidence_quote, gate, extractor_model, prompt_version,"
+            " mapped_version, dimension_id) VALUES (%s, %s, %s, 'V', 'c', 'supported', 'q',"
+            " 'exact', 'm', 'claims-v3.1', 'v1', 'd.one')", (claim, eid, cid))
+    # ids[0] flagged and unreviewed, ids[1] checked clean, ids[2] held by an open check batch,
+    # ids[3] due
+    for claim, ok in ((ids[0], False), (ids[1], True)):
+        await conn.execute(
+            "INSERT INTO claim_support (claim_id, supported, checker) VALUES (%s, %s, 'c')",
+            (claim, ok))
+    await conn.execute(
+        "INSERT INTO llm_batches (batch_id, kind, model, custom_ids, status)"
+        " VALUES ('hb', %s, 'm', ARRAY[%s], 'submitted')", (support.CHECK_KIND, ids[2]))
+    expected = await support.waiting(conn, "v1")
+    assert expected == 2
+    assert await _support_waiting(conn, "v1") == expected
     await conn.close()
 
 
@@ -220,7 +264,7 @@ async def test_no_question_text_in_labels(vkb_dsn):
         "origin": {"cluster", "manual"},
         "status": {"in_flight", "done", "errored", "failed", "submitted", "processed"},
         "what": {"documents", "chunks", "claims", "capabilities"},
-        "source": {"extract", "extract_batch", "llm_batch", "propose", "support"},
+        "window": {"24h", "7d"},
     }
     for m in reg.collect():
         for s in m.samples:
@@ -248,3 +292,23 @@ async def test_refresh_loop_marks_failure_and_recovers(vkb_dsn):
     await asyncio.sleep(1.5)
     good.cancel()
     assert reg.get_sample_value("vendorkb_metrics_refresh_ok") == 1
+
+
+async def test_refresh_timeout_counts_as_failure(vkb_dsn, monkeypatch):
+    import asyncio
+
+    from vendorkb import metrics_db
+
+    async def slow(_conn):
+        await asyncio.sleep(30)
+
+    collector = PipelineCollector()
+    reg = CollectorRegistry()
+    reg.register(collector)
+    collector.update(Snapshot(corpus={"documents": 7}), True)
+    monkeypatch.setattr(metrics_db, "snapshot", slow)
+    task = asyncio.create_task(metrics_db.refresh_loop(vkb_dsn, collector, 0.05, timeout_s=0.1))
+    await asyncio.sleep(0.2 + 5.2)  # wait_for allows timeout_s + 5
+    task.cancel()
+    assert reg.get_sample_value("vendorkb_metrics_refresh_ok") == 0
+    assert reg.get_sample_value("vendorkb_corpus", {"what": "documents"}) == 7
