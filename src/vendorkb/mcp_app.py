@@ -136,9 +136,14 @@ def build_app(settings: VendorkbSettings,
                 log.info("MCP key %s: role %s hides %s", key.label, role, ", ".join(key.hidden))
         refresh = None
         if settings.metrics_port and backends is None:
-            metrics.start(settings)
-            refresh = asyncio.create_task(refresh_loop(
-                settings.vendorkb_dsn, metrics.PIPELINE, settings.metrics_refresh_s))
+            try:
+                metrics.start(settings)
+            except OSError as e:  # a busy port (9100 is node_exporter's too) costs the metrics
+                log.warning("metrics: port %s unavailable (%s); serving MCP without metrics",
+                            settings.metrics_port, e)
+            else:
+                refresh = asyncio.create_task(refresh_loop(
+                    settings.vendorkb_dsn, metrics.PIPELINE, settings.metrics_refresh_s))
         try:
             async with AsyncExitStack() as stack:
                 for server in servers:

@@ -128,10 +128,11 @@ def record_answer(out: dict[str, Any], settings: VendorkbSettings | None) -> Non
 
 def start(settings: VendorkbSettings) -> None:
     """Serve the registry, with the pipeline collector on it, on ``settings.metrics_port``;
-    nothing at port 0 or when already started."""
+    nothing at port 0 or when already started. OSError when the port is busy: the bind comes
+    first, so a failed one leaves the collector unregistered."""
     global _started
     if not settings.metrics_port or _started:
         return
-    REGISTRY.register(PIPELINE)
     start_http_server(settings.metrics_port, registry=REGISTRY)
+    REGISTRY.register(PIPELINE)
     _started = True

@@ -165,3 +165,24 @@ def test_agent_eval_sends_marker(monkeypatch):
     monkeypatch.setenv("VENDORKB_MCP_TOKEN", "t")
     agent_eval.mcp_call("search_docs", {"query": "immutability"})
     assert sent.get("X-Vendorkb-Client") == "eval"
+
+
+async def test_busy_metrics_port_keeps_mcp_serving(monkeypatch):
+    def busy(*a, **kw):
+        raise OSError(98, "Address already in use")
+
+    refreshed = []
+
+    async def refresh(*a, **kw):
+        refreshed.append(a)
+
+    monkeypatch.setattr(metrics, "start_http_server", busy)
+    monkeypatch.setattr("vendorkb.mcp_app.refresh_loop", refresh)
+    app = build_app(_settings(metrics_port=9311))  # no backends: the lifespan starts metrics
+    async with app.router.lifespan_context(app), httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://vendorkb-mcp:8080") as c:
+        r = await c.get("/healthz")
+    assert (r.status_code, r.text) == (200, "ok")
+    assert refreshed == []  # no refresh loop without a metrics server
+    # the failed bind left the pipeline collector unregistered, so a later start can register it
+    assert metrics.REGISTRY.get_sample_value("vendorkb_metrics_refresh_ok") is None
