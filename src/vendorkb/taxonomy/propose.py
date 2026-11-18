@@ -89,7 +89,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import SingleQuotedScalarString
 from ruamel.yaml.util import load_yaml_guess_indent
 
-from vendorkb import llm_batch
+from vendorkb import llm_batch, task_runs
 from vendorkb.claims.extract import PROMPT_FAMILY, cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.cluster import cluster_strings, normalize
@@ -933,6 +933,7 @@ async def _batch_replies(conn: psycopg.AsyncConnection, client: Any, clusters: l
                                 report=batch)
         await conn.execute("UPDATE propose_runs SET spent_usd = %s WHERE run_id = %s",
                            (batch.spent_usd, run_id))
+        await task_runs.progress(len(answered), len(clusters), batch.spent_usd)
 
     await llm_batch.reset_failed(conn, BATCH_KIND)
     await settle()  # the batches a crashed run left open, first
@@ -1108,13 +1109,23 @@ async def _propose(conn: psycopg.AsyncConnection, *, client: Any, embedder: _Emb
                 log.warning("taxonomy propose: unusable reply for %r: %s", first, e)
                 return None
 
+    asked_n = 0
+
+    async def counted(c: _Cluster) -> dict[str, Any] | None:
+        nonlocal asked_n
+        try:
+            return await one(c)
+        finally:
+            asked_n += 1
+            await task_runs.progress(asked_n, len(clusters), spent)
+
     if mode == "batch":
         replies, spent, fatal = await _batch_replies(
             conn, client, clusters, systems, settings=settings, price=price,
             max_usd=min(max_usd, settings.propose_budget_usd - before), report=report,
             run_id=run_id, poll_seconds=poll_seconds)
     else:
-        replies = list(await asyncio.gather(*(one(c) for c in clusters)))
+        replies = list(await asyncio.gather(*(counted(c) for c in clusters)))
     report.spent_usd = spent
 
     # Merge in cluster order (biggest first); each change must keep the file valid.

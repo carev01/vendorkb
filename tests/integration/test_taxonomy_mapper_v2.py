@@ -15,6 +15,7 @@ import pytest
 import yaml
 from pgvector import Vector
 
+from vendorkb import task_runs
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
 from vendorkb.taxonomy import llm, load, mapper
@@ -278,6 +279,24 @@ async def test_llm_choice_and_none(vkb_dsn, tmp_path):
     finally:
         await conn.close()
 
+
+async def test_map_reports_progress(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        await _claim(conn, "the dashboard thing", "Okta")
+        with task_runs.recording() as rec:
+            report = await _run(conn, FakeOpenAI())
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert total == report.claims == 2
+        assert done == report.claims - report.claims_to_retry == 2
+        assert any(0 < d < total for d, _, _ in rec.calls)  # progress while it works
+        assert all(d <= total for d, t, _ in rec.calls if t is not None)
+        assert spent == pytest.approx(report.spent_usd) and spent > 0
+    finally:
+        await conn.close()
 
 async def test_target_scope_resolution(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
@@ -1342,6 +1361,25 @@ async def test_batch_mode_waiting_runs_the_rounds_in_one_call_at_the_batch_price
         # two answers at half of 400 in / 20 out at Haiku's $0.10 / $0.50 per MTok
         assert report.batch.spent_usd == pytest.approx(2 * (400 * 0.10 + 20 * 0.50) / 1e6 * 0.5)
         assert report.batch.submitted == 2
+    finally:
+        await conn.close()
+
+
+async def test_map_batch_mode_progress_never_goes_back_across_rounds(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _batch_fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        api = FakeBatchAPI()
+        with task_runs.recording() as rec:
+            report = await _batch_run(conn, api)
+        assert report.rounds == 3 and report.claims_to_retry == 0
+        dones = [d for d, _, _ in rec.calls]
+        assert dones == sorted(dones)  # one basis across the rounds: never back to 0
+        spends = [s for _, _, s in rec.calls if s is not None]
+        assert spends == sorted(spends) and spends[-1] > 0
+        done, total, _ = rec.calls[-1]
+        assert done == total == 1
     finally:
         await conn.close()
 

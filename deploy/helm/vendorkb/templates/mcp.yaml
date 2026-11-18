@@ -28,7 +28,18 @@ spec:
           command: ["vendorkb", "mcp", "--host", "0.0.0.0", "--port", "8080"]
           ports:
             - {name: http, containerPort: 8080}
+            {{- if .Values.metrics.enabled }}
+            - {name: metrics, containerPort: {{ .Values.metrics.port }}}
+            {{- end }}
           {{- include "vendorkb.env" . | nindent 10 }}
+            {{- if .Values.metrics.enabled }}
+            - {name: METRICS_PORT, value: {{ .Values.metrics.port | quote }}}
+            - {name: VENDORKB_VERSION, value: {{ .Values.image.tag | quote }}}
+            - {name: ANSWER_PRICE_IN_PER_MTOK, value: {{ .Values.metrics.answerPriceInPerMtok | quote }}}
+            - {name: ANSWER_PRICE_OUT_PER_MTOK, value: {{ .Values.metrics.answerPriceOutPerMtok | quote }}}
+            {{- else }}
+            - {name: METRICS_PORT, value: "0"}
+            {{- end }}
             - name: MCP_ALLOWED_HOSTS
               {{- if $m.publicIngress.enabled }}
               value: {{ printf "%s,%s" $m.allowedHosts (required "mcp.publicIngress.host is required when the public ingress is enabled" $m.publicIngress.host) | quote }}
@@ -61,6 +72,9 @@ spec:
   selector: {app.kubernetes.io/name: vendorkb-mcp}
   ports:
     - {name: http, port: 8080, targetPort: http}
+    {{- if .Values.metrics.enabled }}
+    - {name: metrics, port: {{ .Values.metrics.port }}, targetPort: metrics}
+    {{- end }}
 {{- if $m.ingress.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

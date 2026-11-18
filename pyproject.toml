@@ -16,6 +16,7 @@ dependencies = [
   "ruamel-yaml>=0.18,<0.20",
   "mcp>=2.3,<3",
   "uvicorn>=0.30",
+  "prometheus-client>=0.21,<1",
 ]
 
 [project.optional-dependencies]

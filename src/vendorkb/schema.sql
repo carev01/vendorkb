@@ -1,4 +1,15 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- the metrics exporter's role (deploy/helm: postgres-exporter sidecar, over the trusted socket)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'vendorkb_monitor') THEN
+        CREATE ROLE vendorkb_monitor LOGIN;
+    END IF;
+END
+$$;
+GRANT pg_monitor TO vendorkb_monitor;
 
 CREATE TABLE IF NOT EXISTS documents (
     doc_id uuid PRIMARY KEY,
@@ -633,3 +644,23 @@ CREATE POLICY vendor_visible ON aliases
            WHEN 'offering' THEN lower(scope) <> ALL (CAST((SELECT vendorkb_hidden_vendors()) AS text[]))
            WHEN 'edition' THEN EXISTS (SELECT 1 FROM offerings o WHERE o.offering_id = aliases.scope)
            ELSE true END);
+
+-- progress record of every long-running command (task_runs.py): one row per run, children
+-- (a refresh's extract, map, ...) point at their parent
+CREATE TABLE IF NOT EXISTS task_runs (
+    run_id uuid PRIMARY KEY,
+    parent_id uuid REFERENCES task_runs ON DELETE CASCADE,
+    kind text NOT NULL,
+    stage text,
+    state text NOT NULL CHECK (state IN ('running', 'succeeded', 'failed')),
+    origin text NOT NULL CHECK (origin IN ('cluster', 'manual')),
+    done bigint NOT NULL DEFAULT 0,
+    total bigint,
+    spent_usd double precision NOT NULL DEFAULT 0,
+    details jsonb NOT NULL DEFAULT '{}',
+    started_at timestamptz NOT NULL DEFAULT now(),
+    heartbeat_at timestamptz NOT NULL DEFAULT now(),
+    ended_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS task_runs_running ON task_runs (kind) WHERE state = 'running';
+CREATE INDEX IF NOT EXISTS task_runs_ended ON task_runs (kind, ended_at DESC);

@@ -14,6 +14,7 @@ import pytest
 import yaml
 
 from tests.integration.test_capabilities_v2 import _claim
+from vendorkb import task_runs
 from vendorkb.claims import support
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -157,6 +158,24 @@ async def test_a_run_stores_each_verdict_once_and_asks_with_the_checker_settings
     finally:
         await conn.close()
 
+
+async def test_support_reports_progress(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        version = await _fresh(conn, tmp_path)
+        await _fact(conn, version, RETENTION, "kept for a year")
+        await _fact(conn, version, RETENTION, "generic advice")
+        fake = Fake({"kept for a year": True, "generic advice": False})
+        with task_runs.recording() as rec:
+            report = await support.run(conn, client=fake, settings=_settings(),
+                                       check_max_usd=1.0, review_max_usd=1.0)
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert done == total == report.check.claims + report.review.claims == 3
+        assert spent == pytest.approx(report.check.spent_usd + report.review.spent_usd)
+        assert spent > 0
+    finally:
+        await conn.close()
 
 async def test_a_failed_or_unusable_call_writes_no_verdict(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)

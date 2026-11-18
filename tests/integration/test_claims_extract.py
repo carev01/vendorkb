@@ -8,6 +8,7 @@ import psycopg
 import pytest
 from pgvector import Vector
 
+from vendorkb import task_runs
 from vendorkb.claims import extract
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -402,6 +403,45 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
         linked = await _rows(conn, "SELECT count(*) FROM raw_claims r JOIN extractions e"
                                    " USING (extraction_id) WHERE e.chunk_id=%s", cid)
         assert linked == [(2,)]
+    finally:
+        await conn.close()
+
+
+async def test_extract_reports_progress(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
+        with task_runs.recording() as rec:
+            report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                       mode="sync")
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert done == report.done + report.errored == 1
+        assert total == report.chunks == 1
+        assert spent == pytest.approx(report.est_cost_usd) and spent > 0
+    finally:
+        await conn.close()
+
+async def test_extract_progress_counts_skipped_chunks_and_never_exceeds_total(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [old] = await _doc(conn)
+        [new] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
+        await extract.run(conn, [old], client=client, settings=_settings(), mode="sync")
+        with task_runs.recording() as rec:
+            report = await extract.run(conn, [old, new], client=client,
+                                       settings=_settings(), mode="sync")
+        assert report.skipped == 1 and report.done == 1
+        assert rec.calls[-1][:2] == (2, 2)
+        assert all(d <= t for d, t, _ in rec.calls)
+        with task_runs.recording() as rec:  # nothing left to extract: one report, at 100%
+            await extract.run(conn, [old, new], client=client, settings=_settings(),
+                              mode="sync")
+        assert [c[:2] for c in rec.calls] == [(2, 2)]
     finally:
         await conn.close()
 

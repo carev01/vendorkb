@@ -9,6 +9,7 @@ import psycopg
 
 from tests.integration.test_supersede import _extract
 from vendorkb import sync as sync_mod
+from vendorkb import task_runs
 from vendorkb.chunker import chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.config import VendorkbSettings
@@ -179,6 +180,19 @@ async def test_full_bootstrap_writes_all_and_switches_to_incremental(vkb_dsn):
     finally:
         await conn.close()
 
+
+async def test_sync_reports_progress(vkb_dsn):
+    conn = await _fresh(vkb_dsn)
+    try:
+        fd = FakeDocExt([[_start("S0"), _rec(A[0]), _rec(A[1]), _rec(A[2]), _cursor("S9", 3)]])
+        with task_runs.recording() as rec:
+            report = await _run(conn, fd, FakeEmbedder())
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert done == report.records == 3
+        assert (total, spent) == (None, None)
+    finally:
+        await conn.close()
 
 async def test_bootstrap_drop_resumes_after_last_committed_page(vkb_dsn):
     # attempt 1: bootstrap_start(S0), a1, a2, a3, then EOF (no cursor line). Assert

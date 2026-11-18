@@ -354,6 +354,37 @@ nothing else, and replaces the vendors it hides; with `MCP_RESTRICTED_DSN` set i
 start-up check. Rerun it with other `--hide` values to change the list (the server re-checks
 on its next start). To show everything again, unset `mcp.hiddenVendors`.
 
+## 7d. Observability
+
+Spec: `docs/superpowers/specs/2026-11-18-observability-dashboard-design.md`.
+
+- **Metrics port.** `vendorkb mcp` serves `/metrics` on `metrics.port` (9100; `METRICS_PORT=0`
+  disables it, and a busy port only logs a warning). Service `vendorkb-mcp:9100` is for
+  Prometheus. Requests with the header `X-Vendorkb-Client: eval` (the eval harness) are labelled
+  `client="eval"` and left out of the usage panels.
+- **Postgres exporter.** A `postgres_exporter` sidecar (`metrics.postgresExporter.enabled`)
+  reads over the Unix socket as role `vendorkb_monitor`; Service `vendorkb-postgres-metrics:9187`.
+  It needs `pg_stat_statements` and `track_io_timing`, which restart Postgres once on the
+  upgrade. The role and extension come from `init_schema`: after the rollout run one command
+  such as `uv run vendorkb stats`, then check
+  `psql -U vendorkb -d vendorkb -Atc "select count(*) from pg_stat_statements"`.
+- **Answer prices.** The answer cost gauge is zero (tokens only) until the prices are set, in
+  USD per million tokens:
+
+  ```
+  helm -n vendorkb upgrade vendorkb deploy/helm/vendorkb --reuse-values \
+    --set metrics.answerPriceInPerMtok=<in> --set metrics.answerPriceOutPerMtok=<out>
+  ```
+
+  They become `ANSWER_PRICE_IN_PER_MTOK` / `ANSWER_PRICE_OUT_PER_MTOK`.
+- **Prometheus and Grafana** (namespace `monitoring`, applied by hand before):
+  `uv run python deploy/monitoring/apply.py --dry-run` prints the diffs and changes nothing;
+  without the flag it applies kube-state-metrics, Prometheus RBAC, the four `vendorkb-*` scrape
+  jobs (merged by name, other jobs kept) and the dashboard (uid `vendorkb`), and switches
+  Prometheus and Grafana to `Recreate`, which restarts both pods. Check
+  `kubectl -n monitoring exec deploy/prometheus -- wget -qO- localhost:9090/api/v1/targets`: all
+  four `vendorkb-*` jobs `up`. Details: `deploy/monitoring/README.md`.
+
 ## 8. Verify
 
 Through the port-forward, with `VENDORKB_DSN` set as in step 4:

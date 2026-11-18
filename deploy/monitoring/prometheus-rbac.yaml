@@ -1,0 +1,38 @@
+# The Prometheus service account: node discovery and the kubelet's /metrics through the API
+# server proxy (the vendorkb-kubelet job reads the PVC volume stats there). apply.py points the
+# Prometheus Deployment at it.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels: {app.kubernetes.io/name: prometheus, app.kubernetes.io/part-of: llm-monitoring}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+  labels: {app.kubernetes.io/name: prometheus, app.kubernetes.io/part-of: llm-monitoring}
+rules:
+  # node discovery (kubernetes_sd_configs role: node)
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  # GET /api/v1/nodes/<node>/proxy/metrics
+  - apiGroups: [""]
+    resources: [nodes/proxy]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+  labels: {app.kubernetes.io/name: prometheus, app.kubernetes.io/part-of: llm-monitoring}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
