@@ -47,3 +47,26 @@ precision (largest 20, cv43-06). The noise in a 23-question mean is about a poin
 
 Claude Code subagents (29 Sonnet runs); about 162 searches, roughly 3.2M rerank tokens
 (estimated at 20k each).
+
+## Re-baseline (2026-11-17)
+
+After the Quest Software sync and the offering review (taxonomy `2-707638eb`), the gate failed
+against the 2026-11-08 baseline (96% recall). The runs that day traced it to the setup and the
+agents, not the taxonomy:
+
+| Run | Change | Recall | Precision |
+|---|---|---|---|
+| 1 | standard key (Cohesity hidden since 2026-11-12) | 82% | 94% |
+| 2 | full-access key (now the eval's default) | 84% | 95% |
+| 3 | per-vendor counts in a cut `query_capabilities` result | 80% | 96% |
+| 4 | a citable example per vendor; brief: look for more facts | 86% | 94% |
+| 5 | support/availability in any case; 10 searches | 88% | 93% |
+| 6 | `query` text filter; `gather_evidence` in the full arm | 88% | 95% |
+| 7 | vendor index opening a long `gather_evidence`; own work folders | **92%** | **99%** |
+
+Runs 5-7 rescored on the Quest labels (`eval/questions.yaml`). Today's agents stop at the
+first sample of a large result where the November ones made dozens of per-vendor calls; each
+change gave them the vendors in fewer calls. Run 7 is the baseline: full-access key, 10
+searches, `gather_evidence` offered. One question still swings 10-30 points between runs.
+Weakest: ex-rt-12 (copy in another region, 58%: three parts read, one call lost to a
+connection error), cv-04 (WAN seeding, 71%), cv-07 (scheduled report delivery, 74%).

@@ -1,49 +1,54 @@
 {
  "arm": "full",
- "max_searches": 6,
- "label": "baseline: taxonomy 2-535fdb7b, image sha-0b58ab4",
+ "max_searches": 10,
+ "label": "baseline 2026-11-17: taxonomy 2-707638eb, image sha-75de61d, full-access key, 10 searches, gather_evidence in the full arm, Quest labels",
  "summary": {
   "questions": 23,
-  "recall": 0.9599800123839654,
-  "precision": 0.9493886038121353
+  "recall": 0.9177645925345629,
+  "precision": 0.9872716477895507
  },
  "questions": {
   "ex-rt-10": {
-   "recall": 0.9714285714285714,
-   "precision": 0.9444444444444444,
-   "listed": 37,
+   "recall": 0.9444444444444444,
+   "precision": 0.9714285714285714,
+   "listed": 35,
    "false": [
-    "spanning",
-    "velero"
+    "spanning"
    ],
    "missed": [
+    "ninjaone (dropsuite)",
     "red hat"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "list_targets": 1,
-    "query_capabilities": 40,
-    "search_docs": 4
+    "gather_evidence": 11,
+    "search_docs": 5
    }
   },
   "ex-rt-12": {
-   "recall": 0.96875,
-   "precision": 0.96875,
-   "listed": 35,
-   "false": [
-    "keepit"
-   ],
+   "recall": 0.5757575757575758,
+   "precision": 1.0,
+   "listed": 20,
+   "false": [],
    "missed": [
-    "afi.ai"
+    "afi.ai",
+    "avepoint",
+    "bacula",
+    "cloudcasa",
+    "eon",
+    "google",
+    "ibm",
+    "microsoft",
+    "n-able",
+    "rubrik",
+    "slide",
+    "storware",
+    "veeam",
+    "zerto"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 6,
-    "list_targets": 2,
-    "query_capabilities": 135,
-    "search_docs": 6,
-    "read_section": 1
+    "gather_evidence": 4
    }
   },
   "cv-01": {
@@ -54,143 +59,131 @@
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 3,
-    "query_capabilities": 34,
-    "search_docs": 6,
-    "read_section": 15
+    "gather_evidence": 7
    }
   },
   "cv-02": {
-   "recall": 0.9411764705882353,
+   "recall": 1.0,
    "precision": 1.0,
-   "listed": 16,
+   "listed": 17,
    "false": [],
-   "missed": [
-    "ibm"
-   ],
+   "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "list_targets": 2,
-    "query_capabilities": 17,
-    "search_docs": 6
+    "gather_evidence": 7,
+    "list_targets": 1,
+    "query_capabilities": 7,
+    "search_docs": 1
    }
   },
   "cv-03": {
    "recall": 1.0,
    "precision": 1.0,
-   "listed": 23,
+   "listed": 24,
    "false": [],
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 1,
-    "query_capabilities": 55,
-    "search_docs": 5,
-    "read_section": 5
+    "gather_evidence": 1,
+    "query_capabilities": 6
    }
   },
   "cv-04": {
-   "recall": 0.8461538461538461,
-   "precision": 0.9166666666666666,
-   "listed": 13,
-   "false": [
-    "dell"
-   ],
+   "recall": 0.7142857142857143,
+   "precision": 1.0,
+   "listed": 10,
+   "false": [],
    "missed": [
     "arctera",
-    "druva"
+    "druva",
+    "nakivo",
+    "quest software"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 9,
-    "list_targets": 1,
-    "search_docs": 6,
-    "query_capabilities": 1
+    "gather_evidence": 10
    }
   },
   "cv-05": {
-   "recall": 0.9166666666666666,
+   "recall": 0.84,
    "precision": 1.0,
-   "listed": 25,
+   "listed": 23,
    "false": [],
    "missed": [
+    "atempo",
     "cloudcasa",
+    "dell",
     "hornetsecurity (altaro)"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 6,
-    "query_capabilities": 1,
-    "search_docs": 6,
-    "read_section": 2
+    "gather_evidence": 9
    }
   },
   "cv-06": {
-   "recall": 0.9629629629629629,
+   "recall": 0.9642857142857143,
    "precision": 1.0,
-   "listed": 26,
+   "listed": 27,
    "false": [],
    "missed": [
     "arcserve"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 3,
-    "query_capabilities": 28,
-    "search_docs": 6
+    "gather_evidence": 3,
+    "query_capabilities": 3
    }
   },
   "cv-07": {
-   "recall": 0.9333333333333333,
+   "recall": 0.7419354838709677,
+   "precision": 1.0,
+   "listed": 23,
+   "false": [],
+   "missed": [
+    "atempo",
+    "cloudally",
+    "cohesity",
+    "google",
+    "ibm",
+    "spanning",
+    "storware",
+    "unitrends"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "gather_evidence": 10,
+    "search_docs": 2
+   }
+  },
+  "cv-08": {
+   "recall": 0.8181818181818182,
+   "precision": 1.0,
+   "listed": 9,
+   "false": [],
+   "missed": [
+    "arctera",
+    "bacula"
+   ],
+   "tools": {
+    "list_vendors": 1,
+    "list_targets": 1,
+    "query_capabilities": 2,
+    "gather_evidence": 4,
+    "search_docs": 1
+   }
+  },
+  "cv-09": {
+   "recall": 0.9655172413793104,
    "precision": 1.0,
    "listed": 28,
    "false": [],
    "missed": [
-    "avepoint",
-    "google"
+    "unitrends"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "list_targets": 1,
-    "query_capabilities": 16,
-    "search_docs": 6,
-    "read_section": 3
-   }
-  },
-  "cv-08": {
-   "recall": 0.9090909090909091,
-   "precision": 1.0,
-   "listed": 10,
-   "false": [],
-   "missed": [
-    "arctera"
-   ],
-   "tools": {
-    "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 1,
-    "query_capabilities": 82,
-    "search_docs": 6
-   }
-  },
-  "cv-09": {
-   "recall": 1.0,
-   "precision": 0.9655172413793104,
-   "listed": 30,
-   "false": [
-    "axcient"
-   ],
-   "missed": [],
-   "tools": {
-    "list_vendors": 1,
-    "list_dimensions": 4,
-    "query_capabilities": 22,
-    "search_docs": 6,
-    "read_section": 3
+    "gather_evidence": 1,
+    "search_docs": 4
    }
   },
   "cv43-01": {
@@ -201,11 +194,7 @@
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 3,
-    "list_targets": 1,
-    "query_capabilities": 20,
-    "search_docs": 6,
-    "read_section": 9
+    "gather_evidence": 7
    }
   },
   "cv43-02": {
@@ -216,10 +205,7 @@
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 3,
-    "query_capabilities": 7,
-    "search_docs": 6
+    "gather_evidence": 6
    }
   },
   "cv43-03": {
@@ -230,16 +216,13 @@
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 2,
-    "query_capabilities": 50,
-    "search_docs": 4
+    "gather_evidence": 6
    }
   },
   "cv43-04": {
-   "recall": 0.9333333333333333,
-   "precision": 0.9333333333333333,
-   "listed": 16,
+   "recall": 0.9375,
+   "precision": 0.9375,
+   "listed": 17,
    "false": [
     "hycu"
    ],
@@ -248,65 +231,52 @@
    ],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
+    "gather_evidence": 1,
     "list_dimensions": 1,
-    "query_capabilities": 37,
-    "search_docs": 4
+    "list_targets": 1,
+    "query_capabilities": 2,
+    "search_docs": 3
    }
   },
   "cv43-05": {
    "recall": 0.9090909090909091,
-   "precision": 0.9090909090909091,
-   "listed": 15,
-   "false": [
-    "commvault"
-   ],
+   "precision": 1.0,
+   "listed": 10,
+   "false": [],
    "missed": [
-    "synology"
+    "arctera"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 3,
-    "list_targets": 1,
-    "query_capabilities": 22,
-    "search_docs": 6
+    "gather_evidence": 5
    }
   },
   "cv43-06": {
    "recall": 1.0,
-   "precision": 0.7142857142857143,
-   "listed": 20,
-   "false": [
-    "ibm",
-    "microsoft",
-    "slide",
-    "synology"
-   ],
+   "precision": 1.0,
+   "listed": 15,
+   "false": [],
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 3,
-    "query_capabilities": 40,
-    "list_targets": 1,
+    "gather_evidence": 10,
+    "query_capabilities": 1,
     "search_docs": 2
    }
   },
   "cv43-07": {
    "recall": 0.9411764705882353,
    "precision": 0.9411764705882353,
-   "listed": 18,
+   "listed": 17,
    "false": [
     "n-able"
    ],
    "missed": [
-    "cloudally"
+    "datto"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 2,
-    "query_capabilities": 40,
-    "search_docs": 6
+    "gather_evidence": 10
    }
   },
   "cv43-08": {
@@ -317,82 +287,67 @@
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 3,
+    "gather_evidence": 1,
+    "query_capabilities": 1,
     "list_targets": 1,
-    "query_capabilities": 2,
-    "search_docs": 6,
-    "read_section": 3
+    "search_docs": 10,
+    "read_section": 1
    }
   },
   "cv43-09": {
-   "recall": 0.9333333333333333,
+   "recall": 0.875,
    "precision": 1.0,
    "listed": 14,
    "false": [],
    "missed": [
+    "hycu",
     "ibm"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_targets": 1,
-    "list_dimensions": 4,
-    "query_capabilities": 36,
-    "search_docs": 6,
-    "read_section": 7
+    "gather_evidence": 9,
+    "search_docs": 9
    }
   },
   "cv43-10": {
    "recall": 1.0,
-   "precision": 0.6666666666666666,
-   "listed": 20,
+   "precision": 0.8571428571428571,
+   "listed": 19,
    "false": [
     "arctera",
-    "dell",
-    "eon",
-    "flosum",
-    "ibm"
+    "eon"
    ],
    "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "query_capabilities": 37,
-    "search_docs": 6
+    "gather_evidence": 9
    }
   },
   "cv43-11": {
-   "recall": 1.0,
-   "precision": 0.9629629629629629,
-   "listed": 28,
-   "false": [
-    "avepoint"
+   "recall": 0.9230769230769231,
+   "precision": 1.0,
+   "listed": 24,
+   "false": [],
+   "missed": [
+    "salesforce",
+    "zerto"
    ],
-   "missed": [],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "query_capabilities": 46,
-    "search_docs": 6
+    "gather_evidence": 11
    }
   },
   "cv43-12": {
-   "recall": 0.9130434782608695,
-   "precision": 0.9130434782608695,
-   "listed": 24,
-   "false": [
-    "spanning",
-    "trilio"
-   ],
+   "recall": 0.9583333333333334,
+   "precision": 1.0,
+   "listed": 23,
+   "false": [],
    "missed": [
-    "atempo",
-    "nakivo"
+    "atempo"
    ],
    "tools": {
     "list_vendors": 1,
-    "list_dimensions": 1,
-    "query_capabilities": 31,
-    "search_docs": 6,
-    "read_section": 6
+    "gather_evidence": 10
    }
   }
  }
