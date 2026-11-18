@@ -38,6 +38,8 @@ MAX_ANSWERS = 3  # answer_question calls an agent may make (each is a full paid 
 # gather_evidence retrievals an agent may make (each is a paid per-vendor retrieval; later
 # parts of one question's evidence are cached on the server and not counted)
 MAX_EVIDENCE = 2
+RETRY_PAUSES = (3.0, 10.0)  # seconds before the 2nd and 3rd attempt of a failed call
+RETRY_STATUSES = {502, 503, 504}
 DEFAULT_URL = "http://vendorkb-mcp.k3s.home.lan/mcp"
 # The evals use the full-access key (MCP_FULL_ACCESS_TOKEN): the labels name every vendor, and
 # the standard key hides MCP_HIDDEN_VENDORS (Cohesity), which only some MCP clients need.
@@ -235,15 +237,28 @@ def mcp_call(tool: str, arguments: dict[str, Any]) -> tuple[int, str]:
 
     token = os.environ.get("VENDORKB_MCP_TOKEN") or Path(
         os.path.expanduser(FULL_ACCESS_TOKEN_FILE)).read_text().strip()
-    try:
-        r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
-            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-            "params": {"name": tool, "arguments": arguments}},
-            headers={"authorization": f"Bearer {token}", "content-type": "application/json",
-                     "accept": "application/json, text/event-stream"})
-    except httpx.HTTPError as e:  # a dropped connection: logged, and the agent may retry
-        return 1, f"error: the connection failed ({type(e).__name__}: {e}); try the call again"
-    return parse_reply(r.status_code, r.text)
+    error = ""
+    # a dropped connection or a gateway error (the server restarting or under the load of a
+    # whole run) is retried here: an agent handed the error gave up on the rest of its evidence
+    # (2026-11-17, ex-rt-12). The server's evidence cache makes a retried part cheap.
+    for attempt, pause in enumerate((*RETRY_PAUSES, None)):
+        try:
+            r = httpx.post(os.environ.get("VENDORKB_MCP_URL", DEFAULT_URL), timeout=300, json={
+                "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": tool, "arguments": arguments}},
+                headers={"authorization": f"Bearer {token}",
+                         "content-type": "application/json",
+                         "accept": "application/json, text/event-stream"})
+        except httpx.HTTPError as e:
+            error = (f"error: the connection failed ({type(e).__name__}: {e}) after"
+                     f" {attempt + 1} attempts; try the call again")
+        else:
+            if r.status_code not in RETRY_STATUSES:
+                return parse_reply(r.status_code, r.text)
+            error = parse_reply(r.status_code, r.text)[1]
+        if pause is not None:
+            time.sleep(pause)
+    return 1, error
 
 
 def _prepare(args: argparse.Namespace) -> int:

@@ -779,6 +779,20 @@ async def test_a_long_vendor_reply_opens_with_an_index_of_every_vendor():
     assert "Vendors with passages" not in second.content[0].text  # part 1 only
 
 
+def test_an_index_excerpt_is_the_sentence_closest_to_the_question():
+    q = "Which products let us ship the first backup on a physical drive to the cloud?"
+    text = ("Staging (Seeding) Initial Backup. Initial backups are large and slow over WAN.\n"
+            "You can seed the backup to a removable drive and ship the drive to the cloud.")
+    assert ms._excerpt(text, q) == ("[…] You can seed the backup to a removable drive and ship "
+                                    "the drive to the cloud.")
+    # stems match across endings; generic words ("backup", "which") count for nothing
+    assert ms._excerpt("Backups run daily. Reports are emailed on a schedule.",
+                       "Which tools send scheduled report emails?").startswith("[…] Reports")
+    # nothing shared: the passage's start, cut as before
+    long = "Nothing to do with it. " * 20
+    assert ms._excerpt(long, q) == long.strip()[:ms.INDEX_EXCERPT] + " […]"
+
+
 async def test_a_short_vendor_reply_has_no_index():
     out = _evidence([_passage(1, "Alpha"), _passage(2, "Beta")])
     async with Client(ms.build_server(FakeBackend(evidence=out))) as c:

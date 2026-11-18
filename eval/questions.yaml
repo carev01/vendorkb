@@ -2370,9 +2370,6 @@
   - vendor: "Acronis"
     product: "Cyber Protect Cloud / On-premises"
     article_ids: ["03acd761-0e00-4343-998b-95adef25258e", "c3798a54-2b7f-4117-ab59-6210af52c8a4", "d9e57dce-a5af-4447-bc60-9d6cf0449290"]
-  - vendor: "Arctera"
-    product: "Backup Exec"
-    article_ids: ["e5a7d0a2-574f-4117-bb89-3bfa1d7d8888"]
   - vendor: "Axcient"
     product: "x360Recover"
     article_ids: ["98027f96-be19-4dbb-b354-87ad32e29f59", "b3ec0c33-b510-463a-9d88-29e3d9df469d"]
@@ -2407,6 +2404,7 @@
     product: "Veeam Backup & Replication"
     article_ids: ["165e1c93-1f5c-4613-81d3-fbac5b5c2acc", "e4a4f400-b14f-4cd2-b966-5e5b936b0636", "f8ec6de8-d896-4d48-a651-6efeda0590e6"]
   unclear_vendors:
+  - "Arctera"
   - "Arcserve"
   - "Unitrends"
   - "Zerto"

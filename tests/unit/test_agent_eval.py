@@ -138,3 +138,36 @@ def test_parse_reply_reads_sse_and_reports_unusable_replies():
     code, text = parse_reply(502, "")
     assert code == 1 and "HTTP 502" in text and "try the call again" in text
     assert parse_reply(200, "<html>oops</html>")[0] == 1
+
+
+def test_mcp_call_retries_gateway_errors_and_dropped_connections(monkeypatch):
+    import httpx
+
+    replies = []
+
+    class Reply:
+        def __init__(self, status, body):
+            self.status_code, self.text = status, body
+
+    def post(*a, **kw):
+        item = replies.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    ok = json.dumps({"jsonrpc": "2.0", "id": 1,
+                     "result": {"content": [{"type": "text", "text": "Facts: 3"}]}})
+    monkeypatch.setattr(httpx, "post", post)
+    monkeypatch.setattr(agent_eval.time, "sleep", lambda s: None)
+    monkeypatch.setenv("VENDORKB_MCP_TOKEN", "t")
+    # a dropped connection, then a 502, then the reply: the agent sees only the reply
+    replies[:] = [httpx.ConnectError("reset"), Reply(502, "Bad Gateway"), Reply(200, ok)]
+    assert agent_eval.mcp_call("list_vendors", {}) == (0, "Facts: 3")
+    assert replies == []
+    # three failures: the error, after three attempts
+    replies[:] = [httpx.ReadError("x"), httpx.ReadError("x"), httpx.ReadError("x")]
+    code, text = agent_eval.mcp_call("list_vendors", {})
+    assert code == 1 and "after 3 attempts" in text
+    # a client error is not retried
+    replies[:] = [Reply(401, json.dumps({"jsonrpc": "2.0", "id": 1, "error": "no"}))]
+    assert agent_eval.mcp_call("list_vendors", {})[0] == 1 and replies == []
