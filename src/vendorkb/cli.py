@@ -21,6 +21,7 @@ from vendorkb.reembed import promote, reembed
 from vendorkb.scope import scope_index_from_db
 from vendorkb.search import search_docs
 from vendorkb.sync import sync
+from vendorkb.task_runs import track
 
 if TYPE_CHECKING:
     import anthropic
@@ -110,6 +111,12 @@ async def _stats(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _details(report: object) -> dict:
+    """A report as a task run's details: its counts, list fields cut to 20 items."""
+    data = dataclasses.asdict(report)  # type: ignore[call-overload]
+    return {k: v[:20] if isinstance(v, list) else v for k, v in data.items()}
+
+
 async def _sync_stats(conn: psycopg.AsyncConnection) -> dict | None:
     """Sync progress, or None on a database that predates the sync tables."""
     cur = await conn.execute("SELECT to_regclass('sync_state'), to_regclass('sync_failures')")
@@ -128,15 +135,19 @@ async def _sync(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     conn = await connect(settings.vendorkb_dsn)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
-        async with DocExtractor(settings) as docext, Embedder(settings) as embedder:
+        async with (track(settings.vendorkb_dsn, "sync") as run,
+                    DocExtractor(settings) as docext, Embedder(settings) as embedder):
             report = await sync(conn, docext=docext, embedder=embedder,
                                 page_size=settings.sync_page_size, max_tokens=args.max_tokens,
                                 allow_prune=args.allow_prune)
+            # A held lock or a budget stop is a clean exit; a dropped stream or error resumes
+            # next run.
+            code = 0 if report.complete or report.stopped_by_budget or report.locked else 1
+            await run.finish("failed" if code else "succeeded", _details(report))
     finally:
         await conn.close()
     print(json.dumps(dataclasses.asdict(report)))
-    # A held lock or a budget stop is a clean exit; a dropped stream or error resumes next run.
-    return 0 if report.complete or report.stopped_by_budget or report.locked else 1
+    return code
 
 
 async def _reembed(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -223,8 +234,13 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
         await init_schema(conn, embed_dim=settings.embed_dim)
         ids = (_read_ids(args.ids_file, args.limit) if args.ids_file else
                await extract.unextracted_ids(conn, vendor=args.vendor, limit=args.limit))
-        report = await extract.run(conn, ids, client=client, settings=settings, mode=mode,
-                                   retry_truncated=args.retry_errored)
+        async with track(settings.vendorkb_dsn, "extract") as run:
+            report = await extract.run(conn, ids, client=client, settings=settings, mode=mode,
+                                       retry_truncated=args.retry_errored)
+            # Errored chunks are retried by the next run; a budget stop and a held lock are
+            # clean exits.
+            code = 0 if report.locked or report.errored == 0 else 1
+            await run.finish("failed" if code else "succeeded", _details(report))
     finally:
         close = getattr(client, "close", None)
         if close is not None:
@@ -234,9 +250,7 @@ async def _extract(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     if report.locked:
         print("another `vendorkb extract` run holds the extract lock; nothing done",
               file=sys.stderr)
-        return 0
-    # Errored chunks are retried by the next run; a budget stop is a clean exit.
-    return 0 if report.errored == 0 else 1
+    return code
 
 
 async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -289,13 +303,7 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                 await close()
         await conn.close()
     print(json.dumps(dataclasses.asdict(report)))
-    # Errored chunks and failed adjudications are retried by the next due run, but they are
-    # worth a failed Job; nothing to do is a clean exit.
-    support = report.support or {}
-    failed = ((report.extract or {}).get("errored", 0) or (report.map or {}).get("llm_invalid", 0)
-              or support.get("check", {}).get("invalid", 0)
-              or support.get("review", {}).get("invalid", 0) or "error" in support)
-    return 1 if failed else 0
+    return 1 if refresh.failed(report) else 0
 
 
 async def _mcp(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -341,14 +349,18 @@ async def _claims(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 
                 for kind in support.BATCH_KINDS:
                     await llm_batch.reset_failed(conn, kind)
-            checked = await support.run(conn, client=client, settings=settings,
-                                        check_max_usd=args.check_max_usd,
-                                        review_max_usd=args.review_max_usd, limit=args.limit,
-                                        mode=mode, wait=not args.no_wait,
-                                        poll_seconds=args.poll_seconds)
+            async with track(settings.vendorkb_dsn, "support") as run:
+                checked = await support.run(conn, client=client, settings=settings,
+                                            check_max_usd=args.check_max_usd,
+                                            review_max_usd=args.review_max_usd, limit=args.limit,
+                                            mode=mode, wait=not args.no_wait,
+                                            poll_seconds=args.poll_seconds)
+                # failed calls are asked again by the next run, but they are worth a non-zero
+                # exit
+                code = 1 if checked.check.invalid or checked.review.invalid else 0
+                await run.finish("failed" if code else "succeeded", _details(checked))
             print(json.dumps(dataclasses.asdict(checked)))
-            # failed calls are asked again by the next run, but they are worth a non-zero exit
-            return 1 if checked.check.invalid or checked.review.invalid else 0
+            return code
         report = await regate.regate(conn, batch_size=args.batch_size, dry_run=args.dry_run)
     finally:
         close = getattr(client, "close", None)
@@ -398,7 +410,8 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                 for kind in mapper.BATCH_KINDS:
                     await llm_batch.reset_failed(conn, kind)
             try:
-                async with Embedder(settings) as embedder:
+                async with track(settings.vendorkb_dsn, "map") as run, \
+                        Embedder(settings) as embedder:
                     report = await mapper.map_claims(conn, embedder=embedder, client=client,
                                                      settings=settings, max_usd=args.max_usd,
                                                      remap=args.remap, vendor=args.vendor,
@@ -406,16 +419,19 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                                                      reask=frozenset(args.reask), mode=mode,
                                                      wait=not args.no_wait,
                                                      poll_seconds=args.poll_seconds)
+                    # A budget stop is a clean exit; failed calls or unusable replies are not.
+                    code = 0 if report.llm_invalid == 0 else 1
+                    await run.finish("failed" if code else "succeeded", _details(report))
             finally:
                 close = getattr(client, "close", None)
                 if close is not None:
                     await close()
             print(json.dumps(dataclasses.asdict(report)))
-            # A budget stop is a clean exit; failed calls or unusable replies are not.
-            return 0 if report.llm_invalid == 0 else 1
+            return code
         client = _extract_client(settings)
         try:
-            async with Embedder(settings) as embedder:
+            async with track(settings.vendorkb_dsn, "propose") as run, \
+                    Embedder(settings) as embedder:
                 prep = await propose.propose(
                     conn, client=client, embedder=embedder, settings=settings,
                     kind=args.kind, distance_threshold=args.threshold, out_path=args.out,
@@ -423,6 +439,10 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
                     mode=args.mode or ("batch" if settings.extract_backend == "anthropic"
                                        else "sync"),
                     poll_seconds=args.poll_seconds)
+                # A budget stop and a held lock are clean exits (re-run with a higher
+                # --max-usd to continue).
+                code = 0 if prep.locked or prep.invalid == 0 else 1
+                await run.finish("failed" if code else "succeeded", _details(prep))
         finally:
             close = getattr(client, "close", None)
             if close is not None:
@@ -433,9 +453,7 @@ async def _taxonomy(settings: VendorkbSettings, args: argparse.Namespace) -> int
     if prep.locked:
         print("another `vendorkb taxonomy propose` run holds the propose lock; nothing done",
               file=sys.stderr)
-        return 0
-    # A budget stop is a clean exit (re-run with a higher --max-usd to continue).
-    return 0 if prep.invalid == 0 else 1
+    return code
 
 
 async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) -> int:
@@ -445,10 +463,13 @@ async def _capabilities(settings: VendorkbSettings, args: argparse.Namespace) ->
     try:
         if args.capabilities_cmd == "build":
             await init_schema(conn, embed_dim=settings.embed_dim)
-            built = await capabilities.build(conn)
-            print(json.dumps({"rows": built.rows, "retired": built.retired,
-                              "support_excluded": built.support_excluded,
-                              "taxonomy_version": await load.current_version(conn)}))
+            async with track(settings.vendorkb_dsn, "capabilities") as run:
+                built = await capabilities.build(conn)
+                out = {"rows": built.rows, "retired": built.retired,
+                       "support_excluded": built.support_excluded,
+                       "taxonomy_version": await load.current_version(conn)}
+                await run.finish("succeeded", out)
+            print(json.dumps(out))
             return 0
         found = await capabilities.query(conn, capabilities.CapFilter(
             vendor=tuple(args.vendor) if args.vendor else None, offering=args.offering,

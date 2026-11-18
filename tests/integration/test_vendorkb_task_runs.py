@@ -2,6 +2,7 @@
 import pytest
 
 from vendorkb import task_runs
+from vendorkb.claims import refresh as refresh_mod
 from vendorkb.db import connect, init_schema
 from vendorkb.task_runs import HEARTBEAT_S, progress, track
 
@@ -156,3 +157,70 @@ async def _beat_at(dsn):
         return (await cur.fetchone())[0]
     finally:
         await conn.close()
+
+
+async def _refresh_run(dsn, conn, **kwargs):
+    from tests.integration import test_claims_refresh as t
+
+    return await refresh_mod.refresh(
+        conn, settings=t._settings(vendorkb_dsn=dsn), extract_client=t.FakeExtract(),
+        map_client=t.NoCalls(), support_client=t.NoCalls(), embedder=t.NoCalls(),
+        ready=t.Ready(), settle_minutes=60, extract_limit=100, map_max_usd=1.0, now=t.NOW,
+        **kwargs)
+
+
+async def test_refresh_stages_are_children(vkb_dsn):
+    from tests.integration import test_claims_refresh as t
+
+    conn = await connect(vkb_dsn)
+    try:
+        await t._fresh(conn)
+        await conn.execute("DELETE FROM task_runs")
+        await t._chunk(conn)
+        report = await _refresh_run(vkb_dsn, conn)
+        assert report.due
+    finally:
+        await conn.close()
+    rows = await _rows(vkb_dsn)
+    (top,) = [r for r in rows if r[2] == "refresh"]
+    assert top[3] == "succeeded" and top[1] is None
+    stages = {r[2]: r for r in rows if r[2] != "refresh"}
+    assert set(stages) == {"extract", "map", "support", "capabilities"}
+    assert all(r[1] == top[0] and r[3] == "succeeded" for r in stages.values())
+
+
+async def test_refresh_not_due_records_reason(vkb_dsn):
+    from tests.integration import test_claims_refresh as t
+
+    conn = await connect(vkb_dsn)
+    try:
+        await t._fresh(conn)
+        await conn.execute("DELETE FROM task_runs")
+        report = await _refresh_run(vkb_dsn, conn)
+        assert not report.due
+    finally:
+        await conn.close()
+    (row,) = await _rows(vkb_dsn)
+    assert row[2:4] == ("refresh", "succeeded")
+    assert row[8]["reason"] == report.reason == "no new chunks"
+
+
+async def test_cli_exit_code_sets_state(vkb_dsn, monkeypatch):
+    import asyncio
+
+    from vendorkb import cli
+    from vendorkb.claims import extract
+
+    await _reset(vkb_dsn)
+    monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
+
+    async def fake_run(conn, ids, **kwargs):
+        return extract.ExtractReport(chunks=3, errored=2)
+
+    monkeypatch.setattr(extract, "run", fake_run)
+    monkeypatch.setattr(cli, "_extract_client", lambda settings: object())
+    code = await asyncio.to_thread(cli.main, ["extract", "--unextracted"])
+    assert code == 1
+    (row,) = await _rows(vkb_dsn)
+    assert row[2:4] == ("extract", "failed")
+    assert row[8]["errored"] == 2 and row[8]["chunks"] == 3

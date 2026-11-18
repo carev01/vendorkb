@@ -44,6 +44,7 @@ import psycopg
 from vendorkb import llm_batch
 from vendorkb.claims import extract, support
 from vendorkb.config import VendorkbSettings
+from vendorkb.task_runs import track
 from vendorkb.taxonomy import capabilities, mapper
 from vendorkb.taxonomy.load import current_version
 
@@ -96,12 +97,32 @@ async def wait_until_ready(base_url: str, api_key: str, *, timeout_s: float,
             await asyncio.sleep(poll_s)
 
 
+def failed(report: RefreshReport) -> bool:
+    """Errored chunks and failed adjudications are retried by the next due run, but they are
+    worth a failed Job; nothing to do is a clean exit."""
+    support = report.support or {}
+    return bool((report.extract or {}).get("errored", 0) or (report.map or {}).get("llm_invalid", 0)
+                or support.get("check", {}).get("invalid", 0)
+                or support.get("review", {}).get("invalid", 0) or "error" in support)
+
+
 async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
-                  extract_client: Any, map_client: Any, support_client: Any, embedder: Any,
-                  ready: Callable[[], Awaitable[None]], settle_minutes: float,
-                  extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
-                  support_review_max_usd: float = 0.0, batch: bool = False,
-                  extract_new: bool = True, now: datetime | None = None) -> RefreshReport:
+                  **kwargs: Any) -> RefreshReport:
+    """One refresh run, recorded as one ``refresh`` task run whose stages are its children."""
+    async with track(settings.vendorkb_dsn, "refresh") as run:
+        report = await _refresh(conn, settings=settings, **kwargs)
+        details = dataclasses.asdict(report)
+        await run.finish("failed" if failed(report) else "succeeded", details)
+        return report
+
+
+async def _refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
+                   extract_client: Any, map_client: Any, support_client: Any, embedder: Any,
+                   ready: Callable[[], Awaitable[None]], settle_minutes: float,
+                   extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
+                   support_review_max_usd: float = 0.0, batch: bool = False,
+                   extract_new: bool = True, now: datetime | None = None) -> RefreshReport:
+    dsn = settings.vendorkb_dsn
     report = RefreshReport(mode="batch" if batch else "sync")
     count, newest = await new_chunks(conn)
     report.new_chunks = count
@@ -133,16 +154,18 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
     if extract_due:
         await ready()
         ids = await extract.unextracted_ids(conn, limit=extract_limit)
-        ext = await extract.run(conn, ids, client=extract_client, settings=settings,
-                                mode="sync")
+        async with track(dsn, "extract"):
+            ext = await extract.run(conn, ids, client=extract_client, settings=settings,
+                                    mode="sync")
         report.extract = dataclasses.asdict(ext)
         changed = ext.done > 0
     mode: Any = "batch" if batch else "sync"
     version = await current_version(conn)
     if version is not None:
-        mapped = await mapper.map_claims(conn, embedder=embedder, client=map_client,
-                                         settings=settings, max_usd=map_max_usd, mode=mode,
-                                         wait=False)
+        async with track(dsn, "map"):
+            mapped = await mapper.map_claims(conn, embedder=embedder, client=map_client,
+                                             settings=settings, max_usd=map_max_usd, mode=mode,
+                                             wait=False)
         report.map = dataclasses.asdict(mapped)
         report.map["errors"] = report.map["errors"][:20]
         # batch mode: claims read but waiting on a batch are not written yet
@@ -150,10 +173,11 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
             or mapped.batch.collected > 0
         rejected = await support.rejected_count(conn)
         try:
-            checked = await support.run(conn, client=support_client, settings=settings,
-                                        check_max_usd=support_max_usd,
-                                        review_max_usd=support_review_max_usd, mode=mode,
-                                        wait=False)
+            async with track(dsn, "support"):
+                checked = await support.run(conn, client=support_client, settings=settings,
+                                            check_max_usd=support_max_usd,
+                                            review_max_usd=support_review_max_usd, mode=mode,
+                                            wait=False)
         except Exception as e:  # what was extracted, mapped or rejected is still built; the
             log.exception("refresh: the support check failed")  # Job fails
             report.support = {"error": f"{type(e).__name__}: {e}"}
@@ -166,6 +190,7 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
             report.capabilities_deferred, changed = True, False
             log.info("refresh: capabilities wait for the open batches and the support check")
     if changed:
-        report.capabilities_rows = (await capabilities.build(conn)).rows
+        async with track(dsn, "capabilities"):
+            report.capabilities_rows = (await capabilities.build(conn)).rows
     log.info("refresh: %s", report)
     return report
