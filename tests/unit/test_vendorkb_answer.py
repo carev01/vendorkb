@@ -162,6 +162,22 @@ async def test_model_call_passes_effort_and_provider(monkeypatch):
     assert "http" not in "".join(m["content"] for m in kw["messages"])
 
 
+@pytest.mark.asyncio
+async def test_model_call_on_azure_openai(monkeypatch):
+    _patch_search(monkeypatch, [SearchResult([_hit(1)], True)])
+    monkeypatch.setenv("JUDGE_PROVIDER", "azure")
+    monkeypatch.setenv("JUDGE_MODEL", "gpt-6.2-sol")
+    client = FakeClient(["ok [1]"])
+    r = await _run(client)  # _settings() reads the environment
+    kw = client.calls[0]
+    # Azure's reasoning models: the effort and the cap by their own names, no temperature, and
+    # none of OpenRouter's options (Azure rejects unknown parameters)
+    assert kw["model"] == "gpt-6.2-sol"
+    assert kw["reasoning_effort"] == "low" and kw["max_completion_tokens"] == 4000
+    assert not {"temperature", "max_tokens", "extra_body"} & set(kw)
+    assert r["answer"] is not None
+
+
 def test_prompt_contains_no_urls():
     p = build_prompt("What is X?", [_hit(1), _hit(2)])
     assert "http" not in p and "[1]" in p and "[2]" in p and "Title 2" in p

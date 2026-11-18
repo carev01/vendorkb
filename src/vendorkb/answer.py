@@ -381,6 +381,25 @@ def _is_refusal(text: str) -> bool:
     return text.strip().startswith(REFUSAL)
 
 
+def _model_request(settings, user: str, system: str, max_tokens: int) -> dict:
+    """The chat-completions arguments of one answer-model call, for the provider in
+    ``settings.judge_provider``."""
+    request: dict = {"model": settings.judge_model,
+                     "messages": [{"role": "system", "content": system},
+                                  {"role": "user", "content": user}]}
+    if settings.judge_provider == "azure":
+        # Azure OpenAI's reasoning models: no temperature (only the default), the effort as
+        # reasoning_effort, the cap as max_completion_tokens (reasoning tokens count in it)
+        request.update(reasoning_effort=settings.answer_reasoning_effort,
+                       max_completion_tokens=max_tokens)
+    else:
+        request.update(temperature=0, max_tokens=max_tokens, extra_body={
+            "reasoning": {"effort": settings.answer_reasoning_effort},
+            "provider": {"sort": "throughput", "allow_fallbacks": True},
+            "usage": {"include": True}})
+    return request
+
+
 async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SYSTEM_RULES,
                       max_tokens: int = 4000
                       ) -> tuple[str | None, dict, str | None, str | None]:
@@ -388,18 +407,10 @@ async def _call_model(client: AsyncOpenAI, settings, user: str, system: str = SY
     finish_reason)."""
     totals: dict = {"prompt_tokens": 0, "completion_tokens": 0, "cost": None}
     error: str | None = None
+    request = _model_request(settings, user, system, max_tokens)
     for attempt in (1, 2):
         try:
-            resp = await client.chat.completions.create(
-                model=settings.judge_model,
-                messages=[{"role": "system", "content": system},
-                          {"role": "user", "content": user}],
-                temperature=0,
-                max_tokens=max_tokens,
-                extra_body={"reasoning": {"effort": settings.answer_reasoning_effort},
-                            "provider": {"sort": "throughput", "allow_fallbacks": True},
-                            "usage": {"include": True}},
-            )
+            resp = await client.chat.completions.create(**request)
         except Exception as e:  # noqa: BLE001 - recorded, retried once, then reported
             error = f"{type(e).__name__}: {e}"
             log.warning("vendorkb answer model call failed (attempt %d): %s", attempt, error)
