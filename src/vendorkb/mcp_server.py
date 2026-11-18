@@ -385,16 +385,23 @@ def _stems(text: str) -> set[str]:
 
 def _excerpt(text: str, question: str) -> str:
     """The passage's sentence that shares the most meaningful words with the question (the
-    first such sentence on a tie), cut at INDEX_EXCERPT characters; the passage's start when
+    asking sentence's words count three times; the longer sentence on a tie), cut at INDEX_EXCERPT characters; the passage's start when
     no sentence shares any. A passage's first words are often its heading, and the index
     excerpt cut there stopped before the sentence that answered (2026-11-17, cv-04)."""
     flat = " ".join(text.split())
-    asked = _stems(question)
+    # the sentence that asks counts three times: "Our WAN link is too slow. Which products let
+    # us ship it on a physical device?" asks for the device, not for the slow link
+    clauses = [c for c in _SENTENCE.split(question) if c.strip()]
+    asks = [c for c in clauses if c.strip().endswith("?")] or clauses[-1:]
+    weight = {s: 1 for s in _stems(question)}
+    for c in asks:
+        weight.update({s: 3 for s in _stems(c)})
     best, score = "", 0
     for sentence in _SENTENCE.split(text):
         s = " ".join(sentence.split())
-        n = len(_stems(s) & asked)
-        if n > score:
+        n = sum(weight.get(stem, 0) for stem in _stems(s))
+        # on a tie the longer sentence: a heading repeats the question's words and says less
+        if n > score or (n == score and n and len(s) > len(best)):
             best, score = s, n
     if not best:
         best = flat
