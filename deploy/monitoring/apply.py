@@ -5,11 +5,13 @@
 
 The steps (README.md says what each one changes):
   1. apply kube-state-metrics.yaml and prometheus-rbac.yaml;
-  2. point the Prometheus Deployment at the service account ``prometheus``;
+  2. switch the Prometheus Deployment to strategy Recreate and the service account
+     ``prometheus``;
   3. merge scrape-vendorkb.yaml into the config map ``prometheus-config`` and reload Prometheus;
   4. create or replace the config map ``grafana-dashboards-vendorkb`` from vendorkb-dashboard.json;
   5. add the ``vendorkb`` provider to the config map ``grafana-dashboard-provider``;
-  6. mount ``grafana-dashboards-vendorkb`` in Grafana at /var/lib/grafana/dashboards-vendorkb.
+  6. switch Grafana to strategy Recreate and mount ``grafana-dashboards-vendorkb`` at
+     /var/lib/grafana/dashboards-vendorkb.
 
 The config map ``grafana-dashboards`` (the other dashboards) is never touched.
 """
@@ -143,17 +145,59 @@ def step_manifests(dry: bool) -> None:
             print(kubectl("apply", "-f", "-", stdin=text), end="")
 
 
-def step_prometheus_sa(dry: bool) -> bool:
-    print("== 2. Prometheus service account")
-    dep = get_json("deployment", "prometheus")
-    if dep["spec"]["template"]["spec"].get("serviceAccountName") == "prometheus":
-        print("  already prometheus")
-        return False
-    patch = {"spec": {"template": {"spec": {"serviceAccountName": "prometheus"}}}}
-    print(f"  patch deployment/prometheus: {json.dumps(patch)}")
+def recreate_ops(deploy: dict) -> list[dict[str, Any]]:
+    """Switch a Deployment to ``strategy: Recreate`` (dropping ``rollingUpdate``) unless it is
+    already. One replica on a ReadWriteOnce volume: a rolling update would start the new pod
+    while the old one still holds the data directory (the TSDB lock, Grafana's sqlite)."""
+    if (deploy["spec"].get("strategy") or {}).get("type") == "Recreate":
+        return []
+    return [{"op": "add", "path": "/spec/strategy", "value": {"type": "Recreate"}}]
+
+
+def prometheus_patch(deploy: dict) -> list[dict[str, Any]]:
+    """The JSON patch for Deployment ``prometheus``: Recreate, then the service account."""
+    ops = recreate_ops(deploy)
+    if deploy["spec"]["template"]["spec"].get("serviceAccountName") != "prometheus":
+        ops.append({"op": "add", "path": "/spec/template/spec/serviceAccountName",
+                    "value": "prometheus"})
+    return ops
+
+
+def grafana_patch(deploy: dict) -> list[dict[str, Any]]:
+    """The JSON patch for Deployment ``grafana``: Recreate, then the dashboards volume and its
+    mount, each only when missing."""
+    ops = recreate_ops(deploy)
+    i = container_index(deploy, "grafana")
+    spec = deploy["spec"]["template"]["spec"]
+    volumes = spec.get("volumes") or []
+    if not any(v.get("name") == VOLUME for v in volumes):
+        volume = {"name": VOLUME, "configMap": {"name": DASHBOARD_CM}}
+        ops.append({"op": "add", "path": "/spec/template/spec/volumes/-", "value": volume}
+                   if volumes else
+                   {"op": "add", "path": "/spec/template/spec/volumes", "value": [volume]})
+    mounts = spec["containers"][i].get("volumeMounts") or []
+    if not any(m.get("mountPath") == DASHBOARD_DIR for m in mounts):
+        mount: dict[str, Any] = {"name": VOLUME, "mountPath": DASHBOARD_DIR, "readOnly": True}
+        base = f"/spec/template/spec/containers/{i}/volumeMounts"
+        ops.append({"op": "add", "path": base + "/-", "value": mount} if mounts
+                   else {"op": "add", "path": base, "value": [mount]})
+    return ops
+
+
+def patch_deployment(name: str, ops: list[dict[str, Any]], dry: bool) -> None:
+    print(f"  patch deployment/{name}: {json.dumps(ops)}")
     if not dry:
-        print(kubectl("patch", "deployment", "prometheus", "--type", "merge", "-p",
-                      json.dumps(patch)), end="")
+        print(kubectl("patch", "deployment", name, "--type", "json", "-p", json.dumps(ops)),
+              end="")
+
+
+def step_prometheus_sa(dry: bool) -> bool:
+    print("== 2. Prometheus: strategy Recreate, service account prometheus")
+    ops = prometheus_patch(get_json("deployment", "prometheus"))
+    if not ops:
+        print("  already Recreate with service account prometheus")
+        return False
+    patch_deployment("prometheus", ops, dry)
     return True
 
 
@@ -216,34 +260,18 @@ def step_provider(dry: bool) -> bool:
 
 
 def step_grafana_mount(dry: bool, provider_changed: bool) -> None:
-    print(f"== 6. Grafana mount {DASHBOARD_DIR}")
-    dep = get_json("deployment", "grafana")
-    i = container_index(dep, "grafana")
-    spec = dep["spec"]["template"]["spec"]
-    mounts = spec["containers"][i].get("volumeMounts") or []
-    if any(m.get("mountPath") == DASHBOARD_DIR for m in mounts):
-        print("  mount exists")
-        if provider_changed:
-            # Grafana reads the provider file at start only
-            print("  provider changed: rollout restart deployment/grafana")
-            if not dry:
-                kubectl("rollout", "restart", "deployment/grafana")
-        return
-    patch: list[dict[str, Any]] = []
-    volumes = spec.get("volumes") or []
-    if not any(v.get("name") == VOLUME for v in volumes):
-        volume = {"name": VOLUME, "configMap": {"name": DASHBOARD_CM}}
-        patch.append({"op": "add", "path": "/spec/template/spec/volumes/-", "value": volume}
-                     if volumes else
-                     {"op": "add", "path": "/spec/template/spec/volumes", "value": [volume]})
-    mount: dict[str, Any] = {"name": VOLUME, "mountPath": DASHBOARD_DIR, "readOnly": True}
-    base = f"/spec/template/spec/containers/{i}/volumeMounts"
-    patch.append({"op": "add", "path": base + "/-", "value": mount} if mounts
-                 else {"op": "add", "path": base, "value": [mount]})
-    print(f"  patch deployment/grafana: {json.dumps(patch)}")
-    if not dry:
-        print(kubectl("patch", "deployment", "grafana", "--type", "json", "-p",
-                      json.dumps(patch)), end="")
+    print(f"== 6. Grafana: strategy Recreate, mount {DASHBOARD_DIR}")
+    ops = grafana_patch(get_json("deployment", "grafana"))
+    restarts = any(o["path"].startswith("/spec/template/") for o in ops)
+    if ops:
+        patch_deployment("grafana", ops, dry)
+    else:
+        print("  already Recreate with the mount")
+    if provider_changed and not restarts:
+        # Grafana reads the provider file at start only
+        print("  provider changed: rollout restart deployment/grafana")
+        if not dry:
+            kubectl("rollout", "restart", "deployment/grafana")
 
 
 def main(argv: list[str] | None = None) -> None:

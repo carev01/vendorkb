@@ -7,7 +7,7 @@ other dashboard provider and the config map `grafana-dashboards` are left as the
 | File | What |
 |---|---|
 | `kube-state-metrics.yaml` | kube-state-metrics v2.15.0 for namespace `vendorkb` only (CronJobs, Jobs, Pods, Deployments, StatefulSets, PVCs), Service `kube-state-metrics.monitoring.svc:8080` |
-| `prometheus-rbac.yaml` | ServiceAccount `prometheus` with get/list/watch on nodes, `nodes/metrics`, `nodes/proxy` (kubelet metrics through the API server) |
+| `prometheus-rbac.yaml` | ServiceAccount `prometheus` with get/list/watch on nodes (discovery) and get on `nodes/proxy` (kubelet metrics through the API server) |
 | `scrape-vendorkb.yaml` | the `vendorkb-*` scrape jobs (60 s): app metrics, postgres_exporter, kube-state-metrics, kubelet volume stats of namespace `vendorkb` |
 | `vendorkb-dashboard.json` | the Grafana dashboard (uid `vendorkb`): Right now, Pipeline, Usage, Database |
 | `apply.py` | applies all of it |
@@ -32,8 +32,11 @@ What each step changes:
 1. **Manifests:** `kubectl apply` of `kube-state-metrics.yaml` and `prometheus-rbac.yaml`
    (ServiceAccounts, ClusterRoles and bindings `kube-state-metrics` and `prometheus`, the
    kube-state-metrics Deployment and Service).
-2. **Prometheus service account:** patches Deployment `prometheus` to
-   `serviceAccountName: prometheus`, which restarts its pod (skipped when already set).
+2. **Prometheus strategy and service account:** patches Deployment `prometheus` to
+   `strategy: Recreate` (one replica on a ReadWriteOnce volume: a rolling update would start
+   the new pod while the old one holds the TSDB lock, and it would crash-loop) and
+   `serviceAccountName: prometheus`, which restarts its pod. Each part is skipped when already
+   set.
 3. **Scrape jobs:** reads config map `prometheus-config`, replaces every job named `vendorkb-*`
    with the ones in `scrape-vendorkb.yaml` (added at the end), keeps every other job, `global:`
    and the comments, and applies it. Then it waits for the rollout and for the pod to see the
@@ -45,13 +48,18 @@ What each step changes:
 5. **Provider:** adds (or replaces) the provider `vendorkb` (folder `vendorkb`, path
    `/var/lib/grafana/dashboards-vendorkb`) in config map `grafana-dashboard-provider`, keeping
    "LLM Dashboards".
-6. **Grafana mount:** patches Deployment `grafana` with volume `dashboards-vendorkb` (from that
-   config map) mounted read-only at `/var/lib/grafana/dashboards-vendorkb`, which restarts the
-   pod. Skipped when the mount exists; then, if step 5 changed the provider, Grafana is
-   restarted instead, as it reads providers at start only.
+6. **Grafana strategy and mount:** patches Deployment `grafana` to `strategy: Recreate` (same
+   reason: its sqlite database is on a ReadWriteOnce volume) and adds volume
+   `dashboards-vendorkb` (from that config map) mounted read-only at
+   `/var/lib/grafana/dashboards-vendorkb`, which restarts the pod. Each part is skipped when
+   already there; if no pod restart was patched and step 5 changed the provider, Grafana is
+   restarted, as it reads providers at start only.
 
 Re-running is safe: every step is idempotent. A dashboard edit needs step 4 only (Grafana
 re-reads the file within 30 s); a scrape job edit needs step 3.
+
+Re-applying the original hand-written Prometheus or Grafana manifests drops the vendorkb
+volume, service account and Recreate strategy: run `apply.py` again afterwards.
 
 Comments in `scrape-vendorkb.yaml` belong inside a job: a comment between two jobs is merged
 as part of the job above it.

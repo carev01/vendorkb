@@ -14,9 +14,14 @@ metadata:
   name: prometheus
   labels: {app.kubernetes.io/name: prometheus, app.kubernetes.io/part-of: llm-monitoring}
 rules:
+  # node discovery (kubernetes_sd_configs role: node)
   - apiGroups: [""]
-    resources: [nodes, nodes/metrics, nodes/proxy]
+    resources: [nodes]
     verbs: [get, list, watch]
+  # GET /api/v1/nodes/<node>/proxy/metrics
+  - apiGroups: [""]
+    resources: [nodes/proxy]
+    verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

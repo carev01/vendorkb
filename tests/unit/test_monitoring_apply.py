@@ -183,3 +183,46 @@ def test_dashboard_usage_is_user_only():
         for name in ("vendorkb_mcp_request", "vendorkb_answer_", "vendorkb_questions_by_vendor"):
             if name in expr:
                 assert 'client="user"' in expr, expr
+
+
+def _deploy(strategy, sa=None, mounts=None, volumes=None):
+    spec = {"containers": [{"name": "grafana", "volumeMounts": mounts or []}],
+            "volumes": volumes or []}
+    if sa:
+        spec["serviceAccountName"] = sa
+    return {"metadata": {"name": "x"},
+            "spec": {"strategy": strategy, "template": {"spec": spec}}}
+
+
+ROLLING = {"type": "RollingUpdate", "rollingUpdate": {"maxSurge": "25%", "maxUnavailable": "25%"}}
+RECREATE_OP = {"op": "add", "path": "/spec/strategy", "value": {"type": "Recreate"}}
+
+
+def test_prometheus_patch_recreates_and_sets_sa():
+    ops = apply.prometheus_patch(_deploy(ROLLING))
+    assert RECREATE_OP in ops  # replaces the whole strategy: rollingUpdate goes
+    assert {"op": "add", "path": "/spec/template/spec/serviceAccountName",
+            "value": "prometheus"} in ops
+    assert apply.prometheus_patch(_deploy({"type": "Recreate"}, sa="prometheus")) == []
+    assert apply.prometheus_patch(_deploy(ROLLING, sa="prometheus")) == [RECREATE_OP]
+
+
+def test_grafana_patch_recreates_and_mounts_once():
+    ops = apply.grafana_patch(_deploy(ROLLING, mounts=[{"name": "d", "mountPath": "/x"}],
+                                      volumes=[{"name": "d"}]))
+    assert ops[0] == RECREATE_OP
+    paths = [o["path"] for o in ops]
+    assert "/spec/template/spec/volumes/-" in paths
+    assert "/spec/template/spec/containers/0/volumeMounts/-" in paths
+    done = _deploy({"type": "Recreate"},
+                   mounts=[{"name": "dashboards-vendorkb",
+                            "mountPath": "/var/lib/grafana/dashboards-vendorkb"}],
+                   volumes=[{"name": "dashboards-vendorkb"}])
+    assert apply.grafana_patch(done) == []
+
+
+def test_prometheus_rbac_is_minimal():
+    docs = list(yaml.safe_load_all((MON / "prometheus-rbac.yaml").read_text()))
+    role = next(d for d in docs if d["kind"] == "ClusterRole")
+    rules = sorted((tuple(r["resources"]), tuple(sorted(r["verbs"]))) for r in role["rules"])
+    assert rules == [(("nodes",), ("get", "list", "watch")), (("nodes/proxy",), ("get",))]
