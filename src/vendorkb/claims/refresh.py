@@ -107,12 +107,21 @@ def failed(report: RefreshReport) -> bool:
 
 
 async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
-                  **kwargs: Any) -> RefreshReport:
+                  extract_client: Any, map_client: Any, support_client: Any, embedder: Any,
+                  ready: Callable[[], Awaitable[None]], settle_minutes: float,
+                  extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
+                  support_review_max_usd: float = 0.0, batch: bool = False,
+                  extract_new: bool = True, now: datetime | None = None) -> RefreshReport:
     """One refresh run, recorded as one ``refresh`` task run whose stages are its children."""
     async with track(settings.vendorkb_dsn, "refresh") as run:
-        report = await _refresh(conn, settings=settings, **kwargs)
-        details = dataclasses.asdict(report)
-        await run.finish("failed" if failed(report) else "succeeded", details)
+        report = await _refresh(
+            conn, settings=settings, extract_client=extract_client, map_client=map_client,
+            support_client=support_client, embedder=embedder, ready=ready,
+            settle_minutes=settle_minutes, extract_limit=extract_limit,
+            map_max_usd=map_max_usd, support_max_usd=support_max_usd,
+            support_review_max_usd=support_review_max_usd, batch=batch,
+            extract_new=extract_new, now=now)
+        await run.finish("failed" if failed(report) else "succeeded", dataclasses.asdict(report))
         return report
 
 
