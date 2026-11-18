@@ -7,6 +7,17 @@ spec:
   clusterIP: None
   selector: {app: vendorkb-postgres}
   ports: [{name: postgres, port: 5432, targetPort: 5432}]
+{{- if .Values.metrics.postgresExporter.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vendorkb-postgres-metrics
+  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+spec:
+  selector: {app: vendorkb-postgres}
+  ports: [{name: metrics, port: 9187, targetPort: metrics}]
+{{- end }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -65,9 +76,33 @@ spec:
             - {name: data, mountPath: /var/lib/postgresql/data}
             - {name: dshm, mountPath: /dev/shm}
             - {name: hba, mountPath: /etc/vendorkb-pg, readOnly: true}
+            - {name: pg-socket, mountPath: /var/run/postgresql}
+        {{- if .Values.metrics.postgresExporter.enabled }}
+        # postgres_exporter over the unix socket (`local all all trust`, so no password) as the
+        # pg_monitor role vendorkb_monitor that schema.sql creates.
+        - name: postgres-exporter
+          image: {{ .Values.metrics.postgresExporter.image }}
+          args: ["--collector.stat_statements"]
+          ports: [{containerPort: 9187, name: metrics}]
+          env:
+            - name: DATA_SOURCE_NAME
+              value: {{ printf "host=/var/run/postgresql user=vendorkb_monitor dbname=%s sslmode=disable" .Values.postgres.database | quote }}
+          securityContext:
+            runAsUser: {{ .Values.postgres.fsGroup }}
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: pg-socket, mountPath: /var/run/postgresql}
+        {{- end }}
       volumes:
         - name: hba
           configMap: {name: vendorkb-postgres-hba}
+        - name: pg-socket
+          emptyDir: {}
         - name: dshm
           emptyDir: {medium: Memory, sizeLimit: {{ .Values.postgres.shmSize }}}
   volumeClaimTemplates:

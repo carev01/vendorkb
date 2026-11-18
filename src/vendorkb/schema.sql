@@ -1,4 +1,15 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- the metrics exporter's role (deploy/helm: postgres-exporter sidecar, over the trusted socket)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'vendorkb_monitor') THEN
+        CREATE ROLE vendorkb_monitor LOGIN;
+    END IF;
+END
+$$;
+GRANT pg_monitor TO vendorkb_monitor;
 
 CREATE TABLE IF NOT EXISTS documents (
     doc_id uuid PRIMARY KEY,
