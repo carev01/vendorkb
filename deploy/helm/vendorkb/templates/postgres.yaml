@@ -21,7 +21,10 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: vendorkb-postgres
-  labels: {{- include "vendorkb.labels" . | nindent 4 }}
+  labels:
+    {{- include "vendorkb.labels" . | nindent 4 }}
+    # the shared Kasten logical-dump blueprint (deploy/kasten/postgres-dump.yaml) binds by this
+    kasten-blueprint: postgres-dump
 spec:
   serviceName: vendorkb-postgres
   replicas: 1
