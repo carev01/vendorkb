@@ -128,3 +128,31 @@ async def test_recording_needs_no_database():
     with task_runs.recording() as rec:
         await progress(1, 2, 0.5)
     assert rec.calls == [(1, 2, 0.5)]
+
+
+async def test_connection_drop_mid_run_recovers(vkb_dsn):
+    await _reset(vkb_dsn)
+    async with track(vkb_dsn, "map") as run:
+        await run.conn.close()
+        await progress(7, 9, force=True)
+    (row,) = await _rows(vkb_dsn)
+    assert (row[3], row[5]) == ("succeeded", 7)
+
+
+async def test_heartbeat_updates_heartbeat_at(vkb_dsn, monkeypatch):
+    import asyncio
+    await _reset(vkb_dsn)
+    monkeypatch.setattr(task_runs, "HEARTBEAT_S", 0.2)
+    async with track(vkb_dsn, "map"):
+        first = (await _beat_at(vkb_dsn))
+        await asyncio.sleep(0.7)
+        assert (await _beat_at(vkb_dsn)) > first
+
+
+async def _beat_at(dsn):
+    conn = await connect(dsn)
+    try:
+        cur = await conn.execute("SELECT heartbeat_at FROM task_runs")
+        return (await cur.fetchone())[0]
+    finally:
+        await conn.close()
