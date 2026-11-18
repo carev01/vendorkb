@@ -363,6 +363,24 @@ uv run vendorkb stats
 uv run python eval/retrieval_compare.py   # see eval/README.md for arguments
 ```
 
+## Backups (Kasten)
+
+The production Kasten policy (`production-apps-backup`, namespaces labelled `stack.stage=production`)
+backs up the namespace daily. The database gets a logical dump rather than a volume snapshot of a
+running server: the shared blueprint `deploy/kasten/postgres-dump.yaml` (Blueprint and BlueprintBinding
+in `kasten-io`) binds to every StatefulSet or Deployment labelled `kasten-blueprint=postgres-dump`,
+which the chart sets on `vendorkb-postgres`. Every Postgres in the cluster uses it, so a change there
+reaches them all: apply with `kubectl apply -f deploy/kasten/postgres-dump.yaml`.
+
+- **What the blueprint reads from the workload:** host, image, user, database and password. A new
+  database needs only the label.
+- **Backup:** `pg_dumpall --clean --if-exists`, gzipped and pushed to the location profile. The
+  artifact records the pushed path (`keyValue.path`). Restore and delete need that path: restore
+  points from before 2026-11-18 14:41 UTC lack it and cannot be restored by the blueprint.
+- **Restore:** waits for the server, then replays the dump through `psql` connected to `postgres`.
+- **Tested 2026-11-18:** release-watch restored into a scratch namespace with a fresh volume, and
+  row counts matched on all 12 tables.
+
 ## Upgrading to taxonomy v2 (one-way)
 
 The first `init_schema` after deploying the taxonomy v2 image drops the v1 taxonomy tables

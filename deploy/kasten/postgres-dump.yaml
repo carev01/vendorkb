@@ -1,0 +1,151 @@
+# One logical-dump blueprint for every Postgres workload (StatefulSet or Deployment) labelled
+#   kasten-blueprint=postgres-dump
+# Nothing per app lives here. Everything comes from the workload itself (.Object):
+#   - host:     <workload name>.<namespace>.svc.cluster.local (the Service shares the workload's name)
+#   - image:    the workload's first container image, so pg_dumpall/psql match the server version
+#   - user, db: the container's POSTGRES_USER / POSTGRES_DB env (defaults: postgres / postgres)
+#   - password: POSTGRES_PASSWORD's secretKeyRef, mounted into the dump pod, or else its literal value
+# The dump streams through a memory FIFO to the Kasten location profile (kopia). Nothing touches the
+# database's own volume.
+apiVersion: cr.kanister.io/v1alpha1
+kind: Blueprint
+metadata:
+  name: postgres-dump
+  namespace: kasten-io
+actions:
+  backup:
+    outputArtifacts:
+      pgBackup:
+        kopiaSnapshot: '{{ .Phases.pgDump.Output.kopiaOutput }}'
+        # the path the dump was pushed under: restore and delete must name the same one
+        keyValue:
+          path: '{{ .Phases.pgDump.Output.backupPath }}'
+    phases:
+    - func: MultiContainerRun
+      name: pgDump
+      args:
+        namespace: '{{ .Object.metadata.namespace }}'
+        sharedVolumeMedium: Memory
+        podOverride:
+          containers:
+          - name: background
+            env: &pgenv
+            - name: PGHOST
+              value: '{{ .Object.metadata.name }}.{{ .Object.metadata.namespace }}.svc.cluster.local'
+            - name: PGUSER
+              value: '{{ $v := "" }}{{ range index (index .Object.spec.template.spec.containers 0) "env" }}{{ if eq .name "POSTGRES_USER" }}{{ $v = index . "value" }}{{ end }}{{ end }}{{ default "postgres" $v }}'
+            - name: PGDATABASE
+              value: '{{ $v := "" }}{{ range index (index .Object.spec.template.spec.containers 0) "env" }}{{ if eq .name "POSTGRES_DB" }}{{ $v = index . "value" }}{{ end }}{{ end }}{{ default "postgres" $v }}'
+            - name: PG_LITERAL_PASSWORD
+              value: '{{ range index (index .Object.spec.template.spec.containers 0) "env" }}{{ if eq .name "POSTGRES_PASSWORD" }}{{ with index . "value" }}{{ . }}{{ end }}{{ end }}{{ end }}'
+            - name: PG_SECRET_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  optional: true
+                  name: '{{ $v := "" }}{{ range index (index .Object.spec.template.spec.containers 0) "env" }}{{ if eq .name "POSTGRES_PASSWORD" }}{{ with index . "valueFrom" }}{{ with index . "secretKeyRef" }}{{ $v = index . "name" }}{{ end }}{{ end }}{{ end }}{{ end }}{{ default "kasten-pg-no-secret" $v }}'
+                  key: '{{ $v := "" }}{{ range index (index .Object.spec.template.spec.containers 0) "env" }}{{ if eq .name "POSTGRES_PASSWORD" }}{{ with index . "valueFrom" }}{{ with index . "secretKeyRef" }}{{ $v = index . "key" }}{{ end }}{{ end }}{{ end }}{{ end }}{{ default "POSTGRES_PASSWORD" $v }}'
+        initImage: ghcr.io/kanisterio/kanister-tools:0.119.0
+        initCommand: [bash, -o, errexit, -o, pipefail, -c, 'mkfifo /tmp/data; chmod 666 /tmp/data']
+        backgroundImage: '{{ (index .Object.spec.template.spec.containers 0).image }}'
+        backgroundCommand:
+        - bash
+        - -o
+        - errexit
+        - -o
+        - pipefail
+        - -c
+        - |
+          export PGPASSWORD="${PG_SECRET_PASSWORD:-${PG_LITERAL_PASSWORD}}"
+          pg_dumpall --clean --if-exists -l "${PGDATABASE}" > /tmp/data
+        outputImage: ghcr.io/kanisterio/kanister-tools:0.119.0
+        outputCommand:
+        - bash
+        - -o
+        - errexit
+        - -o
+        - pipefail
+        - -c
+        - |
+          BACKUP_LOCATION="pg_backups/{{ .Object.metadata.namespace }}/{{ .Object.metadata.name }}/{{ toDate "2006-01-02T15:04:05.999999999Z07:00" .Time | date "2006-01-02T15-04-05Z07:00" }}/backup.sql.gz"
+          kando output backupPath "${BACKUP_LOCATION}"
+          cat /tmp/data | gzip -c | kando location push --profile '{{ toJson .Profile }}' --path "${BACKUP_LOCATION}" --output-name "kopiaOutput" -
+  restore:
+    inputArtifactNames:
+    - pgBackup
+    phases:
+    - func: MultiContainerRun
+      name: pgRestore
+      args:
+        namespace: '{{ .Object.metadata.namespace }}'
+        sharedVolumeMedium: Memory
+        podOverride:
+          containers:
+          - name: output
+            env: *pgenv
+        initImage: ghcr.io/kanisterio/kanister-tools:0.119.0
+        initCommand: [bash, -o, errexit, -o, pipefail, -c, 'mkfifo /tmp/data; chmod 666 /tmp/data']
+        backgroundImage: ghcr.io/kanisterio/kanister-tools:0.119.0
+        backgroundCommand:
+        - bash
+        - -o
+        - errexit
+        - -o
+        - pipefail
+        - -c
+        - |
+          kopia_snap='{{ .ArtifactsIn.pgBackup.KopiaSnapshot }}'
+          kando location pull --profile '{{ toJson .Profile }}' --path '{{ index .ArtifactsIn.pgBackup.KeyValue "path" }}' --kopia-snapshot "${kopia_snap}" - | gunzip -c -f > /tmp/data
+        outputImage: '{{ (index .Object.spec.template.spec.containers 0).image }}'
+        outputCommand:
+        - bash
+        - -o
+        - errexit
+        - -o
+        - pipefail
+        - -c
+        - |
+          export PGPASSWORD="${PG_SECRET_PASSWORD:-${PG_LITERAL_PASSWORD}}"
+          # a freshly restored server may still be starting: wait up to 5 minutes
+          for i in $(seq 1 150); do pg_isready -q -d postgres && break; sleep 2; done
+          # connect to the maintenance db so the dump's DROP/CREATE DATABASE of the app db can run
+          cat /tmp/data | psql -q -d postgres
+  delete:
+    inputArtifactNames:
+    - pgBackup
+    phases:
+    - func: KubeTask
+      name: deleteDump
+      args:
+        namespace: '{{ .Namespace.Name }}'
+        image: ghcr.io/kanisterio/kanister-tools:0.119.0
+        command:
+        - bash
+        - -o
+        - errexit
+        - -o
+        - pipefail
+        - -c
+        - |
+          kopia_snap='{{ .ArtifactsIn.pgBackup.KopiaSnapshot }}'
+          kando location delete --profile '{{ toJson .Profile }}' --path '{{ index .ArtifactsIn.pgBackup.KeyValue "path" }}' --kopia-snapshot "${kopia_snap}"
+---
+apiVersion: config.kio.kasten.io/v1alpha1
+kind: BlueprintBinding
+metadata:
+  name: postgres-dump
+  namespace: kasten-io
+spec:
+  blueprintRef:
+    name: postgres-dump
+    namespace: kasten-io
+  resources:
+    matchAll:
+    - type:
+        operator: In
+        values:
+        - {group: apps, version: v1, resource: statefulsets}
+        - {group: apps, version: v1, resource: deployments}
+    - labels:
+        key: kasten-blueprint
+        operator: In
+        values: [postgres-dump]
