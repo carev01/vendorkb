@@ -48,6 +48,10 @@ SYSTEM_RULES = (
     "- Cite with [n] markers after each claim, where n is the source number. "
     "Several sources may be cited as [1][2].\n"
     "- Never write URLs or links; only [n] markers identify sources.\n"
+    "- Keep the conditions, limits and defaults the sources give for what you report: what "
+    "must be set up or licensed first, what cannot be changed later, default settings, time, "
+    "size or count limits, costs and free periods. They are part of the answer, not detail "
+    "to drop.\n"
     "- If the sources do not answer the question, reply with exactly this sentence and "
     f"nothing else: {REFUSAL}"
 )
