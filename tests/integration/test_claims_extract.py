@@ -8,6 +8,7 @@ import psycopg
 import pytest
 from pgvector import Vector
 
+from vendorkb import task_runs
 from vendorkb.claims import extract
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
@@ -405,6 +406,23 @@ async def test_sync_writes_accepted_and_rejected_with_document_metadata(vkb_dsn)
     finally:
         await conn.close()
 
+
+async def test_extract_reports_progress(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        client = FakeClient(replies={"Amazon RDS": _message({"claims": [GOOD]})})
+        with task_runs.recording() as rec:
+            report = await extract.run(conn, [cid], client=client, settings=_settings(),
+                                       mode="sync")
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert done == report.done + report.errored == 1
+        assert total == report.chunks == 1
+        assert spent == pytest.approx(report.est_cost_usd) and spent > 0
+    finally:
+        await conn.close()
 
 async def test_claims_are_gated_against_the_text_the_chunk_holds_when_recorded(vkb_dsn):
     """A re-sync can reuse a chunk with new text while the model call is in flight: a quote

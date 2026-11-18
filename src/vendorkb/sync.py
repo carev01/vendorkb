@@ -34,6 +34,7 @@ from typing import cast
 import httpx
 import psycopg
 
+from vendorkb import task_runs
 from vendorkb.chunker import Chunk, chunk_markdown
 from vendorkb.clients import DocExtractor, Embedder
 from vendorkb.feed import BootstrapStart, Content, CursorLine, MalformedRecord, Tombstone
@@ -181,6 +182,7 @@ class _Run:
         self.state = state
         self.names: dict[str, str] = {}
         self.refreshed = False
+        self.flushed = 0  # records of the pages committed so far
         self.tokens0 = embedder.tokens_used
         # Bootstrap tokens committed by earlier attempts (the cap is cumulative there).
         self.base_tokens = int(state.get("bootstrap_tokens", 0))
@@ -358,6 +360,8 @@ class _Run:
                     r.mode, page[0].doc_id, page[-1].doc_id, counts["written"],
                     counts["chunks_reused"], counts["chunks_superseded"], counts["unchanged"],
                     counts["removed"], counts["failed"], self.budget_tokens())
+        self.flushed += len(page)
+        await task_runs.progress(self.flushed)
 
     async def _apply_page(self, page: list[Item], deletes: list[uuid.UUID],
                           unchanged: list[DocMeta], writes: list[_Write],

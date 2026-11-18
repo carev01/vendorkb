@@ -15,6 +15,7 @@ import pytest
 import yaml
 from pgvector import Vector
 
+from vendorkb import task_runs
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
 from vendorkb.taxonomy import llm, load, mapper
@@ -278,6 +279,22 @@ async def test_llm_choice_and_none(vkb_dsn, tmp_path):
     finally:
         await conn.close()
 
+
+async def test_map_reports_progress(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn, tmp_path)
+        await _claim(conn, "keep copies for ages", "Okta Workforce")
+        await _claim(conn, "the dashboard thing", "Okta")
+        with task_runs.recording() as rec:
+            report = await _run(conn, FakeOpenAI())
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        assert total == report.claims == 2
+        assert done == report.claims - report.claims_to_retry == 2
+        assert spent == pytest.approx(report.spent_usd) and spent > 0
+    finally:
+        await conn.close()
 
 async def test_target_scope_resolution(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)

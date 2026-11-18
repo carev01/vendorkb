@@ -49,7 +49,7 @@ import anthropic
 import openai
 import psycopg
 
-from vendorkb import llm_batch
+from vendorkb import llm_batch, task_runs
 from vendorkb.claims.extract import PROMPT_FAMILY, cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.llm import build_request, call, object_schema, rate_limited
@@ -247,23 +247,36 @@ async def _rows(conn: psycopg.AsyncConnection, ids: list[str]) -> list[ClaimRow]
     return [ClaimRow(*row) for row in await cur.fetchall()]
 
 
+@dataclass
+class _Tally:
+    """Progress over the check and the review of one sync run: claims finished, claims asked
+    for so far (the review's join when it starts) and the spend so far."""
+    done: int = 0
+    total: int = 0
+    spent: float = 0.0
+
+
 class _Asker:
     """One step's calls under one budget: ``record`` stores each verdict as it arrives."""
 
     def __init__(self, *, client: Any, settings: VendorkbSettings, model: str, effort: str,
                  system: str, max_usd: float, report: StepReport, label: str,
-                 record: Any) -> None:
+                 record: Any, tally: _Tally | None = None) -> None:
+        self.tally = tally if tally is not None else _Tally()
         self.client, self.settings, self.model, self.effort = client, settings, model, effort
         self.system, self.max_usd, self.report, self.label = system, max_usd, report, label
         self.record = record
         self.price = _price(model)
-        self.spent = self.in_flight = 0.0
+        self.spent = self.in_flight = self.base = 0.0
         self.stop = False
         self.fatal: Exception | None = None
         self.sem = asyncio.Semaphore(max(1, settings.support_concurrency))
 
     async def run(self, rows: list[ClaimRow]) -> None:
         self.report.claims += len(rows)
+        self.tally.total += len(rows)
+        base = self.tally.spent
+        self.base = base
         try:
             await asyncio.gather(*(self._one(row) for row in rows))
         finally:
@@ -272,6 +285,12 @@ class _Asker:
             raise self.fatal
 
     async def _one(self, row: ClaimRow) -> None:
+        await self._ask(row)
+        self.tally.done += 1
+        self.tally.spent = self.base + self.spent
+        await task_runs.progress(self.tally.done, self.tally.total, self.tally.spent)
+
+    async def _ask(self, row: ClaimRow) -> None:
         report, backend = self.report, self.settings.support_backend
         async with self.sem:
             user = user_message(row)
@@ -363,7 +382,7 @@ async def _record_review(conn: psycopg.AsyncConnection, reviewer: str, claim_id:
 
 async def check(conn: psycopg.AsyncConnection, version: str, *, client: Any,
                 settings: VendorkbSettings, max_usd: float, report: StepReport,
-                limit: int | None = None) -> None:
+                limit: int | None = None, tally: _Tally | None = None) -> None:
     """Ask the checker about every in-scope claim with no verdict (at most ``limit``)."""
     rows = await due_for_check(conn, version, limit=limit)
     checker = checker_id(settings.support_model, settings.support_effort,
@@ -374,12 +393,13 @@ async def check(conn: psycopg.AsyncConnection, version: str, *, client: Any,
 
     asker = _Asker(client=client, settings=settings, model=settings.support_model,
                    effort=settings.support_effort, system=CHECK_SYSTEM, max_usd=max_usd,
-                   report=report, label="check", record=record)
+                   report=report, label="check", record=record, tally=tally)
     await asker.run(rows)
 
 
 async def review(conn: psycopg.AsyncConnection, *, client: Any, settings: VendorkbSettings,
-                 max_usd: float, report: StepReport, limit: int | None = None) -> None:
+                 max_usd: float, report: StepReport, limit: int | None = None,
+                 tally: _Tally | None = None) -> None:
     """Ask the reviewer about every flagged claim (at most ``limit``)."""
     ids = await flagged_ids(conn)
     rows = await _rows(conn, ids[:limit] if limit is not None else ids)
@@ -391,7 +411,8 @@ async def review(conn: psycopg.AsyncConnection, *, client: Any, settings: Vendor
 
     asker = _Asker(client=client, settings=settings, model=settings.support_review_model,
                    effort=settings.support_review_effort, system=REVIEW_SYSTEM,
-                   max_usd=max_usd, report=report, label="review", record=record)
+                   max_usd=max_usd, report=report, label="review", record=record,
+                   tally=tally)
     await asker.run(rows)
 
 
@@ -471,6 +492,9 @@ async def _batch_round(conn: psycopg.AsyncConnection, version: str, *, client: A
         if batch.skipped_by_budget > skipped:
             step.stopped_by_budget = True
             step.skipped_by_budget += batch.skipped_by_budget - skipped
+    await task_runs.progress(report.check.calls + report.review.calls,
+                             report.check.claims + report.review.claims,
+                             report.check.spent_usd + report.review.spent_usd)
 
 
 async def _run_batch(conn: psycopg.AsyncConnection, version: str, *, client: Any,
@@ -531,15 +555,16 @@ async def run(conn: psycopg.AsyncConnection, *, client: Any, settings: VendorkbS
         log.warning("support: another support run holds the lock; nothing done")
         return report
     fatal: Exception | None = None
+    tally = _Tally()
     try:
         try:
             await check(conn, version, client=client, settings=settings,
-                        max_usd=check_max_usd, report=report.check, limit=limit)
+                        max_usd=check_max_usd, report=report.check, limit=limit, tally=tally)
         except Exception as e:  # the review uses another model: it may still work
             fatal = e
         try:
             await review(conn, client=client, settings=settings, max_usd=review_max_usd,
-                         report=report.review, limit=limit)
+                         report=report.review, limit=limit, tally=tally)
         except Exception as e:
             fatal = fatal or e
         report.flagged = len(await flagged_ids(conn))

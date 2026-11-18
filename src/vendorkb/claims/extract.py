@@ -53,6 +53,7 @@ import psycopg
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
 
+from vendorkb import task_runs
 from vendorkb.claims import gate
 from vendorkb.config import VendorkbSettings
 
@@ -735,8 +736,14 @@ def _unparsed(reply: Any, is_openai: bool, error: Exception) -> _Outcome:
     return outcome
 
 
+async def _report_progress(report: ExtractReport, total: int) -> None:
+    """Chunks finished this run (``failed`` is already inside ``errored``) and the cost so far."""
+    await task_runs.progress(report.done + report.errored, total, report.est_cost_usd)
+
+
 async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
-                    settings: VendorkbSettings, spent: float, report: ExtractReport) -> None:
+                    settings: VendorkbSettings, spent: float, report: ExtractReport,
+                    total: int | None = None) -> None:
     """Up to ``extract_concurrency`` calls at once, each result written as it completes.
 
     Before each dispatch, spend so far plus the estimates of the calls in flight plus this
@@ -764,6 +771,7 @@ async def _run_sync(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, c
                 await _record(conn, chunk.chunk_id, chunk, outcome,
                               settings=settings, ledger_id=ledger_id, batch=False,
                               report=report)
+                await _report_progress(report, total if total is not None else len(pending))
             spent += _cost(outcome, batch=False, settings=settings)
             if fatal is not None:
                 errors.append(fatal)
@@ -854,7 +862,7 @@ def _batch_error(result: Any) -> str:
 
 async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids: list[str],
                          *, client: Any, settings: VendorkbSettings, report: ExtractReport,
-                         poll_seconds: float) -> None:
+                         poll_seconds: float, total: int | None = None) -> None:
     """Wait for a batch, store every result, then mark it processed with its actual cost."""
     await _wait_ended(client, batch_id, poll_seconds)
     expected = set(chunk_ids)
@@ -880,6 +888,7 @@ async def _process_batch(conn: psycopg.AsyncConnection, batch_id: str, chunk_ids
         "UPDATE extract_batches SET status='processed', actual_cost_usd=%s, ended_at=now()"
         " WHERE batch_id=%s", (actual, batch_id))
     log.info("extract: batch %s processed (%d results, $%.4f)", batch_id, len(seen), actual)
+    await _report_progress(report, total if total is not None else len(chunk_ids))
 
 
 async def _held_by_unconfirmed(conn: psycopg.AsyncConnection, settings: VendorkbSettings,
@@ -901,7 +910,7 @@ async def _held_by_unconfirmed(conn: psycopg.AsyncConnection, settings: Vendorkb
 
 async def _resume_batches(conn: psycopg.AsyncConnection, *, client: Any,
                           settings: VendorkbSettings, report: ExtractReport,
-                          poll_seconds: float) -> None:
+                          poll_seconds: float, total: int | None = None) -> None:
     cur = await conn.execute(
         "SELECT batch_id, chunk_ids FROM extract_batches WHERE status='submitted'"
         " AND batch_id NOT LIKE %s AND batch_id NOT LIKE %s AND extractor_model=%s"
@@ -911,13 +920,14 @@ async def _resume_batches(conn: psycopg.AsyncConnection, *, client: Any,
     for batch_id, chunk_ids in await cur.fetchall():
         log.info("extract: resuming batch %s (%d requests)", batch_id, len(chunk_ids))
         await _process_batch(conn, batch_id, list(chunk_ids), client=client,
-                             settings=settings, report=report, poll_seconds=poll_seconds)
+                             settings=settings, report=report, poll_seconds=poll_seconds,
+                             total=total)
         report.resumed_batches += 1
 
 
 async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, client: Any,
                      settings: VendorkbSettings, spent: float, report: ExtractReport,
-                     poll_seconds: float) -> None:
+                     poll_seconds: float, total: int | None = None) -> None:
     items: list[tuple[ChunkRow, dict[str, Any]]] = []
     estimate = spent
     for chunk in pending:
@@ -951,7 +961,7 @@ async def _run_batch(conn: psycopg.AsyncConnection, pending: list[ChunkRow], *, 
                            (batch.id, pending_id))
         log.info("extract: submitted batch %s (%d requests)", batch.id, len(group))
         await _process_batch(conn, batch.id, chunk_ids, client=client, settings=settings,
-                             report=report, poll_seconds=poll_seconds)
+                             report=report, poll_seconds=poll_seconds, total=total)
 
 
 async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: Any,
@@ -978,7 +988,7 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
             report.reset_truncated = await _reset_truncated(conn, ids, settings.extract_model)
         if mode == "batch":
             await _resume_batches(conn, client=client, settings=settings, report=report,
-                                  poll_seconds=poll_seconds)
+                                  poll_seconds=poll_seconds, total=len(ids))
         held = await _held_by_unconfirmed(conn, settings, report)
         chunks = await _load_chunks(conn, ids)
         final = await _final_ids(conn, ids, settings.extract_model)
@@ -997,10 +1007,10 @@ async def run(conn: psycopg.AsyncConnection, chunk_ids: list[str], *, client: An
         spent = await _spent(conn)
         if mode == "sync":
             await _run_sync(conn, pending, client=client, settings=settings, spent=spent,
-                            report=report)
+                            report=report, total=len(ids))
         else:
             await _run_batch(conn, pending, client=client, settings=settings, spent=spent,
-                             report=report, poll_seconds=poll_seconds)
+                             report=report, poll_seconds=poll_seconds, total=len(ids))
     finally:
         await conn.execute("SELECT pg_advisory_unlock(%s)", (LOCK_KEY,))
     return report

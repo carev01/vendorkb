@@ -67,7 +67,7 @@ import numpy as np
 import openai
 import psycopg
 
-from vendorkb import llm_batch
+from vendorkb import llm_batch, task_runs
 from vendorkb.claims.extract import cost_usd, price_per_mtok
 from vendorkb.config import VendorkbSettings
 from vendorkb.taxonomy.aspects import dimension_applies
@@ -1009,6 +1009,7 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
     # seed reads every claim mapped under this version and records their decisions
     claims = await _claims(conn, None if remap or seed else version, vendor)
     report.claims = len(claims)
+    await task_runs.progress(0, report.claims, report.spent_usd)
     # A target text that names the claim's own product (and no taxonomy target) is about the
     # product itself, not a workload: it is treated as no target text.
     products = await _vendor_products(conn)
@@ -1200,5 +1201,7 @@ async def _map_once(conn: psycopg.AsyncConnection, *, embedder: _Embedder, clien
             " mapped_version=CASE WHEN m.done THEN %s END"
             " FROM _claim_map m WHERE r.claim_id = m.claim_id AND r.prompt_version LIKE %s",
             (version, PROMPT_FAMILY))
+    await task_runs.progress(len(rows) - report.claims_to_retry, report.claims,
+                             report.spent_usd)
     log.info("taxonomy map: %s", report)
     return report

@@ -14,6 +14,7 @@ import pytest
 import yaml
 from pgvector import Vector
 
+from vendorkb import task_runs
 from vendorkb.config import VendorkbSettings
 from vendorkb.db import connect, init_schema
 from vendorkb.taxonomy import load, propose
@@ -315,6 +316,25 @@ async def test_dimension_aliases_merge_in_place_and_new_entries_append(vkb_dsn, 
     finally:
         await conn.close()
 
+
+async def test_propose_reports_progress(vkb_dsn, tmp_path):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _seed_dimensions(conn)
+        out = _copy_fixture(tmp_path)
+        with task_runs.recording() as rec:
+            report = await propose.propose(
+                conn, client=FakeOpenAI(REPLIES), embedder=FakeEmbedder(VECTORS),
+                settings=_settings(), kind="dimension", distance_threshold=0.2, out_path=out,
+                max_usd=2.0, limit=None)
+        assert rec.calls
+        done, total, spent = rec.calls[-1]
+        asked = report.eligible - report.already_covered
+        assert done == total == asked > 0
+        assert spent == pytest.approx(report.spent_usd) and spent > 0
+    finally:
+        await conn.close()
 
 async def test_object_types_per_resolved_class_and_targets(vkb_dsn, tmp_path):
     conn = await connect(vkb_dsn)
