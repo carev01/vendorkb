@@ -145,7 +145,9 @@ is Claude's call.
    - Being in the database, it catches manual runs from a workstation, which Kubernetes metrics
      cannot see.
    - A running row whose heartbeat is older than about 5 minutes shows as stalled, which is what a
-     crashed run looks like.
+     crashed run looks like. Once it has been silent for an hour, the next run to start ends it
+     failed (reason stalled); SIGTERM cancels a CLI command, so a Job deadline ends it failed
+     at once.
    - Writes are their own short transactions, never inside the work's own transaction.
    - Writing the row must not be able to fail the task: errors are logged and swallowed.
 2. **Pipeline and usage metrics from vendorkb itself:** a Prometheus `/metrics` endpoint, using

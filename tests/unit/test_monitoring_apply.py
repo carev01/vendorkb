@@ -226,3 +226,24 @@ def test_prometheus_rbac_is_minimal():
     role = next(d for d in docs if d["kind"] == "ClusterRole")
     rules = sorted((tuple(r["resources"]), tuple(sorted(r["verbs"]))) for r in role["rules"])
     assert rules == [(("nodes",), ("get", "list", "watch")), (("nodes/proxy",), ("get",))]
+
+
+def _panel(dash, title):
+    panels = dash["panels"] + [p for row in dash["panels"] for p in row.get("panels", [])]
+    (panel,) = [p for p in panels if p.get("title") == title]
+    return panel
+
+
+def test_questions_count_answer_question_only():
+    dash = json.loads((MON / "vendorkb-dashboard.json").read_text())
+    exprs = list(_exprs(_panel(dash, "Questions in 24 h")))
+    assert len(exprs) == 2
+    for expr in exprs:  # gather_evidence parts are not questions
+        assert 'tool="answer_question"' in expr and "gather_evidence" not in expr
+
+
+def test_last_success_table_shows_the_stage():
+    dash = json.loads((MON / "vendorkb-dashboard.json").read_text())
+    panel = _panel(dash, "Last success and failure per kind and stage")
+    organize = next(t for t in panel["transformations"] if t["id"] == "organize")
+    assert organize["options"]["indexByName"]["stage"] == 1

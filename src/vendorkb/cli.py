@@ -7,7 +7,9 @@ import asyncio
 import dataclasses
 import json
 import logging
+import signal
 import sys
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Literal
 
 import psycopg
@@ -88,6 +90,8 @@ async def _answer(settings: VendorkbSettings, args: argparse.Namespace) -> int:
 async def _stats(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     conn = await connect(settings.vendorkb_dsn)
     try:
+        # like every command: creates what the deployed code needs (task_runs, the roles)
+        await init_schema(conn, embed_dim=settings.embed_dim)
         cur = await conn.execute("SELECT count(*) FROM documents")
         documents = (await cur.fetchone())[0]  # type: ignore[index]
         cur = await conn.execute(
@@ -676,6 +680,43 @@ _COMMANDS = {"search": _search, "answer": _answer, "stats": _stats, "sync": _syn
              "capabilities": _capabilities, "mcp": _mcp, "access": _access}
 
 
+SIGTERM_EXIT = 143  # 128 + SIGTERM, what a shell reports for a process the signal killed
+
+
+async def _until_sigterm(command: Callable[[VendorkbSettings, argparse.Namespace],
+                                           Awaitable[int]],
+                         settings: VendorkbSettings, args: argparse.Namespace) -> int:
+    """Run one command; SIGTERM (a Job's deadline, an eviction) cancels it, so every ``track``ed
+    run ends its row ``failed`` at once instead of going silent, and the exit code is 143.
+    Off the main thread (tests) no handler can be installed and the command runs as is."""
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    assert task is not None
+    terminated = False
+
+    def on_sigterm() -> None:
+        nonlocal terminated
+        terminated = True
+        task.cancel()
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, on_sigterm)
+        installed = True
+    except (NotImplementedError, RuntimeError, ValueError):
+        installed = False
+    try:
+        return await command(settings, args)
+    except asyncio.CancelledError:
+        if not terminated:
+            raise
+        task.uncancel()
+        print("vendorkb: terminated (SIGTERM)", file=sys.stderr)
+        return SIGTERM_EXIT
+    finally:
+        if installed:
+            loop.remove_signal_handler(signal.SIGTERM)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -686,7 +727,10 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("httpx", "httpcore"):  # they log every request at INFO
         logging.getLogger(name).setLevel(logging.WARNING)
     settings = VendorkbSettings()  # fresh each call: never a cached copy of another env
-    return asyncio.run(_COMMANDS[args.cmd](settings, args))
+    command = _COMMANDS[args.cmd]
+    if args.cmd == "mcp":  # uvicorn handles SIGTERM itself: a graceful shutdown
+        return asyncio.run(command(settings, args))
+    return asyncio.run(_until_sigterm(command, settings, args))
 
 
 if __name__ == "__main__":

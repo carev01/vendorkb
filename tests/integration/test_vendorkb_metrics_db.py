@@ -217,11 +217,20 @@ async def test_last_success_failure_and_cursor(vkb_dsn):
             "INSERT INTO task_runs (run_id, kind, state, origin, ended_at)"
             " VALUES (%s, 'sync', %s, 'cluster', now())", (str(uuid.uuid4()), state))
     await conn.execute("INSERT INTO sync_state (key, value) VALUES ('cursor', 'c')")
+    await conn.execute(
+        "INSERT INTO task_runs (run_id, kind, stage, state, origin, ended_at)"
+        " VALUES (%s, 'refresh', 'collect', 'succeeded', 'cluster', now() - interval '1 hour')",
+        (str(uuid.uuid4()),))
     reg, _ = await _registry(conn)
     assert reg.get_sample_value(
-        "vendorkb_task_last_success_timestamp_seconds", {"kind": "sync"}) > 0
+        "vendorkb_task_last_success_timestamp_seconds", {"kind": "sync", "stage": ""}) > 0
     assert reg.get_sample_value(
-        "vendorkb_task_last_failure_timestamp_seconds", {"kind": "sync"}) > 0
+        "vendorkb_task_last_failure_timestamp_seconds", {"kind": "sync", "stage": ""}) > 0
+    # the hourly collect is its own series: the weekly refresh never succeeded
+    assert reg.get_sample_value("vendorkb_task_last_success_timestamp_seconds",
+                                {"kind": "refresh", "stage": "collect"}) > 0
+    assert reg.get_sample_value("vendorkb_task_last_success_timestamp_seconds",
+                                {"kind": "refresh", "stage": ""}) is None
     assert reg.get_sample_value("vendorkb_sync_cursor_timestamp_seconds") > 0
     sizes = [s for m in reg.collect() if m.name == "vendorkb_table_size_bytes"
              for s in m.samples]
@@ -249,6 +258,8 @@ async def test_collect_before_first_snapshot():
     reg = CollectorRegistry()
     reg.register(PipelineCollector())
     assert reg.get_sample_value("vendorkb_metrics_refresh_ok") == 0
+    # no good refresh yet: no timestamp (0 would read as "56 years ago")
+    assert reg.get_sample_value("vendorkb_metrics_refresh_timestamp_seconds") is None
 
 
 async def test_no_question_text_in_labels(vkb_dsn):

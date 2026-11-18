@@ -31,8 +31,8 @@ REFRESH_TIMEOUT_S = 20.0  # statement_timeout of a refresh; wait_for allows a li
 class Snapshot:
     # (kind, stage, run, origin, stalled, done, total, spent_usd, started_ts)
     runs: list[tuple] = field(default_factory=list)
-    last_success: dict[str, float] = field(default_factory=dict)
-    last_failure: dict[str, float] = field(default_factory=dict)
+    last_success: dict[tuple[str, str], float] = field(default_factory=dict)  # (kind, stage)
+    last_failure: dict[tuple[str, str], float] = field(default_factory=dict)
     backlog: dict[str, int] = field(default_factory=dict)
     batches_open: dict[str, int] = field(default_factory=dict)
     batch_oldest_age: dict[str, float] = field(default_factory=dict)
@@ -78,11 +78,13 @@ async def snapshot(conn: psycopg.AsyncConnection) -> Snapshot:
             "SELECT kind, stage, run_id, origin, heartbeat_at < now() - make_interval(secs"
             " => %s), done, total, spent_usd, extract(epoch FROM started_at)::float8"
             " FROM task_runs WHERE state = 'running' ORDER BY started_at", (STALLED_AFTER_S,))]
-    for kind, state, ts in await _rows(
-            conn, "SELECT kind, state, extract(epoch FROM max(ended_at))::float8 FROM task_runs"
+    # per kind and stage: the hourly collect (refresh/collect) never stands for the weekly run
+    for kind, stage, state, ts in await _rows(
+            conn, "SELECT kind, coalesce(stage, ''), state,"
+            " extract(epoch FROM max(ended_at))::float8 FROM task_runs"
             " WHERE state IN ('succeeded', 'failed') AND ended_at IS NOT NULL"
-            " GROUP BY kind, state"):
-        (s.last_success if state == "succeeded" else s.last_failure)[kind] = ts
+            " GROUP BY 1, 2, 3"):
+        (s.last_success if state == "succeeded" else s.last_failure)[(kind, stage)] = ts
 
     version = await load.current_version(conn)
     s.taxonomy_version = version
@@ -164,8 +166,9 @@ class PipelineCollector(Collector):
             yield from self._families(s)
         yield _gauge("metrics_refresh_ok", "1 after a good refresh, 0 after a failed one",
                      [], [([], 1 if ok else 0)])
+        # none before the first good refresh: a 0 would read as "56 years ago"
         yield _gauge("metrics_refresh_timestamp_seconds", "Time of the last good refresh",
-                     [], [([], ok_ts)])
+                     [], [([], ok_ts)] if ok_ts else [])
 
     @staticmethod
     def _families(s: Snapshot):
@@ -183,10 +186,11 @@ class PipelineCollector(Collector):
                      [([r[0], r[1], r[2]], r[7]) for r in s.runs])
         yield _gauge("task_started_timestamp_seconds", "Start of a running run", rl,
                      [([r[0], r[1], r[2]], r[8]) for r in s.runs])
-        yield _gauge("task_last_success_timestamp_seconds", "Last successful end per kind",
-                     ["kind"], [([k], v) for k, v in s.last_success.items()])
-        yield _gauge("task_last_failure_timestamp_seconds", "Last failed end per kind",
-                     ["kind"], [([k], v) for k, v in s.last_failure.items()])
+        yield _gauge("task_last_success_timestamp_seconds",
+                     "Last successful end per kind and stage", ["kind", "stage"],
+                     [([k, st], v) for (k, st), v in s.last_success.items()])
+        yield _gauge("task_last_failure_timestamp_seconds", "Last failed end per kind and stage",
+                     ["kind", "stage"], [([k, st], v) for (k, st), v in s.last_failure.items()])
         yield _gauge("backlog", "Work waiting per stage", ["kind"],
                      [([k], v) for k, v in s.backlog.items()])
         yield _gauge("batches_open", "Submitted batches not yet processed", ["kind"],

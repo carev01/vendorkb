@@ -186,3 +186,32 @@ async def test_busy_metrics_port_keeps_mcp_serving(monkeypatch):
     assert refreshed == []  # no refresh loop without a metrics server
     # the failed bind left the pipeline collector unregistered, so a later start can register it
     assert metrics.REGISTRY.get_sample_value("vendorkb_metrics_refresh_ok") is None
+
+
+def test_malformed_usage_never_raises():
+    metrics.record_answer({"usage": {"prompt_tokens": "x", "completion_tokens": 2},
+                           "scope": {"vendors": ["Veeam"]}},
+                          _settings(answer_price_in_per_mtok=2.0))
+
+
+async def test_bookkeeping_failure_keeps_the_tool_result(monkeypatch):
+    class Broken:
+        def labels(self, *a):
+            raise ValueError("bad label")
+
+    monkeypatch.setattr(metrics, "_requests", Broken())
+    async with metrics.observe("search_docs", "full") as obs:
+        result = 42
+    assert (result, obs.outcome) == (42, "ok")
+    with pytest.raises(RuntimeError, match="the tool's own"):
+        async with metrics.observe("search_docs", "full"):
+            raise RuntimeError("the tool's own")
+
+
+async def test_answer_question_with_malformed_usage_still_answers():
+    backend = FakeBackend(answer={"answer": "Yes [1].", "citations": [],
+                                  "usage": {"prompt_tokens": "x"}})
+    r = await _post(_app(backend), _call("answer_question", {"question": "Veeam?"}))
+    assert "Yes [1]." in r.text
+    assert _value("vendorkb_mcp_requests_total", tool="answer_question", key="full",
+                  client="user", outcome="ok") == 1

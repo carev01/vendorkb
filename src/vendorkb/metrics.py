@@ -12,6 +12,7 @@ registered on the same registry by ``start``.
 """
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -23,6 +24,8 @@ from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, star
 
 from vendorkb.config import VendorkbSettings
 from vendorkb.metrics_db import PipelineCollector
+
+log = logging.getLogger(__name__)
 
 # the request's client: "eval" (X-Vendorkb-Client: eval) or "user"
 client_kind: ContextVar[str] = ContextVar("vendorkb_client_kind", default="user")
@@ -101,14 +104,24 @@ async def observe(tool: str, key: str) -> AsyncIterator[Observation]:
         obs.outcome = "error"
         raise
     finally:
-        outcome = obs.outcome if obs.outcome in OUTCOMES else "ok"
-        _requests.labels(tool, key, client, outcome).inc()
-        _seconds.labels(tool, client).observe(time.perf_counter() - started)
+        try:  # bookkeeping never fails a tool call nor replaces its own exception
+            outcome = obs.outcome if obs.outcome in OUTCOMES else "ok"
+            _requests.labels(tool, key, client, outcome).inc()
+            _seconds.labels(tool, client).observe(time.perf_counter() - started)
+        except Exception as exc:
+            log.debug("metrics: tool call not recorded: %s", exc)
 
 
 def record_answer(out: dict[str, Any], settings: VendorkbSettings | None) -> None:
     """Tokens, cost (only at a price above 0) and the named vendors of one answer; ``settings``
-    None counts no cost."""
+    None counts no cost. Never raises: a malformed value is skipped and logged at debug."""
+    try:
+        _record_answer(out, settings)
+    except Exception as exc:
+        log.debug("metrics: answer not recorded: %s", exc)
+
+
+def _record_answer(out: dict[str, Any], settings: VendorkbSettings | None) -> None:
     client = client_kind.get()
     usage = out.get("usage") or {}
     prompt = usage.get("prompt_tokens") or 0

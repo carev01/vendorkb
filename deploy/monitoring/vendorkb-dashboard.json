@@ -362,7 +362,7 @@
         "orientation": "auto",
         "showPercentChange": false
       },
-      "description": "Failed Kubernetes Jobs started in the last 24 h (vendorkb namespace), and task kinds whose last failure is in the last 24 h."
+      "description": "Failed Kubernetes Jobs started in the last 24 h (vendorkb namespace), and task kinds (per stage) whose last failure is in the last 24 h."
     },
     {
       "id": 6,
@@ -376,14 +376,14 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(vendorkb_mcp_requests_total{client=\"user\",tool=~\"answer_question|gather_evidence\"}[24h])) or vector(0)",
+          "expr": "sum(increase(vendorkb_mcp_requests_total{client=\"user\",tool=\"answer_question\"}[24h])) or vector(0)",
           "legendFormat": "questions",
           "refId": "A",
           "instant": true,
           "range": false
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(vendorkb_mcp_request_seconds_bucket{client=\"user\",tool=~\"answer_question|gather_evidence\"}[24h])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vendorkb_mcp_request_seconds_bucket{client=\"user\",tool=\"answer_question\"}[24h])))",
           "legendFormat": "p95",
           "refId": "B",
           "instant": true,
@@ -440,7 +440,7 @@
         "orientation": "auto",
         "showPercentChange": false
       },
-      "description": "answer_question and gather_evidence calls by users (evals excluded), and their p95 duration."
+      "description": "answer_question calls by users (evals excluded; gather_evidence parts are not counted as questions), and their p95 duration."
     },
     {
       "id": 7,
@@ -764,7 +764,7 @@
     {
       "id": 10,
       "type": "table",
-      "title": "Last success and failure per kind",
+      "title": "Last success and failure per kind and stage",
       "gridPos": {
         "x": 0,
         "y": 14,
@@ -847,6 +847,12 @@
           "options": {
             "excludeByName": {
               "Time": true
+            },
+            "indexByName": {
+              "kind": 0,
+              "stage": 1,
+              "Value #A": 2,
+              "Value #B": 3
             },
             "renameByName": {
               "Value #A": "last success",

@@ -93,3 +93,34 @@ def test_extract_passes_retry_errored(monkeypatch, tmp_path):
     assert seen == {"ids": ["a", "b"], "mode": "sync", "retry": True}
     assert cli.main(["extract", "--ids-file", str(ids), "--mode", "sync"]) == 0
     assert seen["retry"] is False
+
+
+def test_sigterm_cancels_the_command_and_fails_its_run(monkeypatch):
+    """A Job deadline sends SIGTERM: the command is cancelled, so ``track`` ends its row
+    ``failed`` at once, and the process exits 143."""
+    import asyncio
+    import os
+    import signal
+
+    from vendorkb import task_runs
+
+    finished = []
+
+    async def start(dsn, kind, stage, parent_id):
+        return task_runs.TaskRun()
+
+    async def finish(self, state, details=None):
+        finished.append(state)
+
+    async def command(settings, args):
+        async with task_runs.track("unused", "sync"):
+            os.kill(os.getpid(), signal.SIGTERM)
+            await asyncio.sleep(10)
+        return 0
+
+    monkeypatch.setattr(task_runs, "_start", start)
+    monkeypatch.setattr(task_runs.TaskRun, "finish", finish)
+    monkeypatch.setitem(cli._COMMANDS, "stats", command)
+    assert cli.main(["stats"]) == 143
+    assert finished == ["failed"]
+    assert signal.getsignal(signal.SIGTERM) == signal.SIG_DFL

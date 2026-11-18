@@ -27,6 +27,13 @@ CLAIM = {"kind": "capability", "capability": "backed up objects", "target": "Okt
          "evidence_quote": "Nightly Okta jobs keep backed up objects such as users"}
 
 
+@pytest.fixture(autouse=True)
+def _test_dsn(_no_dotenv_file, vkb_dsn, monkeypatch):
+    """The refresh records its task runs at ``settings.vendorkb_dsn``: point it at the test
+    container, never at the default local database."""
+    monkeypatch.setenv("VENDORKB_DSN", vkb_dsn)
+
+
 def _settings(**overrides) -> VendorkbSettings:
     return VendorkbSettings(_env_file=None, **overrides, extract_backend="openai",
                             extract_model="vendorkb-test", extract_price_in_per_mtok=1e-6,
@@ -116,6 +123,9 @@ async def test_nothing_new_contacts_nothing(vkb_dsn):
         assert client.calls == [] and ready.calls == 0
         assert report.extract is None and report.map is None
         assert report.capabilities_rows is None
+        await conn.execute("DELETE FROM task_runs")
+        await _run(conn)
+        assert await _count(conn, "SELECT count(*) FROM task_runs WHERE kind = 'refresh'") == 1
     finally:
         await conn.close()
 

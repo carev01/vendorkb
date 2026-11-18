@@ -2,9 +2,11 @@
 
 ``track(dsn, kind)`` wraps a command: it inserts a ``running`` row, keeps its heartbeat alive
 in the background, takes progress from ``progress()`` calls (throttled to one write per
-``HEARTBEAT_S``) and ends the row ``succeeded`` or ``failed``. Recording never fails the task:
-an unreachable database or a failed write is logged and swallowed. Runs nest: a ``track``
-inside another one records the outer run as its parent.
+``HEARTBEAT_S``) and ends the row ``succeeded`` or ``failed``. Each new run also ends
+``failed`` (reason ``stalled``) every running row whose heartbeat stopped ``DEAD_AFTER_S``
+ago: a killed process never ends its own. Recording never fails the task: an unreachable
+database or a failed write is logged and swallowed. Runs nest: a ``track`` inside another one
+records the outer run as its parent.
 """
 import asyncio
 import contextlib
@@ -24,6 +26,7 @@ log = logging.getLogger(__name__)
 KINDS = ("sync", "refresh", "extract", "map", "support", "capabilities", "propose")
 HEARTBEAT_S = 30.0
 STALLED_AFTER_S = 300  # a running row whose heartbeat is older than this counts as stalled
+DEAD_AFTER_S = 3600  # a running row silent this long is dead: the next run ends it failed
 RETENTION_DAYS = 90
 CONNECT_TIMEOUT_S = 5
 WRITE_TIMEOUT_S = 5.0  # bound on every write and reconnect: recording never slows the task
@@ -134,7 +137,8 @@ def recording() -> Iterator[Recorder]:
 @contextlib.asynccontextmanager
 async def track(dsn: str, kind: str, *, stage: str | None = None) -> AsyncIterator[TaskRun]:
     parent = _current.get()
-    parent_id = parent.run_id if isinstance(parent, TaskRun) and parent.conn else None
+    # dsn, not conn: a failed write drops the connection until the next one reconnects
+    parent_id = parent.run_id if isinstance(parent, TaskRun) and parent.dsn else None
     run = await _start(dsn, kind, stage, parent_id)
     token = _current.set(run)
     beat = asyncio.create_task(run._beat()) if run.dsn is not None else None
@@ -174,6 +178,13 @@ async def _start(dsn: str, kind: str, stage: str | None, parent_id: str | None) 
         "INSERT INTO task_runs (run_id, parent_id, kind, stage, state, origin)"
         " VALUES (%s, %s, %s, %s, 'running', %s)",
         (run.run_id, parent_id, kind, stage, origin))
+    # a run killed outright (SIGKILL, a lost node) never ran its finish(): end it failed at
+    # its last heartbeat, so it reads as a failure and not as stalled forever
+    await run._write(
+        "UPDATE task_runs SET state = 'failed', ended_at = heartbeat_at,"
+        " details = details || '{\"reason\": \"stalled\"}'::jsonb"
+        " WHERE state = 'running' AND heartbeat_at < now() - make_interval(secs => %s)",
+        (DEAD_AFTER_S,))
     await run._write(
         "DELETE FROM task_runs WHERE state <> 'running'"
         " AND ended_at < now() - make_interval(days => %s)", (RETENTION_DAYS,))

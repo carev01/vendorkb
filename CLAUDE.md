@@ -213,8 +213,12 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
 **Observability (2026-11-18; spec `docs/superpowers/specs/2026-11-18-observability-dashboard-design.md`):**
 - `task_runs` (`task_runs.py`, `track`/`progress`): one row per tracked command (sync, extract,
   refresh and its stages, claims support, taxonomy map/propose, capabilities build); heartbeat
-  every 30 s, stalled after 300 s without one; done/spent are high-water marks; a write failure
-  never fails the task.
+  every 30 s, stalled after 300 s without one, and ended `failed` (`details.reason` stalled) by
+  the next run to start once an hour silent; the CLI turns SIGTERM (a Job deadline) into a
+  cancellation, so the row ends `failed` at once (exit 143). The hourly collect is
+  `refresh` with stage `collect`, and the last success/failure gauges are per kind and stage.
+  A refresh stage ends `failed` when its standalone command would. done/spent are high-water
+  marks; a write failure never fails the task.
 - `metrics_db.py`: a pipeline snapshot refreshed every `METRICS_REFRESH_S` (60) in the MCP
   process (gauges, among them `vendorkb_pipeline_spend_usd{kind,window}` from leaf `task_runs`).
   `metrics.py`: MCP usage metrics, `client` label `eval` when the request carries

@@ -97,6 +97,12 @@ async def wait_until_ready(base_url: str, api_key: str, *, timeout_s: float,
             await asyncio.sleep(poll_s)
 
 
+def _details(report: Any) -> dict[str, Any]:
+    """A stage report as its task run's details: list fields cut to 20 items."""
+    data = dataclasses.asdict(report)
+    return {k: v[:20] if isinstance(v, list) else v for k, v in data.items()}
+
+
 def failed(report: RefreshReport) -> bool:
     """Errored chunks and failed adjudications are retried by the next due run, but they are
     worth a failed Job; nothing to do is a clean exit."""
@@ -112,8 +118,11 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
                   extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
                   support_review_max_usd: float = 0.0, batch: bool = False,
                   extract_new: bool = True, now: datetime | None = None) -> RefreshReport:
-    """One refresh run, recorded as one ``refresh`` task run whose stages are its children."""
-    async with track(settings.vendorkb_dsn, "refresh") as run:
+    """One refresh run, recorded as one ``refresh`` task run whose stages are its children.
+    The collect run (``extract_new`` false) is recorded with stage ``collect``, so its hourly
+    successes never stand for the extracting run's."""
+    stage = None if extract_new else "collect"
+    async with track(settings.vendorkb_dsn, "refresh", stage=stage) as run:
         report = await _refresh(
             conn, settings=settings, extract_client=extract_client, map_client=map_client,
             support_client=support_client, embedder=embedder, ready=ready,
@@ -163,18 +172,21 @@ async def _refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
     if extract_due:
         await ready()
         ids = await extract.unextracted_ids(conn, limit=extract_limit)
-        async with track(dsn, "extract"):
+        async with track(dsn, "extract") as run:
             ext = await extract.run(conn, ids, client=extract_client, settings=settings,
                                     mode="sync")
+            # as `vendorkb extract` ends it: errored chunks make a failed run
+            await run.finish("failed" if ext.errored else "succeeded", _details(ext))
         report.extract = dataclasses.asdict(ext)
         changed = ext.done > 0
     mode: Any = "batch" if batch else "sync"
     version = await current_version(conn)
     if version is not None:
-        async with track(dsn, "map"):
+        async with track(dsn, "map") as run:
             mapped = await mapper.map_claims(conn, embedder=embedder, client=map_client,
                                              settings=settings, max_usd=map_max_usd, mode=mode,
                                              wait=False)
+            await run.finish("failed" if mapped.llm_invalid else "succeeded", _details(mapped))
         report.map = dataclasses.asdict(mapped)
         report.map["errors"] = report.map["errors"][:20]
         # batch mode: claims read but waiting on a batch are not written yet
@@ -182,11 +194,13 @@ async def _refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
             or mapped.batch.collected > 0
         rejected = await support.rejected_count(conn)
         try:
-            async with track(dsn, "support"):
+            async with track(dsn, "support") as run:
                 checked = await support.run(conn, client=support_client, settings=settings,
                                             check_max_usd=support_max_usd,
                                             review_max_usd=support_review_max_usd, mode=mode,
                                             wait=False)
+                bad = checked.check.invalid or checked.review.invalid
+                await run.finish("failed" if bad else "succeeded", _details(checked))
         except Exception as e:  # what was extracted, mapped or rejected is still built; the
             log.exception("refresh: the support check failed")  # Job fails
             report.support = {"error": f"{type(e).__name__}: {e}"}
