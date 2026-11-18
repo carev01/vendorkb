@@ -126,7 +126,8 @@ stack.
     Superseded chunks stay out of search, extraction and the refresh trigger (every chunk query
     that ranks or selects needs `superseded_at IS NULL`); their citations still resolve
     (`read_section` of a superseded chunk returns the chunks superseded in the same write).
-- Production holds 74,885 v1 (Haiku) pilot claims.
+- The v1 (Haiku, `claims-v1`) pilot claims were deleted from production on 2026-11-18 (20,532
+  extractions, 72,602 claims, none in capabilities; a CSV copy is kept outside the repo).
 
 **Taxonomy v2 and claims v3 (2026-11-06; spec `specs/2026-11-06-taxonomy-v2-claims-v3-design.md`,
 results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**

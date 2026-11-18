@@ -394,6 +394,36 @@ uv run vendorkb stats
 uv run python eval/retrieval_compare.py   # see eval/README.md for arguments
 ```
 
+## Moving the database to another storage class
+
+A bound volume's class can't change, and neither can a StatefulSet's `volumeClaimTemplates`. So a
+move copies the data to a new volume and swaps it in under the same claim name. Done on
+2026-11-18 (Silver to Gold); vendorkb was down about 3 minutes for 8.4 GB.
+
+1. **Record the starting state:**
+   - `helm get values`;
+   - row counts of the main tables;
+   - the old PV's name.
+2. **Stop vendorkb:**
+   - Suspend the three CronJobs (`kubectl patch cronjob … -p '{"spec":{"suspend":true}}'`).
+   - Set the old PV's `persistentVolumeReclaimPolicy` to `Retain`.
+   - Scale `vendorkb-mcp` and the `vendorkb-postgres` StatefulSet to 0.
+3. **Copy the data:**
+   - Create a staging PVC in the new class.
+   - Run a one-off pod that mounts the old claim read-only and the staging claim, and runs `cp -a`.
+   - Compare file counts and byte totals.
+4. **Swap the volumes:**
+   - Set the new PV to `Retain`.
+   - Delete the staging PVC, then remove the new PV's `claimRef`.
+   - Delete `data-vendorkb-postgres-0`.
+   - Recreate `data-vendorkb-postgres-0` with the new class and `volumeName: <new PV>`.
+5. **Recreate the StatefulSet and restart:**
+   - `kubectl delete sts vendorkb-postgres --cascade=orphan`.
+   - `helm upgrade --reset-then-reuse-values --set postgres.storageClass=<class> --force-conflicts`.
+     `--force-conflicts` hands the CronJobs' `suspend` field back to Helm, which un-suspends them.
+   - Compare the row counts with step 1.
+6. **Keep the old PV** (now `Released`) until the move has proven itself, then delete it.
+
 ## Backups (Kasten)
 
 The production Kasten policy (`production-apps-backup`, namespaces labelled `stack.stage=production`)
