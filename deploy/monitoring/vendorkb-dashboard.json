@@ -1760,7 +1760,8 @@
               }
             ]
           },
-          "decimals": 0
+          "decimals": 0,
+          "min": 0
         },
         "overrides": []
       },
@@ -1774,9 +1775,10 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "namePlacement": "left"
       },
-      "description": "Over the dashboard's range."
+      "description": "Tool calls per MCP key (main: Cohesity hidden; full: every vendor), over the dashboard's range."
     },
     {
       "id": 26,
@@ -1811,7 +1813,8 @@
               }
             ]
           },
-          "decimals": 0
+          "decimals": 0,
+          "min": 0
         },
         "overrides": []
       },
@@ -1825,9 +1828,10 @@
           ],
           "fields": "",
           "values": false
-        }
+        },
+        "namePlacement": "left"
       },
-      "description": "answer_question calls per vendor named, over the dashboard's range."
+      "description": "Tool calls per vendor named, over the dashboard's range: the question's scope (answer_question, gather_evidence; a \"which vendors\" question names none) and the vendor filter (search_docs, query_capabilities)."
     },
     {
       "id": 27,

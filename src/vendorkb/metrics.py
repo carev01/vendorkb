@@ -2,19 +2,21 @@
 of the MCP app.
 
 Every tool call counts in ``vendorkb_mcp_requests_total`` (tool, key, client, outcome) and times
-in ``vendorkb_mcp_request_seconds`` (tool, client); ``answer_question`` adds its tokens, cost (at
-the configured prices) and the vendors the question named. ``client`` is ``eval`` when the
+in ``vendorkb_mcp_request_seconds`` (tool, client); ``answer_question`` adds its tokens and
+cost (at the configured prices). ``vendorkb_questions_by_vendor_total`` (vendor, tool, client)
+counts the vendors a call names: the question's scope for ``answer_question`` and
+``gather_evidence``, the vendor filter for ``search_docs`` and ``query_capabilities``. ``client`` is ``eval`` when the
 request carries ``X-Vendorkb-Client: eval`` (the agent evals send it, any case), else ``user``:
 ``BearerTokenGate`` sets ``client_kind`` for the request. No label carries question or answer
-text or a key's token: tools, key labels, clients and outcomes are fixed sets, vendors come from
-scope detection's known names. The pipeline snapshot (``metrics_db.PipelineCollector``) is
-registered on the same registry by ``start``.
+text or a key's token: tools, key labels, clients and outcomes are fixed sets, vendors are known
+names (scope detection's, or a filter matched against list_vendors). The pipeline snapshot
+(``metrics_db.PipelineCollector``) is registered on the same registry by ``start``.
 """
 from __future__ import annotations
 
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -73,8 +75,10 @@ def _build() -> None:
                       ["kind", "client"], registry=REGISTRY)
     _cost = Counter("vendorkb_answer_cost_usd", "Answer model cost of answer_question (USD, at "
                     "the configured prices)", ["client"], registry=REGISTRY)
-    _vendors = Counter("vendorkb_questions_by_vendor", "answer_question calls per vendor named",
-                       ["vendor", "client"], registry=REGISTRY)
+    _vendors = Counter("vendorkb_questions_by_vendor",
+                       "Tool calls per vendor named (answer_question and gather_evidence by the "
+                       "question's scope, search_docs and query_capabilities by their vendor "
+                       "filter)", ["vendor", "tool", "client"], registry=REGISTRY)
     _build_info = Gauge("vendorkb_build_info", "The running vendorkb version", ["version"],
                         registry=REGISTRY)
 
@@ -135,8 +139,18 @@ def _record_answer(out: dict[str, Any], settings: VendorkbSettings | None) -> No
                 + completion * settings.answer_price_out_per_mtok) / 1e6
         if cost > 0:
             _cost.labels(client).inc(cost)
-    for vendor in (out.get("scope") or {}).get("vendors") or []:
-        _vendors.labels(str(vendor), client).inc()
+    record_vendors("answer_question", (out.get("scope") or {}).get("vendors"))
+
+
+def record_vendors(tool: str, vendors: Iterable[Any] | None) -> None:
+    """One increment per distinct vendor a tool call names (blank names skipped). Never raises."""
+    try:
+        client = client_kind.get()
+        for vendor in dict.fromkeys(str(v).strip() for v in vendors or () if v is not None):
+            if vendor:
+                _vendors.labels(vendor, tool, client).inc()
+    except Exception as exc:
+        log.debug("metrics: vendors not recorded: %s", exc)
 
 
 def start(settings: VendorkbSettings) -> None:

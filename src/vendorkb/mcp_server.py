@@ -44,6 +44,7 @@ MAX_K = 12  # agents ask for k=30 to "see everything"; 12 x 1,200 characters fit
 MAX_LIMIT = 200
 WIDE_SHOWN = 10  # product-wide facts shown at most: the workload-specific facts come first
 QUOTE_SHOWN = 240  # quote characters per fact in the text (structured content has it whole)
+VENDORS_TTL_S = 600.0  # how long the known vendor names of the usage metrics are kept
 EXAMPLE_QUOTE_SHOWN = 140  # quote characters of a cut result's per-vendor example
 SAMPLE_WITH_EXAMPLES = 5  # facts in full under a per-vendor example list (it cites every vendor)
 # Per search hit in the text output (structured content has it whole): agent clients cap a tool
@@ -552,6 +553,24 @@ def build_server(backend: Backend, label: str = "main",
     """The tools over ``backend``; ``label`` names the MCP key in the question logs and the usage
     metrics, ``settings`` gives the answer prices of the cost metric (none: no cost counted)."""
     server = MCPServer("vendorkb", instructions=INSTRUCTIONS)
+    known: dict[str, Any] = {"names": {}, "at": float("-inf")}
+
+    async def _count_vendors(tool: str, names: list[str] | tuple[str, ...] | None) -> None:
+        """Count the vendors a filter names in the usage metrics, as their list_vendors names:
+        a name the key's backend does not know is not counted (agents type these, and every
+        label value is a new series). The list is read at most every ``VENDORS_TTL_S``; a
+        failed read counts nothing and never fails the tool call."""
+        if not names:
+            return
+        try:
+            if time.monotonic() - known["at"] > VENDORS_TTL_S:
+                known["names"] = {v["vendor"].casefold(): v["vendor"]
+                                  for v in await backend.vendors()}
+                known["at"] = time.monotonic()
+            metrics.record_vendors(tool, [known["names"].get(n.strip().casefold(), "")
+                                          for n in names])
+        except Exception as exc:
+            log.debug("metrics: vendor filter not counted: %s", exc)
 
     async def _topic_facts(term: str, base: CapFilter, limit: int) -> tuple[str, dict[str, Any]]:
         """The facts of the topic ``term`` names (an id, a name or a trigger): one query per
@@ -685,6 +704,7 @@ def build_server(backend: Backend, label: str = "main",
                                     "family, topic or vendor with it")
                 f = dataclasses.replace(f, text=query)
             limit = max(1, min(limit, MAX_LIMIT))
+            await _count_vendors("query_capabilities", vendors)
             if topic is not None:
                 text, structured = await _topic_facts(topic, f, limit)
             else:
@@ -711,6 +731,7 @@ def build_server(backend: Backend, label: str = "main",
         async with metrics.observe("search_docs", label):
             if not query.strip():
                 raise ToolError("search_docs needs a query")
+            await _count_vendors("search_docs", vendor)
             try:
                 res = await backend.search(query, vendor or None, product or None,
                                            max(1, min(k, MAX_K)))
@@ -820,6 +841,8 @@ def build_server(backend: Backend, label: str = "main",
                 {"key": label, "question": question, "shape": out.get("shape"),
                  "topic": out.get("topic"), "retrieved": out.get("retrieved"), "part": part,
                  "seconds": round(time.monotonic() - started, 1)}, ensure_ascii=False))
+            if part == 1:  # one question, however many parts are read
+                metrics.record_vendors("gather_evidence", (out.get("scope") or {}).get("vendors"))
             if out.get("error"):
                 raise ToolError(f"gather_evidence failed: {out['error']}")
             parts = format_evidence(out)
