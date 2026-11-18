@@ -18,6 +18,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import re
 import time
 from collections import Counter
 from typing import Annotated, Any, Literal
@@ -367,11 +368,46 @@ def _evidence_group(out: dict[str, Any], passage: dict[str, Any]) -> str | None:
 INDEX_EXCERPT = 160  # characters of a vendor's first passage in a gather_evidence index
 
 
+# Words of a question that say nothing about what it asks: never picked for an excerpt.
+_GENERIC = frozenset(
+    "about after also backup backups before both cannot could data does each every from have "
+    "into let lets more most need other over product products should such support supported "
+    "supports than that their them then there these they this those through using vendor "
+    "vendors were what when where which while will with without would your".split())
+_SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _stems(text: str) -> set[str]:
+    """Crude stems of the words that carry meaning: the first five letters of each word of four
+    letters or more, generic words left out ("scheduled" and "schedule" both give "sched")."""
+    return {w[:5] for w in re.findall(r"[a-z][a-z0-9-]{3,}", text.lower()) if w not in _GENERIC}
+
+
+def _excerpt(text: str, question: str) -> str:
+    """The passage's sentence that shares the most meaningful words with the question (the
+    first such sentence on a tie), cut at INDEX_EXCERPT characters; the passage's start when
+    no sentence shares any. A passage's first words are often its heading, and the index
+    excerpt cut there stopped before the sentence that answered (2026-11-17, cv-04)."""
+    flat = " ".join(text.split())
+    asked = _stems(question)
+    best, score = "", 0
+    for sentence in _SENTENCE.split(text):
+        s = " ".join(sentence.split())
+        n = len(_stems(s) & asked)
+        if n > score:
+            best, score = s, n
+    if not best:
+        best = flat
+    lead = "" if flat.startswith(best) else "[…] "
+    return lead + (best if len(best) <= INDEX_EXCERPT else best[:INDEX_EXCERPT] + " […]")
+
+
 def _vendor_index(ranked: list[dict[str, Any]], where: dict[int, int],
-                  not_found: list[str]) -> str:
+                  not_found: list[str], question: str = "") -> str:
     """The vendor index of a "which vendors" reply: per vendor (in reply order) its passages'
-    numbers and parts, and its first passage as an excerpt with its source; then the vendors
-    with no passage. ``where`` maps a marker to its part (empty while sizing the index)."""
+    numbers and parts, and an excerpt of its first passage (the sentence closest to the
+    question) with its source; then the vendors with no passage. ``where`` maps a marker to its
+    part (empty while sizing the index)."""
     by_vendor: dict[str, list[dict[str, Any]]] = {}
     for p in ranked:
         by_vendor.setdefault(str(p["vendor"]), []).append(p)
@@ -379,9 +415,7 @@ def _vendor_index(ranked: list[dict[str, Any]], where: dict[int, int],
              "the parts hold them all:"]
     for vendor, ps in by_vendor.items():
         first = ps[0]
-        text = " ".join(str(first.get("text") or "").split())
-        if len(text) > INDEX_EXCERPT:
-            text = text[:INDEX_EXCERPT] + " […]"
+        text = _excerpt(str(first.get("text") or ""), question)
         parts = sorted({where[p["marker"]] for p in ps if p["marker"] in where})
         in_parts = (f", part{'s' if len(parts) > 1 else ''} "
                     f"{', '.join(str(n) for n in parts)}") if parts else ", part 99"
@@ -429,7 +463,8 @@ def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]
     # eval: agents that stopped after a few parts missed every vendor of the parts they skipped)
     many = out.get("shape") == "enumeration" and \
         sum(len(t) for t in shown.values()) > PART_CHARS
-    index_room = len(_vendor_index(ranked, {}, not_found)) if many else 0
+    question = str(out.get("query") or "")
+    index_room = len(_vendor_index(ranked, {}, not_found, question)) if many else 0
 
     def pack(index_chars: int) -> list[list[dict[str, Any]]]:
         packed: list[list[dict[str, Any]]] = [[]]
@@ -448,7 +483,7 @@ def format_evidence(out: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]
     index = ""
     if many and len(parts) > 1:
         where = {p["marker"]: i for i, part in enumerate(parts, start=1) for p in part}
-        index = _vendor_index(ranked, where, not_found)
+        index = _vendor_index(ranked, where, not_found, question)
     tail = []
     if not_found:
         tail.append(f"No supporting passage found for: {', '.join(not_found)}.")
