@@ -30,6 +30,12 @@ class VendorkbSettings(BaseSettings):
     judge_base_url: str = ""
     judge_model: str = "z-ai/glm-5.3-flash"
     judge_api_key: str = ""
+    # The answer model's provider (answer_question / `vendorkb answer`): "openrouter" sends
+    # OpenRouter's options (provider routing, usage with cost); "azure" is Azure OpenAI's v1 API
+    # (JUDGE_BASE_URL https://<resource>.openai.azure.com/openai/v1/, JUDGE_MODEL the deployment
+    # name, JUDGE_API_KEY the resource key), which takes reasoning_effort and
+    # max_completion_tokens and no temperature.
+    judge_provider: Literal["openrouter", "azure"] = "openrouter"
     answer_reasoning_effort: str = "low"
     # The vendor-by-aspect grid for broad "which vendors" topic questions (topics.topic_grid).
     # Off: those questions keep the prose enumeration, whose precision (98-100% supported) the
