@@ -210,6 +210,24 @@ results `docs/superpowers/taxonomy-v2-claims-v3-2026-11-06.md`):**
   `--taxonomy EDITED.yaml` (run, recall) rehearses sharpened dimension definitions or aliases
   without loading them, `--labels PATH` (run, score, recall) swaps the labelled sample.
 
+**Observability (2026-11-18; spec `docs/superpowers/specs/2026-11-18-observability-dashboard-design.md`):**
+- `task_runs` (`task_runs.py`, `track`/`progress`): one row per tracked command (sync, extract,
+  refresh and its stages, claims support, taxonomy map/propose, capabilities build); heartbeat
+  every 30 s, stalled after 300 s without one; done/spent are high-water marks; a write failure
+  never fails the task.
+- `metrics_db.py`: a pipeline snapshot refreshed every `METRICS_REFRESH_S` (60) in the MCP
+  process (gauges, among them `vendorkb_pipeline_spend_usd{kind,window}` from leaf `task_runs`).
+  `metrics.py`: MCP usage metrics, `client` label `eval` when the request carries
+  `X-Vendorkb-Client: eval` (the eval harness sends it); `/metrics` on `METRICS_PORT` 9100 (0
+  disables; a busy port logs a warning and MCP keeps serving). Answer cost needs
+  `ANSWER_PRICE_IN_PER_MTOK` / `ANSWER_PRICE_OUT_PER_MTOK` (0 = tokens only).
+- Helm `metrics.*`: a postgres_exporter sidecar over the Unix socket as role `vendorkb_monitor`;
+  `pg_stat_statements` and `track_io_timing` (a Postgres restart; `init_schema` creates the role
+  and extension, so run one vendorkb command such as `vendorkb stats` after the rollout).
+- `deploy/monitoring/` (README there): kube-state-metrics, Prometheus RBAC, the scrape fragment,
+  the dashboard JSON and `apply.py` (`uv run python deploy/monitoring/apply.py [--dry-run]`;
+  merges by name, switches Prometheus and Grafana to Recreate). k3s.md "Observability".
+
 **Not built yet:**
 - capabilities in `answer()`;
 
