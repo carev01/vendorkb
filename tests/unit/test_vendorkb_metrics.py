@@ -109,8 +109,10 @@ def test_answer_without_usage_records_nothing():
 
 def test_vendor_counted():
     metrics.record_answer({"scope": {"vendors": ["Veeam", "Rubrik"]}}, _settings())
-    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", client="user") == 1
-    assert _value("vendorkb_questions_by_vendor_total", vendor="Rubrik", client="user") == 1
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", tool="answer_question",
+                  client="user") == 1
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Rubrik", tool="answer_question",
+                  client="user") == 1
 
 
 async def test_answer_question_records_tokens_and_vendors():
@@ -120,9 +122,54 @@ async def test_answer_question_records_tokens_and_vendors():
     await _post(_app(backend), _call("answer_question", {"question": "Veeam?"}),
                 **{"X-Vendorkb-Client": "eval"})
     assert _value("vendorkb_answer_tokens_total", kind="prompt", client="eval") == 10
-    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", client="eval") == 1
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", tool="answer_question",
+                  client="eval") == 1
     assert _value("vendorkb_mcp_requests_total", tool="answer_question", key="full",
                   client="eval", outcome="ok") == 1
+
+
+def test_vendors_deduplicated_and_blank_skipped():
+    metrics.record_vendors("search_docs", ["Veeam", " Veeam", "", None])
+    metrics.record_vendors("search_docs", None)
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", tool="search_docs",
+                  client="user") == 1
+    for blank in ("", "None"):
+        assert _value("vendorkb_questions_by_vendor_total", vendor=blank, tool="search_docs",
+                      client="user") is None
+
+
+@pytest.mark.parametrize("tool, args", [
+    ("search_docs", {"query": "immutability", "vendor": ["examplevendor", "Nosuchvendor"]}),
+    ("query_capabilities", {"dimension": "security.immutability", "vendor": "EXAMPLEVENDOR"}),
+])
+async def test_vendor_filter_counted_by_known_name(tool, args):
+    await _post(_app(), _call(tool, args))
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Examplevendor", tool=tool,
+                  client="user") == 1
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Nosuchvendor", tool=tool,
+                  client="user") is None
+
+
+class VendorsDown(FakeBackend):
+    async def vendors(self):
+        raise RuntimeError("database down")
+
+
+async def test_vendor_filter_lookup_failure_never_fails_the_call():
+    await _post(_app(VendorsDown()), _call("search_docs", {"query": "x", "vendor": ["Veeam"]}))
+    assert _value("vendorkb_mcp_requests_total", tool="search_docs", key="full",
+                  client="user", outcome="ok") == 1
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", tool="search_docs",
+                  client="user") is None
+
+
+async def test_gather_evidence_counts_scope_once_per_question():
+    backend = FakeBackend(evidence={"shape": "comparison", "passages": [],
+                                    "scope": {"vendors": ["Veeam", "Rubrik"]}})
+    await _post(_app(backend), _call("gather_evidence", {"question": "Veeam vs Rubrik?"}))
+    await _post(_app(backend), _call("gather_evidence", {"question": "Veeam vs Rubrik?", "part": 2}))
+    assert _value("vendorkb_questions_by_vendor_total", vendor="Veeam", tool="gather_evidence",
+                  client="user") == 1
 
 
 async def test_metrics_not_on_app_routes():
