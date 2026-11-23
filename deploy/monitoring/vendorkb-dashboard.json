@@ -803,16 +803,31 @@
               }
             ]
           },
-          "unit": "dateTimeFromNow",
           "noValue": "never"
         },
         "overrides": [
           {
             "matcher": {
               "id": "byName",
+              "options": "last success"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
               "options": "last failure"
             },
             "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              },
               {
                 "id": "custom.cellOptions",
                 "value": {
@@ -1729,7 +1744,7 @@
     },
     {
       "id": 25,
-      "type": "bargauge",
+      "type": "table",
       "title": "Requests by key",
       "gridPos": {
         "x": 8,
@@ -1740,49 +1755,94 @@
       "targets": [
         {
           "expr": "sum by (key) (increase(vendorkb_mcp_requests_total{client=\"user\"}[$__range]))",
-          "legendFormat": "{{key}}",
           "refId": "A",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "noValue": "none yet"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "requests"
+            },
+            "properties": [
               {
-                "color": "blue",
-                "value": null
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "decimals",
+                "value": 0
               }
             ]
           },
-          "decimals": 0,
-          "min": 0
-        },
-        "overrides": []
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "key"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "basic",
-        "showUnfilled": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
         },
-        "namePlacement": "left"
+        "sortBy": [
+          {
+            "displayName": "requests",
+            "desc": true
+          }
+        ]
       },
-      "description": "Tool calls per MCP key (main: Cohesity hidden; full: every vendor), over the dashboard's range."
+      "description": "Tool calls per MCP key (main: Cohesity hidden; full: every vendor), over the dashboard's range.",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "key": 0,
+              "Value": 1
+            },
+            "renameByName": {
+              "Value": "requests"
+            }
+          }
+        }
+      ]
     },
     {
       "id": 26,
-      "type": "bargauge",
+      "type": "table",
       "title": "Top 10 vendors asked about",
       "gridPos": {
         "x": 16,
@@ -1793,45 +1853,90 @@
       "targets": [
         {
           "expr": "topk(10, sum by (vendor) (increase(vendorkb_questions_by_vendor_total{client=\"user\"}[$__range])))",
-          "legendFormat": "{{vendor}}",
           "refId": "A",
           "instant": true,
-          "range": false
+          "range": false,
+          "format": "table"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "blue"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
+          "noValue": "none yet"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "calls"
+            },
+            "properties": [
               {
-                "color": "blue",
-                "value": null
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "decimals",
+                "value": 0
               }
             ]
           },
-          "decimals": 0,
-          "min": 0
-        },
-        "overrides": []
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vendor"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          }
+        ]
       },
       "options": {
-        "orientation": "horizontal",
-        "displayMode": "basic",
-        "showUnfilled": true,
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
         },
-        "namePlacement": "left"
+        "sortBy": [
+          {
+            "displayName": "calls",
+            "desc": true
+          }
+        ]
       },
-      "description": "Tool calls per vendor named, over the dashboard's range: the question's scope (answer_question, gather_evidence; a \"which vendors\" question names none) and the vendor filter (search_docs, query_capabilities)."
+      "description": "Tool calls per vendor named, over the dashboard's range: the question's scope (answer_question, gather_evidence; a \"which vendors\" question names none) and the vendor filter (search_docs, query_capabilities).",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "vendor": 0,
+              "Value": 1
+            },
+            "renameByName": {
+              "Value": "calls"
+            }
+          }
+        }
+      ]
     },
     {
       "id": 27,
@@ -2272,7 +2377,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) / (sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) > 0))",
+          "expr": "topk(10, (sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) / (sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) > 0)) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"}))",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -2280,7 +2385,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range]))",
+          "expr": "sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"})",
           "legendFormat": "__auto",
           "refId": "B",
           "instant": true,
@@ -2288,7 +2393,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range]))",
+          "expr": "sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"})",
           "legendFormat": "__auto",
           "refId": "C",
           "instant": true,
@@ -2347,6 +2452,25 @@
                 "value": 0
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "query"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": false
+                }
+              },
+              {
+                "id": "custom.inspect",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -2363,7 +2487,7 @@
           }
         ]
       },
-      "description": "From pg_stat_statements over the dashboard's range. Look a queryid up with: SELECT query FROM pg_stat_statements WHERE queryid = <id>.",
+      "description": "Over the dashboard's range: each statement's first 200 characters (click a cell to see it whole). pg_dump's COPY ... TO stdout, the nightly Kasten backup, is left out: it takes minutes by design.",
       "transformations": [
         {
           "id": "merge",
@@ -2389,12 +2513,19 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time": true
+              "Time": true,
+              "queryid": true
             },
             "renameByName": {
               "Value #A": "mean",
               "Value #B": "calls",
               "Value #C": "total time"
+            },
+            "indexByName": {
+              "query": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3
             }
           }
         }

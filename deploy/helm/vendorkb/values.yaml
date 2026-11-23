@@ -63,7 +63,7 @@ metrics:
   answerPriceOutPerMtok: "0"
   postgresExporter:
     enabled: true
-    image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1  # include_query needs 0.18+
 
 sync:
   schedule: "*/30 * * * *"
