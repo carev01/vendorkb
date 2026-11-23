@@ -2377,7 +2377,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, (sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) / (sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) > 0)) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"}))",
+          "expr": "topk(10, (sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) / (sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) > 0)) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY public\\\\.\\\\S+ \\\\(.*\"}))",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -2385,7 +2385,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"})",
+          "expr": "sum by (queryid) (increase(pg_stat_statements_calls_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY public\\\\.\\\\S+ \\\\(.*\"})",
           "legendFormat": "__auto",
           "refId": "B",
           "instant": true,
@@ -2393,7 +2393,7 @@
           "format": "table"
         },
         {
-          "expr": "sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY .* TO stdout.*\"})",
+          "expr": "sum by (queryid) (increase(pg_stat_statements_seconds_total{datname=\"vendorkb\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{query!~\"(?is)COPY public\\\\.\\\\S+ \\\\(.*\"})",
           "legendFormat": "__auto",
           "refId": "C",
           "instant": true,
@@ -2487,7 +2487,7 @@
           }
         ]
       },
-      "description": "Over the dashboard's range: each statement's first 200 characters (click a cell to see it whole). pg_dump's COPY ... TO stdout, the nightly Kasten backup, is left out: it takes minutes by design.",
+      "description": "Over the dashboard's range: each statement's first 200 characters (click a cell to see it whole). pg_dump's COPY public.<table> (...) TO stdout, the nightly Kasten backup, is left out (matched on its start: the text is cut at 200 characters): it takes minutes by design.",
       "transformations": [
         {
           "id": "merge",
