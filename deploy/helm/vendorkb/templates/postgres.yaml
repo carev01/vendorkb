@@ -79,10 +79,13 @@ spec:
             - {name: pg-socket, mountPath: /var/run/postgresql}
         {{- if .Values.metrics.postgresExporter.enabled }}
         # postgres_exporter over the unix socket (`local all all trust`, so no password) as the
-        # pg_monitor role vendorkb_monitor that schema.sql creates.
+        # pg_monitor role vendorkb_monitor that schema.sql creates. include_query adds
+        # pg_stat_statements_query_id{queryid,query} (the first 200 characters), which the
+        # dashboard joins on to name each query and to leave pg_dump's COPY out.
         - name: postgres-exporter
           image: {{ .Values.metrics.postgresExporter.image }}
-          args: ["--collector.stat_statements"]
+          args: ["--collector.stat_statements", "--collector.stat_statements.include_query",
+                 "--collector.stat_statements.query_length=200"]
           ports: [{containerPort: 9187, name: metrics}]
           env:
             - name: DATA_SOURCE_NAME
