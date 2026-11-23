@@ -136,10 +136,12 @@ claimsRefresh:
     # Chunks the extractor loops on (it repeats one claim until max_tokens; the stream is
     # stopped at the third repeat) go to this model in one Anthropic Message Batch, half price
     # (ANTHROPIC_API_KEY). Opus 5.5 is the teacher the extractor was distilled from (precision
-    # 96/100); about $0.007 a chunk. maxUsd caps each run's fallback spend; model "" turns it off.
+    # 96/100); about $0.011 a chunk (2026-11-23). maxUsd caps each run's fallback spend, as
+    # reserved before submitting: maxTokens of output per request, ~$0.17 at Opus batch prices,
+    # so $10 admits ~58 chunks (a typical week's loops); model "" turns it off.
     fallback:
       model: claude-opus-5-5
-      maxUsd: 2
+      maxUsd: 10
       maxTokens: 16000
       effort: low
   # Map and support on the Message Batches API at half price (BACKLOG 37): one round per run,
