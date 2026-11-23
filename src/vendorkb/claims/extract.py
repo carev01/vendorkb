@@ -69,6 +69,13 @@ MAX_TOKENS = 2000  # the default of ``settings.extract_max_tokens``
 # finish_reason; "max_tokens": Anthropic stop_reason). ``run(retry_truncated=True)`` resets
 # such chunks so a re-run with a larger EXTRACT_MAX_TOKENS extracts them again.
 TRUNCATION_ERRORS = ("length", "max_tokens")
+# A streamed reply is stopped once one claim object has appeared this many times, verbatim: the
+# distilled extractor sometimes repeats a claim until max_tokens (the "degenerate loops" of the
+# corpus run; 51 of 2,083 chunks on 2026-11-23), and it does so on every attempt.
+REPEAT_LIMIT = 3
+# Errors the fallback model (``settings.extract_fallback_model``) takes over: a loop, stopped
+# ("repetition") or run to the limit ("length").
+FALLBACK_ERRORS = ("length", "repetition")
 MAX_ATTEMPTS = 3  # an errored chunk is 'failed' (never retried) after this many attempts
 SUPPORT_VALUES = ("supported", "partial", "not_supported", "unclear")
 KIND_VALUES = ("capability", "licensing", "service")
@@ -502,8 +509,9 @@ def _parse_openai(response: Any) -> _Outcome:
         return _Outcome("errored", "no-choices", input_tokens=tin, output_tokens=tout,
                         cost=cost)
     choice = choices[0]
-    if choice.finish_reason == "length":
-        return _Outcome("errored", "length", input_tokens=tin, output_tokens=tout, cost=cost)
+    if choice.finish_reason in ("length", "repetition"):
+        return _Outcome("errored", choice.finish_reason, input_tokens=tin, output_tokens=tout,
+                        cost=cost)
     if getattr(choice.message, "refusal", None):
         return _Outcome("errored", "refusal", input_tokens=tin, output_tokens=tout, cost=cost)
     return _parse_text(choice.message.content, tin, tout, cost)
@@ -668,6 +676,39 @@ async def unextracted_ids(conn: psycopg.AsyncConnection, *, vendor: str | None =
     return [r[0] for r in await cur.fetchall()]
 
 
+async def fallback_ids(conn: psycopg.AsyncConnection, model: str, fallback_model: str, *,
+                       limit: int | None = None) -> list[str]:
+    """Current chunks ``model`` left looping (``FALLBACK_ERRORS``, errored or failed) that no
+    model has extracted and ``fallback_model`` has not failed on: the fallback's work."""
+    cur = await conn.execute(
+        "SELECT c.chunk_id::text FROM chunks c WHERE c.superseded_at IS NULL"
+        " AND EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        "   AND e.extractor_model = %(model)s AND e.prompt_version LIKE %(family)s"
+        "   AND e.status IN ('errored', 'failed') AND e.error = ANY(%(errors)s))"
+        " AND NOT EXISTS (SELECT 1 FROM extractions e WHERE e.chunk_id = c.chunk_id"
+        "   AND e.prompt_version LIKE %(family)s AND (e.status = 'done'"
+        "     OR (e.status = 'failed' AND e.extractor_model = %(fallback)s)))"
+        " ORDER BY c.chunk_id LIMIT %(limit)s",
+        {"model": model, "fallback": fallback_model, "family": PROMPT_FAMILY,
+         "errors": list(FALLBACK_ERRORS), "limit": limit})
+    return [r[0] for r in await cur.fetchall()]
+
+
+async def unresolved(conn: psycopg.AsyncConnection, ids: list[str]) -> int:
+    """How many of ``ids`` are current chunks with no done v3 extraction by any model."""
+    cur = await conn.execute(
+        "SELECT count(*) FROM chunks c WHERE c.chunk_id = ANY(%s::uuid[])"
+        " AND c.superseded_at IS NULL AND NOT EXISTS (SELECT 1 FROM extractions e"
+        " WHERE e.chunk_id = c.chunk_id AND e.prompt_version LIKE %s AND e.status = 'done')",
+        (ids, PROMPT_FAMILY))
+    return int((await cur.fetchone())[0])  # type: ignore[index]
+
+
+async def spent_usd(conn: psycopg.AsyncConnection) -> float:
+    """The extraction ledger's total, every run and model together (the budget's basis)."""
+    return await _spent(conn)
+
+
 async def _load_chunks(conn: psycopg.AsyncConnection, ids: list[str]) -> dict[str, ChunkRow]:
     """The current chunks among ``ids``: a superseded one is never extracted, however named."""
     cur = await conn.execute(
@@ -702,16 +743,58 @@ async def _spent(conn: psycopg.AsyncConnection) -> float:
     return float((await cur.fetchone())[0])  # type: ignore[index]
 
 
+class _RepeatWatch:
+    """Counts the claim objects of a streamed ``{"claims": [...]}`` reply as they complete
+    (braces outside strings: a claim is an object at depth 2); ``feed`` is true once one of
+    them has appeared ``limit`` times, verbatim."""
+
+    def __init__(self, limit: int = REPEAT_LIMIT) -> None:
+        self.limit = limit
+        self.depth = 0
+        self.in_string = False
+        self.escaped = False
+        self.current: list[str] = []
+        self.seen: dict[str, int] = {}
+
+    def feed(self, text: str) -> bool:
+        looped = False
+        for ch in text:
+            if self.depth >= 2:
+                self.current.append(ch)
+            if self.in_string:
+                if self.escaped:
+                    self.escaped = False
+                elif ch == "\\":
+                    self.escaped = True
+                elif ch == '"':
+                    self.in_string = False
+            elif ch == '"':
+                self.in_string = True
+            elif ch == "{":
+                self.depth += 1
+                if self.depth == 2:
+                    self.current = ["{"]
+            elif ch == "}":
+                self.depth -= 1
+                if self.depth == 1:
+                    claim = "".join(self.current)
+                    self.seen[claim] = self.seen.get(claim, 0) + 1
+                    looped = looped or self.seen[claim] >= self.limit
+        return looped
+
+
 async def _streamed(client: Any, request: dict[str, Any]) -> Any:
     """A streamed chat completion put back together in the shape ``_parse_openai`` reads:
     the content and refusal deltas joined, the last finish_reason, and the usage of the final
-    event (``stream_options.include_usage``)."""
+    event (``stream_options.include_usage``). A reply that repeats one claim ``REPEAT_LIMIT``
+    times is closed there (the server stops generating) with finish_reason "repetition"."""
     stream = await client.chat.completions.create(
         **request, stream=True, stream_options={"include_usage": True})
     content: list[str] = []
     refusal: list[str] = []
     finish = None
     usage = None
+    watch = _RepeatWatch()
     async for event in stream:
         if getattr(event, "usage", None) is not None:
             usage = event.usage
@@ -719,9 +802,18 @@ async def _streamed(client: Any, request: dict[str, Any]) -> Any:
             delta = getattr(choice, "delta", None)
             if text := getattr(delta, "content", None):
                 content.append(text)
+                if watch.feed(text):
+                    finish = "repetition"
             if refused := getattr(delta, "refusal", None):
                 refusal.append(refused)
-            finish = getattr(choice, "finish_reason", None) or finish
+            finish = finish if finish == "repetition" else (
+                getattr(choice, "finish_reason", None) or finish)
+        if finish == "repetition":
+            close = getattr(stream, "close", None)
+            if close is not None:
+                await close()
+            log.warning("extract: a reply repeated one claim %d times; stopped", REPEAT_LIMIT)
+            break
     message = SimpleNamespace(content="".join(content) if content else None,
                               refusal="".join(refusal) or None)
     return SimpleNamespace(choices=[SimpleNamespace(finish_reason=finish, message=message)],

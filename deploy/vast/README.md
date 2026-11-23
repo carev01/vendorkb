@@ -66,7 +66,10 @@ re-extract a few chunks the corpus run extracted.
 the proxy answers `504` after about 60 s instead of holding the request. The same cutoff ends
 an unstreamed reply that takes longer (a chunk with many claims, while 32 calls share the one
 worker: 41 chunks failed on 2026-11-23), so the refresh streams the extraction calls
-(`EXTRACT_STREAM`, set by Helm with the endpoint). Between requests,
+(`EXTRACT_STREAM`, set by Helm with the endpoint). The extractor also loops on about 2.5% of chunks
+(it repeats one claim until `max_tokens`, on every attempt): the stream is stopped at the third
+repeat (error `repetition`), and the refresh hands those chunks, and any it left at `length`, to
+`claimsRefresh.extract.fallback.model` (Opus 5.5) in one Anthropic Message Batch. Between requests,
 `wake` checks the endpoint's workers:
 
 - **Failed:** a worker in `error` or `rebooting` is destroyed, and its machine is added to the

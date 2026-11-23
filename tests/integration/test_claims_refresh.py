@@ -237,6 +237,94 @@ async def test_a_due_run_extracts_maps_and_rebuilds_capabilities(vkb_dsn):
         await conn.close()
 
 
+class LoopingExtract(FakeExtract):
+    """Like FakeExtract, but a chunk marked #loop runs to max_tokens (a degenerate loop)."""
+
+    async def create(self, **params):
+        reply = await super().create(**params)
+        if "#loop" in params["messages"][-1]["content"]:
+            reply.choices[0].finish_reason = "length"
+        return reply
+
+
+def _fallback_client(*chunk_ids):
+    from tests.integration.test_claims_extract import FakeBatches, FakeClient, _message
+
+    return FakeClient(batches=FakeBatches({
+        cid: ("succeeded", _message({"claims": [CLAIM]})) for cid in chunk_ids}))
+
+
+async def _run_with_fallback(conn, client, fallback, ready=None, **over):
+    return await refresh.refresh(
+        conn, settings=_settings(extract_fallback_model="claude-opus-5-5", **over),
+        extract_client=client, map_client=NoCalls(), support_client=NoCalls(),
+        embedder=NoCalls(), ready=ready or Ready(), settle_minutes=60, extract_limit=100,
+        map_max_usd=1.0, now=NOW, fallback_client=fallback)
+
+
+async def test_a_looping_chunk_goes_to_the_fallback_model(vkb_dsn, monkeypatch):
+    monkeypatch.setattr(refresh, "FALLBACK_POLL_S", 0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _chunk(conn)
+        looping = await _chunk(conn, text=TEXT + " #loop")
+        fallback = _fallback_client(looping)
+        report = await _run_with_fallback(conn, LoopingExtract(), fallback)
+        assert report.extract["done"] == 1 and report.extract["errored"] == 1
+        assert report.fallback["done"] == 1 and report.unresolved == 0
+        assert not refresh.failed(report)  # the loop was rescued: a clean Job
+        [requests] = fallback.messages.batches.created
+        assert [r["custom_id"] for r in requests] == [looping]
+        assert requests[0]["params"]["model"] == "claude-opus-5-5"
+        assert requests[0]["params"]["max_tokens"] == 16000
+        assert await _count(conn, "SELECT count(*) FROM extractions WHERE status = 'done'"
+                                  " AND extractor_model = 'claude-opus-5-5'") == 1
+        # priced as Opus, not at the extractor's nominal GPU-host prices
+        assert await _count(conn, "SELECT count(*) FROM extract_batches WHERE extractor_model"
+                                  " = 'claude-opus-5-5' AND est_cost_usd > 0.001") == 1
+        assert report.capabilities_rows and report.capabilities_rows > 0
+    finally:
+        await conn.close()
+
+
+async def test_a_looping_backlog_alone_runs_the_fallback_without_waking_the_extractor(
+        vkb_dsn, monkeypatch):
+    monkeypatch.setattr(refresh, "FALLBACK_POLL_S", 0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        cid = await _chunk(conn)
+        await conn.execute(
+            "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
+            " status, error, attempts) VALUES (%s,%s,'vendorkb-test',%s,'failed','length',3)",
+            (str(uuid.uuid4()), cid, extract.PROMPT_VERSION))
+        client, ready = FakeExtract(), Ready()
+        report = await _run_with_fallback(conn, client, _fallback_client(cid), ready)
+        assert (report.new_chunks, report.fallback_due, report.due) == (0, 1, True)
+        assert client.calls == [] and ready.calls == 0 and report.extract is None
+        assert report.fallback["done"] == 1 and report.unresolved == 0
+
+        again = await _run_with_fallback(conn, client, _fallback_client(), ready)
+        assert (again.due, again.fallback_due) == (False, 0)
+    finally:
+        await conn.close()
+
+
+async def test_a_fallback_capped_by_its_budget_leaves_the_job_failed(vkb_dsn, monkeypatch):
+    monkeypatch.setattr(refresh, "FALLBACK_POLL_S", 0)
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        looping = await _chunk(conn, text=TEXT + " #loop")
+        report = await _run_with_fallback(conn, LoopingExtract(), _fallback_client(looping),
+                                          extract_fallback_max_usd=0.0)
+        assert report.fallback is None or report.fallback["stopped_by_budget"]
+        assert report.unresolved == 1 and refresh.failed(report)
+    finally:
+        await conn.close()
+
+
 class SupportVerdicts:
     """OpenAI-shaped support checker: every claim is supported. Taxonomy-map adjudications
     must not reach it (the claims map through aliases)."""

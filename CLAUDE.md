@@ -93,7 +93,11 @@ stack.
     `claims/vast.py` wakes it through `https://openai.vast.ai/<endpoint>` and destroys and
     excludes failing workers, since Vast reboots a bad host instead of moving off it), extracts,
     maps (MAP_BASE_URL / MAP_API_KEY, else the EXTRACT_ ones; required with VAST_ENDPOINT),
-    support-checks and rebuilds capabilities.
+    support-checks and rebuilds capabilities. The Vast calls are streamed (`EXTRACT_STREAM`:
+    the proxy answers 504 after ~60 s); a reply repeating one claim 3 times is stopped
+    (`repetition`), and chunks left at `repetition` or `length` go to
+    `EXTRACT_FALLBACK_MODEL` (Opus 5.5) in one Anthropic batch, at most
+    `EXTRACT_FALLBACK_MAX_USD` a run; such chunks alone make a run due, without waking Vast.
   - Message Batches (BACKLOG 37, `llm_batch.py`; tables `llm_batches`, `llm_batch_items`):
     `taxonomy map`, `claims support` and `taxonomy propose` default to batch mode on the
     Anthropic API (half price; they wait for their batches, `--no-wait` does one round for map
