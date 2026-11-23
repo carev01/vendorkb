@@ -63,6 +63,10 @@ class VendorkbSettings(BaseSettings):
     extract_base_url: str = ""
     extract_api_key: str = ""
     extract_concurrency: int = 16
+    # Stream the openai backend's replies. The Vast proxy answers 504 to a request still
+    # unanswered after about 60 s, which a long reply is (many claims, 32 calls sharing one
+    # GPU); a streamed reply keeps the connection busy (Helm sets it with VAST_ENDPOINT).
+    extract_stream: bool = False
     # max_tokens per extraction request (both backends; thinking counts against it). Chunks
     # cut off at it are retried with `vendorkb extract --retry-errored` after raising it.
     extract_max_tokens: int = 2000

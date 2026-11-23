@@ -63,7 +63,10 @@ re-extract a few chunks the corpus run extracted.
 ## How a refresh uses it
 
 `claims.vast.wake` sends a one-token chat request until one is answered. With no worker ready,
-the proxy answers `504` after about 60 s instead of holding the request. Between requests,
+the proxy answers `504` after about 60 s instead of holding the request. The same cutoff ends
+an unstreamed reply that takes longer (a chunk with many claims, while 32 calls share the one
+worker: 41 chunks failed on 2026-11-23), so the refresh streams the extraction calls
+(`EXTRACT_STREAM`, set by Helm with the endpoint). Between requests,
 `wake` checks the endpoint's workers:
 
 - **Failed:** a worker in `error` or `rebooting` is destroyed, and its machine is added to the

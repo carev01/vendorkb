@@ -80,6 +80,8 @@ spec:
                 - {name: VAST_ENDPOINT, value: {{ $vast | quote }}}
                 - {name: VAST_SEARCH_PARAMS, value: {{ $c.extract.vast.searchParams | quote }}}
                 - {name: VAST_WORKER_READY_S, value: {{ $c.extract.vast.workerReadySeconds | quote }}}
+                # streamed: the proxy answers 504 to a reply not started within ~60 s
+                - {name: EXTRACT_STREAM, value: "true"}
                 {{- else }}
                 - {name: EXTRACT_BASE_URL, value: {{ $c.extract.baseUrl | quote }}}
                 {{- end }}
