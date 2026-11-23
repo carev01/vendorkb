@@ -493,10 +493,10 @@ def test_the_shipped_taxonomy_keeps_the_production_version():
     cut = data[:data.index(b"\ntopics:") + 1]
     assert load.version_string(2, data) == f"2-{hashlib.sha256(cut).hexdigest()[:8]}"
     if load.parse_doc(data)["version"] == 2:
-        # production's version (2026-11-17: the offering review after the Quest Software
-        # sync). An edit of the taxonomy outside its topics changes it, and this test with
-        # it, on purpose.
-        assert load.version_string(2, data) == "2-707638eb"
+        # production's version (2026-11-23: the Zscaler target, after the Commvault sync).
+        # An edit of the taxonomy outside its topics changes it, and this test with it, on
+        # purpose.
+        assert load.version_string(2, data) == "2-f7c65000"
 
 
 async def test_a_load_records_the_version_without_the_topics(vkb_dsn, tmp_path):

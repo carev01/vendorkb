@@ -2722,6 +2722,16 @@ targets:
 - {id: quickbooks_online, name: QuickBooks Online, class: saas.other, aliases: [quickbooks, 
       quickbooks online]}
 - {id: xero, name: Xero, class: saas.other, aliases: [xero]}
+# Added 2026-11-23: Commvault backs up Zscaler tenant configuration (75 unmapped claims, 22 chunks).
+- id: zscaler
+  name: Zscaler
+  class: saas.other
+  aliases: [zscaler, zscaler zero trust exchange, zscaler tenant]
+  variants:
+  - {id: zia, name: Zscaler Internet Access (ZIA), aliases: [zia, zscaler internet access]}
+  - {id: zpa, name: Zscaler Private Access (ZPA), aliases: [zpa, zscaler private access]}
+  - {id: zcc, name: Zscaler Client Connector (ZCC), aliases: [zcc, zscaler client connector]}
+  - {id: zdx, name: Zscaler Digital Experience (ZDX), aliases: [zdx, zscaler digital experience]}
 - {id: aws, name: Amazon Web Services, class: cloud, aliases: [aws, amazon web services, amazon, aws
       organizations], variants: [{id: govcloud_us, name: AWS GovCloud (US), aliases: [aws govcloud 
           (us), aws govcloud]}]}
