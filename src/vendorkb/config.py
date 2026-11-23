@@ -67,6 +67,13 @@ class VendorkbSettings(BaseSettings):
     # unanswered after about 60 s, which a long reply is (many claims, 32 calls sharing one
     # GPU); a streamed reply keeps the connection busy (Helm sets it with VAST_ENDPOINT).
     extract_stream: bool = False
+    # The refresh's fallback for chunks the extractor loops on (extract.FALLBACK_ERRORS): one
+    # Anthropic Message Batch (ANTHROPIC_API_KEY) with this model; "" turns it off. Its spend
+    # goes on the extraction ledger, at most extract_fallback_max_usd per run.
+    extract_fallback_model: str = ""
+    extract_fallback_max_usd: float = 2.0
+    extract_fallback_max_tokens: int = 16000  # thinking counts against it
+    extract_fallback_effort: str = "low"
     # max_tokens per extraction request (both backends; thinking counts against it). Chunks
     # cut off at it are retried with `vendorkb extract --retry-errored` after raising it.
     extract_max_tokens: int = 2000

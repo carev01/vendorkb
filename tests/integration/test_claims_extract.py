@@ -1295,6 +1295,77 @@ async def test_streamed_length_and_dropped_stream_are_errored(vkb_dsn):
         await conn.close()
 
 
+def _claim_json(capability):
+    return json.dumps({**GOOD, "capability": capability})
+
+
+def test_repeat_watch_counts_whole_claims_across_deltas():
+    watch = extract._RepeatWatch(limit=3)
+    a, b = _claim_json("a {brace} \"quoted\" \\ here"), _claim_json("b")
+    text = '{"claims": [' + ", ".join([a, b, a]) + ", "
+    assert not any(watch.feed(text[i:i + 7]) for i in range(0, len(text), 7))
+    assert watch.feed(a[:10]) is False and watch.feed(a[10:]) is True  # the third a
+
+
+class ClosingStream(FakeStream):
+    def __init__(self, events):
+        super().__init__(events)
+        self.delivered = 0
+        self.closed = False
+
+    async def _gen(self):
+        for event in self.events:
+            self.delivered += 1
+            yield event
+
+    async def close(self):
+        self.closed = True
+
+
+async def test_a_looping_stream_is_stopped_and_errored_repetition(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        claim = _claim_json("immutable snapshots")
+        events = [_event('{"claims": [')] + [_event(claim + ", ") for _ in range(50)]
+        stream = ClosingStream(events)
+        completions = StreamingCompletions({"Amazon RDS": lambda: stream})
+        client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+        report = await extract.run(conn, [cid], client=client,
+                                   settings=_oa(extract_stream=True), mode="sync")
+        assert (report.done, report.errored) == (0, 1)
+        assert stream.closed and stream.delivered == 1 + extract.REPEAT_LIMIT
+        assert await _rows(conn, "SELECT status, error FROM extractions") == [
+            ("errored", "repetition")]
+    finally:
+        await conn.close()
+
+
+async def test_fallback_ids_are_looping_chunks_nobody_extracted(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        looped, rescued, timed_out, given_up = await _doc(
+            conn, texts=(TEXT + " #1", TEXT + " #2", TEXT + " #3", TEXT + " #4"))
+
+        async def row(cid, model, status, error):
+            await conn.execute(
+                "INSERT INTO extractions (extraction_id, chunk_id, extractor_model,"
+                " prompt_version, status, error, attempts) VALUES (%s,%s,%s,%s,%s,%s,1)",
+                (str(uuid.uuid4()), cid, model, extract.PROMPT_VERSION, status, error))
+        await row(looped, "qwen", "failed", "repetition")
+        await row(rescued, "qwen", "errored", "length")
+        await row(rescued, "opus", "done", None)
+        await row(timed_out, "qwen", "errored", "InternalServerError: Error code: 504")
+        await row(given_up, "qwen", "errored", "length")
+        await row(given_up, "opus", "failed", "max_tokens")
+        assert await extract.fallback_ids(conn, "qwen", "opus") == [looped]
+        assert await extract.unresolved(conn, [looped, rescued, timed_out]) == 2
+    finally:
+        await conn.close()
+
+
 async def test_openai_backend_refuses_batch_mode(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:

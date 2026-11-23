@@ -96,6 +96,10 @@ spec:
                 # The extraction cap counts every run ever ledgered (the Anthropic pilots: $84 by
                 # 2026-11-17), so the default $25 refused the first refresh before any chunk.
                 - {name: EXTRACT_BUDGET_USD, value: {{ $c.extract.budgetUsd | quote }}}
+                - {name: EXTRACT_FALLBACK_MODEL, value: {{ $c.extract.fallback.model | quote }}}
+                - {name: EXTRACT_FALLBACK_MAX_USD, value: {{ $c.extract.fallback.maxUsd | quote }}}
+                - {name: EXTRACT_FALLBACK_MAX_TOKENS, value: {{ $c.extract.fallback.maxTokens | quote }}}
+                - {name: EXTRACT_FALLBACK_EFFORT, value: {{ $c.extract.fallback.effort | quote }}}
                 - {name: MAP_BACKEND, value: {{ $c.map.backend | quote }}}
                 - {name: MAP_BASE_URL, value: {{ $c.map.baseUrl | quote }}}
                 - {name: MAP_MODEL, value: {{ $c.map.model | quote }}}

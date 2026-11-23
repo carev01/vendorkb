@@ -289,6 +289,9 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
     conn = await connect(settings.vendorkb_dsn)
     extract_client, map_client = _extract_client(settings), _map_client(settings)
     support_client = _support_client(settings)
+    # the fallback for chunks the extractor loops on: Anthropic (ANTHROPIC_API_KEY), batch mode
+    fallback_client = (_extract_client(settings.model_copy(update={"extract_backend": "anthropic"}))
+                       if settings.extract_fallback_model and args.extract_new else None)
     try:
         await init_schema(conn, embed_dim=settings.embed_dim)
         async with Embedder(settings) as embedder:
@@ -299,9 +302,9 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                 extract_limit=args.extract_limit, map_max_usd=args.map_max_usd,
                 support_max_usd=args.support_max_usd,
                 support_review_max_usd=args.support_review_max_usd, batch=args.batch,
-                extract_new=args.extract_new)
+                extract_new=args.extract_new, fallback_client=fallback_client)
     finally:
-        for client in (extract_client, map_client, support_client):
+        for client in (extract_client, map_client, support_client, fallback_client):
             close = getattr(client, "close", None)
             if close is not None:
                 await close()
