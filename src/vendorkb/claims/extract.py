@@ -45,9 +45,11 @@ import logging
 import math
 import uuid
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any, Literal, TypeGuard, cast
 
 import anthropic
+import httpx
 import openai
 import psycopg
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -700,6 +702,32 @@ async def _spent(conn: psycopg.AsyncConnection) -> float:
     return float((await cur.fetchone())[0])  # type: ignore[index]
 
 
+async def _streamed(client: Any, request: dict[str, Any]) -> Any:
+    """A streamed chat completion put back together in the shape ``_parse_openai`` reads:
+    the content and refusal deltas joined, the last finish_reason, and the usage of the final
+    event (``stream_options.include_usage``)."""
+    stream = await client.chat.completions.create(
+        **request, stream=True, stream_options={"include_usage": True})
+    content: list[str] = []
+    refusal: list[str] = []
+    finish = None
+    usage = None
+    async for event in stream:
+        if getattr(event, "usage", None) is not None:
+            usage = event.usage
+        for choice in getattr(event, "choices", None) or []:
+            delta = getattr(choice, "delta", None)
+            if text := getattr(delta, "content", None):
+                content.append(text)
+            if refused := getattr(delta, "refusal", None):
+                refusal.append(refused)
+            finish = getattr(choice, "finish_reason", None) or finish
+    message = SimpleNamespace(content="".join(content) if content else None,
+                              refusal="".join(refusal) or None)
+    return SimpleNamespace(choices=[SimpleNamespace(finish_reason=finish, message=message)],
+                           usage=usage)
+
+
 async def _call(client: Any, chunk: ChunkRow, settings: VendorkbSettings
                 ) -> tuple[_Outcome, Exception | None]:
     """One extraction call; returns the outcome and, for a 400, the error to stop the run on
@@ -707,13 +735,17 @@ async def _call(client: Any, chunk: ChunkRow, settings: VendorkbSettings
     connection) are retried by the client (``max_retries``) before they land here."""
     is_openai = settings.extract_backend == "openai"
     try:
-        reply = (await client.chat.completions.create(**build_openai_request(chunk, settings))
-                 if is_openai else
-                 await client.messages.create(**build_request(chunk, settings)))
+        if is_openai and settings.extract_stream:
+            reply = await _streamed(client, build_openai_request(chunk, settings))
+        elif is_openai:
+            reply = await client.chat.completions.create(**build_openai_request(chunk, settings))
+        else:
+            reply = await client.messages.create(**build_request(chunk, settings))
     except (anthropic.BadRequestError, openai.BadRequestError) as e:
         return _api_error(e), e
     except (anthropic.RateLimitError, anthropic.APIStatusError, anthropic.APIConnectionError,
-            openai.RateLimitError, openai.APIStatusError, openai.APIConnectionError) as e:
+            openai.RateLimitError, openai.APIStatusError, openai.APIConnectionError,
+            openai.APIError, httpx.HTTPError) as e:  # the last two: a stream cut off midway
         return _api_error(e), None
     try:
         return (_parse_openai(reply) if is_openai else _parse(reply)), None

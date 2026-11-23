@@ -1206,6 +1206,95 @@ async def test_openai_ledger_survives_a_crash(vkb_dsn):
         await conn.close()
 
 
+def _event(content=None, finish=None, usage=None, refusal=None):
+    choices = [] if content is None and finish is None and refusal is None else [
+        SimpleNamespace(finish_reason=finish,
+                        delta=SimpleNamespace(content=content, refusal=refusal))]
+    return SimpleNamespace(choices=choices, usage=usage)
+
+
+class FakeStream:
+    def __init__(self, events, cut_after=None):
+        self.events = events
+        self.cut_after = cut_after  # events delivered before the connection drops
+
+    def __aiter__(self):
+        return self._gen()
+
+    async def _gen(self):
+        import httpx
+        for i, event in enumerate(self.events):
+            if self.cut_after is not None and i == self.cut_after:
+                raise httpx.RemoteProtocolError("peer closed connection")
+            yield event
+
+
+class StreamingCompletions:
+    """Answers stream=True requests: marker -> FakeStream (a fresh copy per call)."""
+
+    def __init__(self, streams):
+        self.streams = streams
+        self.calls: list[dict] = []
+
+    async def create(self, **params):
+        self.calls.append(params)
+        assert params.get("stream") is True
+        body = params["messages"][-1]["content"]
+        for marker, make in self.streams.items():
+            if marker in body:
+                return make()
+        raise AssertionError("no stream for this chunk")
+
+
+def _claims_stream(payload, *, finish="stop", tokens=(1000, 200), cost=None):
+    text = json.dumps(payload) if not isinstance(payload, str) else payload
+    usage = SimpleNamespace(prompt_tokens=tokens[0], completion_tokens=tokens[1])
+    if cost is not None:
+        usage.cost = cost
+    half = len(text) // 2
+    return [_event(text[:half]), _event(text[half:]), _event(finish=finish), _event(usage=usage)]
+
+
+async def test_streamed_reply_is_joined_and_ledgered(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        [cid] = await _doc(conn)
+        completions = StreamingCompletions(
+            {"Amazon RDS": lambda: FakeStream(_claims_stream({"claims": [GOOD]}, cost=0.002))})
+        client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+        report = await extract.run(conn, [cid], client=client,
+                                   settings=_oa(extract_stream=True), mode="sync")
+        assert (report.done, report.claims_accepted) == (1, 1)
+        assert completions.calls[0]["stream_options"] == {"include_usage": True}
+        assert abs(report.est_cost_usd - 0.002) < 1e-12
+        assert await _rows(conn, "SELECT status, input_tokens, output_tokens, n_claims"
+                                 " FROM extractions") == [("done", 1000, 200, 1)]
+    finally:
+        await conn.close()
+
+
+async def test_streamed_length_and_dropped_stream_are_errored(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        cut, dropped, ok = await _doc(
+            conn, texts=(TEXT + " #cut", TEXT + " #drop", TEXT + " #ok"))
+        completions = StreamingCompletions({
+            "#cut": lambda: FakeStream(_claims_stream('{"claims": [', finish="length")),
+            "#drop": lambda: FakeStream(_claims_stream({"claims": [GOOD]}), cut_after=1),
+            "#ok": lambda: FakeStream(_claims_stream({"claims": []}))})
+        client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+        report = await extract.run(conn, [cut, dropped, ok], client=client,
+                                   settings=_oa(extract_stream=True), mode="sync")
+        assert (report.done, report.errored) == (1, 2)  # a dropped stream never stops the run
+        rows = dict(await _rows(conn, "SELECT chunk_id::text, error FROM extractions"))
+        assert rows[cut] == "length" and rows[ok] is None
+        assert rows[dropped].startswith("RemoteProtocolError")
+    finally:
+        await conn.close()
+
+
 async def test_openai_backend_refuses_batch_mode(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
