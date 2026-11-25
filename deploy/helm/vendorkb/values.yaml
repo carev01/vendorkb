@@ -156,7 +156,10 @@ claimsRefresh:
     backend: anthropic     # anthropic: ANTHROPIC_API_KEY (batch mode); openai: OpenRouter (MAP_API_KEY)
     baseUrl: ""            # openai only, e.g. https://openrouter.ai/api/v1
     model: claude-haiku-5-5   # openai: anthropic/claude-haiku-5.5
-    maxUsd: 1.0            # submitted per due run; claims left over wait for the next one
+    # submitted per due run; claims left over wait for the next one. The cap reserves each
+    # request's worst case, about 3-10x its real cost: at $1 a 37k-claim import (2026-11-24) took
+    # nine hourly collects to map and check.
+    maxUsd: 5.0
   # The claim support check (src/vendorkb/claims/support.py): the checker asks each new claim
   # of a topic dimension, the reviewer re-asks every claim it flags; capabilities leave out
   # only the claims the reviewer rejects. backend anthropic needs ANTHROPIC_API_KEY in the
@@ -168,7 +171,7 @@ claimsRefresh:
     effort: high
     reviewModel: claude-opus-5-5
     reviewEffort: low
-    maxUsd: 1.0            # checker, per due run
+    maxUsd: 5.0            # checker, per due run
     reviewMaxUsd: 1.0      # reviewer, per due run
   resources:
     requests: {cpu: 250m, memory: 1Gi}
