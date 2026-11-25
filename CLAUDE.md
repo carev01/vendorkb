@@ -91,7 +91,8 @@ stack.
     only when the sync brought chunks no extraction touched, once the feed is quiet; then wakes
     the scaled-to-zero extraction endpoint (`deploy/vast`: a Vast.ai serverless endpoint;
     `claims/vast.py` wakes it through `https://openai.vast.ai/<endpoint>` and destroys and
-    excludes failing workers, since Vast reboots a bad host instead of moving off it), extracts,
+    excludes failing workers, since Vast reboots a bad host instead of moving off it, and destroys
+    them once the extraction ends, since a stopped worker still bills its disk), extracts,
     maps (MAP_BASE_URL / MAP_API_KEY, else the EXTRACT_ ones; required with VAST_ENDPOINT),
     support-checks and rebuilds capabilities. The Vast calls are streamed (`EXTRACT_STREAM`:
     the proxy answers 504 after ~60 s); a reply repeating one claim 3 times is stopped

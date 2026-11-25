@@ -116,3 +116,19 @@ async def test_an_unknown_endpoint_is_an_error():
     with pytest.raises(vast.VastError, match="no Vast worker group"):
         await vast.wake("missing", "vk", model="m", search_params="x", timeout_s=1,
                         transport=httpx.MockTransport(fake))
+
+
+async def test_release_destroys_every_worker_of_the_endpoint():
+    fake = FakeVast([200], workers=[[{"id": 5, "status": "idle"}, {"id": 6, "status": "stopped"}]])
+    ids = await vast.release("ex", "vk", transport=httpx.MockTransport(fake))
+    assert ids == [5, 6]
+    assert [c[1] for c in fake.of("DELETE")] == [f"{vast.CONSOLE}/instances/5/",
+                                                f"{vast.CONSOLE}/instances/6/"]
+    assert fake.of("POST", vast.ROUTE)[0][2] == {"id": 44}  # this endpoint's workers
+    assert not fake.of("POST", vast.PROXY)  # never wakes it
+
+
+async def test_release_of_an_empty_endpoint_destroys_nothing():
+    fake = FakeVast([200])
+    assert await vast.release("ex", "vk", transport=httpx.MockTransport(fake)) == []
+    assert not fake.of("DELETE")

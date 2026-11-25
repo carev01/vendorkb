@@ -106,6 +106,11 @@ Workers that never started at all (no container) cost nothing: GPU billing start
 ## Cost
 
 Billing is per second at the host's price (about $0.48-0.70/h for these GPUs) while a worker
-loads or serves. Its disk is billed while it exists, stopped included, until Vast destroys it.
-With no standby workers, Vast does that over the following hours. A refresh of a few hundred
-chunks is one cold start, a few minutes of extraction and the 300 s idle timeout: well under $1.
+loads or serves. Its disk is billed while it exists, stopped included. Vast does not destroy a
+stopped worker even with no standby workers (`COLD_WORKERS=0`): one stayed stopped from 23 to
+25 Nov 2026, billing about $0.03/h for its 60 GB disk. So `vendorkb refresh` destroys the
+endpoint's workers as soon as its extraction ends, or fails (`claims.vast.release`; best
+effort, a failure is logged). Each due run therefore starts from a fresh worker, a cold start
+of about 4 min, and pays neither the 300 s idle timeout nor any storage between runs. A refresh
+of a few hundred chunks is one cold start and a few minutes of extraction: well under $1.
+9,555 chunks (24 Nov 2026) took 85 min.

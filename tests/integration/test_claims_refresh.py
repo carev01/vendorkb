@@ -100,12 +100,31 @@ async def _chunk(conn, *, fetched_at=NOW - timedelta(hours=3), text=TEXT) -> str
     return chunk_id
 
 
-async def _run(conn, client=None, ready=None, *, settle=60, limit=100):
+async def _run(conn, client=None, ready=None, *, settle=60, limit=100, release=None):
     return await refresh.refresh(
         conn, settings=_settings(), extract_client=client or FakeExtract(),
         map_client=NoCalls(), support_client=NoCalls(), embedder=NoCalls(),
         ready=ready or Ready(),
-        settle_minutes=settle, extract_limit=limit, map_max_usd=1.0, now=NOW)
+        settle_minutes=settle, extract_limit=limit, map_max_usd=1.0, now=NOW, release=release)
+
+
+class Release:
+    """The refresh's release callback: counts its calls, records how many extractions
+    existed when it ran (so a test can see it ran after the extraction)."""
+
+    def __init__(self, conn=None, fail: bool = False):
+        self.calls = 0
+        self.conn = conn
+        self.fail = fail
+        self.extractions_seen = None
+
+    async def __call__(self):
+        self.calls += 1
+        if self.conn is not None:
+            self.extractions_seen = await _count(self.conn, "SELECT count(*) FROM extractions")
+        if self.fail:
+            raise RuntimeError("Vast said no")
+        return [42]
 
 
 async def _count(conn, sql) -> int:
@@ -209,6 +228,60 @@ async def test_an_endpoint_that_never_answers_fails_before_extracting(vkb_dsn):
         await conn.close()
 
 
+async def test_a_due_run_releases_the_endpoint_after_extracting(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _chunk(conn)
+        release = Release(conn)
+        report = await _run(conn, release=release)
+        assert report.extract["done"] == 1
+        assert release.calls == 1 and release.extractions_seen == 1  # after the extraction
+        assert report.released == [42]
+    finally:
+        await conn.close()
+
+
+async def test_an_endpoint_that_never_answers_is_still_released(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _chunk(conn)
+        release = Release()
+        with pytest.raises(TimeoutError):
+            await _run(conn, ready=Ready(fail=True), release=release)
+        assert release.calls == 1  # a worker still loading is not left behind
+    finally:
+        await conn.close()
+
+
+async def test_a_failed_release_never_fails_the_run(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        await _chunk(conn)
+        release = Release(fail=True)
+        report = await _run(conn, release=release)
+        assert release.calls == 1 and report.released is None
+        assert report.extract["done"] == 1 and not refresh.failed(report)
+        assert report.capabilities_rows and report.capabilities_rows > 0
+    finally:
+        await conn.close()
+
+
+async def test_a_run_that_extracts_nothing_releases_nothing(vkb_dsn):
+    conn = await connect(vkb_dsn)
+    try:
+        await _fresh(conn)
+        release = Release()
+        assert not (await _run(conn, release=release)).due
+        await _chunk(conn, fetched_at=NOW)  # still settling
+        assert not (await _run(conn, release=release)).due
+        assert release.calls == 0
+    finally:
+        await conn.close()
+
+
 async def test_a_due_run_extracts_maps_and_rebuilds_capabilities(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
@@ -254,12 +327,12 @@ def _fallback_client(*chunk_ids):
         cid: ("succeeded", _message({"claims": [CLAIM]})) for cid in chunk_ids}))
 
 
-async def _run_with_fallback(conn, client, fallback, ready=None, **over):
+async def _run_with_fallback(conn, client, fallback, ready=None, release=None, **over):
     return await refresh.refresh(
         conn, settings=_settings(extract_fallback_model="claude-opus-5-5", **over),
         extract_client=client, map_client=NoCalls(), support_client=NoCalls(),
         embedder=NoCalls(), ready=ready or Ready(), settle_minutes=60, extract_limit=100,
-        map_max_usd=1.0, now=NOW, fallback_client=fallback)
+        map_max_usd=1.0, now=NOW, fallback_client=fallback, release=release)
 
 
 async def test_a_looping_chunk_goes_to_the_fallback_model(vkb_dsn, monkeypatch):
@@ -299,10 +372,11 @@ async def test_a_looping_backlog_alone_runs_the_fallback_without_waking_the_extr
             "INSERT INTO extractions (extraction_id, chunk_id, extractor_model, prompt_version,"
             " status, error, attempts) VALUES (%s,%s,'vendorkb-test',%s,'failed','length',3)",
             (str(uuid.uuid4()), cid, extract.PROMPT_VERSION))
-        client, ready = FakeExtract(), Ready()
-        report = await _run_with_fallback(conn, client, _fallback_client(cid), ready)
+        client, ready, release = FakeExtract(), Ready(), Release()
+        report = await _run_with_fallback(conn, client, _fallback_client(cid), ready, release)
         assert (report.new_chunks, report.fallback_due, report.due) == (0, 1, True)
         assert client.calls == [] and ready.calls == 0 and report.extract is None
+        assert release.calls == 0  # the extractor was never woken
         assert report.fallback["done"] == 1 and report.unresolved == 0
 
         again = await _run_with_fallback(conn, client, _fallback_client(), ready)
