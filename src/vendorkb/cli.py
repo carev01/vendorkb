@@ -286,6 +286,12 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
             await refresh.wait_until_ready(settings.extract_base_url, settings.extract_api_key,
                                            timeout_s=args.warmup_seconds)
 
+    async def release() -> list[int]:
+        # Vast only stops an idle worker, which keeps billing for its disk: destroy it
+        from vendorkb.claims import vast
+
+        return await vast.release(settings.vast_endpoint, settings.vast_api_key)
+
     conn = await connect(settings.vendorkb_dsn)
     extract_client, map_client = _extract_client(settings), _map_client(settings)
     support_client = _support_client(settings)
@@ -302,7 +308,8 @@ async def _refresh(settings: VendorkbSettings, args: argparse.Namespace) -> int:
                 extract_limit=args.extract_limit, map_max_usd=args.map_max_usd,
                 support_max_usd=args.support_max_usd,
                 support_review_max_usd=args.support_review_max_usd, batch=args.batch,
-                extract_new=args.extract_new, fallback_client=fallback_client)
+                extract_new=args.extract_new, fallback_client=fallback_client,
+                release=release if settings.vast_endpoint else None)
     finally:
         for client in (extract_client, map_client, support_client, fallback_client):
             close = getattr(client, "close", None)

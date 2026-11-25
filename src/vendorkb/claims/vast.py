@@ -16,6 +16,11 @@ checks the endpoint's workers between requests:
   excluded (a stopped worker whose GPU another renter took looks the same).
 
 Destroying a worker makes the endpoint recruit another for the requests still waiting.
+
+Scaled to zero, Vast only stops a worker (``cold_workers`` 0 notwithstanding): a stopped worker
+keeps billing for its disk (about $0.03 an hour at 60 GB) and its GPU may be rented by someone
+else before the next wake. ``release`` destroys the endpoint's workers once a refresh is done
+with them; the next wake recruits a fresh one (a cold start of a few minutes).
 """
 from __future__ import annotations
 
@@ -149,6 +154,19 @@ async def _supervise(vast: Vast, group: dict[str, Any], search_params: str,
     if bad:
         await vast.exclude(group, search_params, bad)
         report.excluded.extend(sorted(bad))
+
+
+async def release(endpoint: str, api_key: str, *,
+                  transport: httpx.AsyncBaseTransport | None = None) -> list[int]:
+    """Destroy every worker of the endpoint (call it only once no request is in flight);
+    returns their ids."""
+    async with Vast(api_key, transport=transport) as vast:
+        group = await vast.workergroup(endpoint)
+        ids = [int(w["id"]) for w in await vast.workers(int(group["endpoint_id"]))]
+        for wid in ids:
+            await vast.destroy(wid)
+    log.info("vast: released endpoint %s (destroyed workers %s)", endpoint, ids)
+    return ids
 
 
 async def wake(endpoint: str, api_key: str, *, model: str, search_params: str,

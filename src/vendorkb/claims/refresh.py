@@ -9,7 +9,9 @@ start per sync), unless the backlog already fills a run (``extract_limit``). A d
 
 1. waits until the endpoint answers (``ready``; a cold start takes minutes);
 2. extracts every chunk with no finished extraction (``extract.unextracted_ids``: errored ones
-   ride along), at most ``extract_limit``;
+   ride along), at most ``extract_limit``, then lets the endpoint go (``release``: on Vast,
+   destroy its workers, whether the extraction succeeded or not; a failure to release is
+   logged, never fatal);
 3. maps the claims not yet mapped under the current taxonomy version (``map_max_usd``; claims
    left over wait for the next due run, so an idle refresh never spends);
 4. support-checks the claims of topic dimensions (``support.run`` with ``support_client``: the
@@ -71,6 +73,9 @@ class RefreshReport:
     mode: str = "sync"
     open_batches: int = 0  # batch mode: map and support batches open when the run started
     capabilities_deferred: bool = False  # batch mode: changed, but support work still waits
+    # what ``release`` returned after the extraction (on Vast: the destroyed worker ids);
+    # None when nothing was released or the release failed
+    released: Any = None
 
 
 async def new_chunks(conn: psycopg.AsyncConnection) -> tuple[int, datetime | None]:
@@ -122,6 +127,16 @@ def failed(report: RefreshReport) -> bool:
                 or support.get("review", {}).get("invalid", 0) or "error" in support)
 
 
+async def _release(release: Callable[[], Awaitable[Any]]) -> Any:
+    """Let the extraction endpoint go; best effort (a worker left behind stops on its own
+    after the endpoint's inactivity timeout, as before)."""
+    try:
+        return await release()
+    except Exception as e:  # never fail a refresh over its cleanup
+        log.warning("refresh: could not release the extraction endpoint: %s", e)
+        return None
+
+
 async def _fallback(conn: psycopg.AsyncConnection, ids: list[str], *,
                     settings: VendorkbSettings, client: Any) -> extract.ExtractReport:
     """Extract ``ids`` (chunks the extractor looped on) with the fallback model in one
@@ -150,7 +165,8 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
                   extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
                   support_review_max_usd: float = 0.0, batch: bool = False,
                   extract_new: bool = True, now: datetime | None = None,
-                  fallback_client: Any = None) -> RefreshReport:
+                  fallback_client: Any = None,
+                  release: Callable[[], Awaitable[Any]] | None = None) -> RefreshReport:
     """One refresh run, recorded as one ``refresh`` task run whose stages are its children.
     The collect run (``extract_new`` false) is recorded with stage ``collect``, so its hourly
     successes never stand for the extracting run's."""
@@ -162,7 +178,8 @@ async def refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
             settle_minutes=settle_minutes, extract_limit=extract_limit,
             map_max_usd=map_max_usd, support_max_usd=support_max_usd,
             support_review_max_usd=support_review_max_usd, batch=batch,
-            extract_new=extract_new, now=now, fallback_client=fallback_client)
+            extract_new=extract_new, now=now, fallback_client=fallback_client,
+            release=release)
         await run.finish("failed" if failed(report) else "succeeded", dataclasses.asdict(report))
         return report
 
@@ -173,7 +190,8 @@ async def _refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
                    extract_limit: int, map_max_usd: float, support_max_usd: float = 0.0,
                    support_review_max_usd: float = 0.0, batch: bool = False,
                    extract_new: bool = True, now: datetime | None = None,
-                   fallback_client: Any = None) -> RefreshReport:
+                   fallback_client: Any = None,
+                   release: Callable[[], Awaitable[Any]] | None = None) -> RefreshReport:
     dsn = settings.vendorkb_dsn
     report = RefreshReport(mode="batch" if batch else "sync")
     count, newest = await new_chunks(conn)
@@ -211,13 +229,17 @@ async def _refresh(conn: psycopg.AsyncConnection, *, settings: VendorkbSettings,
 
     changed = False
     if extract_due:
-        await ready()
-        ids = await extract.unextracted_ids(conn, limit=extract_limit)
-        async with track(dsn, "extract") as run:
-            ext = await extract.run(conn, ids, client=extract_client, settings=settings,
-                                    mode="sync")
-            # as `vendorkb extract` ends it: errored chunks make a failed run
-            await run.finish("failed" if ext.errored else "succeeded", _details(ext))
+        try:
+            await ready()
+            ids = await extract.unextracted_ids(conn, limit=extract_limit)
+            async with track(dsn, "extract") as run:
+                ext = await extract.run(conn, ids, client=extract_client, settings=settings,
+                                        mode="sync")
+                # as `vendorkb extract` ends it: errored chunks make a failed run
+                await run.finish("failed" if ext.errored else "succeeded", _details(ext))
+        finally:
+            if release is not None:
+                report.released = await _release(release)
         report.extract = dataclasses.asdict(ext)
         changed = ext.done > 0
     if use_fallback:
