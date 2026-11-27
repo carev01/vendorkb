@@ -56,7 +56,7 @@ agents, not the taxonomy:
 
 | Run | Change | Recall | Precision |
 |---|---|---|---|
-| 1 | standard key (Cohesity hidden since 2026-11-12) | 82% | 94% |
+| 1 | standard key (`MCP_HIDDEN_VENDORS` hidden since 2026-11-12) | 82% | 94% |
 | 2 | full-access key (now the eval's default) | 84% | 95% |
 | 3 | per-vendor counts in a cut `query_capabilities` result | 80% | 96% |
 | 4 | a citable example per vendor; brief: look for more facts | 86% | 94% |

@@ -1875,7 +1875,7 @@
           }
         ]
       },
-      "description": "Tool calls per MCP key (main: Cohesity hidden; full: every vendor), over the dashboard's range.",
+      "description": "Tool calls per MCP key (main: MCP_HIDDEN_VENDORS hidden; full: every vendor), over the dashboard's range.",
       "transformations": [
         {
           "id": "organize",

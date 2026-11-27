@@ -19,7 +19,7 @@ Pick one:
 ## The key
 
 Which key decides what you see: `MCP_FULL_ACCESS_TOKEN` sees every vendor, `MCP_BEARER_TOKEN`
-hides Cohesity (docs/deploy/k3s.md §7c). Put the key in a file that only you can read, so it
+hides the vendors of `MCP_HIDDEN_VENDORS` (docs/deploy/k3s.md §7c). Put the key in a file that only you can read, so it
 stays out of Claude Desktop's config:
 
 - macOS / Linux: `~/.config/vendorkb/mcp-key`, then `chmod 600 ~/.config/vendorkb/mcp-key`

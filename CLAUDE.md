@@ -80,8 +80,8 @@ stack.
     - Setup and the agent's instructions: docs/deploy/copilot-studio.md.
     - `clients/node/vendorkb-mcp.mjs`: a dependency-free stdio relay to `/mcp` for Claude
       Desktop where custom connectors are not allowed (README there; `npm test`).
-    - Keys (2026-11-12, `access.py`, k3s.md §7c): with `MCP_HIDDEN_VENDORS` set (production:
-      Cohesity), `MCP_BEARER_TOKEN`'s tools read as `MCP_RESTRICTED_DSN`'s role, which the
+    - Keys (2026-11-12, `access.py`, k3s.md §7c): with `MCP_HIDDEN_VENDORS` set (its value lives
+      only in the deployment), `MCP_BEARER_TOKEN`'s tools read as `MCP_RESTRICTED_DSN`'s role, which the
       row-level-security policies of `schema.sql` keep from those vendors' documents, chunks,
       claims, facts and offerings; the server refuses to start unless that role provably hides
       them. `MCP_FULL_ACCESS_TOKEN` is a second key that sees everything. Each key has its own
