@@ -74,10 +74,10 @@ kubectl -n vendorkb patch secret vendorkb-secret --type merge \
 kubectl -n vendorkb delete pod -l app.kubernetes.io/name=vendorkb-mcp
 ```
 
-**Two keys (2026-11-12).** `MCP_BEARER_TOKEN`, the key the Copilot agent has, hides Cohesity:
-its tools read the database through a role that row-level security keeps from every Cohesity
-document, chunk, claim, fact and offering, NetBackup included (`mcp.hiddenVendors`, k3s.md §7c).
-Another vendor's page that mentions Cohesity in passing is still shown. `MCP_FULL_ACCESS_TOKEN`
+**Two keys (2026-11-12).** `MCP_BEARER_TOKEN`, the key the Copilot agent has, hides the vendors
+of `mcp.hiddenVendors`: its tools read the database through a role that row-level security keeps
+from every document, chunk, claim, fact and offering of those vendors, all their products included
+(k3s.md §7c). Another vendor's page that mentions a hidden vendor in passing is still shown. `MCP_FULL_ACCESS_TOKEN`
 is a second key with nothing hidden; give it only to an agent that may see every vendor. Read
 or rotate it as above, with that key name.
 

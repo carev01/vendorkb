@@ -42,7 +42,7 @@ RETRY_PAUSES = (3.0, 10.0)  # seconds before the 2nd and 3rd attempt of a failed
 RETRY_STATUSES = {502, 503, 504}
 DEFAULT_URL = "http://vendorkb-mcp.k3s.home.lan/mcp"
 # The evals use the full-access key (MCP_FULL_ACCESS_TOKEN): the labels name every vendor, and
-# the standard key hides MCP_HIDDEN_VENDORS (Cohesity), which only some MCP clients need.
+# the standard key hides MCP_HIDDEN_VENDORS, which only some MCP clients need.
 FULL_ACCESS_TOKEN_FILE = "~/.config/vendorkb/mcp-full-access-token"
 REPO = Path(__file__).resolve().parent.parent
 

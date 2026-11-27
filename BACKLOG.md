@@ -727,10 +727,10 @@ Left open at merge. I1, I2, M1, M8, M10 and M11 were fixed.
 ## Access and clients (2026-11-12)
 
 44. **Done 2026-11-12 (PR #54): vendors hidden per key** (user: the existing key must never
-    return anything about Cohesity; a second key sees everything). `MCP_BEARER_TOKEN`'s tools
+    return anything about the hidden vendors; a second key sees everything). `MCP_BEARER_TOKEN`'s tools
     read as the role `vendorkb_mcp`, which row-level-security policies (`schema.sql`) keep from
-    every Cohesity document, chunk, claim, fact and offering, NetBackup included; other vendors'
-    passages that mention Cohesity stay visible (user decision). `GuardedBackend` filters again
+    every document, chunk, claim, fact and offering of the hidden vendors, all their products
+    included; other vendors' passages that mention them stay visible (user decision). `GuardedBackend` filters again
     in the app, and the server refuses to start unless the role provably hides the vendors
     (`access.check_restricted`). `MCP_FULL_ACCESS_TOKEN` sees everything. Setup: k3s.md §7c.
     Verified live on both keys.

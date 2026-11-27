@@ -24,24 +24,24 @@ async def kb(vkb_dsn):
     conn = await connect(vkb_dsn)
     try:
         version = await _fresh(conn)
-        for vendor in ("Cohesity", "Examplevendor"):
+        for vendor in ("Hiddenvendor", "Examplevendor"):
             await _claim(conn, "retention.maximum_period", "okta", vendor=vendor, mapped_version=version,
                          quote="synthetic quote")
         await conn.execute("UPDATE chunks SET text = 'immutable backup copies synthetic'")
         await capabilities.build(conn)
         await conn.execute("INSERT INTO offerings (offering_id, vendor, name) VALUES"
-                           " ('hid.box', 'Cohesity', 'Hidden Box'), ('ex.box', 'Examplevendor',"
+                           " ('hid.box', 'Hiddenvendor', 'Hidden Box'), ('ex.box', 'Examplevendor',"
                            " 'Example Box') ON CONFLICT DO NOTHING")
         await conn.execute("INSERT INTO editions (offering_id, edition_id, name) VALUES"
                            " ('hid.box', 'pro', 'Pro'), ('ex.box', 'pro', 'Pro')"
                            " ON CONFLICT DO NOTHING")
         await conn.execute(
             "INSERT INTO aliases (alias, entity_type, scope, entity_id) VALUES"
-            " ('hidden box', 'offering', 'Cohesity', 'hid.box'),"
+            " ('hidden box', 'offering', 'Hiddenvendor', 'hid.box'),"
             " ('example box', 'offering', 'Examplevendor', 'ex.box'),"
             " ('hidden pro', 'edition', 'hid.box', 'pro'),"
             " ('example pro', 'edition', 'ex.box', 'pro') ON CONFLICT DO NOTHING")
-        await restrict(conn, ROLE, ["cohesity"], "pw-test")
+        await restrict(conn, ROLE, ["hiddenvendor"], "pw-test")
         yield conn, make_conninfo(vkb_dsn, user=ROLE, password="pw-test")
     finally:
         await conn.close()
@@ -54,7 +54,7 @@ async def _rows(conn, sql):
 
 async def test_the_role_sees_no_row_of_the_hidden_vendor(kb):
     owner, dsn = kb
-    assert set(await _rows(owner, "SELECT vendor FROM documents")) == {"Cohesity",
+    assert set(await _rows(owner, "SELECT vendor FROM documents")) == {"Hiddenvendor",
                                                                      "Examplevendor"}
     conn = await connect(dsn)
     try:
@@ -87,7 +87,7 @@ async def test_the_mcp_read_paths_work_through_the_role(kb):
                                 reranker=None, use_rerank=False)
         assert [h.vendor for h in res.hits] == ["Examplevendor"]
         res = await search_docs(conn, "immutable backup", embedder=FakeEmbedder(),
-                                reranker=None, use_rerank=False, vendor=["Cohesity"])
+                                reranker=None, use_rerank=False, vendor=["Hiddenvendor"])
         assert res.hits == []
         caps = await capabilities.query(conn, capabilities.CapFilter(
             dimension="retention.maximum_period"), limit=10)
@@ -98,12 +98,12 @@ async def test_the_mcp_read_paths_work_through_the_role(kb):
 
 async def test_the_start_up_check(kb):
     owner, dsn = kb
-    assert await check_restricted(dsn, ["Cohesity"]) == ROLE
+    assert await check_restricted(dsn, ["Hiddenvendor"]) == ROLE
     with pytest.raises(RuntimeError, match="does not hide"):
-        await check_restricted(dsn, ["Cohesity", "Examplevendor"])
+        await check_restricted(dsn, ["Hiddenvendor", "Examplevendor"])
     owner_dsn = owner.info.dsn + " password=" + owner.info.password
     with pytest.raises(RuntimeError, match="bypasses row-level security"):
-        await check_restricted(owner_dsn, ["Cohesity"])
+        await check_restricted(owner_dsn, ["Hiddenvendor"])
 
 
 async def test_restrict_replaces_the_list_and_keeps_the_password(kb):
@@ -111,15 +111,15 @@ async def test_restrict_replaces_the_list_and_keeps_the_password(kb):
     await restrict(owner, ROLE, ["Examplevendor"], None)
     conn = await connect(dsn)
     try:
-        assert set(await _rows(conn, "SELECT vendor FROM documents")) == {"Cohesity"}
+        assert set(await _rows(conn, "SELECT vendor FROM documents")) == {"Hiddenvendor"}
     finally:
         await conn.close()
     with pytest.raises(ValueError, match="at least one vendor"):
         await restrict(owner, ROLE, [" "], None)
     with pytest.raises(ValueError, match="give it a password"):
-        await restrict(owner, "kb_never_made", ["Cohesity"], None)
+        await restrict(owner, "kb_never_made", ["Hiddenvendor"], None)
     with pytest.raises(ValueError, match="plain lowercase identifier"):
-        await restrict(owner, "Bad; DROP", ["Cohesity"], None)
+        await restrict(owner, "Bad; DROP", ["Hiddenvendor"], None)
 
 
 async def test_a_which_vendors_question_through_the_role(kb):
@@ -133,12 +133,12 @@ async def test_a_which_vendors_question_through_the_role(kb):
     conn = await connect(dsn)
     try:
         index = await scope_index_from_db(conn)
-        assert "Cohesity" not in index.vendors and "Examplevendor" in index.vendors
+        assert "Hiddenvendor" not in index.vendors and "Examplevendor" in index.vendors
         res = await enumerate_vendors(conn, "Which vendors keep backups longest?",
                                       embedder=FakeEmbedder(),
                                       reranker=FakeReranker(lambda q, t: 0.9),
-                                      vendors=["Cohesity", "Examplevendor"], min_score=0.5)
-        assert res.kept == ["Examplevendor"] and res.empty == ["Cohesity"]
+                                      vendors=["Hiddenvendor", "Examplevendor"], min_score=0.5)
+        assert res.kept == ["Examplevendor"] and res.empty == ["Hiddenvendor"]
         assert {h.vendor for h in res.hits} == {"Examplevendor"}
     finally:
         await conn.close()

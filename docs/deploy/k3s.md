@@ -332,8 +332,10 @@ cannot bypass row-level security, hides each listed vendor and sees none of its 
 it does not start. `MCP_FULL_ACCESS_TOKEN`, if set, is a second key that reads everything as
 `VENDORKB_DSN`. Each key has its own MCP server and caches, and the question log names the key.
 
-Set up (Cohesity hidden from the existing key; the new image must be deployed first, without
-`mcp.hiddenVendors`):
+Set up (`<VENDOR>` hidden from the existing key; several are `--hide A --hide B` and
+`mcp.hiddenVendors=A\,B`; the new image must be deployed first, without `mcp.hiddenVendors`).
+Which vendors are hidden is not recorded in the repository: it lives only in the deployment
+(`helm get values`, table `access_hidden_vendors`).
 
 ```
 P=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
@@ -343,9 +345,9 @@ kubectl -n vendorkb patch secret vendorkb-secret --type merge -p "{\"stringData\
   \"MCP_RESTRICTED_DSN\":\"postgresql://vendorkb_mcp:$P@vendorkb-postgres:5432/vendorkb\"}}"
 unset P F
 kubectl -n vendorkb rollout restart deploy/vendorkb-mcp   # the pod reads the new keys
-kubectl -n vendorkb exec deploy/vendorkb-mcp -- vendorkb access restrict vendorkb_mcp --hide Cohesity
+kubectl -n vendorkb exec deploy/vendorkb-mcp -- vendorkb access restrict vendorkb_mcp --hide <VENDOR>
 helm upgrade vendorkb deploy/helm/vendorkb -n vendorkb --reset-then-reuse-values \
-  --set mcp.hiddenVendors=Cohesity
+  --set-string mcp.hiddenVendors=<VENDOR>
 ```
 
 `access restrict` creates the role with `VENDORKB_RESTRICTED_PASSWORD` (an existing role keeps

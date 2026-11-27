@@ -93,10 +93,10 @@ LIST = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
 def _two_keys(**over):
     s = VendorkbSettings(_env_file=None, **{
         "mcp_bearer_token": "old", "mcp_full_access_token": "new",
-        "mcp_hidden_vendors": "Cohesity", "mcp_restricted_dsn": "postgresql://r@x/db", **over})
+        "mcp_hidden_vendors": "Hiddenvendor", "mcp_restricted_dsn": "postgresql://r@x/db", **over})
     # the same rows behind both keys: the restricted one is guarded on top
-    return build_app(s, {"restricted": Vendors(["Cohesity", "Veeam"]),
-                         "full": Vendors(["Cohesity", "Veeam"])})
+    return build_app(s, {"restricted": Vendors(["Hiddenvendor", "Veeam"]),
+                         "full": Vendors(["Hiddenvendor", "Veeam"])})
 
 
 async def _list(app, token):
@@ -109,8 +109,8 @@ async def _list(app, token):
 async def test_each_key_reaches_its_own_backend():
     old, new = await _list(_two_keys(), "old"), await _list(_two_keys(), "new")
     assert old.status_code == new.status_code == 200
-    assert "Veeam" in old.text and "Cohesity" not in old.text  # hidden from the old key
-    assert "Veeam" in new.text and "Cohesity" in new.text
+    assert "Veeam" in old.text and "Hiddenvendor" not in old.text  # hidden from the old key
+    assert "Veeam" in new.text and "Hiddenvendor" in new.text
     assert (await _list(_two_keys(), "other")).status_code == 401
 
 
